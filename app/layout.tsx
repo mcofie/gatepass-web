@@ -4,27 +4,27 @@ import './globals.css'
 import { NavBar } from '@/components/common/NavBar'
 import { Footer } from '@/components/common/Footer'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Gatepass',
-  description: 'Top tier ticketing platform.',
+    title: 'Gatepass',
+    description: 'Top tier ticketing platform.',
 }
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode
+    children: React.ReactNode
 }>) {
-  return (
-    <html lang="en">
-      <body className={inter.className}>
-        <NavBar />
-        <main className="min-h-screen">
-          {children}
-        </main>
-        <Footer />
-      </body>
-    </html>
-  )
+    return (
+        <html lang="en">
+            <body className={`${inter.variable} font-sans antialiased`}>
+                <NavBar />
+                <main className="min-h-screen">
+                    {children}
+                </main>
+                <Footer />
+            </body>
+        </html>
+    )
 }

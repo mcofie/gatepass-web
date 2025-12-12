@@ -36,6 +36,8 @@ const useTimer = (expiresAt: string | undefined) => {
 }
 
 import { Reservation, Event, TicketTier } from '@/types/gatepass'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 
 interface CheckoutClientProps {
     reservation: Reservation
@@ -176,90 +178,117 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
         <>
             <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
 
-            <div className="w-full max-w-lg bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-                <div className="bg-black text-white p-4 text-center font-bold">
-                    Time remaining: {timeLeft || '...'}
-                </div>
+            <div className="w-full max-w-lg mx-auto animate-slide-up">
+                {/* Premium Dark Card */}
+                <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 md:p-10 shadow-2xl backdrop-blur-xl relative overflow-hidden">
 
-                <div className="p-8">
+                    {/* Background Decoration */}
+                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                    {/* Header */}
+                    <div className="text-center space-y-4 mb-10 relative z-10">
+                        <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-inner mb-2">
+                            <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight text-white">Checkout</h1>
+                            <p className="text-gray-400 text-sm mt-1">Complete your secure payment</p>
+                        </div>
+                    </div>
+
+                    {/* Timer - Integrated Pill */}
+                    <div className="flex justify-center mb-8">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-950/30 border border-amber-500/20 rounded-full text-xs font-semibold text-amber-500 tracking-wide">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span>RESERVATION EXPIRES IN {timeLeft || '...'}</span>
+                        </div>
+                    </div>
+
                     {/* Guest Form Section */}
                     {isGuest && (
-                        <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                            <h3 className="font-bold text-gray-900 mb-4">Guest Details</h3>
+                        <div className="space-y-6 mb-8 pt-6 border-t border-white/5">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
+                                <h3 className="font-bold text-sm uppercase tracking-wider text-gray-500">Guest Details</h3>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <input
+                                <Input
                                     placeholder="First Name"
                                     value={guestForm.firstName}
                                     onChange={e => setGuestForm({ ...guestForm, firstName: e.target.value })}
-                                    className="px-3 py-2 border rounded focus:ring-black focus:outline-none"
+                                    className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
                                 />
-                                <input
+                                <Input
                                     placeholder="Last Name"
                                     value={guestForm.lastName}
                                     onChange={e => setGuestForm({ ...guestForm, lastName: e.target.value })}
-                                    className="px-3 py-2 border rounded focus:ring-black focus:outline-none"
+                                    className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
                                 />
-                                <input
+                                <Input
                                     placeholder="Email"
                                     type="email"
                                     value={guestForm.email}
                                     onChange={e => setGuestForm({ ...guestForm, email: e.target.value })}
-                                    className="col-span-2 px-3 py-2 border rounded focus:ring-black focus:outline-none"
+                                    className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
                                 />
-                                <input
+                                <Input
                                     placeholder="Phone Number"
                                     type="tel"
                                     value={guestForm.phone}
                                     onChange={e => setGuestForm({ ...guestForm, phone: e.target.value })}
-                                    className="col-span-2 px-3 py-2 border rounded focus:ring-black focus:outline-none"
+                                    className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
                                 />
                             </div>
                         </div>
                     )}
 
-                    <h1 className="text-2xl font-bold mb-6">Complete Payment</h1>
+                    {/* Ticket Summary */}
+                    <div className="space-y-6 pt-6 border-t border-dashed border-white/10 relative">
+                        {/* Cutout circles for 'ticket' effect */}
+                        <div className="absolute -left-12 top-[-1px] w-6 h-6 bg-black rounded-full"></div>
+                        <div className="absolute -right-12 top-[-1px] w-6 h-6 bg-black rounded-full"></div>
 
-                    <div className="space-y-4 mb-8">
-                        <div className="flex justify-between">
-                            <span className="text-gray-500">Event</span>
-                            <span className="font-medium text-right">{reservation.events?.title}</span>
+                        <div className="flex justify-between items-start">
+                            <span className="text-gray-400 text-sm">Event</span>
+                            <span className="font-bold text-right max-w-[200px] text-white">{reservation.events?.title}</span>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-500">Ticket Type</span>
-                            <span className="font-medium">{reservation.ticket_tiers?.name} x {reservation.quantity}</span>
-                        </div>
-
-                        <div className="border-t border-dashed my-2"></div>
-
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Subtotal</span>
-                            <span className="font-medium">{currency} {subtotal.toFixed(2)}</span>
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-400">Details</span>
+                            <span className="font-medium text-white">{reservation.ticket_tiers?.name} <span className="text-gray-500">x {reservation.quantity}</span></span>
                         </div>
 
-                        {feeBearer === 'customer' && calculatedFee > 0 && (
+                        <div className="space-y-3 pt-6 border-t border-white/5">
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Fees</span>
-                                <span className="font-medium">{currency} {calculatedFee.toFixed(2)}</span>
+                                <span className="text-gray-400">Subtotal</span>
+                                <span className="font-medium tabular-nums text-gray-200">{currency} {subtotal.toFixed(2)}</span>
                             </div>
-                        )}
-
-                        <div className="flex justify-between text-lg font-bold border-t pt-4">
-                            <span>Total</span>
-                            <span>{currency} {paymentTotal.toFixed(2)}</span>
+                            {feeBearer === 'customer' && calculatedFee > 0 && (
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-400">Platform Fees</span>
+                                    <span className="font-medium tabular-nums text-gray-200">{currency} {calculatedFee.toFixed(2)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-end pt-4">
+                                <span className="text-sm font-medium text-gray-400">Total Due</span>
+                                <span className="text-3xl font-bold tracking-tight text-white tabular-nums">{currency} <span className="text-amber-500">{paymentTotal.toFixed(2)}</span></span>
+                            </div>
                         </div>
                     </div>
 
-                    <button
-                        onClick={handlePaystack}
-                        disabled={paying}
-                        className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition disabled:opacity-50"
-                    >
-                        {paying ? 'Processing...' : `Pay ${currency} ${paymentTotal.toFixed(2)}`}
-                    </button>
+                    <div className="mt-8">
+                        <Button
+                            onClick={handlePaystack}
+                            disabled={paying}
+                            className="w-full h-14 text-lg bg-white text-black hover:bg-gray-200 font-bold shadow-xl shadow-white/10 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                            {paying ? 'Processing Securely...' : 'Pay Now'}
+                        </Button>
+                    </div>
 
-                    <p className="text-xs text-center text-gray-400 mt-4">
+                    <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest font-medium mt-6">
+                        <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
                         Secured by Paystack
-                    </p>
+                    </div>
                 </div>
             </div>
         </>

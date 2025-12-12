@@ -25,7 +25,7 @@ export default async function CheckoutPage({ params }: PageProps) {
     }
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-black text-white selection:bg-amber-500/30 selection:text-amber-200">
             <CheckoutClient reservation={reservation} />
         </div>
     )

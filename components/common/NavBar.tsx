@@ -36,121 +36,125 @@ export function NavBar() {
         setIsMobileMenuOpen(false)
     }
 
-    return (
-        <nav className="border-b border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-50 transition-colors duration-300">
-            <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                <Link href="/" className="font-bold text-xl tracking-tight text-gray-900 dark:text-white">
-                    Gatepass.
-                </Link>
+    if (pathname.startsWith('/dashboard')) return null
 
-                {/* Desktop Menu */}
-                <div className="hidden md:flex items-center gap-6">
-                    <Link href="/" className="text-sm font-medium hover:text-black dark:hover:text-white text-gray-600 dark:text-gray-400 transition">
-                        Events
+    return (
+        <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center py-4 px-4 pointer-events-none">
+            <div className="w-full max-w-5xl pointer-events-auto">
+                <div className="glass rounded-2xl flex items-center justify-between px-6 py-4 shadow-sm transition-all duration-300">
+                    <Link href="/" className="font-bold text-xl tracking-tight text-white mix-blend-difference">
+                        Gatepass.
                     </Link>
 
-                    {user && (
-                        <Link href="/my-tickets" className="text-sm font-medium hover:text-black dark:hover:text-white text-gray-600 dark:text-gray-400 transition">
-                            My Tickets
-                        </Link>
-                    )}
-
-                    {user && user.email?.toLowerCase() === 'maxcofie@gmail.com' && (
-                        <Link href="/dashboard" className="text-sm font-medium hover:text-black dark:hover:text-white text-gray-600 dark:text-gray-400 transition">
-                            Dashboard
-                        </Link>
-                    )}
-
-                    {user ? (
-                        <div className="flex items-center gap-4 pl-4 border-l border-gray-200 dark:border-gray-700">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">{user.email}</span>
-                            <button
-                                onClick={handleLogout}
-                                className="text-sm font-medium text-red-600 hover:text-red-700 transition"
-                            >
-                                Logout
-                            </button>
-                        </div>
-                    ) : (
-                        !pathname.startsWith('/checkout') && !pathname.includes('/events/') && (
-                            <Link href="/login">
-                                <button className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition">
-                                    Sign In
-                                </button>
-                            </Link>
-                        )
-                    )}
-                </div>
-
-                {/* Mobile Menu Button */}
-                <button
-                    className="md:hidden p-2 text-gray-600 dark:text-gray-300"
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        {isMobileMenuOpen ? (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        ) : (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                        )}
-                    </svg>
-                </button>
-            </div>
-
-            {/* Mobile Dropdown */}
-            {isMobileMenuOpen && (
-                <div className="md:hidden absolute top-16 left-0 right-0 bg-white dark:bg-black border-b border-gray-100 dark:border-gray-800 shadow-xl animate-in slide-in-from-top-2 duration-200">
-                    <div className="flex flex-col p-4 space-y-4">
-                        <Link
-                            href="/"
-                            className="text-base font-medium text-gray-900 dark:text-white py-2"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                        >
+                    {/* Desktop Menu */}
+                    <div className="hidden md:flex items-center gap-8">
+                        <Link href="/" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
                             Events
                         </Link>
 
                         {user && (
-                            <Link
-                                href="/my-tickets"
-                                className="text-base font-medium text-gray-900 dark:text-white py-2"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                            >
+                            <Link href="/my-tickets" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
                                 My Tickets
                             </Link>
                         )}
 
                         {user && user.email?.toLowerCase() === 'maxcofie@gmail.com' && (
-                            <Link
-                                href="/dashboard"
-                                className="text-base font-medium text-gray-900 dark:text-white py-2"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                            >
+                            <Link href="/dashboard" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
                                 Dashboard
                             </Link>
                         )}
 
-                        <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                        {user ? (
+                            <div className="flex items-center gap-4 pl-6 border-l border-gray-200 dark:border-white/10">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono tracking-wide hidden lg:block">{user.email}</span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors"
+                                >
+                                    Log out
+                                </button>
+                            </div>
+                        ) : (
+                            !pathname.startsWith('/checkout') && !pathname.includes('/events/') && (
+                                <Link href="/login">
+                                    <button className="bg-white text-black px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-gray-100 transition-transform active:scale-95 shadow-lg shadow-white/10 border border-white/20">
+                                        Sign In
+                                    </button>
+                                </Link>
+                            )
+                        )}
+                    </div>
+
+                    {/* Mobile Menu Button */}
+                    <button
+                        className="md:hidden p-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors"
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {isMobileMenuOpen ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                            )}
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Mobile Dropdown */}
+                {isMobileMenuOpen && (
+                    <div className="mt-2 glass rounded-2xl p-2 animate-scale-in origin-top">
+                        <div className="flex flex-col space-y-1">
+                            <Link
+                                href="/"
+                                className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                Events
+                            </Link>
+
+                            {user && (
+                                <Link
+                                    href="/my-tickets"
+                                    className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    My Tickets
+                                </Link>
+                            )}
+
+                            {user && user.email?.toLowerCase() === 'maxcofie@gmail.com' && (
+                                <Link
+                                    href="/dashboard"
+                                    className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    Dashboard
+                                </Link>
+                            )}
+
+                            <div className="h-px bg-gray-200 dark:bg-white/10 my-2 mx-2"></div>
+
                             {user ? (
-                                <div className="space-y-4">
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
+                                <>
+                                    <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 font-mono">{user.email}</div>
                                     <button
                                         onClick={handleLogout}
-                                        className="w-full text-left text-base font-medium text-red-600"
+                                        className="w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
                                     >
-                                        Logout
+                                        Log out
                                     </button>
-                                </div>
+                                </>
                             ) : (
                                 <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                                    <button className="w-full bg-black dark:bg-white text-white dark:text-black px-4 py-3 rounded-xl text-base font-medium">
+                                    <button className="w-full bg-white text-black px-4 py-3 rounded-xl text-sm font-bold shadow-sm">
                                         Sign In
                                     </button>
                                 </Link>
                             )}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </nav>
     )
 }

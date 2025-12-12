@@ -7,13 +7,17 @@ export async function POST(request: Request) {
         const { reference, reservationId } = await request.json()
 
         console.log('Verify Payload:', { reference, reservationId })
-        const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-        console.log('Has Service Key:', hasServiceKey)
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+        if (!serviceRoleKey) {
+            console.error('CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing from environment variables.')
+            return NextResponse.json({ error: 'Server Configuration Error: Missing Service Role Key' }, { status: 500 })
+        }
 
         // Use Admin Client to bypass RLS for Ticket Generation
         const supabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            serviceRoleKey
         )
 
         // 1. Verify Request Data
@@ -37,7 +41,10 @@ export async function POST(request: Request) {
             .single()
 
         if (resError || !reservation) {
-            return NextResponse.json({ error: 'Reservation not found' }, { status: 404 })
+            console.error('Reservation Fetch Error:', resError)
+            return NextResponse.json({
+                error: `Reservation not found. ID: ${reservationId}. DB Error: ${resError?.message || 'None'}`
+            }, { status: 404 })
         }
 
         // 4. Idempotency Check: Check if ticket already exists for this reference

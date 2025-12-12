@@ -74,126 +74,112 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     const hasSelection = calculatedTotal > 0
 
     return (
-        <div className="pt-2">
-            <h2 className="text-xl font-bold mb-6 md:mb-8 flex items-center gap-2 text-gray-900 dark:text-white">
-                Tickets
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-xl">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+                Select Tickets
             </h2>
 
+            <div className="space-y-4 mb-8">
+                {tiers.map(tier => {
+                    const isSoldOut = tier.quantity_sold >= tier.total_quantity
+                    const isSelected = (selectedTickets[tier.id] || 0) > 0
 
-
-            <div className="grid lg:grid-cols-12 gap-8 md:gap-16 pb-24 lg:pb-0">
-                {/* Ticket List */}
-                <div className="lg:col-span-7 space-y-2">
-                    {tiers.map(tier => (
-                        <div key={tier.id} className="py-6 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors md:-mx-4 md:px-4 rounded-xl">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="pr-4">
-                                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{tier.name}</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-light leading-relaxed max-w-sm">
-                                        Access to regular festival entry points and amenities.
-                                    </p>
-                                </div>
-                                <div className="text-right whitespace-nowrap">
-                                    <p className="font-semibold text-lg text-gray-900 dark:text-white">
+                    return (
+                        <div
+                            key={tier.id}
+                            className={`group relative p-4 rounded-2xl border transition-all duration-300 ${isSelected
+                                ? 'bg-white/10 border-amber-500/50'
+                                : 'bg-black/40 border-white/5 hover:border-white/10'
+                                }`}
+                        >
+                            <div className="flex justify-between items-start gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="font-bold text-base text-white truncate">{tier.name}</h3>
+                                        {isSoldOut && (
+                                            <span className="px-1.5 py-0.5 bg-white/10 text-gray-400 text-[10px] font-bold rounded uppercase tracking-wide">Sold Out</span>
+                                        )}
+                                    </div>
+                                    <div className="text-lg font-bold text-amber-500 tabular-nums">
                                         {tier.currency} {tier.price.toFixed(2)}
-                                    </p>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
-                                        + fees
-                                    </p>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="flex justify-between items-center mt-6">
-                                <div>
-                                    {tier.quantity_sold >= tier.total_quantity && (
-                                        <span className="inline-block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-semibold rounded">SOLD OUT</span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 rounded-full p-1 border border-gray-200/50 dark:border-gray-700/50">
+                                <div className="flex items-center gap-3 bg-black/50 rounded-full p-1 border border-white/10">
                                     <button
                                         onClick={() => handleQuantityChange(tier.id, -1)}
-                                        disabled={!selectedTickets[tier.id]}
-                                        className="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 rounded-full transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                                        disabled={!selectedTickets[tier.id] || isSoldOut}
+                                        className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-30 transition-all"
                                     >
                                         -
                                     </button>
-                                    <span className="w-4 text-center font-medium text-sm text-gray-900 dark:text-white tabular-nums">{selectedTickets[tier.id] || 0}</span>
+                                    <span className="w-4 text-center font-bold text-sm text-white tabular-nums">{selectedTickets[tier.id] || 0}</span>
                                     <button
                                         onClick={() => handleQuantityChange(tier.id, 1)}
-                                        className="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 rounded-full transition-all"
+                                        disabled={isSoldOut}
+                                        className="w-7 h-7 flex items-center justify-center rounded-full bg-white text-black hover:bg-gray-200 disabled:opacity-30 transition-all"
                                     >
                                         +
                                     </button>
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )
+                })}
 
-                    {tiers.length === 0 && (
-                        <div className="text-center py-12 text-gray-400 dark:text-gray-600 font-light">
-                            No tickets available.
-                        </div>
-                    )}
-                </div>
-
-                {/* Desktop Summary Panel (Hidden on Mobile) */}
-                <div className="hidden lg:block lg:col-span-5">
-                    <div className="sticky top-8 bg-gray-50 dark:bg-gray-900 border border-transparent dark:border-gray-800 rounded-2xl p-8">
-                        <h3 className="font-semibold text-lg mb-6 text-gray-900 dark:text-white">Summary</h3>
-
-                        <div className="space-y-3 mb-8 min-h-[100px]">
-                            {Object.entries(selectedTickets).map(([id, qty]) => {
-                                if (qty === 0) return null
-                                const t = tiers.find(x => x.id === id)
-                                if (!t) return null
-                                return (
-                                    <div key={id} className="flex justify-between text-sm py-1">
-                                        <span className="text-gray-600 dark:text-gray-400">{qty} x {t.name}</span>
-                                        <span className="font-medium text-gray-900 dark:text-white">{t.currency} {(t.price * qty).toFixed(2)}</span>
-                                    </div>
-                                )
-                            })}
-
-                            {calculatedTotal === 0 && (
-                                <div className="h-full flex items-center text-gray-400 dark:text-gray-600 text-sm font-light">
-                                    Select tickets to proceed
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="border-t border-gray-200/50 dark:border-gray-700/50 pt-6 space-y-6">
-                            <div className="flex justify-between items-center text-xl font-bold text-gray-900 dark:text-white">
-                                <span>Total</span>
-                                <span>{tiers[0]?.currency || 'GHS'} {calculatedTotal.toFixed(2)}</span>
-                            </div>
-
-                            <button
-                                onClick={handleCheckout}
-                                disabled={!hasSelection || loading}
-                                className="w-full bg-[#FF5722] text-white py-4 rounded-xl font-semibold shadow-lg shadow-[#FF5722]/20 hover:shadow-[#FF5722]/30 hover:brightness-110 transition-all transform active:scale-95 disabled:opacity-50 disabled:transform-none disabled:shadow-none"
-                            >
-                                {loading ? 'Processing...' : 'Continue'}
-                            </button>
-                        </div>
+                {tiers.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl text-sm">
+                        No tickets available.
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Mobile Bottom Fixed Bar (Visible only on Mobile) */}
-            <div className={`fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 lg:hidden transition-transform duration-300 z-50 ${hasSelection ? 'translate-y-0 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]' : 'translate-y-full'}`}>
-                <div className="flex items-center gap-4 max-w-lg mx-auto">
+            {/* Summary Section */}
+            <div className="pt-6 border-t border-white/10 space-y-4">
+                {hasSelection ? (
+                    <div className="space-y-2 mb-4">
+                        <div className="flex justify-between text-sm text-gray-400">
+                            <span>Subtotal</span>
+                            <span>{tiers[0]?.currency} {calculatedTotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-end text-white">
+                            <span className="font-bold">Total</span>
+                            <span className="text-2xl font-bold text-amber-500 tabular-nums">{tiers[0]?.currency} {calculatedTotal.toFixed(2)}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center text-sm text-gray-600 italic py-2">
+                        Select tickets to proceed
+                    </div>
+                )}
+
+                <button
+                    onClick={handleCheckout}
+                    disabled={!hasSelection || loading}
+                    className="w-full bg-amber-500 text-black py-4 rounded-xl font-bold text-lg shadow-lg shadow-amber-900/20 hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:transform-none disabled:shadow-none"
+                >
+                    {loading ? 'Processing...' : 'Get Tickets'}
+                </button>
+
+                <p className="text-center text-[10px] text-gray-600 uppercase tracking-widest pt-2">
+                    Powered by Gatepass
+                </p>
+            </div>
+
+            {/* Mobile Buttom Sheet (Only visible on small screens when sticky sidebar is hidden/stacked) */}
+            <div className={`fixed bottom-0 left-0 right-0 p-4 border-t border-white/10 bg-zinc-900/90 backdrop-blur-xl lg:hidden transition-transform duration-300 z-50 ${hasSelection ? 'translate-y-0' : 'translate-y-full'}`}>
+                <div className="flex items-center gap-4">
                     <div className="flex-1">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white leading-none">
-                            {tiers[0]?.currency || 'GHS'} {calculatedTotal.toFixed(2)}
+                        <p className="text-xs text-gray-400 uppercase font-bold">Total</p>
+                        <p className="text-xl font-bold text-white tabular-nums">
+                            {tiers[0]?.currency} {calculatedTotal.toFixed(2)}
                         </p>
                     </div>
                     <button
                         onClick={handleCheckout}
-                        disabled={!hasSelection || loading}
-                        className="bg-[#FF5722] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-[#FF5722]/20 active:scale-95 transition-all disabled:opacity-50"
+                        className="bg-amber-500 text-black px-8 py-3 rounded-full font-bold hover:bg-amber-400 transition-colors"
                     >
-                        {loading ? '...' : 'Continue'}
+                        Checkout
                     </button>
                 </div>
             </div>
