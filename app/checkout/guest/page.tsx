@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
+import { Event, TicketTier } from '@/types/gatepass'
 
 function GuestCheckoutContent() {
     const router = useRouter()
@@ -12,8 +13,8 @@ function GuestCheckoutContent() {
 
     const [loading, setLoading] = useState(false)
     const [guestDetails, setGuestDetails] = useState({ firstName: '', lastName: '', email: '', phone: '' })
-    const [event, setEvent] = useState<any>(null)
-    const [tier, setTier] = useState<any>(null)
+    const [event, setEvent] = useState<Event | null>(null)
+    const [tier, setTier] = useState<TicketTier | null>(null)
 
     const eventId = searchParams.get('eventId')
     const tierId = searchParams.get('tierId')
@@ -74,10 +75,11 @@ function GuestCheckoutContent() {
                     }
                 }
             }
-        } catch (e: any) {
+        } catch (error: unknown) {
+            const e = error as Error
             if (e.message?.includes('already registered')) {
                 alert('An account with this email already exists. Please log in first.')
-                router.push(`/login?redirect=/events/${eventId}`) // Redirect back to event? Or Login?
+                router.push(`/login?redirect=/events/${eventId}`)
             } else {
                 alert('Error processing guest checkout: ' + e.message)
             }
@@ -170,8 +172,8 @@ function GuestCheckoutContent() {
                         {event && (
                             <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
                                 <h3 className="font-bold text-lg mb-1">{event.title}</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(event.start_time).toLocaleDateString()} • {new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{event.location}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(event.starts_at).toLocaleDateString()} • {new Date(event.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{event.venue_name}</p>
                             </div>
                         )}
 

@@ -35,8 +35,10 @@ const useTimer = (expiresAt: string | undefined) => {
     return timeLeft
 }
 
+import { Reservation, Event, TicketTier } from '@/types/gatepass'
+
 interface CheckoutClientProps {
-    reservation: any // Typed properly in real app
+    reservation: Reservation
 }
 
 export function CheckoutClient({ reservation }: CheckoutClientProps) {

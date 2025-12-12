@@ -61,7 +61,8 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
                 router.push(`/checkout/guest?eventId=${event.id}&tierId=${firstTierId}&qty=${qty}`)
             }
-        } catch (e: any) {
+        } catch (error: unknown) {
+            const e = error as Error
             alert(e.message)
         } finally {
             setLoading(false)

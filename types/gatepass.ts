@@ -48,3 +48,17 @@ export interface Profile {
     avatar_url?: string
     email?: string
 }
+
+export interface Reservation {
+    id: string
+    created_at: string
+    event_id: string
+    tier_id: string
+    user_id: string
+    quantity: number
+    status: 'pending' | 'confirmed' | 'cancelled' | 'expired'
+    expires_at: string
+    events?: Event
+    ticket_tiers?: TicketTier
+    profiles?: Profile
+}

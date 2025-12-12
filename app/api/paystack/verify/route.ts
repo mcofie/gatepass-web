@@ -1,11 +1,20 @@
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { verifyPaystackTransaction } from '@/lib/paystack'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
     try {
         const { reference, reservationId } = await request.json()
-        const supabase = await createClient()
+
+        console.log('Verify Payload:', { reference, reservationId })
+        const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+        console.log('Has Service Key:', hasServiceKey)
+
+        // Use Admin Client to bypass RLS for Ticket Generation
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
 
         // 1. Verify Request Data
         if (!reference || !reservationId) {
