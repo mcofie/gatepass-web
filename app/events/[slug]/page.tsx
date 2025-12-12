@@ -66,11 +66,11 @@ export default async function EventPage({ params }: PageProps) {
                             <span>Upcoming Event</span>
                         </div>
 
-                        <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter text-white leading-[0.9]">
+                        <h1 className="text-4xl md:text-6xl lg:text-8xl font-bold tracking-tighter text-white leading-[0.95] md:leading-[0.9]">
                             {event.title}
                         </h1>
 
-                        <div className="flex flex-col md:flex-row gap-6 md:items-center text-lg text-gray-300">
+                        <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-center text-base md:text-lg text-gray-300">
                             <div className="flex items-center gap-2">
                                 <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                 <span>Sunday, December 28th 2025</span>
@@ -86,8 +86,8 @@ export default async function EventPage({ params }: PageProps) {
             </div>
 
             {/* Content Section */}
-            <div className="container mx-auto px-4 md:px-6 py-12 -mt-10 relative z-10">
-                <div className="grid lg:grid-cols-12 gap-12">
+            <div className="container mx-auto px-4 md:px-6 py-8 md:py-12 -mt-10 relative z-10">
+                <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
                     {/* Left Column: Description & Media */}
                     <div className="lg:col-span-7 space-y-12">
                         {/* Description Card */}

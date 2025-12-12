@@ -24,6 +24,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [tierForm, setTierForm] = useState({ name: '', price: 0, total_quantity: 100, description: '' })
     const [creatingTier, setCreatingTier] = useState(false)
 
+    // Tier Editing State
+    const [editingTierId, setEditingTierId] = useState<string | null>(null)
+    const [editForm, setEditForm] = useState({ name: '', price: 0, total_quantity: 0 })
+
     const supabase = createClient()
     const router = useRouter()
 
@@ -83,6 +87,33 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         const { error } = await supabase.schema('gatepass').from('ticket_tiers').delete().eq('id', id)
         if (error) alert(error.message)
         else await fetchTiers()
+    }
+
+    const startEditing = (tier: TicketTier) => {
+        setEditingTierId(tier.id)
+        setEditForm({ name: tier.name, price: tier.price, total_quantity: tier.total_quantity })
+    }
+
+    const cancelEditing = () => {
+        setEditingTierId(null)
+        setEditForm({ name: '', price: 0, total_quantity: 0 })
+    }
+
+    const saveTier = async (id: string) => {
+        try {
+            const { error } = await supabase.schema('gatepass').from('ticket_tiers').update({
+                name: editForm.name,
+                price: editForm.price,
+                total_quantity: editForm.total_quantity
+            }).eq('id', id)
+
+            if (error) throw error
+
+            await fetchTiers()
+            cancelEditing()
+        } catch (e: any) {
+            alert('Error updating tier: ' + e.message)
+        }
     }
 
     // ---------------- ATTENDEES LOGIC ----------------
@@ -293,35 +324,83 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     <div className="grid lg:grid-cols-2 gap-6">
                         {tiers.map(tier => (
                             <div key={tier.id} className="relative group bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h4 className="font-bold text-xl mb-1">{tier.name}</h4>
-                                        <p className="text-sm text-gray-500 font-medium tracking-wide uppercase">Tier ID: {tier.id.slice(0, 8)}...</p>
+                                {editingTierId === tier.id ? (
+                                    // Editing Mode
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold uppercase text-gray-400">Name</label>
+                                            <input
+                                                value={editForm.name}
+                                                onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                                                className="w-full border-gray-200 rounded p-2 text-sm focus:ring-black focus:border-black"
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold uppercase text-gray-400">Price</label>
+                                                <input
+                                                    type="number"
+                                                    value={editForm.price}
+                                                    onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
+                                                    className="w-full border-gray-200 rounded p-2 text-sm focus:ring-black focus:border-black"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold uppercase text-gray-400">Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    value={editForm.total_quantity}
+                                                    onChange={e => setEditForm({ ...editForm, total_quantity: Number(e.target.value) })}
+                                                    className="w-full border-gray-200 rounded p-2 text-sm focus:ring-black focus:border-black"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 justify-end pt-2">
+                                            <button onClick={cancelEditing} className="text-sm px-3 py-1.5 text-gray-500 hover:text-black hover:bg-gray-100 rounded transition-colors">Cancel</button>
+                                            <button onClick={() => saveTier(tier.id)} className="text-sm px-3 py-1.5 bg-black text-white rounded hover:bg-gray-800 shadow-sm transition-all">Save Changes</button>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-2xl font-black">{tier.currency} {tier.price}</p>
-                                    </div>
-                                </div>
+                                ) : (
+                                    // Viewing Mode
+                                    <>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h4 className="font-bold text-xl mb-1">{tier.name}</h4>
+                                                <p className="text-sm text-gray-500 font-medium tracking-wide uppercase">Tier ID: {tier.id.slice(0, 8)}...</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-2xl font-black">{tier.currency} {tier.price}</p>
+                                            </div>
+                                        </div>
 
-                                <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
-                                    <div
-                                        className="bg-black h-2 rounded-full transition-all duration-1000"
-                                        style={{ width: `${Math.min((tier.quantity_sold / tier.total_quantity) * 100, 100)}%` }}
-                                    ></div>
-                                </div>
-                                <div className="flex justify-between text-sm mb-6">
-                                    <span className="font-medium text-gray-900">{tier.quantity_sold} sold</span>
-                                    <span className="text-gray-500">{tier.total_quantity} total</span>
-                                </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
+                                            <div
+                                                className="bg-black h-2 rounded-full transition-all duration-1000"
+                                                style={{ width: `${Math.min((tier.quantity_sold / tier.total_quantity) * 100, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="flex justify-between text-sm mb-6">
+                                            <span className="font-medium text-gray-900">{tier.quantity_sold} sold</span>
+                                            <span className="text-gray-500">{tier.total_quantity} total</span>
+                                        </div>
 
-                                <div className="flex justify-end pt-4 border-t border-gray-100">
-                                    <button
-                                        onClick={() => deleteTier(tier.id)}
-                                        className="text-red-500 text-sm font-medium hover:bg-red-50 px-3 py-1.5 rounded transition-colors"
-                                    >
-                                        Delete Tier
-                                    </button>
-                                </div>
+                                        <div className="flex justify-end gap-2 pt-4 border-t border-gray-100 opacity-100">
+                                            <button
+                                                onClick={() => startEditing(tier)}
+                                                className="text-gray-600 text-sm font-medium hover:bg-gray-50 px-3 py-1.5 rounded transition-colors"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => deleteTier(tier.id)}
+                                                className="text-red-500 text-sm font-medium hover:bg-red-50 px-3 py-1.5 rounded transition-colors"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         ))}
 
