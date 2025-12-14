@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Event, TicketTier } from '@/types/gatepass'
-import { CheckoutModal } from '@/components/CheckoutModal'
+
 import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
 

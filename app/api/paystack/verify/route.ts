@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     try {
         const { reference, reservationId } = await request.json()
 
-        console.log('Verify Payload:', { reference, reservationId })
+
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!serviceRoleKey) {
