@@ -57,6 +57,8 @@ export async function GET(req: Request) {
 
 
         // 3. Create Pass
+        // 3. Create Pass (Requires Certificates)
+        /*
         const pass = new PKPass({}, {
             // signerCert,
             // signerKey,
@@ -106,6 +108,11 @@ export async function GET(req: Request) {
                 'Content-Disposition': `attachment; filename="${event.title.replace(/[^a-z0-9]/gi, '_')}.pkpass"`
             }
         })
+        */
+
+        return NextResponse.json({
+            error: 'Server Misconfiguration: Missing Apple Developer Certificates. Please add signerCert.pem, signerKey.pem, and wwdr.pem to /certs.'
+        }, { status: 501 })
 
     } catch (error: any) {
         console.error('Wallet Generation Error:', error)
