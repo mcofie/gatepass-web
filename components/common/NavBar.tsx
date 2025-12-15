@@ -36,7 +36,7 @@ export function NavBar() {
         setIsMobileMenuOpen(false)
     }
 
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/events/')) return null
+    if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/events/')) return null
 
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center py-4 px-4 pointer-events-none">

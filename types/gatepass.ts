@@ -12,6 +12,10 @@ export interface Event {
     video_url?: string
     latitude?: number
     longitude?: number
+    social_website?: string
+    social_instagram?: string
+    social_twitter?: string
+    social_facebook?: string
     is_published: boolean
     organizer_id: string // This is the user_id (Creator)
     organization_id?: string // This is the profile/brand

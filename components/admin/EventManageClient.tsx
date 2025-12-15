@@ -46,6 +46,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 venue_address: event.venue_address,
                 latitude: event.latitude,
                 longitude: event.longitude,
+                social_website: event.social_website,
+                social_instagram: event.social_instagram,
+                social_twitter: event.social_twitter,
+                social_facebook: event.social_facebook,
                 poster_url: event.poster_url,
                 video_url: event.video_url,
                 is_published: event.is_published,
@@ -295,6 +299,48 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
                                             className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
                                             placeholder="e.g. -0.1870"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
+                                <h3 className="font-semibold text-lg">Social Media</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Website</label>
+                                        <input
+                                            value={event.social_website || ''}
+                                            onChange={e => setEvent({ ...event, social_website: e.target.value })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Instagram</label>
+                                        <input
+                                            value={event.social_instagram || ''}
+                                            onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            placeholder="username or link"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">X (Twitter)</label>
+                                        <input
+                                            value={event.social_twitter || ''}
+                                            onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            placeholder="username or link"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Facebook</label>
+                                        <input
+                                            value={event.social_facebook || ''}
+                                            onChange={e => setEvent({ ...event, social_facebook: e.target.value })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            placeholder="username or link"
                                         />
                                     </div>
                                 </div>

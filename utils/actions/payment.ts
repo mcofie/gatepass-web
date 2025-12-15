@@ -120,21 +120,15 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     // 5. Update Reservation Status
     await supabase.schema('gatepass').from('reservations').update({ status: 'confirmed' }).eq('id', reservation.id)
 
-    // 5b. Inventory Update: Increment quantity_sold
-    // Fetch latest tier data to ensure accuracy (basic concurrency handling)
-    const { data: currentTier } = await supabase
-        .schema('gatepass')
-        .from('ticket_tiers')
-        .select('quantity_sold')
-        .eq('id', reservation.ticket_tiers.id)
-        .single()
+    // 5b. Inventory Update: Increment quantity_sold (Atomic RPC)
+    const { error: rpcError } = await supabase.rpc('increment_quantity_sold', {
+        p_tier_id: reservation.ticket_tiers.id,
+        p_quantity: reservation.quantity || 1
+    })
 
-    if (currentTier) {
-        await supabase
-            .schema('gatepass')
-            .from('ticket_tiers')
-            .update({ quantity_sold: (currentTier.quantity_sold || 0) + (reservation.quantity || 1) })
-            .eq('id', reservation.ticket_tiers.id)
+    if (rpcError) {
+        console.error('Inventory Update Error (RPC):', rpcError)
+        // Non-blocking: We don't fail the request if inventory count is slightly off, but we log it.
     }
 
 

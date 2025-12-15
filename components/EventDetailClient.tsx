@@ -817,68 +817,69 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: {
             <div className="p-6 relative">
                 {/* Header (Always Visible) */}
                 <div className="flex flex-col items-center text-center mb-6">
-                    <div className="text-3xl mb-2">🎉</div>
-                    <h3 className="text-[20px] font-bold text-[#000000] leading-tight">Thank you!</h3>
-                    <p className="text-[12px] text-[#6b7280] max-w-[200px] leading-snug mt-1">
-                        Your ticket has been issued successfully
+                    <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white text-xl mb-3 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <h3 className="text-[18px] font-bold text-gray-900 leading-tight mb-1">Payment Successful</h3>
+                    <p className="text-[13px] text-gray-500 font-medium">
+                        You are going to <span className="text-black">{event.title}</span>!
                     </p>
                 </div>
 
                 {/* Dashed Line + Notches */}
                 <div className="relative w-[calc(100%+3rem)] -mx-6 h-8 flex items-center justify-center my-2">
-                    <div className="w-full border-t border-dashed border-[#d1d5db] mx-6" />
-                    <div className="absolute left-[-10px] w-5 h-5 bg-[#ffffff] border-r border-[#f3f4f6] rounded-full shadow-[inset_-2px_0_3px_rgba(0,0,0,0.05)]" />
-                    <div className="absolute right-[-10px] w-5 h-5 bg-[#ffffff] border-l border-[#f3f4f6] rounded-full shadow-[inset_2px_0_3px_rgba(0,0,0,0.05)]" />
+                    <div className="w-full border-t-2 border-dashed border-gray-200 mx-6" />
+                    <div className="absolute left-[-10px] w-5 h-5 bg-[#ffffff] border-r border-gray-100 rounded-full shadow-[inset_-2px_0_3px_rgba(0,0,0,0.02)]" />
+                    <div className="absolute right-[-10px] w-5 h-5 bg-[#ffffff] border-l border-gray-100 rounded-full shadow-[inset_2px_0_3px_rgba(0,0,0,0.02)]" />
                 </div>
 
                 {/* Collapsible Section */}
                 <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ticket-content-collapsible ${showContent ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                     <div className="pt-2 pb-4 ticket-content">
-                        <div className="flex justify-between items-baseline mb-4">
-                            <div className="text-left">
-                                <p className="text-[9px] uppercase tracking-wider text-[#9ca3af] font-bold mb-1">TICKET ID</p>
-                                <p className="text-[13px] font-mono font-medium text-[#000000]">{ticket.id.slice(0, 8).toUpperCase()}</p>
+                        {/* Attendee Info */}
+                        <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
+                            <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">Admit One</p>
+                            <p className="text-[18px] font-bold text-gray-900 leading-none mb-1">
+                                {ticket.reservations?.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
+                            </p>
+                            <p className="text-[12px] text-gray-500 font-medium">{tierName}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1">Date</p>
+                                <p className="text-[13px] font-bold text-gray-900">
+                                    {new Date(event.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[9px] uppercase tracking-wider text-[#9ca3af] font-bold mb-1">Amount</p>
-                                <p className="text-[13px] font-bold text-[#000000]">Paid</p>
+                                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1">Time</p>
+                                <p className="text-[13px] font-bold text-gray-900">
+                                    {new Date(event.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
+                                </p>
                             </div>
                         </div>
 
                         <div className="mb-6">
-                            <p className="text-[9px] uppercase tracking-wider text-[#9ca3af] font-bold mb-1">DATE & TIME</p>
-                            <p className="text-[13px] font-bold text-[#000000]">
-                                {new Date(event.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} • {new Date(event.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
+                            <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1">Venue</p>
+                            <p className="text-[13px] font-bold text-gray-900 truncate">
+                                {event.venue_name}
                             </p>
-                        </div>
-
-                        {/* User Info / Card Mock */}
-                        <div className="bg-[#f9fafb] rounded-xl p-3 flex items-center gap-3 mb-6">
-                            <div className="w-8 h-8 rounded-full bg-[#ef4444] flex items-center justify-center text-white text-[8px] font-bold">
-                                {/* Mastercard logo mock */}
-                                <div className="flex -space-x-1">
-                                    <div className="w-3 h-3 bg-[#ef4444] rounded-full opacity-80" />
-                                    <div className="w-3 h-3 bg-[#eab308] rounded-full opacity-80" />
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-[11px] font-bold text-[#000000] leading-none mb-0.5">{ticket.reservations?.profiles?.full_name || 'Guest User'}</p>
-                                <p className="text-[10px] text-[#6b7280] font-mono">•••• {ticket.order_reference?.slice(-4) || '8237'}</p>
-                            </div>
+                            <p className="text-[11px] text-gray-500 truncate">{event.venue_address}</p>
                         </div>
 
                         {/* QR Code Area */}
-                        <div className="flex flex-col items-center justify-center pt-4 pb-2">
-                            <div className="p-2 border-2 border-dashed border-[#e5e7eb] rounded-lg">
+                        <div className="flex flex-col items-center justify-center pt-2 pb-2">
+                            <div className="p-3 bg-white border-2 border-gray-900 rounded-xl shadow-sm">
                                 <img
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
                                     alt="QR Code"
-                                    className="w-32 h-32 object-contain"
+                                    className="w-32 h-32 object-contain mix-blend-multiply"
                                 />
                             </div>
-                            <p className="text-center text-[10px] font-mono text-[#9ca3af] mt-2">Scan at entry</p>
+                            <p className="text-center text-[10px] font-mono text-gray-400 mt-3 tracking-widest uppercase">Scan at entry</p>
                         </div>
-                        <p className="text-center text-[9px] font-mono text-[#9ca3af] tracking-[0.3em] mt-1">{ticket.qr_code_hash?.substring(0, 12)}</p>
+                        <p className="text-center text-[9px] font-mono text-gray-300 tracking-[0.2em] mt-1">{ticket.qr_code_hash?.substring(0, 12)}</p>
                     </div>
                 </div>
 
