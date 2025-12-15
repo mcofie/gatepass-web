@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter } from 'lucide-react'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -27,6 +27,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [loadingTickets, setLoadingTickets] = useState(false)
     const [ticketPage, setTicketPage] = useState(0)
     const [ticketCount, setTicketCount] = useState(0)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [isCheckInMode, setIsCheckInMode] = useState(false)
     const TICKETS_PER_PAGE = 20
 
     // Discounts State
@@ -200,17 +202,23 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         const from = page * TICKETS_PER_PAGE
         const to = from + TICKETS_PER_PAGE - 1
 
-        const { data, count } = await supabase
+        let query = supabase
             .schema('gatepass')
             .from('tickets')
             .select(`
                 id, status, order_reference, created_at,
                 ticket_tiers ( name ),
-                profiles ( full_name, id )
+                profiles!inner ( full_name, id )
             `, { count: 'exact' })
             .eq('event_id', event.id)
             .order('created_at', { ascending: false })
             .range(from, to)
+
+        if (searchQuery) {
+            query = query.ilike('profiles.full_name', `%${searchQuery}%`)
+        }
+
+        const { data, count } = await query
 
         if (data) {
             setTickets(data)
@@ -223,7 +231,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         if (activeTab === 'attendees') {
             fetchTickets(ticketPage)
         }
-    }, [activeTab, ticketPage])
+    }, [activeTab, ticketPage, searchQuery]) // Re-fetch on search
 
     const updateTicketStatus = async (ticketId: string, status: string) => {
         if (!confirm(`Mark as ${status}?`)) return
@@ -768,9 +776,29 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
                         <h3 className="font-bold text-xl text-gray-900">Guest List</h3>
                         <div className="flex gap-2">
-                            <span className="px-4 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-sm font-semibold text-gray-900">
-                                {ticketCount} attendees
-                            </span>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search details..."
+                                    value={searchQuery}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value)
+                                        setTicketPage(0) // Reset page on search
+                                    }}
+                                    className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                />
+                            </div>
+                            <button
+                                onClick={() => setIsCheckInMode(!isCheckInMode)}
+                                className={clsx("flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all border", {
+                                    'bg-green-500 text-white border-green-600 shadow-md shadow-green-500/20': isCheckInMode,
+                                    'bg-white text-gray-700 border-gray-200 hover:bg-gray-50': !isCheckInMode
+                                })}
+                            >
+                                <ScanLine className="w-4 h-4" />
+                                {isCheckInMode ? 'Check-in Mode' : 'Check-in'}
+                            </button>
                         </div>
                     </div>
 
@@ -790,7 +818,9 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {tickets.map((ticket: any) => (
-                                        <tr key={ticket.id} className="hover:bg-gray-50/80 transition-colors group">
+                                        <tr key={ticket.id} className={clsx("hover:bg-gray-50/80 transition-colors group", {
+                                            'opacity-40 grayscale': isCheckInMode && ticket.status !== 'valid'
+                                        })}>
                                             <td className="px-8 py-5 font-mono text-xs text-gray-500">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
                                             <td className="px-8 py-5">
                                                 <div className="flex items-center gap-4">
@@ -826,7 +856,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                                 {ticket.status === 'valid' && (
                                                     <button
                                                         onClick={() => updateTicketStatus(ticket.id, 'used')}
-                                                        className="text-xs font-bold bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5"
+                                                        className={clsx("font-bold bg-black text-white rounded-lg hover:bg-gray-800 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
+                                                            'px-6 py-3 text-sm w-full': isCheckInMode,
+                                                            'px-4 py-2 text-xs': !isCheckInMode
+                                                        })}
                                                     >
                                                         Check In
                                                     </button>

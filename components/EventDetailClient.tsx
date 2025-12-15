@@ -12,6 +12,7 @@ import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
+import { Globe } from 'lucide-react'
 
 interface EventDetailClientProps {
     event: Event
@@ -824,16 +825,16 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
             window.open(url, '_blank')
         } else {
             const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-URL:${window.location.href}
-DTSTART:${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}
-DTEND:${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}
-SUMMARY:${event.title}
-DESCRIPTION:Ticket Ref: ${ticket.id}
-LOCATION:${event.venue_name}
-END:VEVENT
-END:VCALENDAR`
+            VERSION:2.0
+            BEGIN:VEVENT
+            URL:${window.location.href}
+            DTSTART:${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}
+            DTEND:${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}
+            SUMMARY:${event.title}
+            DESCRIPTION:Ticket Ref: ${ticket.id}
+            LOCATION:${event.venue_name}
+            END:VEVENT
+            END:VCALENDAR`
             const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
             const link = document.createElement('a')
             link.href = window.URL.createObjectURL(blob)
