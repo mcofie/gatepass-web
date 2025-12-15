@@ -343,6 +343,10 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     // Mobile Expansion Logic
     const toggleExpand = () => {
         if (view === 'details') {
+            // Haptic Feedback
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                navigator.vibrate(10) // Taptic-like light impact
+            }
             setIsExpanded(!isExpanded)
         }
     }
@@ -377,19 +381,24 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     return (
         <>
 
-            {/* Expanded Modal Backdrop - Only show if actually expanded view OR expanded details on mobile? No, backdrop only for flows */}
-            {isModalExpanded && (
+            {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
+            {(isModalExpanded || isExpanded) && (
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
-                    onClick={() => view === 'success' ? window.location.reload() : navigate('details', 'back')}
+                    onClick={() => {
+                        if (view === 'success') window.location.reload()
+                        else if (view !== 'details') navigate('details', 'back')
+                        else setIsExpanded(false) // Dismiss focus mode on mobile
+                    }}
                 />
             )}
 
             {/* Floating Card / Modal Container */}
             <div
                 onClick={toggleExpand}
+                style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={`
-                fixed z-50 bg-white text-black shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans
+                fixed z-50 bg-white text-black shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
                 rounded-2xl flex flex-col overflow-hidden
