@@ -1,5 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { EventDetailClient } from '@/components/EventDetailClient'
+import { EventBackground } from '@/components/EventBackground'
+import React from 'react'
 import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
 
@@ -82,27 +84,12 @@ export default async function EventPage({ params }: PageProps) {
     return (
         <div className="h-screen w-full bg-black relative overflow-hidden">
             {/* Full Screen Background */}
-            <div className="absolute inset-0 z-0">
-                {event.video_url ? (
-                    <video
-                        src={event.video_url}
-                        className="w-full h-full object-cover opacity-90 transition-opacity duration-1000"
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        poster={event.poster_url}
-                    />
-                ) : (
-                    <img
-                        src={event.poster_url}
-                        alt="Event Background"
-                        className="w-full h-full object-cover opacity-90"
-                    />
-                )}
-                {/* Subtle Cinematic Vignette - Darker at bottom for card visibility if on mobile */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
-            </div>
+            <EventBackground
+                videoUrl={event.video_url}
+                posterUrl={event.poster_url}
+            />
+            {/* Subtle Cinematic Vignette - Darker at bottom for card visibility if on mobile */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
             {/* Navigation & Brand */}
             <div className="absolute top-0 left-0 right-0 p-8 flex justify-between items-center z-10 pointer-events-none">
