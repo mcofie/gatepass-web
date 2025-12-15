@@ -38,9 +38,14 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         try {
             const { error } = await supabase.schema('gatepass').from('events').update({
                 title: event.title,
+                slug: event.slug,
                 description: event.description,
+                starts_at: event.starts_at,
+                ends_at: event.ends_at,
                 venue_name: event.venue_name,
                 venue_address: event.venue_address,
+                latitude: event.latitude,
+                longitude: event.longitude,
                 poster_url: event.poster_url,
                 video_url: event.video_url,
                 is_published: event.is_published,
@@ -214,6 +219,42 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                             </div>
 
                             <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
+                                <h3 className="font-semibold text-lg">URL Slug</h3>
+                                <div className="flex items-center">
+                                    <span className="bg-gray-50 border border-r-0 rounded-l-lg p-3 text-gray-500 text-sm">gatepass.com/events/</span>
+                                    <input
+                                        value={event.slug}
+                                        onChange={e => setEvent({ ...event, slug: e.target.value })}
+                                        className="w-full border-gray-200 rounded-r-lg p-3 focus:ring-black focus:border-black transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
+                                <h3 className="font-semibold text-lg">Date & Time</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Starts At</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={event.starts_at ? new Date(event.starts_at).toISOString().slice(0, 16) : ''}
+                                            onChange={e => setEvent({ ...event, starts_at: new Date(e.target.value).toISOString() })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Ends At (Optional)</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={event.ends_at ? new Date(event.ends_at).toISOString().slice(0, 16) : ''}
+                                            onChange={e => setEvent({ ...event, ends_at: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
                                 <h3 className="font-semibold text-lg">Location</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="grid gap-2">
@@ -230,6 +271,30 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             value={event.venue_address}
                                             onChange={e => setEvent({ ...event, venue_address: e.target.value })}
                                             className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Latitude</label>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            value={event.latitude || ''}
+                                            onChange={e => setEvent({ ...event, latitude: parseFloat(e.target.value) })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            placeholder="e.g. 5.6037"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Longitude</label>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            value={event.longitude || ''}
+                                            onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
+                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            placeholder="e.g. -0.1870"
                                         />
                                     </div>
                                 </div>
