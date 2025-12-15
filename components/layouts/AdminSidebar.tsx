@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, LogOut, LayoutDashboard, Settings, Banknote, Activity, Users, ScanLine } from 'lucide-react'
+import { Home, Calendar, LogOut, LayoutDashboard, Settings, Banknote, Activity, Users, ScanLine, Sparkles } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 
@@ -28,12 +28,15 @@ export function AdminSidebar() {
         return pathname.startsWith(path)
     }
 
+    const isAdmin = user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '')
+
     const navItems = [
         { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
         { name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity },
         { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
         { name: 'Customers', path: '/dashboard/customers', icon: Users },
         { name: 'Events', path: '/dashboard/events', icon: Calendar },
+        ...(isAdmin ? [{ name: 'Curate Feed', path: '/dashboard/curate', icon: Sparkles }] : []),
         { name: 'Finance', path: '/dashboard/finance', icon: Banknote },
         { name: 'Settings', path: '/dashboard/settings', icon: Settings },
     ]

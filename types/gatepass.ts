@@ -22,6 +22,7 @@ export interface Event {
     fee_bearer: 'customer' | 'organizer'
     platform_fee_percent: number
     organizers?: Organizer
+    is_featured?: boolean
 }
 
 export interface Organizer {

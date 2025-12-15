@@ -19,6 +19,7 @@ export default async function Home() {
       ticket_tiers(*)
     `)
     // .eq('status', 'published') // Temporarily removed for debugging
+    .eq('is_featured', true)
     .order('starts_at', { ascending: true })
 
   // Transform/sort tiers if necessary locally if not working in query
