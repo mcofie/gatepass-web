@@ -41,7 +41,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: result.error || 'Processing failed' }, { status: 500 })
         }
 
-        return NextResponse.json({ success: true, ticket: result.ticket })
+        return NextResponse.json({ success: true, tickets: result.tickets })
 
     } catch (error: any) {
         console.error('Verification Handler Error:', error)

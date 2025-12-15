@@ -3,7 +3,7 @@ import { verifyPaystackTransaction } from '@/lib/paystack'
 
 export type PaymentResult = {
     success: boolean
-    ticket?: any
+    tickets?: any[]
     message?: string
     error?: string
 }
@@ -37,30 +37,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     }
 
 
-    // 1. Idempotency Check: Check if ticket already exists for this reference
-    const { data: existingTicket } = await supabase
-        .schema('gatepass')
-        .from('tickets')
-        .select('*')
-        .eq('order_reference', reference)
-        .single()
 
-    if (existingTicket) {
-        // Ensure transaction is logged even if ticket exists (e.g. retry)
-        // We use upsert on reference to be safe
-        await supabase.schema('gatepass').from('transactions').upsert({
-            reference,
-            reservation_id: existingTicket.reservation_id,
-            amount: tx.amount ? tx.amount / 100 : 0, // Paystack is in kobos/pesewas
-            currency: tx.currency,
-            channel: tx.channel,
-            status: tx.status,
-            paid_at: tx.paid_at || tx.paidAt, // Handle inconsistent casing
-            metadata: tx,
-        }, { onConflict: 'reference' })
-
-        return { success: true, ticket: existingTicket, message: 'Ticket already exists' }
-    }
 
     // 2. Fetch Reservation details
     const lookupId = reservationId || reference
@@ -96,25 +73,51 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         // Proceeding to create ticket because the USER PAID.
     }
 
-    // 4. Create Ticket
-    const { data: ticket, error: ticketError } = await supabase
+    // 4. Idempotency & Creation Logic
+    // Check if tickets already exist for this reference
+    const { data: existingTickets } = await supabase
         .schema('gatepass')
         .from('tickets')
-        .insert({
-            user_id: reservation.user_id,
-            event_id: reservation.event_id,
-            tier_id: reservation.ticket_tiers.id,
-            reservation_id: reservation.id,
-            qr_code_hash: Math.random().toString(36).substring(7), // Placeholder
-            order_reference: reference,
-            status: 'valid'
-        })
-        .select()
-        .single()
+        .select('*')
+        .eq('order_reference', reference)
 
-    if (ticketError) {
-        console.error('Ticket Creation Error:', ticketError)
-        return { success: false, error: 'Failed to generate ticket' }
+    if (existingTickets && existingTickets.length > 0) {
+        // Tickets already exist, return them
+        return { success: true, tickets: existingTickets, message: 'Tickets already exist' }
+    }
+
+    // Generate Tickets Loop
+    const quantity = reservation.quantity || 1
+    const createdTickets = []
+
+    for (let i = 0; i < quantity; i++) {
+        const { data: ticket, error: ticketError } = await supabase
+            .schema('gatepass')
+            .from('tickets')
+            .insert({
+                user_id: reservation.user_id,
+                event_id: reservation.event_id,
+                tier_id: reservation.ticket_tiers.id,
+                reservation_id: reservation.id,
+                qr_code_hash: Math.random().toString(36).substring(7) + Math.random().toString(36).substring(7), // Longer unique hash
+                order_reference: reference, // Same reference for all, or append index? Same ref is fine to link to order.
+                status: 'valid',
+                metadata: { index: i + 1, total: quantity } // Optional metadata
+            })
+            .select()
+            .single()
+
+        if (ticketError) {
+            console.error(`Ticket Creation Error (Index ${i}):`, JSON.stringify(ticketError, null, 2))
+            // Continue or fail? If one fails, it's messy. For MVP, we log and continue, or break.
+            // Ideally transactional, but simple loop for now.
+        } else if (ticket) {
+            createdTickets.push(ticket)
+        }
+    }
+
+    if (createdTickets.length === 0) {
+        return { success: false, error: 'Failed to generate any tickets' }
     }
 
     // 5. Update Reservation Status
@@ -157,8 +160,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     venueName: reservation.events?.venue_name,
                     ticketType: reservation.ticket_tiers?.name,
                     customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}`,
-                    ticketId: ticket.id.substring(0, 8).toUpperCase()
+                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${createdTickets[0].qr_code_hash}`,
+                    ticketId: createdTickets[0].id.substring(0, 8).toUpperCase()
                 })
             })
 
@@ -179,5 +182,5 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         // Proceed since ticket is created
     }
 
-    return { success: true, ticket }
+    return { success: true, tickets: createdTickets }
 }

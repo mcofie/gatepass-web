@@ -61,7 +61,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     const [verifying, setVerifying] = useState(false)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
     const [reservation, setReservation] = useState<any>(null)
-    const [purchasedTicket, setPurchasedTicket] = useState<any>(null)
+    const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
 
     // Navigation Helper
     const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
@@ -109,7 +109,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
                     if (!result.success) throw new Error(result.error || 'Verification failed')
 
-                    setPurchasedTicket(result.ticket)
+                    setPurchasedTickets(result.tickets || [])
                     navigate('success', 'forward')
                     // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
                 } catch (error: any) {
@@ -394,12 +394,12 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                         />
                     </div>
                 )}
-                {view === 'success' && purchasedTicket && (
+                {view === 'success' && purchasedTickets.length > 0 && (
                     <div className="animate-scale-in">
                         <SuccessView
                             event={event}
-                            ticket={purchasedTicket}
-                            tierName={tiers.find(t => t.id === purchasedTicket.tier_id)?.name}
+                            tickets={purchasedTickets}
+                            tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
                         />
                     </div>
                 )}
@@ -887,37 +887,41 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
     )
 }
 
-const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, tierName: string | undefined }) => {
+const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[], tierName: string | undefined }) => {
     const [downloading, setDownloading] = useState(false)
+    const primaryTicket = tickets[0]
 
     const handleDownloadPDF = async () => {
         setDownloading(true)
         try {
-            // Target the hidden, fully expanded version
-            const element = document.getElementById('ticket-card-hidden-print')
+            // Target the hidden container with all tickets
+            const element = document.getElementById('ticket-print-container')
             if (!element) return
 
             // Dynamically load heavy libraries
             const html2canvas = (await import('html2canvas')).default
             const jsPDF = (await import('jspdf')).default
 
-            // Capture at 3x scale for print quality
+            // Capture at 2x scale (3x is too heavy for large lists)
             const canvas = await html2canvas(element, {
-                scale: 3,
+                scale: 2,
                 useCORS: true,
                 backgroundColor: null,
             })
 
             const imgData = canvas.toDataURL('image/png')
-            const pdf = new jsPDF('p', 'mm', 'a5')
+            const pdf = new jsPDF('p', 'mm', 'a5') // A5 is good for mobile tickets
             const pdfWidth = pdf.internal.pageSize.getWidth()
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width
 
+            // If height > page height, we might need auto-paging, but jsPDF addImage usually scales or cuts.
+            // For simple implementation, we just squish or let it span if standard A4/A5.
+            // Better: Add image with adjusted height.
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-            pdf.save(`${event.title.replace(/[^a-z0-9]/gi, '_')}_Ticket.pdf`)
+            pdf.save(`${event.title.replace(/[^a-z0-9]/gi, '_')}_Tickets.pdf`)
         } catch (err) {
             console.error('PDF Generation Error:', err)
-            alert('Failed to generate PDF')
+            toast.error('Failed to generate PDF')
         } finally {
             setDownloading(false)
         }
@@ -959,7 +963,7 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
         const end = new Date(start.getTime() + 2 * 60 * 60 * 1000) // Assume 2 hours if not set
 
         if (type === 'google') {
-            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}/${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}&details=${encodeURIComponent('Ticket: ' + tierName)}&location=${encodeURIComponent(event.venue_name)}&sf=true&output=xml`
+            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}/${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}&details=${encodeURIComponent('Ticket Ref: ' + primaryTicket.id)}&location=${encodeURIComponent(event.venue_name)}&sf=true&output=xml`
             window.open(url, '_blank')
         } else {
             const icsContent = `BEGIN:VCALENDAR
@@ -969,7 +973,7 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
             DTSTART:${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}
             DTEND:${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}
             SUMMARY:${event.title}
-            DESCRIPTION:Ticket Ref: ${ticket.id}
+            DESCRIPTION:Ticket Ref: ${primaryTicket.id}
             LOCATION:${event.venue_name}
             END:VEVENT
             END:VCALENDAR`
@@ -1009,29 +1013,31 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
     return (
         <div className="flex flex-col h-full overflow-hidden animate-fade-in relative">
             <div className="flex-shrink-0 flex justify-between items-center mb-4">
-                <h2 className="text-[17px] font-bold tracking-tight">Your Ticket</h2>
+                <h2 className="text-[17px] font-bold tracking-tight">Your Tickets ({tickets.length})</h2>
                 <button onClick={() => window.location.reload()} className="p-2 -mr-2 text-gray-500 hover:text-black">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
 
             {/* Scrollable Ticket Container */}
-            <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4 pb-4 no-scrollbar">
-                <div className="flex justify-center">
-                    <ReceiptTicket
-                        id="ticket-card-element"
-                        event={event}
-                        ticket={ticket}
-                        tierName={tierName}
-                    />
-                </div>
+            <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4 pb-4 no-scrollbar space-y-6">
+                {tickets.map((ticket, index) => (
+                    <div key={ticket.id} className="flex justify-center">
+                        <ReceiptTicket
+                            id={`ticket-card-${index}`}
+                            event={event}
+                            ticket={ticket}
+                            tierName={tierName}
+                        />
+                    </div>
+                ))}
             </div>
 
             {/* Bottom Actions - Compact */}
             <div className="flex-shrink-0 pt-4 bg-white border-t border-gray-100 mt-2 space-y-3">
-                {/* Primary Action */}
+                {/* Primary Action - Apple Wallet (First Ticket Only for now) */}
                 <button
-                    onClick={() => window.open(`/api/wallet/apple?ticketId=${ticket.id}`, '_blank')}
+                    onClick={() => window.open(`/api/wallet/apple?ticketId=${primaryTicket.id}`, '_blank')}
                     className="w-full bg-black text-white h-12 rounded-xl text-[15px] font-bold tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-black/10"
                 >
                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -1058,7 +1064,7 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
                             <div className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin" />
                         ) : (
                             <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4 4m4 4V4"></path></svg>
                                 Save PDF
                             </>
                         )}
@@ -1080,14 +1086,20 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
             </div>
 
             {/* Hidden Ticket for PDF Generation (Target) */}
-            <div className="absolute top-0 left-[-9999px]">
-                <ReceiptTicket
-                    id="ticket-card-hidden-print"
-                    event={event}
-                    ticket={ticket}
-                    tierName={tierName}
-                    forceExpanded={true}
-                />
+            <div className="absolute top-0 left-[-9999px]" id="ticket-print-container">
+                <div className="space-y-8 p-8 bg-white">
+                    {tickets.map((ticket, index) => (
+                        <div key={ticket.id} className="break-inside-avoid">
+                            <ReceiptTicket
+                                id={`ticket-card-hidden-${index}`}
+                                event={event}
+                                ticket={ticket}
+                                tierName={tierName}
+                                forceExpanded={true}
+                            />
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     )
@@ -1097,6 +1109,13 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
 const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: { id?: string, event: Event, ticket: any, tierName?: string, forceExpanded?: boolean }) => {
     const [isOpen, setIsOpen] = useState(true) // Expanded by default
     const showContent = isOpen || forceExpanded
+
+    const handleWhatsAppShare = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        const url = `${window.location.origin}/tickets/${ticket.id}`
+        const text = `Here is your ticket for ${event.title}! 🎟️`
+        window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank')
+    }
 
     return (
         <div
@@ -1174,6 +1193,18 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: {
                             <p className="text-center text-[10px] font-mono text-gray-400 mt-3 tracking-widest uppercase">Scan at entry</p>
                         </div>
                         <p className="text-center text-[9px] font-mono text-gray-300 tracking-[0.2em] mt-1">{ticket.qr_code_hash?.substring(0, 12)}</p>
+
+                        {!forceExpanded && (
+                            <button
+                                onClick={handleWhatsAppShare}
+                                className="w-full mt-6 h-10 bg-[#25D366] hover:bg-[#1db954] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                            >
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                                </svg>
+                                Send to Friend
+                            </button>
+                        )}
                     </div>
                 </div>
 
