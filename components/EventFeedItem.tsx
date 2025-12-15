@@ -17,8 +17,8 @@ export const EventFeedItem = ({ event, tiers, isActive }: EventFeedItemProps) =>
         <div className="relative h-full w-full snap-start shrink-0 overflow-hidden bg-black">
             {/* Background (Video/Image) */}
             <EventBackground
-                videoUrl={event.video_url}
-                posterUrl={event.poster_url}
+                videoUrl={event.video_url ?? null}
+                posterUrl={event.poster_url ?? null}
                 forcePause={!isActive}
             />
             {/* Gradient Overlay */}
@@ -26,10 +26,10 @@ export const EventFeedItem = ({ event, tiers, isActive }: EventFeedItemProps) =>
 
             {/* Event Detail Card (Embedded Mode) */}
             {/* We use isFeedItem to tell the component to use absolute positioning instead of fixed */}
-            <EventDetailClient 
-                event={event} 
-                tiers={tiers} 
-                isFeedItem={true} 
+            <EventDetailClient
+                event={event}
+                tiers={tiers}
+                isFeedItem={true}
             />
         </div>
     )
