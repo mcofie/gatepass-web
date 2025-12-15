@@ -15,7 +15,7 @@ export function LoginContent() {
 
     const router = useRouter()
     const searchParams = useSearchParams()
-    const redirect = searchParams.get('redirect') || '/'
+    const redirect = searchParams.get('redirect') || '/dashboard'
     const supabase = createClient()
 
     const handleAuth = async (e: React.FormEvent) => {
