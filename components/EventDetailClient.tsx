@@ -63,14 +63,18 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     const [reservation, setReservation] = useState<any>(null)
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
 
+    // Mobile Expansion State
+    const [isExpanded, setIsExpanded] = useState(false)
+    // On mount, check if mobile? Actually, defaulting to false is fine; desktop naturally ignores it via MD styles.
+    // However, on Desktop we always want it "expanded" effectively.
+    // We'll use CSS to force expansion on desktop, so state only controls mobile.
+
     // Navigation Helper
     const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
         setDirection(dir)
-        // Small timeout to allow render cycle to pick up direction? 
-        // Actually, normally we want to set them together.
-        // But React batches updates.
-        // We will stick to simply setting state.
         setView(newView)
+        // Auto-expand on navigation to deeper views
+        if (newView !== 'details') setIsExpanded(true)
     }
 
     // Form State
@@ -207,18 +211,19 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
             setDiscount(data as Discount)
 
-            // Update the existing reservation with this discount
+            // Update the existing reservation with this discount (Secure RPC)
             if (reservation) {
-                console.log('Linking Discount to Reservation:', reservation.id)
-                const { error: updateError } = await supabase
-                    .schema('gatepass')
-                    .from('reservations')
-                    .update({ discount_id: data.id })
-                    .eq('id', reservation.id)
+                console.log('Linking Discount to Reservation via RPC:', reservation.id)
+                const { data: rpcData, error: updateError } = await supabase.rpc('apply_reservation_discount', {
+                    p_reservation_id: reservation.id,
+                    p_discount_code: promoCode
+                })
 
-                if (updateError) {
-                    console.error('Failed to link discount:', updateError)
-                    toast.error('Failed to apply discount to order')
+                if (updateError || (rpcData && !rpcData.success)) {
+                    console.error('Failed to link discount:', updateError || rpcData?.error)
+                    const errorMsg = updateError?.message || rpcData?.error || 'Failed to apply discount'
+                    // If "Discount code usage limit reached", show that
+                    setDiscountError(errorMsg)
                     return
                 }
             }
@@ -295,7 +300,10 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
         // Safety Sync: Ensure discount is linked before payment
         if (discount && reservation && reservation.discount_id !== discount.id) {
             console.log('Syncing Discount ID before payment...', discount.id)
-            await supabase.schema('gatepass').from('reservations').update({ discount_id: discount.id }).eq('id', reservation.id)
+            await supabase.rpc('apply_reservation_discount', {
+                p_reservation_id: reservation.id,
+                p_discount_code: promoCode
+            })
             // Update local state implicitly or just proceed
         }
 
@@ -330,7 +338,18 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
     const hasSelection = calculatedTotal > 0
     const cheapestTier = tiers.length > 0 ? tiers[0] : null
-    const isExpanded = view !== 'details'
+    const isModalExpanded = view !== 'details'
+
+    // Mobile Expansion Logic
+    const toggleExpand = () => {
+        if (view === 'details') {
+            setIsExpanded(!isExpanded)
+        }
+    }
+
+    const cardHeightClass = (view === 'details' && !isExpanded)
+        ? 'max-h-[160px]' // Collapsed height: Compact for 1 line
+        : 'max-h-[85vh]'     // Expanded height
 
     if (verifying) {
         return (
@@ -358,8 +377,8 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     return (
         <>
 
-            {/* Expanded Modal Backdrop */}
-            {isExpanded && (
+            {/* Expanded Modal Backdrop - Only show if actually expanded view OR expanded details on mobile? No, backdrop only for flows */}
+            {isModalExpanded && (
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
                     onClick={() => view === 'success' ? window.location.reload() : navigate('details', 'back')}
@@ -367,21 +386,29 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             )}
 
             {/* Floating Card / Modal Container */}
-            <div className={`
-                fixed z-50 bg-white text-black shadow-2xl transition-all duration-300 font-sans
+            <div
+                onClick={toggleExpand}
+                className={`
+                fixed z-50 bg-white text-black shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
-                rounded-2xl max-h-[85vh] flex flex-col
-                md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0
+                rounded-2xl flex flex-col overflow-hidden
+                ${cardHeightClass}
+                md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0 md:max-h-[85vh]
                 md:bottom-12 md:right-12 p-4
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
+                ${(view === 'details' && !isExpanded) ? 'cursor-pointer active:scale-[0.98]' : ''}
             `}>
                 {view === 'details' && (
                     <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
                         <DetailsView
                             event={event}
                             cheapestTier={cheapestTier}
-                            onGetTickets={() => navigate('tickets', 'forward')}
+                            onGetTickets={(e: React.MouseEvent) => {
+                                e.stopPropagation(); // Prevent toggling when clicking button
+                                navigate('tickets', 'forward')
+                            }}
+                            isExpanded={isExpanded}
                         />
                     </div>
                 )}
@@ -432,6 +459,15 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                         />
                     </div>
                 )}
+
+                {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
+                {view === 'details' && !isExpanded && (
+                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
+                        <span className="text-[12px] font-bold text-black mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
+                        <ChevronDown className="w-5 h-5 text-black animate-bounce" />
+                    </div>
+                )}
+
                 {view === 'success' && purchasedTickets.length > 0 && (
                     <div className="animate-scale-in">
                         <SuccessView
@@ -448,9 +484,9 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
 // Sub-components
 
-const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: () => void }) => (
-    <div className="animate-fade-in">
-        <div className="flex justify-between items-start mb-4">
+const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean }) => (
+    <div className="animate-fade-in flex flex-col h-full">
+        <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gray-100 text-black flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100">
                     {event.organizers?.logo_url ? (
@@ -472,42 +508,57 @@ const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, chea
                 </div>
             )}
         </div>
-        <p className="text-[13px] font-normal text-black leading-relaxed mb-4">{event.description}</p>
 
-        {/* Organizer Bio Section */}
-        {event.organizers?.description && (
-            <>
+        {/* Collapsible Content - partially visible on mobile, full on expand */}
+        <div className={`transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${!isExpanded ? 'max-h-[40px] md:max-h-[500px] md:opacity-100' : 'opacity-100 max-h-[800px]'}`}>
+            <p className={`text-[13px] font-normal text-black leading-relaxed mb-4 mt-2 ${!isExpanded ? 'line-clamp-1 md:line-clamp-none' : ''}`}>
+                {event.description}
+            </p>
+
+            {/* Organizer Bio Section - Hidden on Collapse */}
+            <div className={`transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
+                {event.organizers?.description && (
+                    <>
+                        <div className="h-px w-full bg-gray-200 mb-4" />
+                        <div className="mb-4">
+                            <h3 className="text-[11px] font-bold text-gray-900 uppercase tracking-widest mb-2">About the Host</h3>
+                            <p className="text-[12px] text-gray-600 leading-relaxed mb-3 line-clamp-3">
+                                {event.organizers.description}
+                            </p>
+
+                            {/* Organizer Socials */}
+                            <div className="flex items-center gap-3">
+                                {event.organizers.website && (
+                                    <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                        <Globe className="w-3.5 h-3.5" />
+                                    </a>
+                                )}
+                                {event.organizers.instagram && (
+                                    <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
+                                    </a>
+                                )}
+                                {event.organizers.twitter && (
+                                    <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
+
                 <div className="h-px w-full bg-gray-200 mb-4" />
-                <div className="mb-4">
-                    <h3 className="text-[11px] font-bold text-gray-900 uppercase tracking-widest mb-2">About the Host</h3>
-                    <p className="text-[12px] text-gray-600 leading-relaxed mb-3">
-                        {event.organizers.description}
-                    </p>
+            </div>
+        </div>
 
-                    {/* Organizer Socials */}
-                    <div className="flex items-center gap-3">
-                        {event.organizers.website && (
-                            <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
-                                <Globe className="w-3.5 h-3.5" />
-                            </a>
-                        )}
-                        {event.organizers.instagram && (
-                            <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
-                            </a>
-                        )}
-                        {event.organizers.twitter && (
-                            <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
-                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
-                            </a>
-                        )}
-                    </div>
-                </div>
-            </>
-        )}
-
-        <div className="h-px w-full bg-gray-200 mb-4" />
-        <div className="flex flex-col gap-3 mb-5">
+        {/* Persistent Date/Location (Always Visible but styled differently when collapsed?) 
+            Actually, user said "tickets cost and dates" should assume visible.
+            Let's keep them visible at bottom for expanded.
+            For collapsed, we might want them visible too? 
+            "only show relevant things like... dates"
+        */}
+        <div className="flex flex-col gap-3 mb-5 mt-auto">
             <div className="flex items-start gap-3">
                 <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 <span className="text-[13px] font-medium text-black leading-tight">
@@ -537,7 +588,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, chea
                     })()}
                 </span>
             </div>
-            <div className="flex items-start gap-3">
+            <div className={`flex items-start gap-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 h-0 overflow-hidden md:opacity-100 md:h-auto' : 'opacity-100'}`}>
                 <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 <div className="flex flex-col">
                     <span className="text-[13px] font-medium text-black leading-tight mb-0.5">{event.venue_name}</span>
@@ -545,10 +596,11 @@ const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, chea
                 </div>
             </div>
         </div>
-        <button onClick={onGetTickets} className="w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 transition-all active:scale-[0.98]">
+
+        <button onClick={onGetTickets} className={`w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 transition-all active:scale-[0.98] ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
             Get Tickets
         </button>
-        <div className="flex justify-end mt-3">
+        <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
             <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
         </div>
     </div >

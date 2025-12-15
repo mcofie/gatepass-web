@@ -3,44 +3,44 @@ import { Resend } from 'resend'
 import TicketEmail from '@/emails/TicketEmail'
 
 export async function GET(request: Request) {
-    const resendApiKey = process.env.RESEND_API_KEY
-
-    if (!resendApiKey) {
-        return NextResponse.json({
-            success: false,
-            error: 'RESEND_API_KEY is missing in environment variables.'
-        }, { status: 500 })
-    }
-
     try {
-        const resend = new Resend(resendApiKey)
+        const { sendTicketEmail } = await import('@/utils/email')
 
-        // Try to send to the developer's email or a safe test email
-        // We'll use a query param or default to a placeholder that might fail if not verified
-        // Better: Send to 'delivered@resend.dev' which always succeeds for testing, 
-        // OR ask user to provide 'to' param?
-        // Let's grab 'to' from query
+        const apiKey = process.env.RESEND_API_KEY
+        const keyStatus = apiKey ? `Present (Starts with ${apiKey.substring(0, 4)}...)` : 'MISSING'
+        console.log('Debug Email - API Key Status:', keyStatus)
+
         const { searchParams } = new URL(request.url)
-        const to = searchParams.get('to') || 'delivered@resend.dev'
+        const to = searchParams.get('to') || 'maxcofie@gmail.com'
 
-        const data = await resend.emails.send({
-            from: 'GatePass <onboarding@resend.dev>',
-            to: [to],
-            subject: 'Debug: Ticket Email Test',
-            react: TicketEmail({
-                eventName: 'Debug Event',
-                eventDate: 'Dec 25, 2025',
-                venueName: 'Debug Venue',
-                ticketId: 'DBG-123',
-                customerName: 'Debug User'
-            })
+        const { render } = await import('@react-email/render')
+        const { TicketEmail } = await import('@/emails/TicketEmail')
+        const emailHtml = await render(TicketEmail({
+            eventName: 'Debug Render Event',
+            eventDate: 'Dec 25, 2025',
+            venueName: 'Debug Venue',
+            ticketType: 'VIP Debugger',
+            customerName: 'Debug User',
+            qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=DEBUG',
+            ticketId: 'DBG-1234'
+        }))
+
+        // Also send it
+        const info = await sendTicketEmail({
+            to,
+            eventName: 'Debug Event (Nodemailer)', // logic inside generic helper uses logic again?
+            // Actually, let's just use the rendered HTML to see if it works.
+            // The generic helper uses Resend's `react` prop.
+            // Let's debug by checking if `render` produces output.
+            eventDate: 'Dec 25, 2025',
+            venueName: 'Debug Venue',
+            ticketType: 'VIP Debugger',
+            customerName: 'Debug User',
+            qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=DEBUG',
+            ticketId: 'DBG-1234'
         })
 
-        if (data.error) {
-            return NextResponse.json({ success: false, error: data.error }, { status: 500 })
-        }
-
-        return NextResponse.json({ success: true, data })
+        return NextResponse.json({ success: true, messageId: info.messageId, htmlPreview: emailHtml.substring(0, 500) + '...' })
 
     } catch (error: any) {
         return NextResponse.json({
