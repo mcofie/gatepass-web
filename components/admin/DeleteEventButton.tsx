@@ -2,6 +2,8 @@
 
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useState } from 'react'
 
 export function DeleteEventButton({ eventId }: { eventId: string }) {
@@ -18,7 +20,7 @@ export function DeleteEventButton({ eventId }: { eventId: string }) {
             if (error) throw error
             router.refresh()
         } catch (e: any) {
-            alert('Error deleting event: ' + e.message)
+            toast.error('Error deleting event: ' + e.message)
         } finally {
             setLoading(false)
         }

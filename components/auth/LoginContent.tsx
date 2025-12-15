@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { toast } from 'sonner'
 
 export function LoginContent() {
     const [email, setEmail] = useState('')
@@ -32,7 +33,7 @@ export function LoginContent() {
             })
 
         if (error) {
-            alert(error.message)
+            toast.error(error.message)
         } else {
             router.push(redirect)
             router.refresh()

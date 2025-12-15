@@ -84,3 +84,15 @@ export interface Reservation {
     ticket_tiers?: TicketTier
     profiles?: Profile
 }
+
+export interface Discount {
+    id: string
+    created_at: string
+    event_id: string
+    code: string
+    type: 'percentage' | 'fixed'
+    value: number
+    max_uses?: number
+    used_count: number
+    expires_at?: string
+}

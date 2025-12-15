@@ -6,12 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import confetti from 'canvas-confetti'
-import { Event, TicketTier } from '@/types/gatepass'
+import { Event, TicketTier, Discount } from '@/types/gatepass'
 import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { useToast } from '@/components/ui/Toast'
+import { toast } from 'sonner'
 
 interface EventDetailClientProps {
     event: Event
@@ -63,10 +63,15 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     const [guestEmail, setGuestEmail] = useState('')
     const [guestPhone, setGuestPhone] = useState('')
 
+    // Discount State
+    const [promoCode, setPromoCode] = useState('')
+    const [discount, setDiscount] = useState<Discount | null>(null)
+    const [discountError, setDiscountError] = useState('')
+    const [applyingDiscount, setApplyingDiscount] = useState(false)
+
     const router = useRouter()
     const searchParams = useSearchParams()
     const supabase = createClient()
-    const { addToast } = useToast()
     const timeLeft = useTimer(reservation?.expires_at)
 
     // Handle Payment Callback (Redirect Flow)
@@ -94,7 +99,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                     // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
                 } catch (error: any) {
                     console.error('Verification Error:', error)
-                    addToast(error.message || 'Payment verification failed', 'error')
+                    toast.error(error.message || 'Payment verification failed')
                 } finally {
                     setVerifying(false)
                 }
@@ -134,8 +139,51 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
         return acc + (tier ? tier.price * qty : 0)
     }, 0)
 
-    const platformFees = calculatedTotal * 0.05
-    const totalDue = calculatedTotal + platformFees
+    // Discount Calculation
+    const discountAmount = discount
+        ? (discount.type === 'fixed'
+            ? discount.value
+            : (calculatedTotal * (discount.value / 100)))
+        : 0
+
+    const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
+    const platformFees = discountedSubtotal * 0.05
+    const totalDue = discountedSubtotal + platformFees
+
+    const applyPromoCode = async () => {
+        if (!promoCode.trim()) return
+        setApplyingDiscount(true)
+        setDiscountError('')
+        setDiscount(null)
+
+        try {
+            const { data, error } = await supabase
+                .schema('gatepass')
+                .from('discounts')
+                .select('*')
+                .eq('event_id', event.id)
+                .eq('code', promoCode.toUpperCase())
+                .single()
+
+            if (error || !data) {
+                setDiscountError('Invalid promo code')
+                return
+            }
+
+            // Check limits
+            if (data.max_uses && data.used_count >= data.max_uses) {
+                setDiscountError('This code has been fully redeemed')
+                return
+            }
+
+            setDiscount(data as Discount)
+            toast.success('Discount applied!')
+        } catch (e) {
+            setDiscountError('Failed to verify code')
+        } finally {
+            setApplyingDiscount(false)
+        }
+    }
 
     const handleContinueToCheckout = () => {
         setView('checkout')
@@ -174,10 +222,10 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
         } catch (error: any) {
             if (error.message?.includes('already registered')) {
-                addToast('An account with this email already exists. Please log in.', 'info')
+                toast.info('An account with this email already exists. Please log in.')
                 router.push(`/login?redirect=/events/${event.id}`)
             } else {
-                addToast(error.message || 'An unexpected error occurred', 'error')
+                toast.error(error.message || 'An unexpected error occurred')
             }
         } finally {
             setLoading(false)
@@ -187,7 +235,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     // Step 2: Payment (Invoked on "Pay Now")
     const handlePaystackPayment = async () => {
         if (!reservation) {
-            addToast('No active reservation found. Please try again.', 'error')
+            toast.error('No active reservation found. Please try again.')
             return
         }
 
@@ -219,7 +267,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
         } catch (error: any) {
             console.error('Payment Error:', error)
-            addToast(error.message, 'error')
+            toast.error(error.message)
             setLoading(false)
         }
     }
@@ -304,6 +352,12 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                         loading={loading}
                         onBack={() => setView('checkout')}
                         onPay={handlePaystackPayment}
+                        promoCode={promoCode}
+                        setPromoCode={setPromoCode}
+                        onApplyDiscount={applyPromoCode}
+                        discount={discount}
+                        discountError={discountError}
+                        applyingDiscount={applyingDiscount}
                     />
                 )}
                 {view === 'success' && purchasedTicket && (
@@ -345,6 +399,39 @@ const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, chea
             )}
         </div>
         <p className="text-[13px] font-normal text-black leading-relaxed mb-4">{event.description}</p>
+
+        {/* Organizer Bio Section */}
+        {event.organizers?.description && (
+            <>
+                <div className="h-px w-full bg-gray-200 mb-4" />
+                <div className="mb-4">
+                    <h3 className="text-[11px] font-bold text-gray-900 uppercase tracking-widest mb-2">About the Host</h3>
+                    <p className="text-[12px] text-gray-600 leading-relaxed mb-3">
+                        {event.organizers.description}
+                    </p>
+
+                    {/* Organizer Socials */}
+                    <div className="flex items-center gap-3">
+                        {event.organizers.website && (
+                            <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                <Globe className="w-3.5 h-3.5" />
+                            </a>
+                        )}
+                        {event.organizers.instagram && (
+                            <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
+                            </a>
+                        )}
+                        {event.organizers.twitter && (
+                            <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                            </a>
+                        )}
+                    </div>
+                </div>
+            </>
+        )}
+
         <div className="h-px w-full bg-gray-200 mb-4" />
         <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
@@ -545,7 +632,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     </div>
 )
 
-const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay }: {
+const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number,
@@ -554,7 +641,13 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
     timeLeft: string,
     loading: boolean,
     onBack: () => void,
-    onPay: () => void
+    onPay: () => void,
+    promoCode: string,
+    setPromoCode: (val: string) => void,
+    onApplyDiscount: () => void,
+    discount: Discount | null,
+    discountError: string,
+    applyingDiscount: boolean
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-6 px-1">
@@ -581,11 +674,47 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium text-black">{tiers[0]?.currency} {subtotal.toFixed(2)}</span>
                 </div>
+
+                {/* Discount Row */}
+                {discount && (
+                    <div className="flex justify-between items-center text-[14px] text-green-600 animate-fade-in">
+                        <span className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                            Promo ({discount.code})
+                        </span>
+                        <span className="font-medium">
+                            - {tiers[0]?.currency} {discount.type === 'fixed' ? discount.value.toFixed(2) : ((subtotal * discount.value / 100).toFixed(2))}
+                        </span>
+                    </div>
+                )}
+
                 <div className="flex justify-between items-center text-[14px]">
                     <span className="text-gray-600">Platform Fees</span>
                     <span className="font-medium text-black">{tiers[0]?.currency} {fees.toFixed(2)}</span>
                 </div>
             </div>
+
+            {/* Promo Input */}
+            {!discount && (
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
+                    <div className="flex gap-2">
+                        <input
+                            value={promoCode}
+                            onChange={(e) => setPromoCode(e.target.value)}
+                            placeholder="Enter promo code"
+                            className="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-sm px-3 py-2 uppercase placeholder:normal-case focus:ring-1 focus:ring-black focus:border-black outline-none transition-all"
+                        />
+                        <button
+                            onClick={onApplyDiscount}
+                            disabled={!promoCode || applyingDiscount}
+                            className="bg-black text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                        >
+                            {applyingDiscount ? '...' : 'Apply'}
+                        </button>
+                    </div>
+                    {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1">{discountError}</p>}
+                </div>
+            )}
 
             <div className="border-t border-dashed border-gray-200 my-4" />
 

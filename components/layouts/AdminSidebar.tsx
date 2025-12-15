@@ -35,42 +35,52 @@ export function AdminSidebar() {
     ]
 
     return (
-        <aside className="w-64 bg-black text-white flex-shrink-0 flex flex-col min-h-screen">
-            <div className="p-6 border-b border-gray-800">
-                <Link href="/" className="text-2xl font-black tracking-tighter flex items-center gap-2">
-                    <div className="w-8 h-8 bg-white rounded-lg"></div>
-                    GATEPASS.
+        <aside className="w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col min-h-screen border-r border-[#1a1a1a]">
+            {/* Brand */}
+            <div className="p-8 pb-12">
+                <Link href="/" className="text-xl font-bold tracking-tighter flex items-center gap-3">
+                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-black text-[10px] font-black pointer-events-none">GP</div>
+                    GatePass.
                 </Link>
             </div>
 
-            <nav className="flex-1 p-4 space-y-2">
-                <p className="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Menu</p>
+            {/* Navigation */}
+            <nav className="flex-1 px-4 space-y-1">
+                <p className="px-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Main Menu</p>
 
                 {navItems.map((item) => (
                     <Link
                         key={item.path}
                         href={item.path}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition ${isActive(item.path) ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive(item.path)
+                                ? 'bg-white text-black shadow-lg shadow-white/5'
+                                : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a]'
                             }`}
                     >
-                        <item.icon className="w-5 h-5" />
+                        <item.icon className={`w-4 h-4 transition-colors ${isActive(item.path) ? 'text-black' : 'text-gray-500 group-hover:text-white'}`} />
                         {item.name}
                     </Link>
                 ))}
             </nav>
 
-            <div className="p-4 border-t border-gray-800">
-                <div className="flex items-center gap-3 px-4 py-3 mb-2">
-                    <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center text-xs font-bold">
-                        {user?.email?.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="overflow-hidden">
-                        <p className="text-xs font-medium text-white truncate w-32">{user?.email}</p>
-                        <p className="text-[10px] text-gray-500">Administrator</p>
+            {/* User Profile */}
+            <div className="p-4 border-t border-[#1a1a1a]">
+                <div className="bg-[#111] rounded-2xl p-1 mb-2 border border-[#1a1a1a]">
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                        <div className="w-8 h-8 bg-gradient-to-tr from-gray-700 to-gray-600 rounded-full flex items-center justify-center text-[10px] font-bold shadow-inner">
+                            {user?.email?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="overflow-hidden flex-1">
+                            <p className="text-[12px] font-medium text-white truncate">{user?.email}</p>
+                            <p className="text-[10px] text-gray-500">Administrator</p>
+                        </div>
                     </div>
                 </div>
-                <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-400 text-sm hover:text-red-300 transition flex items-center gap-2">
-                    <LogOut className="w-4 h-4" /> Sign Out
+                <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-3 text-red-400 text-[12px] font-medium hover:text-red-300 transition flex items-center gap-2 hover:bg-red-950/10 rounded-xl"
+                >
+                    <LogOut className="w-3.5 h-3.5" /> Sign Out
                 </button>
             </div>
         </aside>

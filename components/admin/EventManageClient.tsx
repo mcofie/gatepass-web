@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { Event, TicketTier } from '@/types/gatepass'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus } from 'lucide-react'
+import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
+import { toast } from 'sonner'
 
 interface EventManageClientProps {
     event: Event
@@ -14,11 +16,23 @@ interface EventManageClientProps {
 
 export function EventManageClient({ event: initialEvent, initialTiers }: EventManageClientProps) {
     const [event, setEvent] = useState(initialEvent)
-    const [tiers, setTiers] = useState(initialTiers)
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees'>('tickets')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts'>('tickets')
     const [loading, setLoading] = useState(false)
+
+    // Tickets State
+    const [tiers, setTiers] = useState<TicketTier[]>(initialTiers) // Kept initialTiers from props
+
+    // Attendees State
     const [tickets, setTickets] = useState<any[]>([])
     const [loadingTickets, setLoadingTickets] = useState(false)
+    const [ticketPage, setTicketPage] = useState(0)
+    const [ticketCount, setTicketCount] = useState(0)
+    const TICKETS_PER_PAGE = 20
+
+    // Discounts State
+    const [discounts, setDiscounts] = useState<Discount[]>([])
+    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage', value: 0, max_uses: 0 })
+    const [creatingDiscount, setCreatingDiscount] = useState(false)
 
     // Tier Form
     const [tierForm, setTierForm] = useState({ name: '', price: 0, total_quantity: 100, description: '' })
@@ -26,10 +40,19 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     // Tier Editing State
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
-    const [editForm, setEditForm] = useState({ name: '', price: 0, total_quantity: 0 })
+    const [editForm, setEditForm] = useState({ name: '', price: 0, total_quantity: 0, description: '' })
 
     const supabase = createClient()
     const router = useRouter()
+
+    // Stats Calculation
+    const stats = React.useMemo(() => {
+        const totalRevenue = tiers.reduce((acc, tier) => acc + (tier.price * tier.quantity_sold), 0)
+        const totalSold = tiers.reduce((acc, tier) => acc + tier.quantity_sold, 0)
+        const totalCapacity = tiers.reduce((acc, tier) => acc + tier.total_quantity, 0)
+        const utilization = totalCapacity > 0 ? (totalSold / totalCapacity) * 100 : 0
+        return { totalRevenue, totalSold, totalCapacity, utilization }
+    }, [tiers])
 
     // ---------------- DETAILS LOGIC ----------------
     const updateEvent = async (e: React.FormEvent) => {
@@ -58,10 +81,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             }).eq('id', event.id)
 
             if (error) throw error
-            alert('Event updated successfully')
+            toast.success('Event updated successfully')
             router.refresh()
         } catch (e: any) {
-            alert('Error: ' + e.message)
+            toast.error('Error: ' + e.message)
         } finally {
             setLoading(false)
         }
@@ -85,8 +108,9 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
             await fetchTiers()
             setTierForm({ name: '', price: 0, total_quantity: 100, description: '' })
+            toast.success('Ticket tier added')
         } catch (e: any) {
-            alert(e.message)
+            toast.error(e.message)
         } finally {
             setCreatingTier(false)
         }
@@ -95,18 +119,21 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const deleteTier = async (id: string) => {
         if (!confirm('Are you sure?')) return
         const { error } = await supabase.schema('gatepass').from('ticket_tiers').delete().eq('id', id)
-        if (error) alert(error.message)
-        else await fetchTiers()
+        if (error) toast.error(error.message)
+        else {
+            await fetchTiers()
+            toast.success('Tier deleted')
+        }
     }
 
     const startEditing = (tier: TicketTier) => {
         setEditingTierId(tier.id)
-        setEditForm({ name: tier.name, price: tier.price, total_quantity: tier.total_quantity })
+        setEditForm({ name: tier.name, price: tier.price, total_quantity: tier.total_quantity, description: tier.description || '' })
     }
 
     const cancelEditing = () => {
         setEditingTierId(null)
-        setEditForm({ name: '', price: 0, total_quantity: 0 })
+        setEditForm({ name: '', price: 0, total_quantity: 0, description: '' })
     }
 
     const saveTier = async (id: string) => {
@@ -114,326 +141,469 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             const { error } = await supabase.schema('gatepass').from('ticket_tiers').update({
                 name: editForm.name,
                 price: editForm.price,
-                total_quantity: editForm.total_quantity
+                total_quantity: editForm.total_quantity,
+                description: editForm.description
             }).eq('id', id)
 
             if (error) throw error
 
             await fetchTiers()
             cancelEditing()
+            toast.success('Tier updated')
         } catch (e: any) {
-            alert('Error updating tier: ' + e.message)
+            toast.error('Error updating tier: ' + e.message)
+        }
+    }
+
+    // ---------------- DISCOUNTS LOGIC ----------------
+    const fetchDiscounts = async () => {
+        const { data } = await supabase.schema('gatepass').from('discounts').select('*').eq('event_id', event.id).order('created_at', { ascending: false })
+        if (data) setDiscounts(data as Discount[])
+    }
+
+    const addDiscount = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setCreatingDiscount(true)
+        try {
+            const { error } = await supabase.schema('gatepass').from('discounts').insert({
+                event_id: event.id,
+                code: discountForm.code.toUpperCase(),
+                type: discountForm.type,
+                value: discountForm.value,
+                max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null
+            })
+            if (error) throw error
+
+            await fetchDiscounts()
+            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0 })
+            toast.success('Discount code created!')
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setCreatingDiscount(false)
+        }
+    }
+
+    const deleteDiscount = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this discount code?')) return
+        const { error } = await supabase.schema('gatepass').from('discounts').delete().eq('id', id)
+        if (error) toast.error(error.message)
+        else {
+            await fetchDiscounts()
+            toast.success('Discount deleted')
         }
     }
 
     // ---------------- ATTENDEES LOGIC ----------------
-    const fetchTickets = async () => {
+    const fetchTickets = async (page = 0) => {
         setLoadingTickets(true)
-        const { data } = await supabase
+        const from = page * TICKETS_PER_PAGE
+        const to = from + TICKETS_PER_PAGE - 1
+
+        const { data, count } = await supabase
             .schema('gatepass')
             .from('tickets')
             .select(`
                 id, status, order_reference, created_at,
                 ticket_tiers ( name ),
                 profiles ( full_name, id )
-            `)
+            `, { count: 'exact' })
             .eq('event_id', event.id)
             .order('created_at', { ascending: false })
+            .range(from, to)
 
-        if (data) setTickets(data)
+        if (data) {
+            setTickets(data)
+            setTicketCount(count || 0)
+        }
         setLoadingTickets(false)
     }
+
+    useEffect(() => {
+        if (activeTab === 'attendees') {
+            fetchTickets(ticketPage)
+        }
+    }, [activeTab, ticketPage])
 
     const updateTicketStatus = async (ticketId: string, status: string) => {
         if (!confirm(`Mark as ${status}?`)) return
         const { error } = await supabase.schema('gatepass').from('tickets').update({ status }).eq('id', ticketId)
-        if (error) alert(error.message)
-        else fetchTickets()
+        if (error) toast.error(error.message)
+        else {
+            await fetchTickets(ticketPage)
+            toast.success(`Ticket marked as ${status}`)
+        }
     }
 
     // On Tab Change
     React.useEffect(() => {
-        if (activeTab === 'attendees') {
-            fetchTickets()
+        if (activeTab === 'discounts' && !discounts.length) {
+            fetchDiscounts()
         }
     }, [activeTab])
 
     const tabClass = (tab: string) => clsx(
-        "px-4 py-2 text-sm font-medium rounded-full transition-colors",
-        activeTab === tab ? "bg-black text-white" : "text-gray-500 hover:text-black hover:bg-gray-100"
+        "px-6 py-2.5 text-sm font-bold rounded-full transition-all duration-300 ease-out",
+        activeTab === tab
+            ? "bg-white text-black shadow-md shadow-black/5 ring-1 ring-black/5"
+            : "text-gray-500 hover:text-black hover:bg-gray-200/50"
     )
 
     return (
         <div className="container mx-auto p-6 max-w-5xl font-sans">
             {/* Header */}
-            <div className="flex flex-col gap-4 mb-10">
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                    <Link href="/dashboard/events" className="hover:text-black transition-colors">Dashboard</Link>
-                    <span>/</span>
-                    <span>Events</span>
-                    <span>/</span>
-                    <span className="text-black font-medium">{event.title}</span>
+            <div className="flex flex-col gap-6 mb-10">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-2">
+                    <Link href="/dashboard/events" className="hover:text-black transition-colors">Events</Link>
+                    <ArrowLeft className="w-3 h-3 rotate-180" />
+                    <span className="text-black">{event.title}</span>
                 </div>
-                <div className="flex items-end justify-between">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-gray-900">{event.title}</h1>
-                        <p className="text-gray-500 mt-1">{event.venue_name}</p>
+                        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 mb-2">{event.title}</h1>
+                        <div className="flex items-center gap-2 text-gray-500 font-medium">
+                            <span>{event.venue_name}</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-300" />
+                            <span suppressHydrationWarning>{new Date(event.starts_at).toLocaleDateString()}</span>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <Link href={`/events/${event.slug || event.id}`} target="_blank" className="text-sm font-medium px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors">
-                            View Public Page
+                    <div className="flex gap-3">
+                        <Link href={`/events/${event.slug || event.id}`} target="_blank">
+                            <button className="h-10 px-5 rounded-full border border-gray-200 bg-white font-semibold text-sm hover:border-black hover:bg-gray-50 transition-all flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live Page
+                            </button>
                         </Link>
                     </div>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex gap-2 mb-8 border-b pb-4">
-                <button onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
-                <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
-                <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
+            <div className="flex justify-start mb-10">
+                <div className="inline-flex bg-gray-100/50 p-1.5 rounded-full border border-gray-200/50 relative">
+                    <button onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
+                    <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
+                    <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
+                    <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
+                </div>
             </div>
 
             {/* DETAILS TAB */}
             {activeTab === 'details' && (
-                <div className="max-w-3xl">
-                    <form onSubmit={updateEvent} className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="space-y-6">
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">General Information</h3>
-                                <div className="grid gap-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Event Title</label>
-                                    <input
-                                        value={event.title}
-                                        onChange={e => setEvent({ ...event, title: e.target.value })}
-                                        className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        placeholder="E.g. Summer Music Festival"
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Description</label>
-                                    <textarea
-                                        value={event.description}
-                                        onChange={e => setEvent({ ...event, description: e.target.value })}
-                                        rows={5}
-                                        className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        placeholder="Describe your event..."
-                                    ></textarea>
-                                </div>
-                            </div>
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">URL Slug</h3>
-                                <div className="flex items-center">
-                                    <span className="bg-gray-50 border border-r-0 rounded-l-lg p-3 text-gray-500 text-sm">gatepass.com/events/</span>
-                                    <input
-                                        value={event.slug}
-                                        onChange={e => setEvent({ ...event, slug: e.target.value })}
-                                        className="w-full border-gray-200 rounded-r-lg p-3 focus:ring-black focus:border-black transition-all"
-                                    />
-                                </div>
+                    {/* 1. Stats Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center">
+                                <DollarSign className="w-6 h-6" />
                             </div>
-
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">Date & Time</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Starts At</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={event.starts_at ? new Date(event.starts_at).toISOString().slice(0, 16) : ''}
-                                            onChange={e => setEvent({ ...event, starts_at: new Date(e.target.value).toISOString() })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Ends At (Optional)</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={event.ends_at ? new Date(event.ends_at).toISOString().slice(0, 16) : ''}
-                                            onChange={e => setEvent({ ...event, ends_at: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        />
-                                    </div>
-                                </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-500">Gross Revenue</p>
+                                <p className="text-2xl font-black text-gray-900">{initialTiers?.[0]?.currency || 'GHS'} {stats.totalRevenue.toLocaleString()}</p>
                             </div>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center">
+                                <Ticket className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-500">Tickets Sold</p>
+                                <p className="text-2xl font-black text-gray-900">{stats.totalSold} / {stats.totalCapacity}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center">
+                                <BarChart3 className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-500">Utilization</p>
+                                <p className="text-2xl font-black text-gray-900">{stats.utilization.toFixed(1)}%</p>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">Location</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Venue Name</label>
-                                        <input
-                                            value={event.venue_name}
-                                            onChange={e => setEvent({ ...event, venue_name: e.target.value })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        />
+                    <form onSubmit={updateEvent} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* LEFT COLUMN (8 cols) */}
+                        <div className="lg:col-span-8 space-y-8">
+
+                            {/* General Info */}
+                            <div className="p-8 rounded-3xl border border-gray-100 bg-white shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
+                                <div className="flex items-center gap-3 border-b pb-4 border-gray-100">
+                                    <div className="p-2 bg-gray-50 rounded-xl">
+                                        <ImageIcon className="w-5 h-5 text-gray-900" />
                                     </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Address</label>
-                                        <input
-                                            value={event.venue_address}
-                                            onChange={e => setEvent({ ...event, venue_address: e.target.value })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        />
-                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">Event Identity</h3>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Latitude</label>
+                                <div className="grid gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Event Title</label>
                                         <input
-                                            type="number"
-                                            step="any"
-                                            value={event.latitude || ''}
-                                            onChange={e => setEvent({ ...event, latitude: parseFloat(e.target.value) })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                            placeholder="e.g. 5.6037"
+                                            value={event.title}
+                                            onChange={e => setEvent({ ...event, title: e.target.value })}
+                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3.5 text-lg font-bold focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none"
+                                            placeholder="E.g. Summer Music Festival"
                                         />
                                     </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Longitude</label>
-                                        <input
-                                            type="number"
-                                            step="any"
-                                            value={event.longitude || ''}
-                                            onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                            placeholder="e.g. -0.1870"
-                                        />
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                        <textarea
+                                            value={event.description}
+                                            onChange={e => setEvent({ ...event, description: e.target.value })}
+                                            rows={6}
+                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium resize-none"
+                                            placeholder="Describe your event to attract attendees..."
+                                        ></textarea>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">Social Media</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Website</label>
+                            {/* Location */}
+                            <div className="p-8 rounded-3xl border border-gray-100 bg-white shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
+                                <div className="flex items-center gap-3 border-b pb-4 border-gray-100">
+                                    <div className="p-2 bg-gray-50 rounded-xl">
+                                        <MapPin className="w-5 h-5 text-gray-900" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">Location</h3>
+                                </div>
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Venue Name</label>
+                                            <input
+                                                value={event.venue_name}
+                                                onChange={e => setEvent({ ...event, venue_name: e.target.value })}
+                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
+                                                placeholder="e.g. The National Theatre"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                                            <input
+                                                value={event.venue_address}
+                                                onChange={e => setEvent({ ...event, venue_address: e.target.value })}
+                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
+                                                placeholder="e.g. Accra, Ghana"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 border-dashed">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Latitude</label>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                value={event.latitude || ''}
+                                                onChange={e => setEvent({ ...event, latitude: parseFloat(e.target.value) })}
+                                                className="w-full bg-white border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-mono"
+                                                placeholder="5.6037"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Longitude</label>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                value={event.longitude || ''}
+                                                onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
+                                                className="w-full bg-white border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-mono"
+                                                placeholder="-0.1870"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Media */}
+                            <div className="p-8 rounded-3xl border border-gray-100 bg-white shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
+                                <div className="flex items-center gap-3 border-b pb-4 border-gray-100">
+                                    <div className="p-2 bg-gray-50 rounded-xl">
+                                        <Video className="w-5 h-5 text-gray-900" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">Media Assets</h3>
+                                </div>
+                                <div className="grid gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Poster Image URL</label>
                                         <input
-                                            value={event.social_website || ''}
-                                            onChange={e => setEvent({ ...event, social_website: e.target.value })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                            value={event.poster_url || ''}
+                                            onChange={e => setEvent({ ...event, poster_url: e.target.value })}
+                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium text-sm text-blue-600"
                                             placeholder="https://..."
                                         />
                                     </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Instagram</label>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Background Video URL (Optional)</label>
                                         <input
-                                            value={event.social_instagram || ''}
-                                            onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                            placeholder="username or link"
+                                            value={event.video_url || ''}
+                                            onChange={e => setEvent({ ...event, video_url: e.target.value })}
+                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium text-sm text-blue-600"
+                                            placeholder="https://... (MP4)"
                                         />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">X (Twitter)</label>
-                                        <input
-                                            value={event.social_twitter || ''}
-                                            onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                            placeholder="username or link"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Facebook</label>
-                                        <input
-                                            value={event.social_facebook || ''}
-                                            onChange={e => setEvent({ ...event, social_facebook: e.target.value })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                            placeholder="username or link"
-                                        />
+                                        <p className="text-xs text-gray-400 mt-2">A short looping video played in the background of your event page.</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">Tickets & Fees</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Fee Bearer</label>
-                                        <select
-                                            value={event.fee_bearer}
-                                            onChange={e => setEvent({ ...event, fee_bearer: e.target.value as 'customer' | 'organizer' })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all bg-white"
-                                        >
-                                            <option value="customer">Customer (Ticket Price + Fees)</option>
-                                            <option value="organizer">Organizer (Fees deducted from revenue)</option>
-                                        </select>
-                                        <p className="text-xs text-gray-400">Determines who pays the service fees.</p>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Platform Fee (%)</label>
-                                        <input
-                                            type="number"
-                                            value={event.platform_fee_percent}
-                                            onChange={e => setEvent({ ...event, platform_fee_percent: parseFloat(e.target.value) })}
-                                            className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                            min="0"
-                                            step="0.1"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                        </div>
 
-                            <div className="grid gap-6 p-6 border rounded-xl bg-white shadow-sm">
-                                <h3 className="font-semibold text-lg">Media & Visibility</h3>
-                                <div className="grid gap-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Poster URL</label>
-                                    <input
-                                        value={event.poster_url || ''}
-                                        onChange={e => setEvent({ ...event, poster_url: e.target.value })}
-                                        className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        placeholder="https://..."
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Video URL (Optional)</label>
-                                    <input
-                                        value={event.video_url || ''}
-                                        onChange={e => setEvent({ ...event, video_url: e.target.value })}
-                                        className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
-                                        placeholder="https://... (MP4 preferred)"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-3 pt-2">
-                                    <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        {/* RIGHT COLUMN (4 cols) - Settings */}
+                        <div className="lg:col-span-4 space-y-8">
+
+                            {/* Publish Status - High Priority */}
+                            <div className="p-6 rounded-3xl bg-black text-white shadow-xl shadow-black/10">
+                                <h3 className="font-bold text-lg mb-4 text-white">Visibility</h3>
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium text-gray-300">Publish Event</span>
+                                    <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
                                         <input
                                             type="checkbox"
                                             name="toggle"
                                             id="pub"
                                             checked={event.is_published}
                                             onChange={e => setEvent({ ...event, is_published: e.target.checked })}
-                                            className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400"
+                                            className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
                                             style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
                                         />
-                                        <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-green-400' : 'bg-gray-300'}`}></label>
+                                        <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-green-500' : 'bg-gray-600'}`}></label>
                                     </div>
-                                    <label htmlFor="pub" className="text-sm font-medium">Publish Event (Visible to public)</label>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+                                    When published, your event will be visible to the public and tickets will be available for purchase.
+                                </p>
+                            </div>
+
+                            {/* Date & Time */}
+                            <div className="p-6 rounded-3xl border border-gray-100 bg-white shadow-sm space-y-4">
+                                <div className="flex items-center gap-3 pb-2">
+                                    <div className="p-1.5 bg-gray-50 rounded-lg">
+                                        <Calendar className="w-4 h-4 text-gray-900" />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900">Timing</h3>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Starts</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={event.starts_at ? new Date(event.starts_at).toISOString().slice(0, 16) : ''}
+                                        onChange={e => setEvent({ ...event, starts_at: new Date(e.target.value).toISOString() })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Ends</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={event.ends_at ? new Date(event.ends_at).toISOString().slice(0, 16) : ''}
+                                        onChange={e => setEvent({ ...event, ends_at: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                    />
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex justify-between items-center pt-8 border-t border-gray-100 mt-8">
-                            <button
-                                type="button"
-                                onClick={async () => {
-                                    if (!confirm('Are you sure you want to delete this event? This cannot be undone.')) return
-                                    const { error } = await supabase.schema('gatepass').from('events').delete().eq('id', event.id)
-                                    if (error) alert(error.message)
-                                    else router.push('/dashboard/events')
-                                }}
-                                className="text-red-500 font-medium hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors"
-                            >
-                                Delete Event
-                            </button>
+                            {/* URL Slug */}
+                            <div className="p-6 rounded-3xl border border-gray-100 bg-white shadow-sm space-y-4">
+                                <div className="flex items-center gap-3 pb-2">
+                                    <div className="p-1.5 bg-gray-50 rounded-lg">
+                                        <Globe className="w-4 h-4 text-gray-900" />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900">Custom URL</h3>
+                                </div>
+                                <div>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-gray-400 mb-1">gatepass.com/events/</span>
+                                        <input
+                                            value={event.slug}
+                                            onChange={e => setEvent({ ...event, slug: e.target.value })}
+                                            className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none"
+                                            placeholder="my-event"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
 
-                            <button
-                                type="submit"
-                                className="bg-black text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                                disabled={loading}
-                            >
-                                {loading ? 'Saving Changes...' : 'Save Changes'}
-                            </button>
+                            {/* Financials */}
+                            <div className="p-6 rounded-3xl border border-gray-100 bg-white shadow-sm space-y-4">
+                                <div className="flex items-center gap-3 pb-2">
+                                    <div className="p-1.5 bg-gray-50 rounded-lg">
+                                        <DollarSign className="w-4 h-4 text-gray-900" />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900">Financials</h3>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Fee Bearer</label>
+                                    <select
+                                        value={event.fee_bearer}
+                                        onChange={e => setEvent({ ...event, fee_bearer: e.target.value as 'customer' | 'organizer' })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                    >
+                                        <option value="customer">Customer Pays Fees</option>
+                                        <option value="organizer">Absorb Fees</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Pass-on Fee (%)</label>
+                                    <input
+                                        type="number"
+                                        value={event.platform_fee_percent}
+                                        onChange={e => setEvent({ ...event, platform_fee_percent: parseFloat(e.target.value) })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Socials */}
+                            <div className="p-6 rounded-3xl border border-gray-100 bg-white shadow-sm space-y-4">
+                                <div className="flex items-center gap-3 pb-2">
+                                    <div className="p-1.5 bg-gray-50 rounded-lg">
+                                        <Share2 className="w-4 h-4 text-gray-900" />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900">Socials</h3>
+                                </div>
+                                <div className="grid gap-3">
+                                    <input
+                                        value={event.social_website || ''}
+                                        onChange={e => setEvent({ ...event, social_website: e.target.value })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all"
+                                        placeholder="Website URL"
+                                    />
+                                    <input
+                                        value={event.social_instagram || ''}
+                                        onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all"
+                                        placeholder="Instagram Username"
+                                    />
+                                    <input
+                                        value={event.social_twitter || ''}
+                                        onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all"
+                                        placeholder="X (Twitter)"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Save Action - Sticky at bottom of column */}
+                            <div className="sticky bottom-6 pt-4">
+                                <button
+                                    type="submit"
+                                    className="w-full bg-black text-white py-4 rounded-2xl font-bold hover:bg-gray-800 transition-all disabled:opacity-50 shadow-xl hover:shadow-2xl hover:-translate-y-1 text-lg"
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Saving Update...' : 'Save Changes'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (!confirm('Delete event?')) return
+                                        // Delete logic
+                                        const { error } = await supabase.schema('gatepass').from('events').delete().eq('id', event.id)
+                                        if (error) alert(error.message); else router.push('/dashboard/events')
+                                    }}
+                                    className="w-full mt-3 text-red-500 font-bold text-sm hover:underline py-2"
+                                >
+                                    Delete Event
+                                </button>
+                            </div>
+
                         </div>
                     </form>
                 </div>
@@ -444,42 +614,52 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="grid lg:grid-cols-2 gap-6">
                         {tiers.map(tier => (
-                            <div key={tier.id} className="relative group bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
+                            <div key={tier.id} className="relative group bg-white p-8 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] hover:shadow-lg transition-all">
                                 {editingTierId === tier.id ? (
                                     // Editing Mode
-                                    <div className="space-y-4">
+                                    <div className="space-y-6">
                                         <div>
-                                            <label className="text-xs font-bold uppercase text-gray-400">Name</label>
+                                            <label className="text-sm font-semibold text-gray-700 mb-2 block">Name</label>
                                             <input
                                                 value={editForm.name}
                                                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                                className="w-full border-gray-200 rounded p-2 text-sm focus:ring-black focus:border-black"
+                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
                                                 autoFocus
                                             />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="text-xs font-bold uppercase text-gray-400">Price</label>
+                                                <label className="text-sm font-semibold text-gray-700 mb-2 block">Price</label>
                                                 <input
                                                     type="number"
                                                     value={editForm.price}
                                                     onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                                                    className="w-full border-gray-200 rounded p-2 text-sm focus:ring-black focus:border-black"
+                                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-xs font-bold uppercase text-gray-400">Quantity</label>
+                                                <label className="text-sm font-semibold text-gray-700 mb-2 block">Quantity</label>
                                                 <input
                                                     type="number"
                                                     value={editForm.total_quantity}
                                                     onChange={e => setEditForm({ ...editForm, total_quantity: Number(e.target.value) })}
-                                                    className="w-full border-gray-200 rounded p-2 text-sm focus:ring-black focus:border-black"
+                                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
                                                 />
                                             </div>
                                         </div>
+                                        <div>
+                                            <label className="text-sm font-semibold text-gray-700 mb-2 block">Description</label>
+                                            <textarea
+                                                value={editForm.description}
+                                                onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium resize-none"
+                                                rows={2}
+                                                placeholder="Optional perks..."
+                                            />
+                                        </div>
                                         <div className="flex gap-2 justify-end pt-2">
-                                            <button onClick={cancelEditing} className="text-sm px-3 py-1.5 text-gray-500 hover:text-black hover:bg-gray-100 rounded transition-colors">Cancel</button>
-                                            <button onClick={() => saveTier(tier.id)} className="text-sm px-3 py-1.5 bg-black text-white rounded hover:bg-gray-800 shadow-sm transition-all">Save Changes</button>
+                                            <button onClick={cancelEditing} className="px-5 py-2.5 rounded-xl font-bold text-gray-500 hover:text-black hover:bg-gray-50 transition-colors">Cancel</button>
+                                            <button onClick={() => saveTier(tier.id)} className="px-5 py-2.5 bg-black text-white rounded-xl font-bold hover:bg-gray-800 shadow-lg shadow-black/20 transition-all">Save Changes</button>
                                         </div>
                                     </div>
                                 ) : (
@@ -487,35 +667,39 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     <>
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
-                                                <h4 className="font-bold text-xl mb-1">{tier.name}</h4>
-                                                <p className="text-sm text-gray-500 font-medium tracking-wide uppercase">Tier ID: {tier.id.slice(0, 8)}...</p>
+                                                <h4 className="font-extrabold text-2xl mb-1">{tier.name}</h4>
+                                                <p className="text-sm text-gray-400 font-mono tracking-wide">ID: {tier.id.slice(0, 8)}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-2xl font-black">{tier.currency} {tier.price}</p>
+                                                <p className="text-3xl font-black">{tier.currency} {tier.price}</p>
                                             </div>
                                         </div>
 
-                                        <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
+                                        {tier.description && (
+                                            <p className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">{tier.description}</p>
+                                        )}
+
+                                        <div className="w-full bg-gray-100 rounded-full h-3 mb-4 overflow-hidden">
                                             <div
-                                                className="bg-black h-2 rounded-full transition-all duration-1000"
+                                                className="bg-black h-3 rounded-full transition-all duration-1000 ease-out"
                                                 style={{ width: `${Math.min((tier.quantity_sold / tier.total_quantity) * 100, 100)}%` }}
                                             ></div>
                                         </div>
-                                        <div className="flex justify-between text-sm mb-6">
-                                            <span className="font-medium text-gray-900">{tier.quantity_sold} sold</span>
+                                        <div className="flex justify-between text-base mb-8 font-medium">
+                                            <span className="text-gray-900">{tier.quantity_sold} sold</span>
                                             <span className="text-gray-500">{tier.total_quantity} total</span>
                                         </div>
 
-                                        <div className="flex justify-end gap-2 pt-4 border-t border-gray-100 opacity-100">
+                                        <div className="flex justify-end gap-3 pt-6 border-t border-gray-50">
                                             <button
                                                 onClick={() => startEditing(tier)}
-                                                className="text-gray-600 text-sm font-medium hover:bg-gray-50 px-3 py-1.5 rounded transition-colors"
+                                                className="text-gray-600 font-bold text-sm bg-gray-50 hover:bg-gray-100 hover:text-black px-4 py-2 rounded-lg transition-colors"
                                             >
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => deleteTier(tier.id)}
-                                                className="text-red-500 text-sm font-medium hover:bg-red-50 px-3 py-1.5 rounded transition-colors"
+                                                className="text-red-500 font-bold text-sm hover:bg-red-50 px-4 py-2 rounded-lg transition-colors"
                                             >
                                                 Delete
                                             </button>
@@ -526,8 +710,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                         ))}
 
                         {/* Add New Tier Card */}
-                        <div className="bg-gray-50 p-6 rounded-xl border-2 border-dashed border-gray-300 flex flex-col justify-center">
-                            <h3 className="font-bold text-lg mb-4 text-center text-gray-700">Add New Ticket Tier</h3>
+                        <div className="bg-gray-50/50 p-8 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col justify-center hover:border-gray-300 transition-colors">
+                            <h3 className="font-bold text-xl mb-6 text-center text-gray-900">Add New Ticket Tier</h3>
                             <form onSubmit={addTier} className="space-y-4">
                                 <div>
                                     <input
@@ -535,7 +719,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, name: e.target.value })}
                                         required
                                         placeholder="Ticket Name (e.g. VIP)"
-                                        className="w-full border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -545,7 +729,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, price: Number(e.target.value) })}
                                         required
                                         placeholder="Price"
-                                        className="w-full border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
                                     />
                                     <input
                                         type="number"
@@ -553,12 +737,21 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, total_quantity: Number(e.target.value) })}
                                         required
                                         placeholder="Quantity"
-                                        className="w-full border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                    />
+                                </div>
+                                <div>
+                                    <textarea
+                                        value={tierForm.description || ''}
+                                        onChange={e => setTierForm({ ...tierForm, description: e.target.value })}
+                                        placeholder="Description (optional)"
+                                        rows={2}
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium resize-none"
                                     />
                                 </div>
                                 <button
                                     type="submit"
-                                    className="w-full bg-white border border-gray-300 text-black py-2.5 rounded-lg font-bold hover:bg-gray-50 hover:border-black transition-all disabled:opacity-50 text-sm"
+                                    className="w-full bg-black text-white py-3.5 rounded-xl font-bold shadow-lg shadow-black/10 hover:shadow-black/20 hover:-translate-y-0.5 transition-all disabled:opacity-50"
                                     disabled={creatingTier}
                                 >
                                     {creatingTier ? 'Adding...' : 'Add Tier'}
@@ -571,12 +764,12 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
             {/* ATTENDEES TAB */}
             {activeTab === 'attendees' && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center backdrop-blur-sm">
-                        <h3 className="font-semibold text-gray-900">Guest List</h3>
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+                        <h3 className="font-bold text-xl text-gray-900">Guest List</h3>
                         <div className="flex gap-2">
-                            <span className="px-3 py-1 bg-white border rounded-full text-xs font-medium text-gray-600 shadow-sm">
-                                {tickets.length} attendees
+                            <span className="px-4 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-sm font-semibold text-gray-900">
+                                {ticketCount} attendees
                             </span>
                         </div>
                     </div>
@@ -586,54 +779,54 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     ) : tickets.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+                                <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
                                     <tr>
-                                        <th className="px-6 py-3 text-xs uppercase tracking-wider">Reference</th>
-                                        <th className="px-6 py-3 text-xs uppercase tracking-wider">Guest</th>
-                                        <th className="px-6 py-3 text-xs uppercase tracking-wider">Ticket</th>
-                                        <th className="px-6 py-3 text-xs uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-3 text-xs uppercase tracking-wider text-right">Actions</th>
+                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
+                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Guest</th>
+                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Ticket</th>
+                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
+                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {tickets.map((ticket: any) => (
-                                        <tr key={ticket.id} className="hover:bg-gray-50/80 transition-colors">
-                                            <td className="px-6 py-4 font-mono text-xs text-gray-500">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-xs font-bold text-gray-600">
+                                        <tr key={ticket.id} className="hover:bg-gray-50/80 transition-colors group">
+                                            <td className="px-8 py-5 font-mono text-xs text-gray-500">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 border border-white shadow-sm ring-1 ring-gray-100">
                                                         {ticket.profiles?.full_name?.charAt(0) || 'G'}
                                                     </div>
                                                     <div>
-                                                        <div className="font-medium text-gray-900">{ticket.profiles?.full_name || 'Guest User'}</div>
-                                                        <div className="text-xs text-gray-400 font-mono">{ticket.profiles?.id.slice(0, 8)}...</div>
+                                                        <div className="font-bold text-gray-900 group-hover:text-black transition-colors">{ticket.profiles?.full_name || 'Guest User'}</div>
+                                                        <div className="text-xs text-gray-400 font-mono tracking-tight">{ticket.profiles?.id.slice(0, 8)}...</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                                            <td className="px-8 py-5">
+                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100">
                                                     {ticket.ticket_tiers?.name}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className={clsx("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border", {
-                                                    'bg-green-50 text-green-700 border-green-200': ticket.status === 'valid',
-                                                    'bg-gray-100 text-gray-600 border-gray-200': ticket.status === 'used',
-                                                    'bg-red-50 text-red-700 border-red-200': ticket.status === 'cancelled'
+                                            <td className="px-8 py-5">
+                                                <span className={clsx("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border", {
+                                                    'bg-green-50 text-green-700 border-green-200/50': ticket.status === 'valid',
+                                                    'bg-gray-50 text-gray-500 border-gray-200/50': ticket.status === 'used',
+                                                    'bg-red-50 text-red-700 border-red-200/50': ticket.status === 'cancelled'
                                                 })}>
                                                     <span className={clsx("w-1.5 h-1.5 rounded-full", {
-                                                        'bg-green-500': ticket.status === 'valid',
-                                                        'bg-gray-500': ticket.status === 'used',
+                                                        'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]': ticket.status === 'valid',
+                                                        'bg-gray-400': ticket.status === 'used',
                                                         'bg-red-500': ticket.status === 'cancelled'
                                                     })}></span>
                                                     {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-8 py-5 text-right">
                                                 {ticket.status === 'valid' && (
                                                     <button
                                                         onClick={() => updateTicketStatus(ticket.id, 'used')}
-                                                        className="text-xs font-medium bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors shadow-sm"
+                                                        className="text-xs font-bold bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5"
                                                     >
                                                         Check In
                                                     </button>
@@ -645,14 +838,140 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                             </table>
                         </div>
                     ) : (
-                        <div className="p-16 text-center">
-                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path></svg>
+                        <div className="p-24 text-center">
+                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path></svg>
                             </div>
-                            <h3 className="text-gray-900 font-medium mb-1">No tickets sold yet</h3>
-                            <p className="text-gray-500 text-sm">Once people buy tickets, they will appear here.</p>
+                            <h3 className="text-gray-900 font-bold text-lg mb-2">No tickets sold yet</h3>
+                            <p className="text-gray-500">When people purchase tickets, they will appear here.</p>
                         </div>
                     )}
+
+                    {/* Pagination Footer */}
+                    {tickets.length > 0 && (
+                        <div className="border-t border-gray-100 p-4 bg-gray-50/30 flex items-center justify-between">
+                            <p className="text-xs text-gray-500 font-medium">
+                                Showing <span className="font-bold text-gray-900">{ticketPage * TICKETS_PER_PAGE + 1}</span> to <span className="font-bold text-gray-900">{Math.min((ticketPage + 1) * TICKETS_PER_PAGE, ticketCount)}</span> of <span className="font-bold text-gray-900">{ticketCount}</span> results
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setTicketPage(p => Math.max(0, p - 1))}
+                                    disabled={ticketPage === 0 || loadingTickets}
+                                    className="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => setTicketPage(p => p + 1)}
+                                    disabled={(ticketPage + 1) * TICKETS_PER_PAGE >= ticketCount || loadingTickets}
+                                    className="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* DISCOUNTS TAB */}
+            {activeTab === 'discounts' && (
+                <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+                        <h3 className="font-bold text-xl mb-6">Create Discount Code</h3>
+                        <form onSubmit={addDiscount} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div className="md:col-span-1">
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Code</label>
+                                <input
+                                    required
+                                    value={discountForm.code}
+                                    onChange={e => setDiscountForm({ ...discountForm, code: e.target.value })}
+                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all uppercase font-medium"
+                                    placeholder="e.g. EARLYBIRD"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Type</label>
+                                <div className="relative">
+                                    <select
+                                        value={discountForm.type}
+                                        onChange={e => setDiscountForm({ ...discountForm, type: e.target.value as 'percentage' | 'fixed' })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium appearance-none"
+                                    >
+                                        <option value="percentage">Percent (%)</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Value</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={discountForm.value}
+                                    onChange={e => setDiscountForm({ ...discountForm, value: parseFloat(e.target.value) })}
+                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Limit (Optional)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={discountForm.max_uses}
+                                    onChange={e => setDiscountForm({ ...discountForm, max_uses: parseInt(e.target.value) })}
+                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                    placeholder="∞"
+                                />
+                            </div>
+                            <div className="md:col-span-4 flex justify-end pt-2">
+                                <button
+                                    disabled={creatingDiscount}
+                                    className="bg-black text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 disabled:opacity-50 shadow-lg shadow-black/20 hover:-translate-y-0.5 transition-all"
+                                >
+                                    {creatingDiscount ? 'Creating...' : 'Create Discount'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div className="grid gap-4">
+                        {discounts.map(discount => (
+                            <div key={discount.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between hover:shadow-md transition-shadow">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center font-bold text-xl border border-green-100">
+                                        %
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-lg tracking-tight mb-1">{discount.code}</h4>
+                                        <p className="text-sm font-medium text-gray-500">
+                                            {discount.type === 'percentage' ? `${discount.value}% OFF` : `-$${discount.value}`}
+                                            <span className="mx-2 text-gray-300">|</span>
+                                            Used: {discount.used_count} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => deleteDiscount(discount.id)}
+                                    className="text-gray-400 hover:text-red-600 font-bold text-sm px-4 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        ))}
+                        {discounts.length === 0 && (
+                            <div className="text-center py-24 text-gray-400 bg-white rounded-3xl border border-dashed border-gray-200">
+                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                                    <span className="font-bold text-2xl">%</span>
+                                </div>
+                                <p className="font-medium">No discount codes created yet.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

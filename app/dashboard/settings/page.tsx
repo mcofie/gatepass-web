@@ -5,6 +5,7 @@ export const revalidate = 0
 
 export default async function SettingsPage() {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
     const { data: settings } = await supabase
         .schema('gatepass')
@@ -12,7 +13,14 @@ export default async function SettingsPage() {
         .select('*')
         .single()
 
+    const { data: organizer } = await supabase
+        .schema('gatepass')
+        .from('organizers')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single()
+
     return (
-        <SettingsClient initialSettings={settings} />
+        <SettingsClient initialSettings={settings} initialOrganizer={organizer} />
     )
 }
