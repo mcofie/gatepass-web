@@ -93,7 +93,7 @@ export function LiveMonitor() {
             if (recent) {
                 const logs = recent.map((t: any) => ({
                     id: t.id,
-                    profile_name: t.reservations?.guest_name || t.profiles?.full_name || 'Guest',
+                    profile_name: ((t.reservations as any)?.[0]?.guest_name || (t.reservations as any)?.guest_name) || t.profiles?.full_name || 'Guest',
                     ticket_type: t.ticket_tiers?.name,
                     checked_in_at: new Date().toISOString() // Approximate for historical load
                 }))
@@ -125,10 +125,11 @@ export function LiveMonitor() {
                             .single()
 
                         if (details) {
+                            const d = details as any
                             const newLog: CheckInLog = {
-                                id: details.id,
-                                profile_name: details.reservations?.guest_name || details.profiles?.full_name || 'Guest', // Using similar logic to receipt
-                                ticket_type: details.ticket_tiers?.name,
+                                id: d.id,
+                                profile_name: (d.reservations?.[0]?.guest_name || d.reservations?.guest_name) || (d.profiles?.[0]?.full_name || d.profiles?.full_name) || 'Guest',
+                                ticket_type: d.ticket_tiers?.[0]?.name || d.ticket_tiers?.name,
                                 checked_in_at: new Date().toISOString()
                             }
 

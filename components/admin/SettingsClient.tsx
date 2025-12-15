@@ -15,6 +15,7 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
     // Platform Settings State (Parsed from KV)
     const [settings, setSettings] = useState({
         fee_percentage: Number(initialSettings?.platform_fee_percent || 4),
+        fee_fixed: Number(initialSettings?.platform_fee_fixed || 0),
         is_maintenance_mode: Boolean(initialSettings?.maintenance_mode || false),
         admin_emails: (initialSettings?.admin_emails as string[]) || ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
     })
@@ -42,6 +43,14 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                 updated_at: new Date().toISOString()
             })
             if (feeError) throw feeError
+
+            // Upsert Fixed Fee
+            const { error: fixedError } = await supabase.schema('gatepass').from('settings').upsert({
+                key: 'platform_fee_fixed',
+                value: settings.fee_fixed,
+                updated_at: new Date().toISOString()
+            })
+            if (fixedError) throw fixedError
 
             // Upsert Maintenance
             const { error: modeError } = await supabase.schema('gatepass').from('settings').upsert({
