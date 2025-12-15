@@ -36,7 +36,7 @@ export function NavBar() {
         setIsMobileMenuOpen(false)
     }
 
-    if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/events/')) return null
+    if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/events/') || pathname === '/login') return null
 
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center py-4 px-4 pointer-events-none">
@@ -58,7 +58,7 @@ export function NavBar() {
                             </Link>
                         )}
 
-                        {user && user.email?.toLowerCase() === 'maxcofie@gmail.com' && (
+                        {user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '') && (
                             <Link href="/dashboard" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
                                 Dashboard
                             </Link>
@@ -122,7 +122,7 @@ export function NavBar() {
                                 </Link>
                             )}
 
-                            {user && user.email?.toLowerCase() === 'maxcofie@gmail.com' && (
+                            {user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '') && (
                                 <Link
                                     href="/dashboard"
                                     className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"

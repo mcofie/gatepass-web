@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, LogOut, LayoutDashboard, Settings } from 'lucide-react'
+import { Home, Calendar, LogOut, LayoutDashboard, Settings, Banknote, Activity, Users, ScanLine } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 
@@ -30,7 +30,11 @@ export function AdminSidebar() {
 
     const navItems = [
         { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+        { name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity },
+        { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
+        { name: 'Customers', path: '/dashboard/customers', icon: Users },
         { name: 'Events', path: '/dashboard/events', icon: Calendar },
+        { name: 'Finance', path: '/dashboard/finance', icon: Banknote },
         { name: 'Settings', path: '/dashboard/settings', icon: Settings },
     ]
 
@@ -53,8 +57,8 @@ export function AdminSidebar() {
                         key={item.path}
                         href={item.path}
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive(item.path)
-                                ? 'bg-white text-black shadow-lg shadow-white/5'
-                                : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a]'
+                            ? 'bg-white text-black shadow-lg shadow-white/5'
+                            : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a]'
                             }`}
                     >
                         <item.icon className={`w-4 h-4 transition-colors ${isActive(item.path) ? 'text-black' : 'text-gray-500 group-hover:text-white'}`} />

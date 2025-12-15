@@ -18,7 +18,7 @@ interface EventManageClientProps {
 
 export function EventManageClient({ event: initialEvent, initialTiers }: EventManageClientProps) {
     const [event, setEvent] = useState(initialEvent)
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts'>('tickets')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts'>('tickets')
     const [loading, setLoading] = useState(false)
 
     // Tickets State
@@ -37,6 +37,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [discounts, setDiscounts] = useState<Discount[]>([])
     const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage', value: 0, max_uses: 0 })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
+
+    // Payouts State
+    const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0 })
+    const [loadingPayouts, setLoadingPayouts] = useState(false)
 
     // Tier Form
     const [tierForm, setTierForm] = useState({ name: '', price: 0, total_quantity: 100, description: '' })
@@ -229,6 +233,35 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         setLoadingTickets(false)
     }
 
+    const fetchPayouts = async () => {
+        setLoadingPayouts(true)
+        try {
+            const { data, error } = await supabase
+                .schema('gatepass')
+                .from('transactions')
+                .select(`amount, reservations!inner(event_id)`)
+                .eq('status', 'success')
+                .eq('reservations.event_id', event.id)
+
+            if (error) throw error
+
+            const total = data.reduce((acc, tx) => acc + tx.amount, 0)
+            const fee = total * 0.04 // 4% Platform Fee
+
+            setPayoutStats({
+                totalCollected: total,
+                platformFee: fee,
+                organizerNet: total - fee,
+                transactionCount: data.length
+            })
+        } catch (e) {
+            console.error('Payout Fetch Error:', e)
+            toast.error('Failed to load payout data')
+        } finally {
+            setLoadingPayouts(false)
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'attendees') {
             fetchTickets(ticketPage)
@@ -249,6 +282,12 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     React.useEffect(() => {
         if (activeTab === 'discounts' && !discounts.length) {
             fetchDiscounts()
+        }
+    }, [activeTab])
+
+    React.useEffect(() => {
+        if (activeTab === 'payouts') {
+            fetchPayouts()
         }
     }, [activeTab])
 
@@ -294,8 +333,58 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
                     <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
                     <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
+                    <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
                 </div>
             </div>
+
+            {/* PAYOUTS TAB */}
+            {activeTab === 'payouts' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Organizer Due Card */}
+                        <div className="bg-black text-white p-8 rounded-3xl shadow-xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full translate-x-10 -translate-y-10 blur-3xl group-hover:bg-white/15 transition-colors" />
+                            <div className="relative z-10">
+                                <p className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-2">Organizer Payout Due</p>
+                                <h2 className="text-5xl font-black tracking-tighter mb-4">
+                                    {formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
+                                </h2>
+                                <p className="text-sm text-gray-400">
+                                    Net earnings after 4% platform fee deduction.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Breakdown Card */}
+                        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+                            <h3 className="font-bold text-lg text-gray-900 border-b border-gray-100 pb-4">Revenue Breakdown</h3>
+
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-500 font-medium">Total Gross Sales</span>
+                                    <span className="font-bold text-gray-900">{formatCurrency(payoutStats.totalCollected, initialTiers?.[0]?.currency || 'GHS')}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-500 font-medium">Successful Transactions</span>
+                                    <span className="font-bold text-gray-900">{payoutStats.transactionCount}</span>
+                                </div>
+                                <div className="h-px bg-gray-100 w-full" />
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-500 font-medium">Platform Fee (4%)</span>
+                                    <span className="font-bold text-red-500">
+                                        - {formatCurrency(payoutStats.platformFee, initialTiers?.[0]?.currency || 'GHS')}
+                                    </span>
+                                </div>
+                                <div className="h-px bg-gray-100 w-full" />
+                                <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+                                    <span className="font-bold text-gray-900">Net Payout</span>
+                                    <span className="font-bold text-gray-900 text-lg">{formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* DETAILS TAB */}
             {activeTab === 'details' && (

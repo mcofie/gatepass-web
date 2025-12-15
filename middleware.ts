@@ -44,7 +44,8 @@ export async function middleware(request: NextRequest) {
         }
 
         // Strict Admin Check for Dashboard only
-        if (request.nextUrl.pathname.startsWith('/dashboard') && user.email?.toLowerCase() !== 'maxcofie@gmail.com') {
+        const admins = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
+        if (request.nextUrl.pathname.startsWith('/dashboard') && !admins.includes(user.email?.toLowerCase() || '')) {
             return NextResponse.redirect(new URL('/', request.url))
         }
     }

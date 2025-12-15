@@ -5,19 +5,21 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useState } from 'react'
 
-export function SettingsClient({ initialSettings, initialOrganizer }: { initialSettings: any, initialOrganizer: any }) {
+export function SettingsClient({ initialSettings, initialOrganizer }: { initialSettings: Record<string, any>, initialOrganizer: any }) {
     const supabase = createClient()
     const router = useRouter()
 
-    const [activeTab, setActiveTab] = useState<'platform' | 'profile'>('profile') // Default to profile for better UX
+    const [activeTab, setActiveTab] = useState<'platform' | 'profile' | 'team'>('profile')
     const [loading, setLoading] = useState(false)
 
-    // Platform Settings State
-    const [settings, setSettings] = useState(initialSettings || {
-        fee_percentage: 0,
-        fee_fixed: 0,
-        is_maintenance_mode: false
+    // Platform Settings State (Parsed from KV)
+    const [settings, setSettings] = useState({
+        fee_percentage: Number(initialSettings?.platform_fee_percent || 4),
+        is_maintenance_mode: Boolean(initialSettings?.maintenance_mode || false),
+        admin_emails: (initialSettings?.admin_emails as string[]) || ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
     })
+
+    const [newAdminEmail, setNewAdminEmail] = useState('')
 
     // Organizer Profile State
     const [organizer, setOrganizer] = useState(initialOrganizer || {
@@ -33,26 +35,30 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
         setLoading(true)
 
         try {
-            let result;
+            // Upsert Fee
+            const { error: feeError } = await supabase.schema('gatepass').from('settings').upsert({
+                key: 'platform_fee_percent',
+                value: settings.fee_percentage,
+                updated_at: new Date().toISOString()
+            })
+            if (feeError) throw feeError
 
-            if (initialSettings?.id) {
-                result = await supabase.schema('gatepass').from('platform_settings').update({
-                    fee_percentage: settings.fee_percentage,
-                    fee_fixed: settings.fee_fixed,
-                    is_maintenance_mode: settings.is_maintenance_mode,
-                    updated_at: new Date().toISOString()
-                }).eq('id', initialSettings.id)
-            } else {
-                result = await supabase.schema('gatepass').from('platform_settings').insert({
-                    fee_percentage: settings.fee_percentage,
-                    fee_fixed: settings.fee_fixed,
-                    is_maintenance_mode: settings.is_maintenance_mode
-                })
-            }
+            // Upsert Maintenance
+            const { error: modeError } = await supabase.schema('gatepass').from('settings').upsert({
+                key: 'maintenance_mode',
+                value: settings.is_maintenance_mode,
+                updated_at: new Date().toISOString()
+            })
+            if (modeError) throw modeError
 
-            const { error } = result
+            // Upsert Admins
+            const { error: teamError } = await supabase.schema('gatepass').from('settings').upsert({
+                key: 'admin_emails',
+                value: settings.admin_emails,
+                updated_at: new Date().toISOString()
+            })
+            if (teamError) throw teamError
 
-            if (error) throw error
             toast.success('Settings saved successfully')
             router.refresh()
         } catch (e: any) {
@@ -124,6 +130,13 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                         }`}
                 >
                     Platform Settings
+                </button>
+                <button
+                    onClick={() => setActiveTab('team')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'team' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                >
+                    Team Access
                 </button>
             </div>
 
@@ -204,6 +217,75 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                         </button>
                     </div>
                 </form>
+            ) : activeTab === 'team' ? (
+                <div className="space-y-6 animate-fade-in max-w-xl">
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <h2 className="text-lg font-bold mb-4">Manage Administrators</h2>
+                        <p className="text-sm text-gray-500 mb-6">
+                            These users will have full access to the dashboard.
+                        </p>
+
+                        {/* Add New */}
+                        <div className="flex gap-2 mb-8">
+                            <input
+                                value={newAdminEmail}
+                                onChange={(e) => setNewAdminEmail(e.target.value)}
+                                placeholder="Enter email address..."
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-black focus:border-black"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        if (newAdminEmail && !settings.admin_emails.includes(newAdminEmail)) {
+                                            setSettings(prev => ({ ...prev, admin_emails: [...prev.admin_emails, newAdminEmail] }))
+                                            setNewAdminEmail('')
+                                        }
+                                    }
+                                }}
+                            />
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    if (newAdminEmail && !settings.admin_emails.includes(newAdminEmail)) {
+                                        setSettings(prev => ({ ...prev, admin_emails: [...prev.admin_emails, newAdminEmail] }))
+                                        setNewAdminEmail('')
+                                    }
+                                }}
+                                className="bg-black text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-gray-800"
+                            >
+                                Add
+                            </button>
+                        </div>
+
+                        {/* List */}
+                        <div className="space-y-2">
+                            {settings.admin_emails.map(email => (
+                                <div key={email} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-xs font-bold border border-gray-200">
+                                            {email.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700">{email}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setSettings(prev => ({ ...prev, admin_emails: prev.admin_emails.filter(e => e !== email) }))}
+                                        className="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                        <button
+                            onClick={handleSaveSettings}
+                            disabled={loading}
+                            className="bg-black text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50"
+                        >
+                            {loading ? 'Saving Access...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </div>
             ) : (
                 <form onSubmit={handleSaveOrganizer} className="space-y-8 animate-fade-in">
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">

@@ -7,11 +7,15 @@ export default async function SettingsPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { data: settings } = await supabase
+    const { data: settingsData } = await supabase
         .schema('gatepass')
-        .from('platform_settings')
-        .select('*')
-        .single()
+        .from('settings')
+        .select('key, value')
+
+    const settings = settingsData?.reduce((acc: any, curr) => {
+        acc[curr.key] = curr.value
+        return acc
+    }, {}) || {}
 
     const { data: organizer } = await supabase
         .schema('gatepass')
