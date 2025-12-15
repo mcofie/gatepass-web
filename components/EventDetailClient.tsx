@@ -56,11 +56,22 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
 
 export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
+    const [direction, setDirection] = useState<'forward' | 'back'>('forward')
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
     const [reservation, setReservation] = useState<any>(null)
     const [purchasedTicket, setPurchasedTicket] = useState<any>(null)
+
+    // Navigation Helper
+    const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
+        setDirection(dir)
+        // Small timeout to allow render cycle to pick up direction? 
+        // Actually, normally we want to set them together.
+        // But React batches updates.
+        // We will stick to simply setting state.
+        setView(newView)
+    }
 
     // Form State
     const [guestName, setGuestName] = useState('')
@@ -99,7 +110,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                     if (!result.success) throw new Error(result.error || 'Verification failed')
 
                     setPurchasedTicket(result.ticket)
-                    setView('success')
+                    navigate('success', 'forward')
                     // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
                 } catch (error: any) {
                     console.error('Verification Error:', error)
@@ -191,7 +202,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
     }
 
     const handleContinueToCheckout = () => {
-        setView('checkout')
+        navigate('checkout', 'forward')
     }
 
     // Step 1: Create Reservation (Invoked on "Continue to Payment")
@@ -223,7 +234,8 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
 
             setReservation(newReservation)
-            setView('summary')
+            setReservation(newReservation)
+            navigate('summary', 'forward')
 
         } catch (error: any) {
             if (error.message?.includes('already registered')) {
@@ -312,7 +324,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             {isExpanded && (
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
-                    onClick={() => view === 'success' ? window.location.reload() : setView('details')}
+                    onClick={() => view === 'success' ? window.location.reload() : navigate('details', 'back')}
                 />
             )}
 
@@ -327,59 +339,69 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
             `}>
                 {view === 'details' && (
-                    <DetailsView
-                        event={event}
-                        cheapestTier={cheapestTier}
-                        onGetTickets={() => setView('tickets')}
-                    />
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <DetailsView
+                            event={event}
+                            cheapestTier={cheapestTier}
+                            onGetTickets={() => navigate('tickets', 'forward')}
+                        />
+                    </div>
                 )}
                 {view === 'tickets' && (
-                    <TicketsView
-                        tiers={tiers}
-                        selectedTickets={selectedTickets}
-                        onQuantityChange={handleQuantityChange}
-                        onContinue={handleContinueToCheckout}
-                        onBack={() => setView('details')}
-                        total={calculatedTotal}
-                        hasSelection={hasSelection}
-                    />
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <TicketsView
+                            tiers={tiers}
+                            selectedTickets={selectedTickets}
+                            onQuantityChange={handleQuantityChange}
+                            onContinue={handleContinueToCheckout}
+                            onBack={() => navigate('details', 'back')}
+                            total={calculatedTotal}
+                            hasSelection={hasSelection}
+                        />
+                    </div>
                 )}
                 {view === 'checkout' && (
-                    <CheckoutFormView
-                        guestName={guestName} setGuestName={setGuestName}
-                        guestEmail={guestEmail} setGuestEmail={setGuestEmail}
-                        guestPhone={guestPhone} setGuestPhone={setGuestPhone}
-                        onBack={() => setView('tickets')}
-                        onContinue={handleCreateReservation}
-                        loading={loading}
-                    />
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <CheckoutFormView
+                            guestName={guestName} setGuestName={setGuestName}
+                            guestEmail={guestEmail} setGuestEmail={setGuestEmail}
+                            guestPhone={guestPhone} setGuestPhone={setGuestPhone}
+                            onBack={() => navigate('tickets', 'back')}
+                            onContinue={handleCreateReservation}
+                            loading={loading}
+                        />
+                    </div>
                 )}
                 {view === 'summary' && (
-                    <SummaryView
-                        event={event}
-                        tiers={tiers}
-                        selectedTickets={selectedTickets}
-                        subtotal={calculatedTotal}
-                        fees={platformFees}
-                        total={totalDue}
-                        timeLeft={timeLeft}
-                        loading={loading}
-                        onBack={() => setView('checkout')}
-                        onPay={handlePaystackPayment}
-                        promoCode={promoCode}
-                        setPromoCode={setPromoCode}
-                        onApplyDiscount={applyPromoCode}
-                        discount={discount}
-                        discountError={discountError}
-                        applyingDiscount={applyingDiscount}
-                    />
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <SummaryView
+                            event={event}
+                            tiers={tiers}
+                            selectedTickets={selectedTickets}
+                            subtotal={calculatedTotal}
+                            fees={platformFees}
+                            total={totalDue}
+                            timeLeft={timeLeft}
+                            loading={loading}
+                            onBack={() => navigate('checkout', 'back')}
+                            onPay={handlePaystackPayment}
+                            promoCode={promoCode}
+                            setPromoCode={setPromoCode}
+                            onApplyDiscount={applyPromoCode}
+                            discount={discount}
+                            discountError={discountError}
+                            applyingDiscount={applyingDiscount}
+                        />
+                    </div>
                 )}
                 {view === 'success' && purchasedTicket && (
-                    <SuccessView
-                        event={event}
-                        ticket={purchasedTicket}
-                        tierName={tiers.find(t => t.id === purchasedTicket.tier_id)?.name}
-                    />
+                    <div className="animate-scale-in">
+                        <SuccessView
+                            event={event}
+                            ticket={purchasedTicket}
+                            tierName={tiers.find(t => t.id === purchasedTicket.tier_id)?.name}
+                        />
+                    </div>
                 )}
             </div>
         </>
