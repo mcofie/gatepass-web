@@ -20,12 +20,12 @@ interface EventDetailClientProps {
 }
 
 // Simple Timer Hook
-const useTimer = (expiresAt: string | undefined) => {
-    const [timeLeft, setTimeLeft] = useState('')
+const useTimer = (expiresAt: string | undefined): { label: string, seconds: number } => {
+    const [timeLeft, setTimeLeft] = useState({ label: '', seconds: 0 })
 
     useEffect(() => {
         if (!expiresAt) {
-            setTimeLeft('...') // Or some default state
+            setTimeLeft({ label: '...', seconds: 0 }) // Or some default state
             return
         }
 
@@ -36,13 +36,13 @@ const useTimer = (expiresAt: string | undefined) => {
 
             if (dist < 0) {
                 clearInterval(timer)
-                setTimeLeft('EXPIRED')
+                setTimeLeft({ label: 'EXPIRED', seconds: 0 })
                 return
             }
 
             const m = Math.floor((dist % (1000 * 60 * 60)) / (1000 * 60))
             const s = Math.floor((dist % (1000 * 60)) / 1000)
-            setTimeLeft(`${m}m ${s}s`)
+            setTimeLeft({ label: `${m}m ${s}s`, seconds: Math.floor(dist / 1000) })
         }, 1000)
 
         return () => clearInterval(timer)
@@ -309,9 +309,14 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             )}
 
             {/* Floating Card / Modal Container */}
+            {/* Floating Card / Modal Container */}
             <div className={`
                 fixed z-50 bg-white text-black shadow-2xl transition-all duration-300 font-sans
-                bottom-4 left-4 right-4 md:bottom-12 md:right-12 md:left-auto md:w-[360px] p-4 rounded-lg
+                bottom-4 left-4 right-4 
+                mb-[env(safe-area-inset-bottom)]
+                rounded-2xl
+                md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0
+                md:bottom-12 md:right-12 p-4
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
             `}>
                 {view === 'details' && (
@@ -346,6 +351,7 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                     <SummaryView
                         event={event}
                         tiers={tiers}
+                        selectedTickets={selectedTickets}
                         subtotal={calculatedTotal}
                         fees={platformFees}
                         total={totalDue}
@@ -472,7 +478,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
             </button>
         </div>
 
-        <div className="flex-1 -mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-8 no-scrollbar snap-x snap-mandatory">
+        <div className="-mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-8 no-scrollbar snap-x snap-mandatory">
             {tiers.map((tier: TicketTier) => {
                 const isSoldOut = tier.quantity_sold >= tier.total_quantity
                 const qty = selectedTickets[tier.id] || 0
@@ -482,7 +488,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                         key={tier.id}
                         className={`
                             relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between 
-                            transition-all duration-300 snap-center
+                            transition-all duration-300 snap-center min-h-[320px]
                             ${isSelected
                                 ? 'bg-black text-white scale-[1.02] ring-0'
                                 : 'bg-white text-black ring-1 ring-black/5'
@@ -496,9 +502,12 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                                 </div>
                                 <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200' : 'text-gray-900'}`}>{tier.name}</div>
                             </div>
-                            <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {tier.description || "The perfect pass for attendees looking to experience the event."}
-                            </p>
+
+                            {tier.description && (
+                                <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {tier.description}
+                                </p>
+                            )}
 
                             <div className={`h-px w-full ${isSelected ? 'bg-white/10' : 'bg-gray-100'}`} />
 
@@ -539,12 +548,13 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
             })}
         </div>
 
-        {/* Sticky Footer */}
+        {/* Sticky Footer with Total */}
         <div className={`
-            fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50 
-            transition-transform duration-300 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8
-            ${hasSelection ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
-        `}>
+                sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10
+                md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0
+                transition-transform duration-300
+                ${hasSelection ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
+            `}>
             <div className="max-w-md mx-auto md:max-w-none">
                 <button
                     onClick={onContinue}
@@ -563,6 +573,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
             </div>
         </div>
     </div>
+
 )
 
 const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading }: {
@@ -581,7 +592,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
             </button>
         </div>
 
-        <div className="space-y-5 px-1">
+        <div className="space-y-5 px-1 pb-4">
             <div className="space-y-2">
                 <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Name</label>
                 <input
@@ -618,7 +629,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
         </div>
 
         {/* Sticky Footer for Form */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8">
+        <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
             <div className="max-w-md mx-auto md:max-w-none">
                 <button
                     onClick={onContinue}
@@ -633,129 +644,182 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     </div>
 )
 
-const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount }: {
+const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number,
     fees: number,
     total: number,
-    timeLeft: string,
-    loading: boolean,
-    onBack: () => void,
-    onPay: () => void,
-    promoCode: string,
-    setPromoCode: (val: string) => void,
-    onApplyDiscount: () => void,
-    discount: Discount | null,
-    discountError: string,
-    applyingDiscount: boolean
-}) => (
-    <div className="flex flex-col h-auto animate-fade-in relative">
-        <div className="flex justify-between items-center mb-6 px-1">
-            <h2 className="text-[18px] font-bold tracking-tight">Order Summary</h2>
-            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-        </div>
+    applyingDiscount: boolean,
+    selectedTickets: Record<string, number>,
+    timeLeft: { label: string, seconds: number }
+}) => {
+    const [showPromo, setShowPromo] = useState(false)
 
-        {/* Receipt Card */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 relative overflow-hidden mb-6">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200" />
+    // Dynamic Timer Color
+    // Default: Black
+    // < 5 mins (300s): Yellow
+    // < 2.5 mins (150s): Red
+    let timerColor = "bg-black/80 backdrop-blur-md text-white border-white/10"
+    let dotColor = "bg-green-400 animate-pulse"
 
-            <h3 className="text-[16px] font-bold mb-1">{event.title}</h3>
-            <p className="text-[13px] text-gray-500 mb-6 flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                {event.venue_name}
+    if (timeLeft.seconds <= 150) {
+        timerColor = "bg-red-500 text-white border-red-400"
+        dotColor = "bg-white animate-pulse"
+    } else if (timeLeft.seconds <= 300) {
+        timerColor = "bg-yellow-400 text-black border-yellow-300"
+        dotColor = "bg-black animate-pulse"
+    }
+
+    return (
+        <div className="flex flex-col h-auto animate-fade-in relative">
+            {/* Immersive Timer */}
+            <div className="flex justify-center mb-4 sticky top-4 z-20 pointer-events-none">
+                <div className={`${timerColor} py-2 px-4 rounded-full text-[12px] font-medium shadow-xl flex items-center gap-2 border animate-fade-in-down transition-colors duration-500`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${timeLeft.label === 'EXPIRED' ? 'bg-red-500' : dotColor}`} />
+                    <span>Reservation expires in <span className="font-mono tracking-wider font-bold">{timeLeft.label}</span></span>
+                </div>
+            </div>
+
+            <div className="px-1 mt-0 mb-2">
+                <button onClick={onBack} className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors -ml-1 py-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                    <span className="text-[13px] font-bold">Back</span>
+                </button>
+                <h2 className="text-[18px] font-bold tracking-tight mt-1">Order Summary</h2>
+            </div>
+
+            {/* Receipt Card */}
+            <div className="bg-white rounded-2xl p-0 border border-gray-100 overflow-hidden shadow-sm relative mx-1">
+                {/* Visual Header */}
+                <div className="bg-gray-50 p-6 border-b border-gray-100">
+                    <h3 className="text-[16px] font-bold leading-tight">{event.title}</h3>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    {/* Ticket Breakdown */}
+                    <div className="space-y-3">
+                        {tiers.map(tier => {
+                            const qty = selectedTickets[tier.id] || 0
+                            if (qty === 0) return null
+                            return (
+                                <div key={tier.id} className="flex justify-between items-start text-[14px]">
+                                    <div>
+                                        <div className="font-bold text-gray-900">{tier.name} <span className="text-gray-400 font-normal">x{qty}</span></div>
+                                        {tier.description && <div className="text-[11px] text-gray-400 leading-snug max-w-[200px] mt-0.5 line-clamp-1">{tier.description}</div>}
+                                    </div>
+                                    <div className="font-bold">{tier.currency} {(tier.price * qty).toFixed(2)}</div>
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    <div className="h-px bg-gray-100 w-full" />
+
+                    {/* Fees & Subtotal */}
+                    <div className="space-y-2 text-[13px]">
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="font-medium text-gray-900">{tiers[0]?.currency} {subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Platform Fees</span>
+                            <span className="font-medium text-gray-900">{tiers[0]?.currency} {fees.toFixed(2)}</span>
+                        </div>
+
+                        {/* Discount Row */}
+                        {discount && (
+                            <div className="flex justify-between items-center text-green-600 animate-fade-in">
+                                <span className="flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                                    Promo ({discount.code})
+                                </span>
+                                <span className="font-bold">
+                                    - {tiers[0]?.currency} {discount.type === 'fixed' ? discount.value.toFixed(2) : ((subtotal * discount.value / 100).toFixed(2))}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Promo Input */}
+                    {!discount && (
+                        <div className="bg-gray-50 rounded-lg p-3">
+                            {!showPromo ? (
+                                <button
+                                    onClick={() => setShowPromo(true)}
+                                    className="text-[12px] text-gray-500 font-bold hover:text-black transition-colors flex items-center gap-1 w-full"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                                    ADD PROMO CODE
+                                </button>
+                            ) : (
+                                <div className="animate-fade-in">
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={promoCode}
+                                            onChange={(e) => setPromoCode(e.target.value)}
+                                            placeholder="CODE"
+                                            className="flex-1 bg-white border border-gray-200 rounded-md text-[13px] px-3 py-1.5 uppercase placeholder:normal-case focus:ring-1 focus:ring-black focus:border-black outline-none transition-all"
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={onApplyDiscount}
+                                            disabled={!promoCode || applyingDiscount}
+                                            className="bg-black text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                    {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1">{discountError}</p>}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="border-t border-dashed border-gray-200 pt-2" />
+
+                    <div className="flex justify-between items-end">
+                        <span className="text-[15px] font-bold text-gray-900">Total Due</span>
+                        <div className="text-right">
+                            <span className="text-[24px] font-bold text-black leading-none tracking-tight block">{tiers[0]?.currency} {total.toFixed(2)}</span>
+                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            {/* Terms */}
+            <p className="text-center text-[10px] text-gray-400 mt-4 px-8 leading-relaxed">
+                By purchasing, you agree to the <a href="#" className="underline hover:text-gray-500">Terms of Service</a> and <a href="#" className="underline hover:text-gray-500">Privacy Policy</a>.
+                All sales are final.
             </p>
 
-            <div className="border-t border-dashed border-gray-200 my-4" />
-
-            <div className="space-y-3">
-                <div className="flex justify-between items-center text-[14px]">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium text-black">{tiers[0]?.currency} {subtotal.toFixed(2)}</span>
-                </div>
-
-                {/* Discount Row */}
-                {discount && (
-                    <div className="flex justify-between items-center text-[14px] text-green-600 animate-fade-in">
-                        <span className="flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-                            Promo ({discount.code})
-                        </span>
-                        <span className="font-medium">
-                            - {tiers[0]?.currency} {discount.type === 'fixed' ? discount.value.toFixed(2) : ((subtotal * discount.value / 100).toFixed(2))}
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
+                <div className="max-w-md mx-auto md:max-w-none">
+                    <button
+                        onClick={onPay}
+                        disabled={loading || timeLeft.label === 'EXPIRED'}
+                        className="w-full bg-black text-white h-12 rounded-xl text-[14px] font-bold tracking-wide hover:bg-gray-900 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
+                    >
+                        {loading ? (
+                            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+                        ) : (
+                            <>Pay {tiers[0]?.currency} {total.toFixed(2)}</>
+                        )}
+                    </button>
+                    <div className="flex justify-center mt-3 md:hidden">
+                        <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" /></svg>
+                            Secure Payment by GatePass
                         </span>
                     </div>
-                )}
-
-                <div className="flex justify-between items-center text-[14px]">
-                    <span className="text-gray-600">Platform Fees</span>
-                    <span className="font-medium text-black">{tiers[0]?.currency} {fees.toFixed(2)}</span>
                 </div>
-            </div>
-
-            {/* Promo Input */}
-            {!discount && (
-                <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
-                    <div className="flex gap-2">
-                        <input
-                            value={promoCode}
-                            onChange={(e) => setPromoCode(e.target.value)}
-                            placeholder="Enter promo code"
-                            className="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-sm px-3 py-2 uppercase placeholder:normal-case focus:ring-1 focus:ring-black focus:border-black outline-none transition-all"
-                        />
-                        <button
-                            onClick={onApplyDiscount}
-                            disabled={!promoCode || applyingDiscount}
-                            className="bg-black text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-gray-800 disabled:opacity-50 transition-colors"
-                        >
-                            {applyingDiscount ? '...' : 'Apply'}
-                        </button>
-                    </div>
-                    {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1">{discountError}</p>}
-                </div>
-            )}
-
-            <div className="border-t border-dashed border-gray-200 my-4" />
-
-            <div className="flex justify-between items-end">
-                <span className="text-[15px] font-bold text-black">Total Due</span>
-                <span className="text-[24px] font-bold text-black leading-none tracking-tight">{tiers[0]?.currency} {total.toFixed(2)}</span>
             </div>
         </div>
-
-        {/* Timer Badge */}
-        {timeLeft && timeLeft !== 'EXPIRED' && (
-            <div className="flex justify-center mb-6">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 text-red-600 text-[12px] font-bold border border-red-100">
-                    <svg className="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>Reservation expires in {timeLeft}</span>
-                </div>
-            </div>
-        )}
-
-        {/* Sticky Footer */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-auto">
-            <div className="max-w-md mx-auto md:max-w-none flex gap-3">
-                <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-50 text-black hover:bg-gray-100 transition-colors flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                </button>
-                <button
-                    onClick={onPay}
-                    disabled={loading || timeLeft === 'EXPIRED'}
-                    className="flex-1 bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                    {loading ? (
-                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
-                    ) : (
-                        <>Pay {tiers[0]?.currency} {total.toFixed(2)}</>
-                    )}
-                </button>
-            </div>
-        </div>
-    </div>
-)
+    )
+}
 
 const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, tierName: string | undefined }) => {
     const [downloading, setDownloading] = useState(false)
