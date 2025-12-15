@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react'
 import Script from 'next/script'
 import { useRouter, useSearchParams } from 'next/navigation'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
-import confetti from 'canvas-confetti'
+// Dynamic imports for heavy libraries
+// import html2canvas from 'html2canvas'
+// import jsPDF from 'jspdf'
+// import confetti from 'canvas-confetti'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
@@ -309,12 +310,11 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             )}
 
             {/* Floating Card / Modal Container */}
-            {/* Floating Card / Modal Container */}
             <div className={`
                 fixed z-50 bg-white text-black shadow-2xl transition-all duration-300 font-sans
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
-                rounded-2xl
+                rounded-2xl max-h-[85vh] flex flex-col
                 md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0
                 md:bottom-12 md:right-12 p-4
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
@@ -839,6 +839,10 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
             const element = document.getElementById('ticket-card-hidden-print')
             if (!element) return
 
+            // Dynamically load heavy libraries
+            const html2canvas = (await import('html2canvas')).default
+            const jsPDF = (await import('jspdf')).default
+
             // Capture at 3x scale for print quality
             const canvas = await html2canvas(element, {
                 scale: 3,
@@ -863,29 +867,33 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
 
     // Confetti Effect
     useEffect(() => {
-        const end = Date.now() + 1000;
-        const colors = ['#000000', '#FFD700', '#ffffff'];
+        const runConfetti = async () => {
+            const confetti = (await import('canvas-confetti')).default
+            const end = Date.now() + 1000;
+            const colors = ['#000000', '#FFD700', '#ffffff'];
 
-        (function frame() {
-            confetti({
-                particleCount: 3,
-                angle: 60,
-                spread: 55,
-                origin: { x: 0 },
-                colors: colors
-            });
-            confetti({
-                particleCount: 3,
-                angle: 120,
-                spread: 55,
-                origin: { x: 1 },
-                colors: colors
-            });
+            (function frame() {
+                confetti({
+                    particleCount: 3,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: colors
+                });
+                confetti({
+                    particleCount: 3,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: colors
+                });
 
-            if (Date.now() < end) {
-                requestAnimationFrame(frame);
-            }
-        }());
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+        runConfetti()
     }, [])
 
     const handleAddToCalendar = (type: 'google' | 'ics') => {
@@ -918,72 +926,76 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
     }
 
     return (
-        <div className="flex flex-col h-auto animate-fade-in pb-4">
-            <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col h-full overflow-hidden animate-fade-in relative">
+            <div className="flex-shrink-0 flex justify-between items-center mb-4">
                 <h2 className="text-[17px] font-bold tracking-tight">Your Ticket</h2>
                 <button onClick={() => window.location.reload()} className="p-2 -mr-2 text-gray-500 hover:text-black">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
 
-            {/* Ticket Card Container - Centered */}
-            <div className="flex justify-center mb-6">
-                <ReceiptTicket
-                    id="ticket-card-element"
-                    event={event}
-                    ticket={ticket}
-                    tierName={tierName}
-                />
-            </div>
-
-            {/* Calendar & Download Actions */}
-            <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
-                <p className="text-[11px] font-medium text-gray-500 mb-3 uppercase tracking-wider">Actions</p>
-                <div className="grid grid-cols-2 gap-3">
-                    <button
-                        onClick={() => handleAddToCalendar('google')}
-                        className="h-9 bg-white border border-gray-200 rounded-lg text-[12px] font-medium text-gray-700 hover:border-gray-900 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>
-                        Google Cal
-                    </button>
-                    <button
-                        onClick={() => handleAddToCalendar('ics')}
-                        className="h-9 bg-white border border-gray-200 rounded-lg text-[12px] font-medium text-gray-700 hover:border-gray-900 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        Outlook / Apple
-                    </button>
+            {/* Scrollable Ticket Container */}
+            <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4 pb-4 no-scrollbar">
+                <div className="flex justify-center">
+                    <ReceiptTicket
+                        id="ticket-card-element"
+                        event={event}
+                        ticket={ticket}
+                        tierName={tierName}
+                    />
                 </div>
             </div>
 
-            <div className="space-y-3">
-                <button
-                    onClick={handleDownloadPDF}
-                    disabled={downloading}
-                    className="w-full bg-black text-white h-11 rounded-xl text-[14px] font-medium tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
-                >
-                    {downloading ? 'Generating PDF...' : (
-                        <>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            Download PDF
-                        </>
-                    )}
-                </button>
-                <button
-                    onClick={() => window.open(`/api/wallet/apple?ticketId=${ticket.id}`, '_blank')}
-                    className="w-full bg-black text-white h-11 rounded-xl text-[14px] font-medium tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
-                >
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path d="M12.02 0C19.2 0 24 4.54 24 11.2V24H0V11.2C0 4.54 4.8 0 11.98 0H12.02ZM6.34 21.06C6.34 21.6 6.76 22.02 7.3 22.02H16.7C17.24 22.02 17.66 21.6 17.66 21.06V11.4C17.66 8.3 15.34 6 12.02 6C8.7 6 6.34 8.3 6.34 11.4V21.06ZM12 7.82C13.68 7.82 15.06 9.2 15.06 10.88V13.5H16.5V11.4C16.5 8.92 14.48 6.9 12 6.9C9.52 6.9 7.5 8.92 7.5 11.4V13.5H8.94V10.88C8.94 9.2 10.32 7.82 12 7.82Z" />
-                    </svg>
-                    Add to Apple Wallet
-                </button>
-            </div>
+            {/* Bottom Actions - Fixed/Sticky feel within flex */}
+            <div className="flex-shrink-0 pt-4 bg-white border-t border-gray-100 mt-2">
+                <div className="bg-gray-50 rounded-xl p-3 mb-3 border border-gray-100">
+                    <p className="text-[10px] font-medium text-gray-500 mb-2 uppercase tracking-wider">Add to Calendar</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={() => handleAddToCalendar('google')}
+                            className="h-8 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700 hover:border-gray-900 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>
+                            Google
+                        </button>
+                        <button
+                            onClick={() => handleAddToCalendar('ics')}
+                            className="h-8 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700 hover:border-gray-900 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            Outlook/Apple
+                        </button>
+                    </div>
+                </div>
 
-            <div className="flex justify-end mt-4">
-                <div className="flex items-center gap-1.5 opacity-50">
-                    <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
+                <div className="space-y-2">
+                    <button
+                        onClick={handleDownloadPDF}
+                        disabled={downloading}
+                        className="w-full bg-black text-white h-11 rounded-xl text-[14px] font-medium tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
+                    >
+                        {downloading ? 'Generatng PDF...' : (
+                            <>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                Download Ticket
+                            </>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => window.open(`/api/wallet/apple?ticketId=${ticket.id}`, '_blank')}
+                        className="w-full bg-black text-white h-11 rounded-xl text-[14px] font-medium tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                            <path d="M12.02 0C19.2 0 24 4.54 24 11.2V24H0V11.2C0 4.54 4.8 0 11.98 0H12.02ZM6.34 21.06C6.34 21.6 6.76 22.02 7.3 22.02H16.7C17.24 22.02 17.66 21.6 17.66 21.06V11.4C17.66 8.3 15.34 6 12.02 6C8.7 6 6.34 8.3 6.34 11.4V21.06ZM12 7.82C13.68 7.82 15.06 9.2 15.06 10.88V13.5H16.5V11.4C16.5 8.92 14.48 6.9 12 6.9C9.52 6.9 7.5 8.92 7.5 11.4V13.5H8.94V10.88C8.94 9.2 10.32 7.82 12 7.82Z" />
+                        </svg>
+                        Add to Apple Wallet
+                    </button>
+                </div>
+
+                <div className="flex justify-center mt-3">
+                    <div className="flex items-center gap-1.5 opacity-50">
+                        <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
+                    </div>
                 </div>
             </div>
 

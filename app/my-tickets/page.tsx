@@ -1,6 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { TicketTier, Event } from '@/types/gatepass'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'My Tickets',
+}
 
 interface TicketWithRelations {
     id: string

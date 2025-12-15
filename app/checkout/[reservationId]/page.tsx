@@ -1,5 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { CheckoutClient } from '@/components/CheckoutClient'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'Checkout',
+}
 
 interface PageProps {
     params: Promise<{ reservationId: string }>

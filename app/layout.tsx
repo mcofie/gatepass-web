@@ -9,8 +9,11 @@ import { Toaster } from 'sonner'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-    title: 'Gatepass',
-    description: 'Top tier ticketing platform.',
+    title: {
+        template: '%s | GatePass',
+        default: 'GatePass | Experience Curated Events',
+    },
+    description: 'The premium platform for modern experiences and exclusive event reservations.',
 }
 
 export default function RootLayout({
