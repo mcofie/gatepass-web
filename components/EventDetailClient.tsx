@@ -398,13 +398,14 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                 onClick={toggleExpand}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={`
-                fixed z-50 bg-white text-black shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
+                fixed z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
                 rounded-2xl flex flex-col overflow-hidden
                 ${cardHeightClass}
                 md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0 md:max-h-[85vh]
                 md:bottom-12 md:right-12 p-4
+                border border-transparent dark:border-zinc-800
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
                 ${(view === 'details' && !isExpanded) ? 'cursor-pointer active:scale-[0.98]' : ''}
             `}>
@@ -471,9 +472,9 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
                 {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
                 {view === 'details' && !isExpanded && (
-                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
-                        <span className="text-[12px] font-bold text-black mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
-                        <ChevronDown className="w-5 h-5 text-black animate-bounce" />
+                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-900 dark:via-zinc-900/95 flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
+                        <span className="text-[12px] font-bold text-black dark:text-white mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
+                        <ChevronDown className="w-5 h-5 text-black dark:text-white animate-bounce" />
                     </div>
                 )}
 
@@ -497,7 +498,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
     <div className="animate-fade-in flex flex-col h-full">
         <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 text-black flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100">
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700">
                     {event.organizers?.logo_url ? (
                         <img src={event.organizers.logo_url} alt="Logo" className="w-full h-full object-cover" />
                     ) : (
@@ -505,8 +506,8 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
                     )}
                 </div>
                 <div>
-                    <h2 className="text-[17px] font-bold text-black leading-none tracking-tight mb-0.5">{event.title}</h2>
-                    <p className="text-[12px] text-gray-500 font-medium">{event.organizers?.name || 'GatePass Event'}</p>
+                    <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
+                    <p className="text-[12px] text-gray-500 dark:text-gray-400 font-medium">{event.organizers?.name || 'GatePass Event'}</p>
                 </div>
             </div>
             {cheapestTier && (
@@ -520,7 +521,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
 
         {/* Collapsible Content - partially visible on mobile, full on expand */}
         <div className={`transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${!isExpanded ? 'max-h-[40px] md:max-h-[500px] md:opacity-100' : 'opacity-100 max-h-[800px]'}`}>
-            <p className={`text-[13px] font-normal text-black leading-relaxed mb-4 mt-2 ${!isExpanded ? 'line-clamp-1 md:line-clamp-none' : ''}`}>
+            <p className={`text-[13px] font-normal text-black dark:text-gray-300 leading-relaxed mb-4 mt-2 ${!isExpanded ? 'line-clamp-1 md:line-clamp-none' : ''}`}>
                 {event.description}
             </p>
 
@@ -528,27 +529,27 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
             <div className={`transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
                 {event.organizers?.description && (
                     <>
-                        <div className="h-px w-full bg-gray-200 mb-4" />
+                        <div className="h-px w-full bg-gray-200 dark:bg-zinc-800 mb-4" />
                         <div className="mb-4">
-                            <h3 className="text-[11px] font-bold text-gray-900 uppercase tracking-widest mb-2">About the Host</h3>
-                            <p className="text-[12px] text-gray-600 leading-relaxed mb-3 line-clamp-3">
+                            <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
+                            <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3 line-clamp-3">
                                 {event.organizers.description}
                             </p>
 
                             {/* Organizer Socials */}
                             <div className="flex items-center gap-3">
                                 {event.organizers.website && (
-                                    <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                    <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                                         <Globe className="w-3.5 h-3.5" />
                                     </a>
                                 )}
                                 {event.organizers.instagram && (
-                                    <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                    <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
                                     </a>
                                 )}
                                 {event.organizers.twitter && (
-                                    <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                    <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
                                     </a>
                                 )}
@@ -557,7 +558,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
                     </>
                 )}
 
-                <div className="h-px w-full bg-gray-200 mb-4" />
+                <div className="h-px w-full bg-gray-200 dark:bg-zinc-800 mb-4" />
             </div>
         </div>
 
@@ -569,8 +570,8 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
         */}
         <div className="flex flex-col gap-3 mb-5 mt-auto">
             <div className="flex items-start gap-3">
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <span className="text-[13px] font-medium text-black leading-tight">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <span className="text-[13px] font-medium text-black dark:text-white leading-tight">
                     {(() => {
                         const startDate = new Date(event.starts_at)
                         const endDate = event.ends_at ? new Date(event.ends_at) : null
@@ -598,19 +599,19 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
                 </span>
             </div>
             <div className={`flex items-start gap-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 h-0 overflow-hidden md:opacity-100 md:h-auto' : 'opacity-100'}`}>
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 <div className="flex flex-col">
-                    <span className="text-[13px] font-medium text-black leading-tight mb-0.5">{event.venue_name}</span>
-                    <span className="text-[12px] text-gray-500 leading-tight">{event.venue_address}</span>
+                    <span className="text-[13px] font-medium text-black dark:text-white leading-tight mb-0.5">{event.venue_name}</span>
+                    <span className="text-[12px] text-gray-500 dark:text-gray-400 leading-tight">{event.venue_address}</span>
                 </div>
             </div>
         </div>
 
-        <button onClick={onGetTickets} className={`w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 transition-all active:scale-[0.98] ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+        <button onClick={onGetTickets} className={`w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-all active:scale-[0.98] ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
             Get Tickets
         </button>
         <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
-            <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
         </div>
     </div >
 )
@@ -626,8 +627,8 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-6 px-1">
-            <h2 className="text-[18px] font-bold tracking-tight">Select Tickets</h2>
-            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black transition-colors">
+            <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Select Tickets</h2>
+            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
@@ -646,8 +647,8 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                             relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between 
                             transition-all duration-300 snap-center min-h-[320px]
                             ${isSelected
-                                ? 'bg-black text-white scale-[1.02] ring-0'
-                                : 'bg-white text-black ring-1 ring-black/5'
+                                ? 'bg-black text-white dark:bg-white dark:text-black scale-[1.02] ring-0'
+                                : 'bg-white text-black dark:bg-zinc-900 dark:text-white ring-1 ring-black/5 dark:ring-white/10'
                             }
                         `}
                     >
@@ -662,48 +663,48 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                         )}
                         <div className="space-y-4">
                             <div>
-                                <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white' : 'text-black'}`}>
+                                <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>
                                     {formatCurrency(tier.price, tier.currency)}
                                 </div>
-                                <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200' : 'text-gray-900'}`}>{tier.name}</div>
+                                <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200 dark:text-gray-700' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
                             </div>
 
                             {tier.description && (
-                                <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>
+                                <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
                                     {tier.description}
                                 </p>
                             )}
 
-                            <div className={`h-px w-full ${isSelected ? 'bg-white/10' : 'bg-gray-100'}`} />
+                            <div className={`h-px w-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-100 dark:bg-zinc-800'}`} />
 
                             <div>
-                                <h4 className={`text-[12px] font-bold mb-3 uppercase tracking-wider ${isSelected ? 'text-gray-400' : 'text-gray-400'}`}>Includes</h4>
-                                <ul className={`text-[13px] space-y-2.5 leading-tight ${isSelected ? 'text-gray-300' : 'text-gray-600'}`}>
+                                <h4 className={`text-[12px] font-bold mb-3 uppercase tracking-wider ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-400 dark:text-gray-500'}`}>Includes</h4>
+                                <ul className={`text-[13px] space-y-2.5 leading-tight ${isSelected ? 'text-gray-300 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}`}>
                                     <li className="flex gap-2.5">
-                                        <span className={`block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isSelected ? 'bg-white' : 'bg-black'}`} />
+                                        <span className={`block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isSelected ? 'bg-white dark:bg-black' : 'bg-black dark:bg-white'}`} />
                                         Full access to all sessions
                                     </li>
                                     <li className="flex gap-2.5">
-                                        <span className={`block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isSelected ? 'bg-white' : 'bg-black'}`} />
+                                        <span className={`block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isSelected ? 'bg-white dark:bg-black' : 'bg-black dark:bg-white'}`} />
                                         Entry to exhibition floor
                                     </li>
                                 </ul>
                             </div>
                         </div>
 
-                        <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-white/10' : 'bg-gray-50'}`}>
+                        <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-50 dark:bg-zinc-800'}`}>
                             <button
                                 onClick={() => onQuantityChange(tier.id, -1)}
                                 disabled={qty === 0}
-                                className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white' : 'hover:bg-white text-black'}`}
+                                className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                             >
                                 -
                             </button>
-                            <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white' : 'text-black'}`}>{qty}</span>
+                            <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>{qty}</span>
                             <button
                                 onClick={() => onQuantityChange(tier.id, 1)}
                                 disabled={isSoldOut}
-                                className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white' : 'hover:bg-white text-black'}`}
+                                className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                             >
                                 +
                             </button>
@@ -715,7 +716,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
 
         {/* Sticky Footer with Total */}
         <div className={`
-                sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10
+                sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10
                 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0
                 transition-transform duration-300
                 ${hasSelection ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
@@ -724,7 +725,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                 <button
                     onClick={onContinue}
                     disabled={!hasSelection}
-                    className="w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-between px-4"
+                    className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-between px-4"
                 >
                     <span>Checkout</span>
                     <span>{formatCurrency(total, tiers[0]?.currency)}</span>
@@ -751,8 +752,8 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-8 px-1">
-            <h2 className="text-[18px] font-bold tracking-tight">Your Details</h2>
-            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black transition-colors">
+            <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Your Details</h2>
+            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
@@ -765,7 +766,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     value={guestName}
                     onChange={e => setGuestName(e.target.value)}
                     placeholder="Jane Smith"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 transition-all text-black text-[13px] placeholder:text-gray-400 font-medium"
+                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[13px] placeholder:text-gray-400 font-medium"
                 />
             </div>
 
@@ -776,7 +777,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     value={guestEmail}
                     onChange={e => setGuestEmail(e.target.value)}
                     placeholder="jane@example.com"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 transition-all text-black text-[13px] placeholder:text-gray-400 font-medium"
+                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[13px] placeholder:text-gray-400 font-medium"
                 />
                 <p className="text-[11px] text-gray-400 px-1">We'll send your tickets here.</p>
             </div>
@@ -788,18 +789,18 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     value={guestPhone}
                     onChange={e => setGuestPhone(e.target.value)}
                     placeholder="+233"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 transition-all text-black text-[13px] placeholder:text-gray-400 font-medium"
+                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[13px] placeholder:text-gray-400 font-medium"
                 />
             </div>
         </div>
 
         {/* Sticky Footer for Form */}
-        <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
+        <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
             <div className="max-w-md mx-auto md:max-w-none">
                 <button
                     onClick={onContinue}
                     disabled={loading || !guestName || !guestEmail}
-                    className="w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                     {loading ? 'Processing...' : 'Continue to Payment'}
                     {!loading && <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>}
@@ -855,18 +856,18 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
             </div>
 
             <div className="px-1 mt-0 mb-2">
-                <button onClick={onBack} className="flex items-center gap-1 text-gray-400 hover:text-black transition-colors -ml-1 py-2">
+                <button onClick={onBack} className="flex items-center gap-1 text-gray-400 hover:text-black dark:hover:text-white transition-colors -ml-1 py-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
                     <span className="text-[13px] font-bold">Back</span>
                 </button>
-                <h2 className="text-[18px] font-bold tracking-tight mt-1">Order Summary</h2>
+                <h2 className="text-[18px] font-bold tracking-tight mt-1 text-black dark:text-white">Order Summary</h2>
             </div>
 
             {/* Receipt Card */}
-            <div className="bg-white rounded-2xl p-0 border border-gray-100 overflow-hidden shadow-sm relative mx-1">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-0 border border-gray-100 dark:border-zinc-800 overflow-hidden shadow-sm relative mx-1">
                 {/* Visual Header */}
-                <div className="bg-gray-50 p-6 border-b border-gray-100">
-                    <h3 className="text-[16px] font-bold leading-tight">{event.title}</h3>
+                <div className="bg-gray-50 dark:bg-zinc-800/50 p-6 border-b border-gray-100 dark:border-zinc-800">
+                    <h3 className="text-[16px] font-bold leading-tight text-black dark:text-white">{event.title}</h3>
                 </div>
 
                 <div className="p-6 space-y-4">
@@ -879,17 +880,17 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                         })}
                     </div>
 
-                    <div className="h-px bg-gray-100 w-full" />
+                    <div className="h-px bg-gray-100 dark:bg-zinc-800 w-full" />
 
                     {/* Fees & Subtotal */}
                     <div className="space-y-2 text-[13px]">
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Subtotal</span>
-                            <span className="font-medium text-gray-900">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
+                            <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Fees</span>
-                            <span className="font-medium text-gray-900">{formatCurrency(fees, tiers[0]?.currency)}</span>
+                            <span className="text-gray-500 dark:text-gray-400">Fees</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(fees, tiers[0]?.currency)}</span>
                         </div>
 
                         {/* Discount Row */}
@@ -908,11 +909,11 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
 
                     {/* Promo Input */}
                     {!discount && (
-                        <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-lg p-3">
                             {!showPromo ? (
                                 <button
                                     onClick={() => setShowPromo(true)}
-                                    className="text-[12px] text-gray-500 font-bold hover:text-black transition-colors flex items-center gap-1 w-full"
+                                    className="text-[12px] text-gray-500 dark:text-gray-400 font-bold hover:text-black dark:hover:text-white transition-colors flex items-center gap-1 w-full"
                                 >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
                                     ADD PROMO CODE
@@ -924,13 +925,13 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                                             value={promoCode}
                                             onChange={(e) => setPromoCode(e.target.value)}
                                             placeholder="CODE"
-                                            className="flex-1 bg-white border border-gray-200 rounded-md text-[13px] px-3 py-1.5 uppercase placeholder:normal-case focus:ring-1 focus:ring-black focus:border-black outline-none transition-all"
+                                            className="flex-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-md text-[13px] px-3 py-1.5 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-all text-black dark:text-white"
                                             autoFocus
                                         />
                                         <button
                                             onClick={onApplyDiscount}
                                             disabled={!promoCode || applyingDiscount}
-                                            className="bg-black text-white px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                                            className="bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 transition-colors"
                                         >
                                             Apply
                                         </button>
@@ -941,12 +942,12 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                         </div>
                     )}
 
-                    <div className="border-t border-dashed border-gray-200 pt-2" />
+                    <div className="border-t border-dashed border-gray-200 dark:border-zinc-800 pt-2" />
 
                     <div className="flex justify-between items-end">
-                        <span className="text-[15px] font-bold text-gray-900">Total Due</span>
+                        <span className="text-[15px] font-bold text-gray-900 dark:text-white">Total Due</span>
                         <div className="text-right">
-                            <span className="text-[24px] font-bold text-black leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
+                            <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
                             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
                         </div>
 
@@ -961,12 +962,12 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
             </p>
 
             {/* Sticky Footer */}
-            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
+            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
                 <div className="max-w-md mx-auto md:max-w-none">
                     <button
                         onClick={onPay}
                         disabled={loading || timeLeft.label === 'EXPIRED'}
-                        className="w-full bg-black text-white h-12 rounded-xl text-[14px] font-bold tracking-wide hover:bg-gray-900 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
+                        className="w-full bg-black dark:bg-white text-white dark:text-black h-12 rounded-xl text-[14px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
                     >
                         {loading ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
@@ -1129,8 +1130,8 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
     return (
         <div className="flex flex-col h-full overflow-hidden animate-fade-in relative">
             <div className="flex-shrink-0 flex justify-between items-center mb-4">
-                <h2 className="text-[17px] font-bold tracking-tight">Your Tickets ({tickets.length})</h2>
-                <button onClick={() => window.location.reload()} className="p-2 -mr-2 text-gray-500 hover:text-black">
+                <h2 className="text-[17px] font-bold tracking-tight text-black dark:text-white">Your Tickets ({tickets.length})</h2>
+                <button onClick={() => window.location.reload()} className="p-2 -mr-2 text-gray-500 hover:text-black dark:hover:text-white">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -1146,8 +1147,8 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                 className={`
                                     flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all
                                     ${activeTabIndex === index
-                                        ? 'bg-black text-white shadow-md transform scale-105'
-                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        ? 'bg-black text-white dark:bg-white dark:text-black shadow-md transform scale-105'
+                                        : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-zinc-700'
                                     }
                                 `}
                             >
@@ -1171,11 +1172,11 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
             </div>
 
             {/* Bottom Actions - Compact */}
-            <div className="flex-shrink-0 pt-4 bg-white border-t border-gray-100 mt-2 space-y-3">
+            <div className="flex-shrink-0 pt-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 mt-2 space-y-3">
                 {/* Primary Action - Apple Wallet (Current Ticket) */}
                 <button
                     onClick={() => window.open(`/api/wallet/apple?ticketId=${activeTicket.id}`, '_blank')}
-                    className="w-full bg-black text-white h-12 rounded-xl text-[15px] font-bold tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-black/10"
+                    className="w-full bg-black dark:bg-white text-white dark:text-black h-12 rounded-xl text-[15px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-black/10"
                 >
                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                         <path d="M12.02 0C19.2 0 24 4.54 24 11.2V24H0V11.2C0 4.54 4.8 0 11.98 0H12.02ZM6.34 21.06C6.34 21.6 6.76 22.02 7.3 22.02H16.7C17.24 22.02 17.66 21.6 17.66 21.06V11.4C17.66 8.3 15.34 6 12.02 6C8.7 6 6.34 8.3 6.34 11.4V21.06ZM12 7.82C13.68 7.82 15.06 9.2 15.06 10.88V13.5H16.5V11.4C16.5 8.92 14.48 6.9 12 6.9C9.52 6.9 7.5 8.92 7.5 11.4V13.5H8.94V10.88C8.94 9.2 10.32 7.82 12 7.82Z" />
@@ -1187,7 +1188,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                 <div className="grid grid-cols-3 gap-2">
                     <button
                         onClick={handleShare}
-                        className="h-10 bg-gray-50 hover:bg-gray-100 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 transition-colors flex flex-col items-center justify-center gap-1"
+                        className="h-10 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-colors flex flex-col items-center justify-center gap-1"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                         Share
@@ -1195,7 +1196,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                     <button
                         onClick={handleDownloadPDF}
                         disabled={downloading}
-                        className="h-10 bg-gray-50 hover:bg-gray-100 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 transition-colors flex flex-col items-center justify-center gap-1"
+                        className="h-10 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-colors flex flex-col items-center justify-center gap-1"
                     >
                         {downloading ? (
                             <div className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin" />
@@ -1208,7 +1209,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                     </button>
                     <button
                         onClick={() => handleAddToCalendar('google')}
-                        className="h-10 bg-gray-50 hover:bg-gray-100 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 transition-colors flex flex-col items-center justify-center gap-1"
+                        className="h-10 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-colors flex flex-col items-center justify-center gap-1"
                     >
                         <Calendar className="w-4 h-4" />
                         Calendar
@@ -1217,7 +1218,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
 
                 <div className="flex justify-center mt-2">
                     <div className="flex items-center gap-1.5 opacity-50">
-                        <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
                     </div>
                 </div>
             </div>
@@ -1414,8 +1415,8 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false, isP
 
 const EventCardSkeleton = () => (
     <div className={`
-        fixed z-50 bg-white shadow-2xl font-sans
-        bottom-4 left-4 right-4 
+        fixed z-50 bg-white dark:bg-zinc-900 shadow-2xl font-sans
+        bottom-4 left-4 right-4
         mb-[env(safe-area-inset-bottom)]
         rounded-2xl
         md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0
@@ -1425,10 +1426,10 @@ const EventCardSkeleton = () => (
         {/* Header Skeleton */}
         <div className="flex justify-between items-start mb-4">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-200" />
+                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-zinc-800" />
                 <div className="space-y-2">
-                    <div className="h-4 w-32 bg-gray-200 rounded" />
-                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                    <div className="h-4 w-32 bg-gray-200 dark:bg-zinc-800 rounded" />
+                    <div className="h-3 w-20 bg-gray-200 dark:bg-zinc-800 rounded" />
                 </div>
             </div>
             <div className="h-5 w-16 bg-gray-200 rounded" />
@@ -1436,20 +1437,20 @@ const EventCardSkeleton = () => (
 
         {/* Description Lines */}
         <div className="space-y-2 mb-6">
-            <div className="h-3 w-full bg-gray-200 rounded" />
-            <div className="h-3 w-[90%] bg-gray-200 rounded" />
-            <div className="h-3 w-[80%] bg-gray-200 rounded" />
+            <div className="h-3 w-full bg-gray-200 dark:bg-zinc-800 rounded" />
+            <div className="h-3 w-[90%] bg-gray-200 dark:bg-zinc-800 rounded" />
+            <div className="h-3 w-[80%] bg-gray-200 dark:bg-zinc-800 rounded" />
         </div>
 
         {/* Date/Loc Skeleton */}
         <div className="flex justify-between mb-6">
-            <div className="h-4 w-24 bg-gray-200 rounded" />
-            <div className="h-4 w-32 bg-gray-200 rounded" />
+            <div className="h-4 w-24 bg-gray-200 dark:bg-zinc-800 rounded" />
+            <div className="h-4 w-32 bg-gray-200 dark:bg-zinc-800 rounded" />
         </div>
 
         {/* Button Skeleton */}
         {/* Button Skeleton */}
-        <div className="h-10 w-full bg-gray-200 rounded-lg" />
+        <div className="h-10 w-full bg-gray-200 dark:bg-zinc-800 rounded-lg" />
     </div>
 )
 
@@ -1463,13 +1464,13 @@ const SummaryTicketItem = ({ tier, qty }: { tier: TicketTier, qty: number }) => 
                 <div className="flex-1">
                     <button
                         onClick={() => hasDescription && setIsExpanded(!isExpanded)}
-                        className={`text-left font-bold text-gray-900 leading-tight flex items-center gap-1.5 ${hasDescription ? 'hover:text-gray-700 cursor-pointer' : ''}`}
+                        className={`text-left font-bold text-gray-900 dark:text-white leading-tight flex items-center gap-1.5 ${hasDescription ? 'hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer' : ''}`}
                         disabled={!hasDescription}
                     >
                         {tier.name}
-                        <span className="text-gray-400 font-normal whitespace-nowrap">x{qty}</span>
+                        <span className="text-gray-400 dark:text-gray-500 font-normal whitespace-nowrap">x{qty}</span>
                         {hasDescription && (
-                            <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`w-3 h-3 text-gray-400 dark:text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                         )}
                     </button>
                 </div>
@@ -1479,7 +1480,7 @@ const SummaryTicketItem = ({ tier, qty }: { tier: TicketTier, qty: number }) => 
             </div>
 
             {hasDescription && isExpanded && (
-                <div className="text-[11px] text-gray-400 leading-snug mt-1.5 animate-fade-in pl-1">
+                <div className="text-[11px] text-gray-400 dark:text-gray-500 leading-snug mt-1.5 animate-fade-in pl-1">
                     {tier.description}
                 </div>
             )}
