@@ -28,8 +28,39 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
         description: '',
         website: '',
         twitter: '',
-        instagram: ''
+        instagram: '',
+        logo_url: ''
     })
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return
+
+        const file = e.target.files[0]
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
+        const filePath = `organizers/${fileName}`
+
+        const loadToast = toast.loading('Uploading logo...')
+
+        try {
+            const { error: uploadError } = await supabase.storage
+                .from('public') // Assuming 'public' bucket exists
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('public')
+                .getPublicUrl(filePath)
+
+            setOrganizer(prev => ({ ...prev, logo_url: publicUrl }))
+            toast.success('Logo uploaded!')
+        } catch (error: any) {
+            toast.error('Error uploading logo: ' + error.message)
+        } finally {
+            toast.dismiss(loadToast)
+        }
+    }
 
     const handleSaveSettings = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -94,6 +125,7 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                     website: organizer.website,
                     twitter: organizer.twitter,
                     instagram: organizer.instagram,
+                    logo_url: organizer.logo_url,
                     updated_at: new Date().toISOString() // Assuming there is updated_at
                 }).eq('id', initialOrganizer.id)
             } else {
@@ -104,7 +136,8 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                     description: organizer.description,
                     website: organizer.website,
                     twitter: organizer.twitter,
-                    instagram: organizer.instagram
+                    instagram: organizer.instagram,
+                    logo_url: organizer.logo_url
                 })
             }
 
@@ -299,8 +332,18 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                 <form onSubmit={handleSaveOrganizer} className="space-y-8 animate-fade-in">
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
-                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-xl font-bold text-gray-400">
-                                {organizer.name ? organizer.name.charAt(0).toUpperCase() : '?'}
+                            <div className="relative group">
+                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-xl font-bold text-gray-400 overflow-hidden border border-gray-200">
+                                    {organizer.logo_url ? (
+                                        <img src={organizer.logo_url} alt={organizer.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        organizer.name ? organizer.name.charAt(0).toUpperCase() : '?'
+                                    )}
+                                </div>
+                                <label className="absolute inset-0 flex items-center justify-center bg-black/50 text-white opacity-0 group-hover:opacity-100 rounded-full cursor-pointer transition-opacity">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                                </label>
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-gray-900">Public Profile</h2>

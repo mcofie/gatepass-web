@@ -11,10 +11,9 @@ type Customer = {
     email: string
     name: string
     phone?: string
-    totalSpent: number
-    ticketsBought: number
-    lastSeen: string
-    eventsAttended: number
+    total_spent: number
+    tickets_bought: number
+    last_seen: string
 }
 
 export function CustomerCRM() {
@@ -24,79 +23,37 @@ export function CustomerCRM() {
     const [searchQuery, setSearchQuery] = useState('')
     const [sortBy, setSortBy] = useState<'spend' | 'recent'>('spend')
 
+    const PAGE_SIZE = 50
+    const [page, setPage] = useState(0)
+    const [hasMore, setHasMore] = useState(true)
+
     useEffect(() => {
         const fetchCustomers = async () => {
             setLoading(true)
             try {
-                // Fetch all reservations (successful ones)
-                // We assume successful reservation = paid. 
-                // Or fetch transactions? Transactions have amount. Reservations have email.
-                // Best: Fetch reservations with transactions joined OR tickets.
-                // Actually, let's fetch 'tickets' + 'ticket_tiers' + 'reservations'
-                // Tickets has status.
-
-                const { data, error } = await supabase
+                let query = supabase
                     .schema('gatepass')
-                    .from('transactions') // Transactions source of truth for money
-                    .select(`
-                        amount, 
-                        paid_at,
-                        reservations (
-                            guest_email,
-                            guest_name,
-                            guest_phone,
-                            user_id,
-                            profiles (email, full_name, phone_number),
-                            event_id
-                        )
-                    `)
-                    .eq('status', 'success')
+                    .from('customer_stats')
+                    .select('*')
+                    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+
+                if (searchQuery) {
+                    query = query.or(`name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+                }
+
+                if (sortBy === 'spend') {
+                    query = query.order('total_spent', { ascending: false })
+                } else {
+                    query = query.order('last_seen', { ascending: false })
+                }
+
+                const { data, error } = await query
 
                 if (error) throw error
 
-                // Aggregate
-                const map: Record<string, Customer> = {}
-
-                data.forEach((tx: any) => {
-                    const res = tx.reservations
-                    // Id strategy: Email is best unique identifier for guest/user mix
-                    const email = (res?.profiles?.email || res?.guest_email || '').toLowerCase()
-                    if (!email) return
-
-                    const name = res?.profiles?.full_name || res?.guest_name || 'Unknown'
-                    const phone = res?.profiles?.phone_number || res?.guest_phone || ''
-                    const amount = tx.amount || 0
-                    const date = tx.paid_at
-
-                    if (!map[email]) {
-                        map[email] = {
-                            email,
-                            name,
-                            phone,
-                            totalSpent: 0,
-                            ticketsBought: 0, // This logic assumes 1 tx = ? tickets. 
-                            // Wait, transactions table stores TOTAL amount. 
-                            // If we want ticket count, we need quantity from reservation?
-                            // Reservation has quantity.
-                            // Let's assume 1 tx corresponds to 1 reservation which has X tickets.
-                            // We didn't fetch quantity. Let's start with Spend.
-                            lastSeen: date,
-                            eventsAttended: 0
-                        }
-                    }
-
-                    map[email].totalSpent += amount
-                    // Update Last Seen
-                    if (new Date(date) > new Date(map[email].lastSeen)) {
-                        map[email].lastSeen = date
-                        map[email].name = name // Update name to most recent 
-                    }
-                    map[email].ticketsBought += 1 // Actually Transaction count here.
-                    // Tracking events
-                    // map[email].events.add(res.event_id) // Set? 
-                })
-
-                setCustomers(Object.values(map))
+                // @ts-ignore - View type definition might be missing
+                setCustomers(data || [])
+                setHasMore((data || []).length === PAGE_SIZE)
 
             } catch (e) {
                 console.error(e)
@@ -105,31 +62,29 @@ export function CustomerCRM() {
                 setLoading(false)
             }
         }
-        fetchCustomers()
-    }, [])
 
-    const filteredCustomers = useMemo(() => {
-        let result = customers.filter(c =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.email.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+        // Debounce search
+        const timeoutId = setTimeout(() => {
+            fetchCustomers()
+        }, 300)
 
-        if (sortBy === 'spend') {
-            result.sort((a, b) => b.totalSpent - a.totalSpent)
-        } else {
-            result.sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
-        }
-        return result
-    }, [customers, searchQuery, sortBy])
+        return () => clearTimeout(timeoutId)
+    }, [page, searchQuery, sortBy])
+
+    // Client-side filtering removed in favor of server-side
+    // But for export we might want to export ALL? 
+    // For now, export current view or strict export query.
+    // Let's keep export simple (export visible) or maybe implement "Export All" later.
+    const filteredCustomers = customers
 
     const handleExport = () => {
         const data = filteredCustomers.map(c => ({
             Name: c.name,
             Email: c.email,
             Phone: c.phone || '',
-            'Total Spent': c.totalSpent,
-            'Tickets Count': c.ticketsBought,
-            'Last Seen': new Date(c.lastSeen).toLocaleDateString()
+            'Total Spent': c.total_spent,
+            'Tickets Count': c.tickets_bought,
+            'Last Seen': new Date(c.last_seen).toLocaleDateString()
         }))
         exportToCSV(data, 'customers_crm')
     }
@@ -210,12 +165,12 @@ export function CustomerCRM() {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 text-right text-gray-500">
-                                    {new Date(c.lastSeen).toLocaleDateString()}
+                                    {new Date(c.last_seen).toLocaleDateString()}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <div className="font-bold text-gray-900">{formatCurrency(c.totalSpent, 'GHS')}</div>
+                                    <div className="font-bold text-gray-900">{formatCurrency(c.total_spent, 'GHS')}</div>
                                     <div className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-0.5">
-                                        {c.ticketsBought} Orders
+                                        {c.tickets_bought} Orders
                                     </div>
                                 </td>
                             </tr>
@@ -228,6 +183,26 @@ export function CustomerCRM() {
                         <p>No customers found</p>
                     </div>
                 )}
+            </div>
+            {/* Pagination Controls */}
+            <div className="flex justify-between items-center pt-4">
+                <button
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0 || loading}
+                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                    Previous
+                </button>
+                <div className="text-sm font-medium text-gray-600">
+                    Page {page + 1}
+                </div>
+                <button
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={!hasMore || loading}
+                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                    Next
+                </button>
             </div>
         </div>
     )

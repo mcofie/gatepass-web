@@ -5,11 +5,18 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { RichTextEditor } from '@/components/common/RichTextEditor'
+import { DateTimePicker } from '@/components/common/DateTimePicker'
+import { ImageDropzone } from '@/components/common/ImageDropzone'
+import { TicketManager } from '@/components/common/TicketManager'
+import { TicketTier } from '@/types/gatepass'
+import { PreviewModal } from '@/components/common/PreviewModal'
 
 export default function CreateEventPage() {
     const router = useRouter()
     const supabase = createClient()
     const [loading, setLoading] = useState(false)
+    const [showPreview, setShowPreview] = useState(false)
 
     // Form State
     const [formData, setFormData] = useState({
@@ -17,8 +24,8 @@ export default function CreateEventPage() {
         description: '',
         venue_name: '',
         venue_address: '',
-        starts_at: '',
-        ends_at: '',
+        starts_at: undefined as Date | undefined,
+        ends_at: undefined as Date | undefined,
         poster_url: '',
         video_url: '',
         latitude: null as number | null,
@@ -26,7 +33,8 @@ export default function CreateEventPage() {
         slug: '',
         fee_bearer: 'customer' as 'customer' | 'organizer',
         platform_fee_percent: 5.0,
-        organization_id: ''
+        organization_id: '',
+        tiers: [] as Partial<TicketTier>[]
     })
 
     // Fetch or Create Organizer on Mount
@@ -68,19 +76,59 @@ export default function CreateEventPage() {
         initOrganizer()
     }, [])
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target
-        setFormData(prev => ({ ...prev, [name]: value }))
 
-        // Auto-generate slug from title
-        if (name === 'title' && !formData.slug) {
-            setFormData(prev => ({
-                ...prev,
-                slug: value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-            }))
+
+    const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+
+    // Debounce check slug
+    React.useEffect(() => {
+        const checkSlug = async () => {
+            if (!formData.slug) {
+                setSlugStatus('idle')
+                return
+            }
+
+            setSlugStatus('checking')
+            try {
+                const { data, error } = await supabase
+                    .schema('gatepass')
+                    .from('events')
+                    .select('id')
+                    .eq('slug', formData.slug)
+                    .single()
+
+                if (data) {
+                    setSlugStatus('taken')
+                } else {
+                    setSlugStatus('available')
+                }
+            } catch (e) {
+                // If error is "row not found", then it's available
+                setSlugStatus('available')
+            }
         }
+
+        const timeoutId = setTimeout(checkSlug, 500)
+        return () => clearTimeout(timeoutId)
+    }, [formData.slug])
+
+    const handleGenerateSlug = () => {
+        if (!formData.title) return
+        const slug = formData.title.toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, '')
+
+        setFormData(prev => ({ ...prev, slug }))
     }
 
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target
+        // Prevent auto-generation if user manually edits slug
+        if (name === 'slug') {
+            // allow manual edit
+        }
+        setFormData(prev => ({ ...prev, [name]: value }))
+    }
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
@@ -96,13 +144,35 @@ export default function CreateEventPage() {
                 .from('events')
                 .insert({
                     ...formData,
-                    ends_at: formData.ends_at || null,
+                    starts_at: formData.starts_at?.toISOString(),
+                    ends_at: formData.ends_at?.toISOString() || null,
                     organizer_id: user.id, // Legacy: User Creator
                     organization_id: formData.organization_id, // New: Linked Organization
                     is_published: false // Default to draft
                 })
                 .select()
+                .select()
                 .single()
+
+            if (data && formData.tiers.length > 0) {
+                const tiersToInsert = formData.tiers.map(tier => ({
+                    event_id: data.id,
+                    name: tier.name,
+                    price: tier.price,
+                    total_quantity: tier.total_quantity,
+                    description: tier.description,
+                    currency: tier.currency || 'GHS',
+                    quantity_sold: 0,
+                    perks: tier.perks || []
+                }))
+
+                const { error: ticketsError } = await supabase
+                    .schema('gatepass')
+                    .from('ticket_tiers')
+                    .insert(tiersToInsert)
+
+                if (ticketsError) throw ticketsError
+            }
 
             if (error) throw error
 
@@ -146,32 +216,47 @@ export default function CreateEventPage() {
                                 />
                             </div>
 
+
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">URL Slug</label>
-                                <div className="flex items-center">
-                                    <span className="bg-gray-100 border border-r-0 border-gray-200 rounded-l-xl px-4 py-3 text-gray-500 text-sm font-medium">gatepass.com/events/</span>
-                                    <input
-                                        name="slug"
-                                        value={formData.slug}
-                                        onChange={handleChange}
-                                        type="text"
-                                        required
-                                        className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-r-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium"
-                                    />
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1 flex items-center relative">
+                                        <span className="bg-gray-100 border border-r-0 border-gray-200 rounded-l-xl px-4 py-3 text-gray-500 text-sm font-medium">gatepass.com/events/</span>
+                                        <input
+                                            name="slug"
+                                            value={formData.slug}
+                                            onChange={handleChange}
+                                            type="text"
+                                            required
+                                            className={`flex-1 px-4 py-3 bg-gray-50 border rounded-r-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium ${slugStatus === 'taken' ? 'border-red-300 text-red-600 focus:ring-red-200' :
+                                                slugStatus === 'available' ? 'border-green-300 text-green-700 focus:ring-green-200' :
+                                                    'border-gray-200'
+                                                }`}
+                                        />
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            {slugStatus === 'checking' && <div className="w-4 h-4 border-2 border-gray-200 border-t-black rounded-full animate-spin"></div>}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateSlug}
+                                        className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-medium text-sm transition-colors whitespace-nowrap"
+                                    >
+                                        Generate
+                                    </button>
                                 </div>
+                                {slugStatus === 'taken' && <p className="text-xs text-red-500 mt-1.5 font-medium">This slug is already taken.</p>}
+                                {slugStatus === 'available' && formData.slug && <p className="text-xs text-green-600 mt-1.5 font-medium">Slug available!</p>}
                             </div>
 
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                                <textarea
-                                    name="description"
+                                <RichTextEditor
                                     value={formData.description}
-                                    onChange={handleChange}
-                                    rows={4}
-                                    required
+                                    onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
                                     placeholder="Tell people what your event is about..."
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium resize-none"
-                                ></textarea>
+                                />
                             </div>
                         </div>
                     </div>
@@ -232,23 +317,17 @@ export default function CreateEventPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Starts At</label>
-                                <input
-                                    name="starts_at"
-                                    value={formData.starts_at}
-                                    onChange={handleChange}
-                                    type="datetime-local"
+                                <DateTimePicker
+                                    date={formData.starts_at}
+                                    setDate={(date) => setFormData(prev => ({ ...prev, starts_at: date }))}
                                     required
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium"
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Ends At (Optional)</label>
-                                <input
-                                    name="ends_at"
-                                    value={formData.ends_at}
-                                    onChange={handleChange}
-                                    type="datetime-local"
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium"
+                                <DateTimePicker
+                                    date={formData.ends_at}
+                                    setDate={(date) => setFormData(prev => ({ ...prev, ends_at: date }))}
                                 />
                             </div>
                         </div>
@@ -261,14 +340,9 @@ export default function CreateEventPage() {
                         <div className="grid gap-6">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Poster URL</label>
-                                <input
-                                    name="poster_url"
+                                <ImageDropzone
                                     value={formData.poster_url}
-                                    onChange={handleChange}
-                                    type="url"
-                                    required
-                                    placeholder="https://..."
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium"
+                                    onChange={(url) => setFormData(prev => ({ ...prev, poster_url: url || '' }))}
                                 />
                             </div>
                             <div>
@@ -282,6 +356,16 @@ export default function CreateEventPage() {
                                 />
                             </div>
                         </div>
+                    </div>
+
+
+                    {/* Tickets */}
+                    <div className="space-y-6">
+                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b pb-2 pt-4">Tickets</h3>
+                        <TicketManager
+                            tiers={formData.tiers}
+                            onChange={(tiers) => setFormData(prev => ({ ...prev, tiers }))}
+                        />
                     </div>
 
                     {/* Settings */}
@@ -325,6 +409,13 @@ export default function CreateEventPage() {
                             <button type="button" className="px-6 py-3 rounded-xl font-bold text-gray-500 hover:text-black hover:bg-gray-50 transition-colors">Cancel</button>
                         </Link>
                         <button
+                            type="button"
+                            onClick={() => setShowPreview(true)}
+                            className="px-6 py-3 rounded-xl font-bold text-black border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                            Preview
+                        </button>
+                        <button
                             type="submit"
                             disabled={loading}
                             className="bg-black text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 transition-all shadow-lg shadow-black/20 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
@@ -334,6 +425,13 @@ export default function CreateEventPage() {
                     </div>
                 </form>
             </div >
+
+            <PreviewModal
+                isOpen={showPreview}
+                onClose={() => setShowPreview(false)}
+                formData={formData}
+                tiers={formData.tiers}
+            />
         </div >
     )
 }

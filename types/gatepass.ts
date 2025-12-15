@@ -49,6 +49,7 @@ export interface TicketTier {
     quantity_sold: number
     max_per_order?: number
     description?: string
+    perks?: string[]
 }
 
 export interface Ticket {

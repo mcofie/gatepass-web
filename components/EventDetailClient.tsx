@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import Script from 'next/script'
 import { useRouter, useSearchParams } from 'next/navigation'
 // Dynamic imports for heavy libraries
@@ -13,7 +14,7 @@ import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
-import { Globe, Calendar, ChevronDown } from 'lucide-react'
+import { Globe, Calendar, ChevronDown, ChevronUp, Check } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
 
@@ -56,353 +57,353 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
 }
 
 export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDetailClientProps) {
-const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
-const [direction, setDirection] = useState<'forward' | 'back'>('forward')
-const [loading, setLoading] = useState(false)
-const [verifying, setVerifying] = useState(false)
-const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
-const [reservation, setReservation] = useState<any>(null)
-const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
+    const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
+    const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+    const [loading, setLoading] = useState(false)
+    const [verifying, setVerifying] = useState(false)
+    const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
+    const [reservation, setReservation] = useState<any>(null)
+    const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
 
-// Mobile Expansion State
-const [isExpanded, setIsExpanded] = useState(false)
-// On mount, check if mobile? Actually, defaulting to false is fine; desktop naturally ignores it via MD styles.
-// However, on Desktop we always want it "expanded" effectively.
-// We'll use CSS to force expansion on desktop, so state only controls mobile.
+    // Mobile Expansion State
+    const [isExpanded, setIsExpanded] = useState(false)
+    // On mount, check if mobile? Actually, defaulting to false is fine; desktop naturally ignores it via MD styles.
+    // However, on Desktop we always want it "expanded" effectively.
+    // We'll use CSS to force expansion on desktop, so state only controls mobile.
 
-// Navigation Helper
-const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
-    setDirection(dir)
-    setView(newView)
-    // Auto-expand on navigation to deeper views
-    if (newView !== 'details') setIsExpanded(true)
-}
+    // Navigation Helper
+    const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
+        setDirection(dir)
+        setView(newView)
+        // Auto-expand on navigation to deeper views
+        if (newView !== 'details') setIsExpanded(true)
+    }
 
-// Form State
-const [guestName, setGuestName] = useState('')
-const [guestEmail, setGuestEmail] = useState('')
-const [guestPhone, setGuestPhone] = useState('')
+    // Form State
+    const [guestName, setGuestName] = useState('')
+    const [guestEmail, setGuestEmail] = useState('')
+    const [guestPhone, setGuestPhone] = useState('')
 
-// Discount State
-const [promoCode, setPromoCode] = useState('')
-const [discount, setDiscount] = useState<Discount | null>(null)
-const [discountError, setDiscountError] = useState('')
-const [applyingDiscount, setApplyingDiscount] = useState(false)
+    // Discount State
+    const [promoCode, setPromoCode] = useState('')
+    const [discount, setDiscount] = useState<Discount | null>(null)
+    const [discountError, setDiscountError] = useState('')
+    const [applyingDiscount, setApplyingDiscount] = useState(false)
 
-const router = useRouter()
-const searchParams = useSearchParams()
-const supabase = createClient()
-const timeLeft = useTimer(reservation?.expires_at)
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const supabase = createClient()
+    const timeLeft = useTimer(reservation?.expires_at)
 
-// Handle Payment Callback (Redirect Flow)
-useEffect(() => {
-    const reference = searchParams.get('reference') || searchParams.get('trxref')
-    if (reference) {
-        const verifyPayment = async () => {
-            setVerifying(true)
-            try {
-                // Use reference as reservationId fallback since we link them
-                const response = await fetch('/api/paystack/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference, reservationId: reference })
-                })
-                const result = await response.json()
+    // Handle Payment Callback (Redirect Flow)
+    useEffect(() => {
+        const reference = searchParams.get('reference') || searchParams.get('trxref')
+        if (reference) {
+            const verifyPayment = async () => {
+                setVerifying(true)
+                try {
+                    // Use reference as reservationId fallback since we link them
+                    const response = await fetch('/api/paystack/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reference, reservationId: reference })
+                    })
+                    const result = await response.json()
 
-                // Clear params to avoid re-verification loop (optional, but good UX)
-                window.history.replaceState({}, '', window.location.pathname)
+                    // Clear params to avoid re-verification loop (optional, but good UX)
+                    window.history.replaceState({}, '', window.location.pathname)
 
-                if (!result.success) throw new Error(result.error || 'Verification failed')
+                    if (!result.success) throw new Error(result.error || 'Verification failed')
 
-                setPurchasedTickets(result.tickets || [])
-                navigate('success', 'forward')
-                // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
-            } catch (error: any) {
-                console.error('Verification Error:', error)
-                toast.error(error.message || 'Payment verification failed')
-            } finally {
-                setVerifying(false)
+                    setPurchasedTickets(result.tickets || [])
+                    navigate('success', 'forward')
+                    // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
+                } catch (error: any) {
+                    console.error('Verification Error:', error)
+                    toast.error(error.message || 'Payment verification failed')
+                } finally {
+                    setVerifying(false)
+                }
+            }
+            verifyPayment()
+        }
+    }, [searchParams])
+
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user && !user.is_anonymous) {
+                // Pre-fill or skip form? Let's pre-fill for now so they can verify phone
+                // Fetch profile
+                const { data: profile } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', user.id).single()
+                if (profile) {
+                    setGuestName(profile.full_name || '')
+                    setGuestEmail(profile.email || user.email || '')
+                    setGuestPhone(profile.phone_number || '')
+                }
             }
         }
-        verifyPayment()
-    }
-}, [searchParams])
+        checkUser()
+    }, [])
 
-useEffect(() => {
-    const checkUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user && !user.is_anonymous) {
-            // Pre-fill or skip form? Let's pre-fill for now so they can verify phone
-            // Fetch profile
-            const { data: profile } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', user.id).single()
-            if (profile) {
-                setGuestName(profile.full_name || '')
-                setGuestEmail(profile.email || user.email || '')
-                setGuestPhone(profile.phone_number || '')
+    const handleQuantityChange = (tierId: string, delta: number) => {
+        setSelectedTickets(prev => {
+            const current = prev[tierId] || 0
+            const intent = current + delta
+            if (intent < 0) return prev
+
+            // Max Per Order Check
+            const tier = tiers.find(t => t.id === tierId)
+            if (tier?.max_per_order && intent > tier.max_per_order) {
+                toast.error(`Limit of ${tier.max_per_order} tickets per order`)
+                return prev
             }
-        }
+            // Stock Check (Optional here, since we disable button, but good for safety)
+            if (tier && (tier.quantity_sold + intent) > tier.total_quantity) {
+                toast.error('Not enough tickets available')
+                return prev
+            }
+
+            return { ...prev, [tierId]: intent }
+        })
     }
-    checkUser()
-}, [])
 
-const handleQuantityChange = (tierId: string, delta: number) => {
-    setSelectedTickets(prev => {
-        const current = prev[tierId] || 0
-        const intent = current + delta
-        if (intent < 0) return prev
-
-        // Max Per Order Check
+    const calculatedTotal = Object.entries(selectedTickets).reduce((acc, [tierId, qty]) => {
         const tier = tiers.find(t => t.id === tierId)
-        if (tier?.max_per_order && intent > tier.max_per_order) {
-            toast.error(`Limit of ${tier.max_per_order} tickets per order`)
-            return prev
+        return acc + (tier ? tier.price * qty : 0)
+    }, 0)
+
+    // Discount Calculation
+    const discountAmount = discount
+        ? (discount.type === 'fixed'
+            ? discount.value
+            : (calculatedTotal * (discount.value / 100)))
+        : 0
+
+    const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
+    const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
+    const platformFees = clientFees
+    const totalDue = customerTotal
+
+    const applyPromoCode = async () => {
+        if (!promoCode.trim()) return
+        setApplyingDiscount(true)
+        setDiscountError('')
+        setDiscount(null)
+
+        try {
+            const { data, error } = await supabase
+                .schema('gatepass')
+                .from('discounts')
+                .select('*')
+                .eq('event_id', event.id)
+                .eq('code', promoCode.toUpperCase())
+                .single()
+
+            if (error || !data) {
+                setDiscountError('Invalid promo code')
+                return
+            }
+
+            // Check limits
+            if (data.max_uses && data.used_count >= data.max_uses) {
+                setDiscountError('This code has been fully redeemed')
+                return
+            }
+
+            setDiscount(data as Discount)
+
+            // Update the existing reservation with this discount (Secure RPC)
+            if (reservation) {
+                console.log('Linking Discount to Reservation via RPC:', reservation.id)
+                const { data: rpcData, error: updateError } = await supabase.rpc('apply_reservation_discount', {
+                    p_reservation_id: reservation.id,
+                    p_discount_code: promoCode
+                })
+
+                if (updateError || (rpcData && !rpcData.success)) {
+                    console.error('Failed to link discount:', updateError || rpcData?.error)
+                    const errorMsg = updateError?.message || rpcData?.error || 'Failed to apply discount'
+                    // If "Discount code usage limit reached", show that
+                    setDiscountError(errorMsg)
+                    return
+                }
+            }
+
+            toast.success('Discount applied!')
+        } catch (e) {
+            setDiscountError('Failed to verify code')
+        } finally {
+            setApplyingDiscount(false)
         }
-        // Stock Check (Optional here, since we disable button, but good for safety)
-        if (tier && (tier.quantity_sold + intent) > tier.total_quantity) {
-            toast.error('Not enough tickets available')
-            return prev
+    }
+
+    const handleContinueToCheckout = () => {
+        navigate('checkout', 'forward')
+    }
+
+    // Step 1: Create Reservation (Invoked on "Continue to Payment")
+    const handleCreateReservation = async () => {
+        setLoading(true)
+        try {
+            let userId: string | null = null
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (user) {
+                userId = user.id
+            }
+            // Guest Flow: No signup required anymore. We just pass the details.
+
+            // 2. Determine Selection
+            const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
+            if (!firstTierId) throw new Error('No tickets selected')
+            const qty = selectedTickets[firstTierId]
+            const selectedTier = tiers.find(t => t.id === firstTierId)
+
+            if (!selectedTier || !qty) throw new Error('Please select a ticket')
+
+            // 3. Create Reservation
+            console.log('Creating Reservation with Discount:', discount)
+            const newReservation = await createReservation(event.id, selectedTier.id, userId, qty, supabase, {
+                email: guestEmail,
+                name: guestName,
+                phone: guestPhone
+            }, discount?.id)
+            if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
+
+            setReservation(newReservation)
+            setReservation(newReservation)
+            navigate('summary', 'forward')
+
+        } catch (error: any) {
+            if (error.message?.includes('already registered')) {
+                toast.info('An account with this email already exists. Please log in.')
+                router.push(`/login?redirect=/events/${event.id}`)
+            } else {
+                toast.error(error.message || 'An unexpected error occurred')
+            }
+        } finally {
+            setLoading(false)
         }
+    }
 
-        return { ...prev, [tierId]: intent }
-    })
-}
-
-const calculatedTotal = Object.entries(selectedTickets).reduce((acc, [tierId, qty]) => {
-    const tier = tiers.find(t => t.id === tierId)
-    return acc + (tier ? tier.price * qty : 0)
-}, 0)
-
-// Discount Calculation
-const discountAmount = discount
-    ? (discount.type === 'fixed'
-        ? discount.value
-        : (calculatedTotal * (discount.value / 100)))
-    : 0
-
-const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
-const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
-const platformFees = clientFees
-const totalDue = customerTotal
-
-const applyPromoCode = async () => {
-    if (!promoCode.trim()) return
-    setApplyingDiscount(true)
-    setDiscountError('')
-    setDiscount(null)
-
-    try {
-        const { data, error } = await supabase
-            .schema('gatepass')
-            .from('discounts')
-            .select('*')
-            .eq('event_id', event.id)
-            .eq('code', promoCode.toUpperCase())
-            .single()
-
-        if (error || !data) {
-            setDiscountError('Invalid promo code')
+    // Step 2: Payment (Invoked on "Pay Now")
+    const handlePaystackPayment = async () => {
+        if (!reservation) {
+            toast.error('No active reservation found. Please try again.')
             return
         }
 
-        // Check limits
-        if (data.max_uses && data.used_count >= data.max_uses) {
-            setDiscountError('This code has been fully redeemed')
-            return
-        }
+        setLoading(true)
 
-        setDiscount(data as Discount)
+        const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
+        const selectedTier = tiers.find(t => t.id === firstTierId)
 
-        // Update the existing reservation with this discount (Secure RPC)
-        if (reservation) {
-            console.log('Linking Discount to Reservation via RPC:', reservation.id)
-            const { data: rpcData, error: updateError } = await supabase.rpc('apply_reservation_discount', {
+        // Safety Sync: Ensure discount is linked before payment
+        if (discount && reservation && reservation.discount_id !== discount.id) {
+            console.log('Syncing Discount ID before payment...', discount.id)
+            await supabase.rpc('apply_reservation_discount', {
                 p_reservation_id: reservation.id,
                 p_discount_code: promoCode
             })
-
-            if (updateError || (rpcData && !rpcData.success)) {
-                console.error('Failed to link discount:', updateError || rpcData?.error)
-                const errorMsg = updateError?.message || rpcData?.error || 'Failed to apply discount'
-                // If "Discount code usage limit reached", show that
-                setDiscountError(errorMsg)
-                return
-            }
+            // Update local state implicitly or just proceed
         }
 
-        toast.success('Discount applied!')
-    } catch (e) {
-        setDiscountError('Failed to verify code')
-    } finally {
-        setApplyingDiscount(false)
-    }
-}
-
-const handleContinueToCheckout = () => {
-    navigate('checkout', 'forward')
-}
-
-// Step 1: Create Reservation (Invoked on "Continue to Payment")
-const handleCreateReservation = async () => {
-    setLoading(true)
-    try {
-        let userId: string | null = null
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (user) {
-            userId = user.id
-        }
-        // Guest Flow: No signup required anymore. We just pass the details.
-
-        // 2. Determine Selection
-        const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
-        if (!firstTierId) throw new Error('No tickets selected')
-        const qty = selectedTickets[firstTierId]
-        const selectedTier = tiers.find(t => t.id === firstTierId)
-
-        if (!selectedTier || !qty) throw new Error('Please select a ticket')
-
-        // 3. Create Reservation
-        console.log('Creating Reservation with Discount:', discount)
-        const newReservation = await createReservation(event.id, selectedTier.id, userId, qty, supabase, {
-            email: guestEmail,
-            name: guestName,
-            phone: guestPhone
-        }, discount?.id)
-        if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
-
-        setReservation(newReservation)
-        setReservation(newReservation)
-        navigate('summary', 'forward')
-
-    } catch (error: any) {
-        if (error.message?.includes('already registered')) {
-            toast.info('An account with this email already exists. Please log in.')
-            router.push(`/login?redirect=/events/${event.id}`)
-        } else {
-            toast.error(error.message || 'An unexpected error occurred')
-        }
-    } finally {
-        setLoading(false)
-    }
-}
-
-// Step 2: Payment (Invoked on "Pay Now")
-const handlePaystackPayment = async () => {
-    if (!reservation) {
-        toast.error('No active reservation found. Please try again.')
-        return
-    }
-
-    setLoading(true)
-
-    const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
-    const selectedTier = tiers.find(t => t.id === firstTierId)
-
-    // Safety Sync: Ensure discount is linked before payment
-    if (discount && reservation && reservation.discount_id !== discount.id) {
-        console.log('Syncing Discount ID before payment...', discount.id)
-        await supabase.rpc('apply_reservation_discount', {
-            p_reservation_id: reservation.id,
-            p_discount_code: promoCode
-        })
-        // Update local state implicitly or just proceed
-    }
-
-    try {
-        // Call Initialize API
-        const response = await fetch('/api/paystack/initialize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: guestEmail || 'customer@gatepass.com',
-                amount: Math.round(totalDue * 100),
-                currency: selectedTier?.currency || 'GHS',
-                reservationId: reservation.id,
-                callbackUrl: window.location.href // Return to this page
+        try {
+            // Call Initialize API
+            const response = await fetch('/api/paystack/initialize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: guestEmail || 'customer@gatepass.com',
+                    amount: Math.round(totalDue * 100),
+                    currency: selectedTier?.currency || 'GHS',
+                    reservationId: reservation.id,
+                    callbackUrl: window.location.href // Return to this page
+                })
             })
-        })
 
-        const data = await response.json()
+            const data = await response.json()
 
-        if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
+            if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
 
-        // Redirect to Paystack
-        window.location.href = data.authorization_url
+            // Redirect to Paystack
+            window.location.href = data.authorization_url
 
-    } catch (error: any) {
-        console.error('Payment Error:', error)
-        toast.error(error.message)
-        setLoading(false)
-    }
-}
-
-
-const hasSelection = calculatedTotal > 0
-const cheapestTier = tiers.length > 0 ? tiers[0] : null
-const isModalExpanded = view !== 'details'
-
-// Mobile Expansion Logic
-const toggleExpand = () => {
-    if (view === 'details') {
-        // Haptic Feedback
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(10) // Taptic-like light impact
+        } catch (error: any) {
+            console.error('Payment Error:', error)
+            toast.error(error.message)
+            setLoading(false)
         }
-        setIsExpanded(!isExpanded)
     }
-}
 
-const cardHeightClass = (view === 'details' && !isExpanded)
-    ? 'max-h-[160px]' // Collapsed height: Compact for 1 line
-    : 'max-h-[85vh]'     // Expanded height
 
-if (verifying) {
+    const hasSelection = calculatedTotal > 0
+    const cheapestTier = tiers.length > 0 ? tiers[0] : null
+    const isModalExpanded = view !== 'details'
+
+    // Mobile Expansion Logic
+    const toggleExpand = () => {
+        if (view === 'details') {
+            // Haptic Feedback
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                navigator.vibrate(10) // Taptic-like light impact
+            }
+            setIsExpanded(!isExpanded)
+        }
+    }
+
+    const cardHeightClass = (view === 'details' && !isExpanded)
+        ? 'max-h-[160px]' // Collapsed height: Compact for 1 line
+        : 'max-h-[85vh]'     // Expanded height
+
+    if (verifying) {
+        return (
+            // Full Screen Verification Loader
+            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-fade-in">
+                <div className="w-16 h-16 border-4 border-black/10 border-t-black rounded-full animate-spin mb-4" />
+                <h2 className="text-xl font-bold tracking-tight text-black">Verifying Payment</h2>
+                <p className="text-sm text-gray-500 mt-2">Securing your ticket...</p>
+            </div>
+        )
+    }
+
+    if (loading && view === 'details') {
+        return <EventCardSkeleton />
+    }
+
+    if (loading && view !== 'details' && view !== 'summary' && view !== 'checkout') {
+        return (
+            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
+            </div>
+        )
+    }
+
     return (
-        // Full Screen Verification Loader
-        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-fade-in">
-            <div className="w-16 h-16 border-4 border-black/10 border-t-black rounded-full animate-spin mb-4" />
-            <h2 className="text-xl font-bold tracking-tight text-black">Verifying Payment</h2>
-            <p className="text-sm text-gray-500 mt-2">Securing your ticket...</p>
-        </div>
-    )
-}
+        <>
 
-if (loading && view === 'details') {
-    return <EventCardSkeleton />
-}
+            {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
+            {(isModalExpanded || isExpanded) && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
+                    onClick={() => {
+                        if (view === 'success') window.location.reload()
+                        else if (view !== 'details') navigate('details', 'back')
+                        else setIsExpanded(false) // Dismiss focus mode on mobile
+                    }}
+                />
+            )}
 
-if (loading && view !== 'details' && view !== 'summary' && view !== 'checkout') {
-    return (
-        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
-        </div>
-    )
-}
-
-return (
-    <>
-
-        {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
-        {(isModalExpanded || isExpanded) && (
+            {/* Floating Card / Modal Container */}
             <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
-                onClick={() => {
-                    if (view === 'success') window.location.reload()
-                    else if (view !== 'details') navigate('details', 'back')
-                    else setIsExpanded(false) // Dismiss focus mode on mobile
-                }}
-            />
-        )}
-
-        {/* Floating Card / Modal Container */}
-        <div
-            onClick={toggleExpand}
-            style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
-            className={`
+                onClick={toggleExpand}
+                style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
+                className={`
                 ${isFeedItem ? 'absolute' : 'fixed'} z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
-                rounded-2xl flex flex-col overflow-hidden
+                rounded-2xl flex flex-col ${(view === 'details' && !isExpanded) ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
                 ${cardHeightClass}
                 md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0 md:max-h-[85vh]
                 md:bottom-12 md:right-12 p-4
@@ -410,92 +411,93 @@ return (
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
                 ${(view === 'details' && !isExpanded) ? 'cursor-pointer active:scale-[0.98]' : ''}
             `}>
-            {view === 'details' && (
-                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                    <DetailsView
-                        event={event}
-                        cheapestTier={cheapestTier}
-                        onGetTickets={(e: React.MouseEvent) => {
-                            e.stopPropagation(); // Prevent toggling when clicking button
-                            navigate('tickets', 'forward')
-                        }}
-                        isExpanded={isExpanded}
-                    />
-                </div>
-            )}
-            {view === 'tickets' && (
-                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                    <TicketsView
-                        tiers={tiers}
-                        selectedTickets={selectedTickets}
-                        onQuantityChange={handleQuantityChange}
-                        onContinue={handleContinueToCheckout}
-                        onBack={() => navigate('details', 'back')}
-                        total={calculatedTotal}
-                        hasSelection={hasSelection}
-                    />
-                </div>
-            )}
-            {view === 'checkout' && (
-                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                    <CheckoutFormView
-                        guestName={guestName} setGuestName={setGuestName}
-                        guestEmail={guestEmail} setGuestEmail={setGuestEmail}
-                        guestPhone={guestPhone} setGuestPhone={setGuestPhone}
-                        onBack={() => navigate('tickets', 'back')}
-                        onContinue={handleCreateReservation}
-                        loading={loading}
-                    />
-                </div>
-            )}
-            {view === 'summary' && (
-                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                    <SummaryView
-                        event={event}
-                        tiers={tiers}
-                        selectedTickets={selectedTickets}
-                        subtotal={calculatedTotal}
-                        fees={platformFees}
-                        total={totalDue}
-                        timeLeft={timeLeft}
-                        loading={loading}
-                        onBack={() => navigate('checkout', 'back')}
-                        onPay={handlePaystackPayment}
-                        promoCode={promoCode}
-                        setPromoCode={setPromoCode}
-                        onApplyDiscount={applyPromoCode}
-                        discount={discount}
-                        discountError={discountError}
-                        applyingDiscount={applyingDiscount}
-                    />
-                </div>
-            )}
+                {view === 'details' && (
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <DetailsView
+                            event={event}
+                            cheapestTier={cheapestTier}
+                            onGetTickets={(e: React.MouseEvent) => {
+                                e.stopPropagation(); // Prevent toggling when clicking button
+                                navigate('tickets', 'forward')
+                            }}
+                            isExpanded={isExpanded}
+                            isFeedItem={isFeedItem}
+                        />
+                    </div>
+                )}
+                {view === 'tickets' && (
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <TicketsView
+                            tiers={tiers}
+                            selectedTickets={selectedTickets}
+                            onQuantityChange={handleQuantityChange}
+                            onContinue={handleContinueToCheckout}
+                            onBack={() => navigate('details', 'back')}
+                            total={calculatedTotal}
+                            hasSelection={hasSelection}
+                        />
+                    </div>
+                )}
+                {view === 'checkout' && (
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <CheckoutFormView
+                            guestName={guestName} setGuestName={setGuestName}
+                            guestEmail={guestEmail} setGuestEmail={setGuestEmail}
+                            guestPhone={guestPhone} setGuestPhone={setGuestPhone}
+                            onBack={() => navigate('tickets', 'back')}
+                            onContinue={handleCreateReservation}
+                            loading={loading}
+                        />
+                    </div>
+                )}
+                {view === 'summary' && (
+                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                        <SummaryView
+                            event={event}
+                            tiers={tiers}
+                            selectedTickets={selectedTickets}
+                            subtotal={calculatedTotal}
+                            fees={platformFees}
+                            total={totalDue}
+                            timeLeft={timeLeft}
+                            loading={loading}
+                            onBack={() => navigate('checkout', 'back')}
+                            onPay={handlePaystackPayment}
+                            promoCode={promoCode}
+                            setPromoCode={setPromoCode}
+                            onApplyDiscount={applyPromoCode}
+                            discount={discount}
+                            discountError={discountError}
+                            applyingDiscount={applyingDiscount}
+                        />
+                    </div>
+                )}
 
-            {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
-            {view === 'details' && !isExpanded && (
-                <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-900 dark:via-zinc-900/95 flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
-                    <span className="text-[12px] font-bold text-black dark:text-white mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
-                    <ChevronDown className="w-5 h-5 text-black dark:text-white animate-bounce" />
-                </div>
-            )}
+                {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
+                {view === 'details' && !isExpanded && (
+                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-900 dark:via-zinc-900/95 flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
+                        <span className="text-[12px] font-bold text-black dark:text-white mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
+                        <ChevronDown className="w-5 h-5 text-black dark:text-white animate-bounce" />
+                    </div>
+                )}
 
-            {view === 'success' && purchasedTickets.length > 0 && (
-                <div className="animate-scale-in">
-                    <SuccessView
-                        event={event}
-                        tickets={purchasedTickets}
-                        tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
-                    />
-                </div>
-            )}
-        </div>
-    </>
-)
+                {view === 'success' && purchasedTickets.length > 0 && (
+                    <div className="animate-scale-in">
+                        <SuccessView
+                            event={event}
+                            tickets={purchasedTickets}
+                            tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
+                        />
+                    </div>
+                )}
+            </div>
+        </>
+    )
 }
 
 // Sub-components
 
-const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean }) => (
+const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean, isFeedItem?: boolean }) => (
     <div className="animate-fade-in flex flex-col h-full">
         <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-3">
@@ -507,7 +509,13 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
                     )}
                 </div>
                 <div>
-                    <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
+                    {isFeedItem ? (
+                        <Link href={`/events/${event.slug || event.id}`} className="hover:underline decoration-white/50 underline-offset-2">
+                            <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
+                        </Link>
+                    ) : (
+                        <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
+                    )}
                     <p className="text-[12px] text-gray-500 dark:text-gray-400 font-medium">{event.organizers?.name || 'GatePass Event'}</p>
                 </div>
             </div>
@@ -617,6 +625,101 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded }: { event:
     </div >
 )
 
+const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void }) => {
+    const [showPerks, setShowPerks] = useState(false)
+    const isSelected = qty > 0
+    const isSoldOut = tier.quantity_sold >= tier.total_quantity
+    const remaining = tier.total_quantity - tier.quantity_sold
+    const isLowStock = remaining > 0 && remaining <= 10
+    const hasPerks = tier.perks && tier.perks.length > 0
+
+    return (
+        <div
+            className={`
+                relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between 
+                transition-all duration-300 snap-center min-h-[320px]
+                ${isSelected
+                    ? 'bg-black text-white dark:bg-white dark:text-black scale-[1.02] ring-0'
+                    : 'bg-white text-black dark:bg-zinc-900 dark:text-white ring-1 ring-black/5 dark:ring-white/10'
+                }
+            `}
+        >
+            {isLowStock && (
+                <div className="absolute top-3 right-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 z-10 shadow-sm">
+                    <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                    </span>
+                    Only {remaining} left
+                </div>
+            )}
+
+            <div className="space-y-4">
+                <div>
+                    <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>
+                        {formatCurrency(tier.price, tier.currency)}
+                    </div>
+                    <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200 dark:text-gray-700' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
+                </div>
+
+                {tier.description && (
+                    <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                        {tier.description}
+                    </p>
+                )}
+
+                <div className={`h-px w-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-100 dark:bg-zinc-800'}`} />
+
+                {hasPerks ? (
+                    <div>
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShowPerks(!showPerks); }}
+                            className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider mb-2 hover:opacity-80 transition-opacity ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}
+                        >
+                            <span>Perks</span>
+                            {showPerks ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
+
+                        {showPerks && (
+                            <ul className="space-y-2.5 animate-fade-in origin-top">
+                                {tier.perks!.map((perk, i) => (
+                                    <li key={i} className="flex items-start gap-2.5 text-[13px] leading-tight">
+                                        <div className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-black/5 text-black'}`}>
+                                            <Check className="w-2.5 h-2.5" />
+                                        </div>
+                                        <span className={isSelected ? 'text-gray-300 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}>{perk}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                ) : (
+                    <div className="h-4" />
+                )}
+            </div>
+
+            <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-50 dark:bg-zinc-800'}`}>
+                <button
+                    onClick={() => onQuantityChange(tier.id, -1)}
+                    disabled={qty === 0}
+                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                >
+                    -
+                </button>
+                <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>{qty}</span>
+                <button
+                    onClick={() => onQuantityChange(tier.id, 1)}
+                    disabled={isSoldOut}
+                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                >
+                    +
+                </button>
+            </div>
+        </div>
+    )
+}
+
 const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection }: {
     tiers: TicketTier[],
     selectedTickets: Record<string, number>,
@@ -635,84 +738,14 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
         </div>
 
         <div className="-mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-8 no-scrollbar snap-x snap-mandatory">
-            {tiers.map((tier: TicketTier) => {
-                const isSoldOut = tier.quantity_sold >= tier.total_quantity
-                const remaining = tier.total_quantity - tier.quantity_sold
-                const isLowStock = remaining > 0 && remaining <= 10
-                const qty = selectedTickets[tier.id] || 0
-                const isSelected = qty > 0
-                return (
-                    <div
-                        key={tier.id}
-                        className={`
-                            relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between 
-                            transition-all duration-300 snap-center min-h-[320px]
-                            ${isSelected
-                                ? 'bg-black text-white dark:bg-white dark:text-black scale-[1.02] ring-0'
-                                : 'bg-white text-black dark:bg-zinc-900 dark:text-white ring-1 ring-black/5 dark:ring-white/10'
-                            }
-                        `}
-                    >
-                        {isLowStock && (
-                            <div className="absolute top-3 right-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 z-10 shadow-sm">
-                                <span className="relative flex h-1.5 w-1.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-                                </span>
-                                Only {remaining} left
-                            </div>
-                        )}
-                        <div className="space-y-4">
-                            <div>
-                                <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>
-                                    {formatCurrency(tier.price, tier.currency)}
-                                </div>
-                                <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200 dark:text-gray-700' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
-                            </div>
-
-                            {tier.description && (
-                                <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
-                                    {tier.description}
-                                </p>
-                            )}
-
-                            <div className={`h-px w-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-100 dark:bg-zinc-800'}`} />
-
-                            <div>
-                                <h4 className={`text-[12px] font-bold mb-3 uppercase tracking-wider ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-400 dark:text-gray-500'}`}>Includes</h4>
-                                <ul className={`text-[13px] space-y-2.5 leading-tight ${isSelected ? 'text-gray-300 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}`}>
-                                    <li className="flex gap-2.5">
-                                        <span className={`block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isSelected ? 'bg-white dark:bg-black' : 'bg-black dark:bg-white'}`} />
-                                        Full access to all sessions
-                                    </li>
-                                    <li className="flex gap-2.5">
-                                        <span className={`block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${isSelected ? 'bg-white dark:bg-black' : 'bg-black dark:bg-white'}`} />
-                                        Entry to exhibition floor
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-50 dark:bg-zinc-800'}`}>
-                            <button
-                                onClick={() => onQuantityChange(tier.id, -1)}
-                                disabled={qty === 0}
-                                className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
-                            >
-                                -
-                            </button>
-                            <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>{qty}</span>
-                            <button
-                                onClick={() => onQuantityChange(tier.id, 1)}
-                                disabled={isSoldOut}
-                                className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
-                            >
-                                +
-                            </button>
-                        </div>
-                    </div>
-                )
-            })}
+            {tiers.map((tier) => (
+                <TicketCard
+                    key={tier.id}
+                    tier={tier}
+                    qty={selectedTickets[tier.id] || 0}
+                    onQuantityChange={onQuantityChange}
+                />
+            ))}
         </div>
 
         {/* Sticky Footer with Total */}

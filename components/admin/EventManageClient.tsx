@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2 } from 'lucide-react'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
+import { DateTimePicker } from '@/components/common/DateTimePicker'
 
 interface EventManageClientProps {
     event: Event
@@ -43,12 +44,16 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [loadingPayouts, setLoadingPayouts] = useState(false)
 
     // Tier Form
-    const [tierForm, setTierForm] = useState({ name: '', price: 0, total_quantity: 100, description: '' })
+    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, description: string, perks: string[] }>({
+        name: '', price: 0, total_quantity: 100, description: '', perks: []
+    })
     const [creatingTier, setCreatingTier] = useState(false)
 
     // Tier Editing State
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
-    const [editForm, setEditForm] = useState({ name: '', price: 0, total_quantity: 0, description: '' })
+    const [editForm, setEditForm] = useState<{ name: string, price: number, total_quantity: number, description: string, perks: string[] }>({
+        name: '', price: 0, total_quantity: 0, description: '', perks: []
+    })
 
     const supabase = createClient()
     const router = useRouter()
@@ -115,7 +120,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             if (error) throw error
 
             await fetchTiers()
-            setTierForm({ name: '', price: 0, total_quantity: 100, description: '' })
+            setTierForm({ name: '', price: 0, total_quantity: 100, description: '', perks: [] })
             toast.success('Ticket tier added')
         } catch (e: any) {
             toast.error(e.message)
@@ -136,12 +141,18 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     const startEditing = (tier: TicketTier) => {
         setEditingTierId(tier.id)
-        setEditForm({ name: tier.name, price: tier.price, total_quantity: tier.total_quantity, description: tier.description || '' })
+        setEditForm({
+            name: tier.name,
+            price: tier.price,
+            total_quantity: tier.total_quantity,
+            description: tier.description || '',
+            perks: tier.perks || []
+        })
     }
 
     const cancelEditing = () => {
         setEditingTierId(null)
-        setEditForm({ name: '', price: 0, total_quantity: 0, description: '' })
+        setEditForm({ name: '', price: 0, total_quantity: 0, description: '', perks: [] })
     }
 
     const saveTier = async (id: string) => {
@@ -150,7 +161,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 name: editForm.name,
                 price: editForm.price,
                 total_quantity: editForm.total_quantity,
-                description: editForm.description
+                description: editForm.description,
+                perks: editForm.perks
             }).eq('id', id)
 
             if (error) throw error
@@ -585,20 +597,16 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Starts</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={event.starts_at ? new Date(event.starts_at).toISOString().slice(0, 16) : ''}
-                                        onChange={e => setEvent({ ...event, starts_at: new Date(e.target.value).toISOString() })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                    <DateTimePicker
+                                        date={event.starts_at ? new Date(event.starts_at) : undefined}
+                                        setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
                                     />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Ends</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={event.ends_at ? new Date(event.ends_at).toISOString().slice(0, 16) : ''}
-                                        onChange={e => setEvent({ ...event, ends_at: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                    <DateTimePicker
+                                        date={event.ends_at ? new Date(event.ends_at) : undefined}
+                                        setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
                                     />
                                 </div>
                             </div>
@@ -717,103 +725,147 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="grid lg:grid-cols-2 gap-6">
                         {tiers.map(tier => (
-                            <div key={tier.id} className="relative group bg-white p-8 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] hover:shadow-lg transition-all">
+                            <div key={tier.id} className="relative group bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
                                 {editingTierId === tier.id ? (
                                     // Editing Mode
-                                    <div className="space-y-6">
+                                    <div className="space-y-5">
                                         <div>
-                                            <label className="text-sm font-semibold text-gray-700 mb-2 block">Name</label>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Name</label>
                                             <input
                                                 value={editForm.name}
                                                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
+                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
                                                 autoFocus
                                             />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="text-sm font-semibold text-gray-700 mb-2 block">Price</label>
-                                                <input
-                                                    type="number"
-                                                    value={editForm.price}
-                                                    onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
-                                                />
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Price</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                                                    <input
+                                                        type="number"
+                                                        value={editForm.price}
+                                                        onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
+                                                        className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 pl-8 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
+                                                    />
+                                                </div>
                                             </div>
                                             <div>
-                                                <label className="text-sm font-semibold text-gray-700 mb-2 block">Quantity</label>
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Quantity</label>
                                                 <input
                                                     type="number"
                                                     value={editForm.total_quantity}
                                                     onChange={e => setEditForm({ ...editForm, total_quantity: Number(e.target.value) })}
-                                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
+                                                    className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
                                                 />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-semibold text-gray-700 mb-2 block">Description</label>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Description</label>
                                             <textarea
                                                 value={editForm.description}
                                                 onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium resize-none"
+                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium resize-none text-sm"
                                                 rows={2}
-                                                placeholder="Optional perks..."
+                                                placeholder="Short description..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Perks (Comma separated)</label>
+                                            <input
+                                                value={editForm.perks?.join(', ') || ''}
+                                                onChange={e => setEditForm({ ...editForm, perks: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium text-sm"
+                                                placeholder="e.g. VIP Access, Free Drink"
                                             />
                                         </div>
                                         <div className="flex gap-2 justify-end pt-2">
-                                            <button onClick={cancelEditing} className="px-5 py-2.5 rounded-xl font-bold text-gray-500 hover:text-black hover:bg-gray-50 transition-colors">Cancel</button>
-                                            <button onClick={() => saveTier(tier.id)} className="px-5 py-2.5 bg-black text-white rounded-xl font-bold hover:bg-gray-800 shadow-lg shadow-black/20 transition-all">Save Changes</button>
+                                            <button onClick={cancelEditing} className="px-4 py-2 rounded-xl font-bold text-sm text-gray-500 hover:text-black hover:bg-gray-50 transition-colors">Cancel</button>
+                                            <button onClick={() => saveTier(tier.id)} className="px-4 py-2 bg-black text-white rounded-xl font-bold text-sm hover:bg-gray-900 shadow-md hover:shadow-lg transition-all">Save Changes</button>
                                         </div>
                                     </div>
                                 ) : (
                                     // Viewing Mode
-                                    <>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <h4 className="font-extrabold text-2xl mb-1">{tier.name}</h4>
-                                                <p className="text-sm text-gray-400 font-mono tracking-wide">ID: {tier.id.slice(0, 8)}</p>
+                                    <div className="flex flex-col h-full justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-start mb-1">
+                                                <h4 className="font-extrabold text-xl text-gray-900 tracking-tight">{tier.name}</h4>
+                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => startEditing(tier)}
+                                                        className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-lg transition-all"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteTier(tier.id)}
+                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-3xl font-black">{formatCurrency(tier.price, tier.currency)}</p>
+
+                                            <div className="mb-4">
+                                                <span className="text-3xl font-black text-gray-900">{formatCurrency(tier.price, tier.currency)}</span>
+                                                <span className="text-gray-400 text-sm font-medium ml-1">/ ticket</span>
+                                            </div>
+
+                                            {tier.description && (
+                                                <p className="text-sm text-gray-500 mb-5 leading-relaxed border-l-2 border-gray-100 pl-3">
+                                                    {tier.description}
+                                                </p>
+                                            )}
+
+                                            {/* Perks List */}
+                                            {tier.perks && tier.perks.length > 0 && (
+                                                <div className="mb-6 space-y-2">
+                                                    {tier.perks.map((perk, i) => (
+                                                        <div key={i} className="flex items-center gap-2.5 text-sm text-gray-700 font-medium">
+                                                            <div className="w-5 h-5 rounded-full bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0">
+                                                                <Check className="w-3 h-3" strokeWidth={3} />
+                                                            </div>
+                                                            {perk}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Progress Bar */}
+                                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100/50 mt-auto">
+                                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                                                <span>Sales Progress</span>
+                                                <span>{Math.round((tier.quantity_sold / tier.total_quantity) * 100)}%</span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 rounded-full h-2 mb-3 overflow-hidden">
+                                                <div
+                                                    className={`h-2 rounded-full transition-all duration-1000 ease-out ${(tier.quantity_sold / tier.total_quantity) >= 1 ? 'bg-red-500' : 'bg-black'
+                                                        }`}
+                                                    style={{ width: `${Math.min((tier.quantity_sold / tier.total_quantity) * 100, 100)}%` }}
+                                                ></div>
+                                            </div>
+                                            <div className="flex justify-between items-end">
+                                                <div>
+                                                    <div className="text-lg font-black text-gray-900">{tier.quantity_sold}</div>
+                                                    <div className="text-[10px] uppercase font-bold text-gray-400">Sold</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-lg font-black text-gray-400">{tier.total_quantity}</div>
+                                                    <div className="text-[10px] uppercase font-bold text-gray-400">Total Capacity</div>
+                                                </div>
                                             </div>
                                         </div>
-
-                                        {tier.description && (
-                                            <p className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded-xl border border-gray-100">{tier.description}</p>
-                                        )}
-
-                                        <div className="w-full bg-gray-100 rounded-full h-3 mb-4 overflow-hidden">
-                                            <div
-                                                className="bg-black h-3 rounded-full transition-all duration-1000 ease-out"
-                                                style={{ width: `${Math.min((tier.quantity_sold / tier.total_quantity) * 100, 100)}%` }}
-                                            ></div>
-                                        </div>
-                                        <div className="flex justify-between text-base mb-8 font-medium">
-                                            <span className="text-gray-900">{tier.quantity_sold} sold</span>
-                                            <span className="text-gray-500">{tier.total_quantity} total</span>
-                                        </div>
-
-                                        <div className="flex justify-end gap-3 pt-6 border-t border-gray-50">
-                                            <button
-                                                onClick={() => startEditing(tier)}
-                                                className="text-gray-600 font-bold text-sm bg-gray-50 hover:bg-gray-100 hover:text-black px-4 py-2 rounded-lg transition-colors"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => deleteTier(tier.id)}
-                                                className="text-red-500 font-bold text-sm hover:bg-red-50 px-4 py-2 rounded-lg transition-colors"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         ))}
 
                         {/* Add New Tier Card */}
-                        <div className="bg-gray-50/50 p-8 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col justify-center hover:border-gray-300 transition-colors">
+                        <div className="bg-gray-50/50 p-6 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col justify-center hover:border-gray-300 transition-colors">
                             <h3 className="font-bold text-xl mb-6 text-center text-gray-900">Add New Ticket Tier</h3>
                             <form onSubmit={addTier} className="space-y-4">
                                 <div>
@@ -822,7 +874,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, name: e.target.value })}
                                         required
                                         placeholder="Ticket Name (e.g. VIP)"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-bold text-gray-900"
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -832,7 +884,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, price: Number(e.target.value) })}
                                         required
                                         placeholder="Price"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-bold text-gray-900"
                                     />
                                     <input
                                         type="number"
@@ -840,7 +892,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, total_quantity: Number(e.target.value) })}
                                         required
                                         placeholder="Quantity"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-bold text-gray-900"
                                     />
                                 </div>
                                 <div>
@@ -849,7 +901,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setTierForm({ ...tierForm, description: e.target.value })}
                                         placeholder="Description (optional)"
                                         rows={2}
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium resize-none"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium resize-none text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <input
+                                        value={tierForm.perks?.join(', ') || ''}
+                                        onChange={e => setTierForm({ ...tierForm, perks: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                        placeholder="Perks (comma separated, e.g. Free Drink)"
+                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium text-sm"
                                     />
                                 </div>
                                 <button
