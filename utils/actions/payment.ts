@@ -88,7 +88,9 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
     // Generate Tickets Loop
     const quantity = reservation.quantity || 1
+    console.log(`Generating ${quantity} tickets for Reservation ${reservation.id}`)
     const createdTickets = []
+    let lastError = null
 
     for (let i = 0; i < quantity; i++) {
         const { data: ticket, error: ticketError } = await supabase
@@ -102,22 +104,24 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 qr_code_hash: Math.random().toString(36).substring(7) + Math.random().toString(36).substring(7), // Longer unique hash
                 order_reference: reference, // Same reference for all, or append index? Same ref is fine to link to order.
                 status: 'valid',
-                metadata: { index: i + 1, total: quantity } // Optional metadata
+                // metadata: { index: i + 1, total: quantity } // Removed until migration is applied
             })
             .select()
             .single()
 
         if (ticketError) {
             console.error(`Ticket Creation Error (Index ${i}):`, JSON.stringify(ticketError, null, 2))
+            lastError = ticketError
             // Continue or fail? If one fails, it's messy. For MVP, we log and continue, or break.
             // Ideally transactional, but simple loop for now.
         } else if (ticket) {
-            createdTickets.push(ticket)
+            // Attach reservation data so frontend can show guest_name/profiles immediately
+            createdTickets.push({ ...ticket, reservations: reservation })
         }
     }
 
     if (createdTickets.length === 0) {
-        return { success: false, error: 'Failed to generate any tickets' }
+        return { success: false, error: `Failed to generate any tickets. DB Error: ${JSON.stringify(lastError?.message || lastError)}` }
     }
 
     // 5. Update Reservation Status

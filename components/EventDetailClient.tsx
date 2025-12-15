@@ -889,7 +889,8 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
 
 const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[], tierName: string | undefined }) => {
     const [downloading, setDownloading] = useState(false)
-    const primaryTicket = tickets[0]
+    const [activeTabIndex, setActiveTabIndex] = useState(0)
+    const activeTicket = tickets[activeTabIndex]
 
     const handleDownloadPDF = async () => {
         setDownloading(true)
@@ -911,13 +912,29 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
 
             const imgData = canvas.toDataURL('image/png')
             const pdf = new jsPDF('p', 'mm', 'a5') // A5 is good for mobile tickets
-            const pdfWidth = pdf.internal.pageSize.getWidth()
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+            const pdfPageWidth = pdf.internal.pageSize.getWidth()
+            const pdfPageHeight = pdf.internal.pageSize.getHeight()
+            const margin = 10 // 10mm margin
 
-            // If height > page height, we might need auto-paging, but jsPDF addImage usually scales or cuts.
-            // For simple implementation, we just squish or let it span if standard A4/A5.
-            // Better: Add image with adjusted height.
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+            const availableWidth = pdfPageWidth - (margin * 2)
+            const availableHeight = pdfPageHeight - (margin * 2)
+
+            const imgRatio = canvas.width / canvas.height
+
+            // Calculate dimensions to FIT within the available area (contain)
+            let finalPdfWidth = availableWidth
+            let finalPdfHeight = finalPdfWidth / imgRatio
+
+            if (finalPdfHeight > availableHeight) {
+                finalPdfHeight = availableHeight
+                finalPdfWidth = finalPdfHeight * imgRatio
+            }
+
+            // Center the image
+            const x = margin + (availableWidth - finalPdfWidth) / 2
+            const y = margin
+
+            pdf.addImage(imgData, 'PNG', x, y, finalPdfWidth, finalPdfHeight)
             pdf.save(`${event.title.replace(/[^a-z0-9]/gi, '_')}_Tickets.pdf`)
         } catch (err) {
             console.error('PDF Generation Error:', err)
@@ -963,7 +980,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
         const end = new Date(start.getTime() + 2 * 60 * 60 * 1000) // Assume 2 hours if not set
 
         if (type === 'google') {
-            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}/${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}&details=${encodeURIComponent('Ticket Ref: ' + primaryTicket.id)}&location=${encodeURIComponent(event.venue_name)}&sf=true&output=xml`
+            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}/${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}&details=${encodeURIComponent('Ticket Ref: ' + activeTicket.id)}&location=${encodeURIComponent(event.venue_name)}&sf=true&output=xml`
             window.open(url, '_blank')
         } else {
             const icsContent = `BEGIN:VCALENDAR
@@ -973,7 +990,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
             DTSTART:${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}
             DTEND:${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}
             SUMMARY:${event.title}
-            DESCRIPTION:Ticket Ref: ${primaryTicket.id}
+            DESCRIPTION:Ticket Ref: ${activeTicket.id}
             LOCATION:${event.venue_name}
             END:VEVENT
             END:VCALENDAR`
@@ -1019,25 +1036,46 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                 </button>
             </div>
 
-            {/* Scrollable Ticket Container */}
-            <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4 pb-4 no-scrollbar space-y-6">
-                {tickets.map((ticket, index) => (
-                    <div key={ticket.id} className="flex justify-center">
-                        <ReceiptTicket
-                            id={`ticket-card-${index}`}
-                            event={event}
-                            ticket={ticket}
-                            tierName={tierName}
-                        />
+            {/* Tabs for Multiple Tickets */}
+            {tickets.length > 1 && (
+                <div className="flex-shrink-0 mb-4 overflow-x-auto no-scrollbar -mx-4 px-4">
+                    <div className="flex gap-2">
+                        {tickets.map((_, index) => (
+                            <button
+                                key={index}
+                                onClick={() => setActiveTabIndex(index)}
+                                className={`
+                                    flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all
+                                    ${activeTabIndex === index
+                                        ? 'bg-black text-white shadow-md transform scale-105'
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                    }
+                                `}
+                            >
+                                Ticket {index + 1}
+                            </button>
+                        ))}
                     </div>
-                ))}
+                </div>
+            )}
+
+            {/* Active Ticket Display */}
+            <div className="flex-1 overflow-y-auto min-h-0 md:max-h-none -mx-4 px-4 pb-4 no-scrollbar">
+                <div key={activeTicket.id} className="flex justify-center animate-fade-in">
+                    <ReceiptTicket
+                        id={`ticket-card-${activeTabIndex}`}
+                        event={event}
+                        ticket={activeTicket}
+                        tierName={tierName}
+                    />
+                </div>
             </div>
 
             {/* Bottom Actions - Compact */}
             <div className="flex-shrink-0 pt-4 bg-white border-t border-gray-100 mt-2 space-y-3">
-                {/* Primary Action - Apple Wallet (First Ticket Only for now) */}
+                {/* Primary Action - Apple Wallet (Current Ticket) */}
                 <button
-                    onClick={() => window.open(`/api/wallet/apple?ticketId=${primaryTicket.id}`, '_blank')}
+                    onClick={() => window.open(`/api/wallet/apple?ticketId=${activeTicket.id}`, '_blank')}
                     className="w-full bg-black text-white h-12 rounded-xl text-[15px] font-bold tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-black/10"
                 >
                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -1087,7 +1125,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
 
             {/* Hidden Ticket for PDF Generation (Target) */}
             <div className="absolute top-0 left-[-9999px]" id="ticket-print-container">
-                <div className="space-y-8 p-8 bg-white">
+                <div className="space-y-4 p-0 bg-white">
                     {tickets.map((ticket, index) => (
                         <div key={ticket.id} className="break-inside-avoid">
                             <ReceiptTicket
@@ -1096,6 +1134,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                 ticket={ticket}
                                 tierName={tierName}
                                 forceExpanded={true}
+                                isPrint={true}
                             />
                         </div>
                     ))}
@@ -1106,7 +1145,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
 }
 
 // Receipt Style Ticket Component
-const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: { id?: string, event: Event, ticket: any, tierName?: string, forceExpanded?: boolean }) => {
+const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false, isPrint = false }: { id?: string, event: Event, ticket: any, tierName?: string, forceExpanded?: boolean, isPrint?: boolean }) => {
     const [isOpen, setIsOpen] = useState(true) // Expanded by default
     const showContent = isOpen || forceExpanded
 
@@ -1121,78 +1160,113 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: {
         <div
             id={id}
             onClick={() => setIsOpen(!isOpen)}
-            className="w-[300px] bg-[#ffffff] rounded-t-[20px] relative cursor-pointer transition-all duration-300 ease-in-out"
+            className={`w-[300px] bg-[#ffffff] relative cursor-pointer transition-all duration-300 ease-in-out overflow-hidden ${isPrint ? 'rounded-xl border-[2px] border-[#111827]' : 'rounded-[20px]'}`}
             style={{
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                boxShadow: isPrint ? 'none' : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
             }}
         >
-            {/* Main Content Container */}
-            <div className="p-6 relative">
-                {/* Header (Always Visible) */}
-                <div className="flex flex-col items-center text-center mb-6">
-                    <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white text-xl mb-3 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+            {/* Header Image (Web Only) */}
+            {!isPrint && (
+                <div className="w-full relative bg-[#f3f4f6] h-32">
+                    {event.poster_url ? (
+                        <img src={event.poster_url} className="w-full h-full object-cover" alt="Event Poster" />
+                    ) : (
+                        <div className="w-full h-full bg-[#111827] flex items-center justify-center">
+                            <span className="text-[#ffffff] font-bold tracking-widest uppercase opacity-20">GatePass</span>
+                        </div>
+                    )}
+                    {/* Gradient Overlay using explicit RGBA for PDF safety */}
+                    <div
+                        className="absolute inset-0"
+                        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }}
+                    />
+
+                    {/* Floating Success Icon */}
+                    <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2 w-10 h-10 bg-[#000000] rounded-full flex items-center justify-center text-[#ffffff] shadow-lg border-2 border-[#ffffff] z-10">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                     </div>
-                    <h3 className="text-[18px] font-bold text-gray-900 leading-tight mb-1">Payment Successful</h3>
-                    <p className="text-[13px] text-gray-500 font-medium">
-                        You are going to <span className="text-black">{event.title}</span>!
-                    </p>
                 </div>
+            )}
+
+            {/* Main Content Container */}
+            <div className={`relative ${isPrint ? 'p-2' : 'pt-8 p-6'}`}>
+                {/* Print Header (Minimal Left Aligned) */}
+                {isPrint && (
+                    <div className="flex flex-col items-start text-left mb-2 mx-1 mt-1">
+                        <p className="text-[9px] text-[#6b7280] font-bold uppercase tracking-[0.2em] mb-2">Admit One</p>
+                        <h3 className="text-[18px] font-black text-[#111827] uppercase leading-none tracking-tight">{event.title}</h3>
+                    </div>
+                )}
+
+                {/* Web Header (Title) */}
+                {!isPrint && (
+                    <div className="text-center mb-4 mt-2">
+                        <h3 className="text-[16px] font-bold text-[#111827] leading-tight mb-0.5">{event.title}</h3>
+                        <p className="text-[11px] text-[#6b7280] font-medium tracking-wide uppercase">Official Ticket</p>
+                    </div>
+                )}
 
                 {/* Dashed Line + Notches */}
-                <div className="relative w-[calc(100%+3rem)] -mx-6 h-8 flex items-center justify-center my-2">
-                    <div className="w-full border-t-2 border-dashed border-gray-200 mx-6" />
-                    <div className="absolute left-[-10px] w-5 h-5 bg-[#ffffff] border-r border-gray-100 rounded-full shadow-[inset_-2px_0_3px_rgba(0,0,0,0.02)]" />
-                    <div className="absolute right-[-10px] w-5 h-5 bg-[#ffffff] border-l border-gray-100 rounded-full shadow-[inset_2px_0_3px_rgba(0,0,0,0.02)]" />
-                </div>
+                {!isPrint ? (
+                    <div className="relative w-[calc(100%+3rem)] -mx-6 h-6 flex items-center justify-center my-2">
+                        <div className="w-full border-t-[2px] border-dashed border-[#e5e7eb] mx-6" />
+                        <div className="absolute left-[-12px] w-6 h-6 bg-[#f4f4f5] rounded-full shadow-[inset_-2px_0_2px_rgba(0,0,0,0.05)]" />
+                        <div className="absolute right-[-12px] w-6 h-6 bg-[#f4f4f5] rounded-full shadow-[inset_2px_0_2px_rgba(0,0,0,0.05)]" />
+                        {/* Note: bg color of notches matches global background (zinc-100/f4f4f5) to look transparent */}
+                    </div>
+                ) : (
+                    <div className="w-full border-t-[2px] border-dashed border-[#111827] my-4 opacity-20" />
+                )}
 
                 {/* Collapsible Section */}
-                <div className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ticket-content-collapsible ${showContent ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                    <div className="pt-2 pb-4 ticket-content">
-                        {/* Attendee Info */}
-                        <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
-                            <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">Admit One</p>
-                            <p className="text-[18px] font-bold text-gray-900 leading-none mb-1">
-                                {ticket.reservations?.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
+                <div className={isPrint ? '' : `overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ticket-content-collapsible ${showContent ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className={`pt-2 pb-4 ticket-content ${!isPrint ? 'max-h-[320px] overflow-y-auto custom-scrollbar pr-1' : ''}`}>
+                        {/* Attendee Info - Cleaner for Print */}
+                        <div className={`rounded-xl ${isPrint ? 'p-2 mb-3 border-none bg-transparent' : 'p-4 mb-6 bg-[#f9fafb] border border-[#f3f4f6]'}`}>
+                            <p className="text-[10px] uppercase tracking-widest text-[#9ca3af] font-bold mb-2">Admit One</p>
+                            <p className="text-[18px] font-bold text-[#111827] leading-none mb-1">
+                                {ticket.reservations?.guest_name || ticket.reservations?.profiles?.full_name || 'Guest User'}
                             </p>
-                            <p className="text-[12px] text-gray-500 font-medium">{tierName}</p>
+                            <p className="text-[12px] text-[#6b7280] font-medium">{tierName}</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className={`grid grid-cols-2 gap-4 ${isPrint ? 'mb-3' : 'mb-6'}`}>
                             <div>
-                                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1">Date</p>
-                                <p className="text-[13px] font-bold text-gray-900">
+                                <p className="text-[9px] uppercase tracking-widest text-[#9ca3af] font-bold mb-1">Date</p>
+                                <p className="text-[13px] font-bold text-[#111827]">
                                     {new Date(event.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1">Time</p>
-                                <p className="text-[13px] font-bold text-gray-900">
+                                <p className="text-[9px] uppercase tracking-widest text-[#9ca3af] font-bold mb-1">Time</p>
+                                <p className="text-[13px] font-bold text-[#111827]">
                                     {new Date(event.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="mb-6">
-                            <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1">Venue</p>
-                            <p className="text-[13px] font-bold text-gray-900 truncate">
-                                {event.venue_name}
-                            </p>
-                            <p className="text-[11px] text-gray-500 truncate">{event.venue_address}</p>
+                        <div className={`${isPrint ? 'mb-3' : 'mb-6'}`}>
+                            <p className="text-[9px] uppercase tracking-widest text-[#9ca3af] font-bold mb-1">Venue</p>
+                            <div className="text-[#111827]">
+                                <p className={`text-[13px] font-bold ${isPrint ? 'leading-tight' : 'truncate'}`}>
+                                    {event.venue_name}
+                                </p>
+                                <p className={`text-[11px] text-[#6b7280] ${isPrint ? 'leading-tight mt-0.5' : 'truncate'}`}>{event.venue_address}</p>
+                            </div>
                         </div>
 
                         {/* QR Code Area */}
                         <div className="flex flex-col items-center justify-center pt-2 pb-2">
-                            <div className="p-3 bg-white border-2 border-gray-900 rounded-xl shadow-sm">
+                            <div className={`bg-white border-2 border-[#111827] rounded-xl shadow-sm ${isPrint ? 'p-2' : 'p-3'}`}>
                                 <img
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
                                     alt="QR Code"
-                                    className="w-32 h-32 object-contain mix-blend-multiply"
+                                    className={`${isPrint ? 'w-24 h-24' : 'w-32 h-32'} object-contain mix-blend-multiply`}
                                 />
                             </div>
-                            <p className="text-center text-[10px] font-mono text-gray-400 mt-3 tracking-widest uppercase">Scan at entry</p>
+                            <p className="text-center text-[10px] font-mono text-[#9ca3af] mt-3 tracking-widest uppercase">Scan at entry</p>
                         </div>
-                        <p className="text-center text-[9px] font-mono text-gray-300 tracking-[0.2em] mt-1">{ticket.qr_code_hash?.substring(0, 12)}</p>
+                        <p className="text-center text-[9px] font-mono text-[#d1d5db] tracking-[0.2em] mt-1">{ticket.qr_code_hash?.substring(0, 12)}</p>
 
                         {!forceExpanded && (
                             <button
@@ -1204,6 +1278,15 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: {
                                 </svg>
                                 Send to Friend
                             </button>
+                        )}
+
+                        {/* Watermark for Print */}
+                        {isPrint && (
+                            <div className="flex justify-center mt-3 opacity-60">
+                                <p className="text-[8px] text-[#9ca3af] font-medium tracking-widest uppercase">
+                                    Powered by <span className="font-bold text-[#6b7280]">GatePass</span>
+                                </p>
+                            </div>
                         )}
                     </div>
                 </div>
