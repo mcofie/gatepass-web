@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
 import { Event, TicketTier } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
+import { formatCurrency } from '@/utils/format'
 import { Input } from '@/components/ui/Input'
 
 function GuestCheckoutContent() {
@@ -171,7 +172,7 @@ function GuestCheckoutContent() {
                             </div>
                             <div className="flex justify-between items-center pt-2">
                                 <span className="text-gray-400 text-sm">Total Amount</span>
-                                <span className="text-xl md:text-2xl font-bold tracking-tight text-white">{currency} <span className="text-amber-500">{totalPrice.toFixed(2)}</span></span>
+                                <span className="text-xl md:text-2xl font-bold tracking-tight text-amber-500">{formatCurrency(totalPrice, currency)}</span>
                             </div>
                         </div>
 

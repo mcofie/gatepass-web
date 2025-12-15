@@ -1,4 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
+
+import { formatCurrency } from '@/utils/format'
 import { Calendar, Ticket, DollarSign } from 'lucide-react'
 
 export const revalidate = 0
@@ -101,7 +103,7 @@ export default async function DashboardPage() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[15px] font-bold text-black tabular-nums">{sale.ticket_tiers?.currency} {sale.ticket_tiers?.price}</p>
+                                            <p className="text-[15px] font-bold text-black tabular-nums">{formatCurrency(sale.ticket_tiers?.price || 0, sale.ticket_tiers?.currency)}</p>
                                             <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
                                                 {new Date(sale.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                             </p>

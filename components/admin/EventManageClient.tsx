@@ -8,6 +8,7 @@ import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
+import { formatCurrency } from '@/utils/format'
 
 interface EventManageClientProps {
     event: Event
@@ -679,7 +680,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                                 <p className="text-sm text-gray-400 font-mono tracking-wide">ID: {tier.id.slice(0, 8)}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-3xl font-black">{tier.currency} {tier.price}</p>
+                                                <p className="text-3xl font-black">{formatCurrency(tier.price, tier.currency)}</p>
                                             </div>
                                         </div>
 

@@ -13,7 +13,8 @@ import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
-import { Globe } from 'lucide-react'
+import { Globe, Calendar, ChevronDown } from 'lucide-react'
+import { formatCurrency } from '@/utils/format'
 
 interface EventDetailClientProps {
     event: Event
@@ -290,7 +291,11 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
         )
     }
 
-    if (loading) {
+    if (loading && view === 'details') {
+        return <EventCardSkeleton />
+    }
+
+    if (loading && view !== 'details' && view !== 'summary' && view !== 'checkout') {
         return (
             <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
                 <div className="w-8 h-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
@@ -400,7 +405,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, chea
             {cheapestTier && (
                 <div className="text-right">
                     <span className="block text-[16px] font-bold text-gray-400">
-                        {cheapestTier.currency} {cheapestTier.price}
+                        {formatCurrency(cheapestTier.price, cheapestTier.currency)}
                     </span>
                 </div>
             )}
@@ -440,16 +445,42 @@ const DetailsView = ({ event, cheapestTier, onGetTickets }: { event: Event, chea
         )}
 
         <div className="h-px w-full bg-gray-200 mb-4" />
-        <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <span className="text-[12px] font-bold text-black">
-                    {new Date(event.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        <div className="flex flex-col gap-3 mb-5">
+            <div className="flex items-start gap-3">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <span className="text-[13px] font-medium text-black leading-tight">
+                    {(() => {
+                        const startDate = new Date(event.starts_at)
+                        const endDate = event.ends_at ? new Date(event.ends_at) : null
+
+                        let dateString = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+
+                        if (endDate) {
+                            const isSameDay = startDate.getDate() === endDate.getDate() &&
+                                startDate.getMonth() === endDate.getMonth() &&
+                                startDate.getFullYear() === endDate.getFullYear()
+
+                            const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+
+                            if (isSameDay) {
+                                return `${dateString} • ${startTime} - ${endTime}`
+                            } else {
+                                const endDateString = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                return `${dateString}, ${startTime} - ${endDateString}, ${endTime}`
+                            }
+                        }
+
+                        return `${dateString} • ${startTime}`
+                    })()}
                 </span>
             </div>
-            <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <span className="text-[12px] font-bold text-black truncate max-w-[160px]">{event.venue_name}</span>
+            <div className="flex items-start gap-3">
+                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <div className="flex flex-col">
+                    <span className="text-[13px] font-medium text-black leading-tight mb-0.5">{event.venue_name}</span>
+                    <span className="text-[12px] text-gray-500 leading-tight">{event.venue_address}</span>
+                </div>
             </div>
         </div>
         <button onClick={onGetTickets} className="w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 transition-all active:scale-[0.98]">
@@ -481,6 +512,8 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
         <div className="-mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-8 no-scrollbar snap-x snap-mandatory">
             {tiers.map((tier: TicketTier) => {
                 const isSoldOut = tier.quantity_sold >= tier.total_quantity
+                const remaining = tier.total_quantity - tier.quantity_sold
+                const isLowStock = remaining > 0 && remaining <= 10
                 const qty = selectedTickets[tier.id] || 0
                 const isSelected = qty > 0
                 return (
@@ -495,10 +528,19 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                             }
                         `}
                     >
+                        {isLowStock && (
+                            <div className="absolute top-3 right-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 z-10 shadow-sm">
+                                <span className="relative flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                                </span>
+                                Only {remaining} left
+                            </div>
+                        )}
                         <div className="space-y-4">
                             <div>
                                 <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white' : 'text-black'}`}>
-                                    {tier.currency} {tier.price}
+                                    {formatCurrency(tier.price, tier.currency)}
                                 </div>
                                 <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200' : 'text-gray-900'}`}>{tier.name}</div>
                             </div>
@@ -562,7 +604,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                     className="w-full bg-black text-white h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-between px-4"
                 >
                     <span>Checkout</span>
-                    <span>{tiers[0]?.currency} {total.toFixed(2)}</span>
+                    <span>{formatCurrency(total, tiers[0]?.currency)}</span>
                 </button>
                 <div className="flex justify-center mt-3 md:hidden">
                     <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1">
@@ -710,15 +752,7 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                         {tiers.map(tier => {
                             const qty = selectedTickets[tier.id] || 0
                             if (qty === 0) return null
-                            return (
-                                <div key={tier.id} className="flex justify-between items-start text-[14px]">
-                                    <div>
-                                        <div className="font-bold text-gray-900">{tier.name} <span className="text-gray-400 font-normal">x{qty}</span></div>
-                                        {tier.description && <div className="text-[11px] text-gray-400 leading-snug max-w-[200px] mt-0.5 line-clamp-1">{tier.description}</div>}
-                                    </div>
-                                    <div className="font-bold">{tier.currency} {(tier.price * qty).toFixed(2)}</div>
-                                </div>
-                            )
+                            return <SummaryTicketItem key={tier.id} tier={tier} qty={qty} />
                         })}
                     </div>
 
@@ -728,11 +762,11 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                     <div className="space-y-2 text-[13px]">
                         <div className="flex justify-between items-center">
                             <span className="text-gray-500">Subtotal</span>
-                            <span className="font-medium text-gray-900">{tiers[0]?.currency} {subtotal.toFixed(2)}</span>
+                            <span className="font-medium text-gray-900">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Platform Fees</span>
-                            <span className="font-medium text-gray-900">{tiers[0]?.currency} {fees.toFixed(2)}</span>
+                            <span className="text-gray-500">Fees</span>
+                            <span className="font-medium text-gray-900">{formatCurrency(fees, tiers[0]?.currency)}</span>
                         </div>
 
                         {/* Discount Row */}
@@ -743,7 +777,7 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                                     Promo ({discount.code})
                                 </span>
                                 <span className="font-bold">
-                                    - {tiers[0]?.currency} {discount.type === 'fixed' ? discount.value.toFixed(2) : ((subtotal * discount.value / 100).toFixed(2))}
+                                    - {formatCurrency(discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100), tiers[0]?.currency)}
                                 </span>
                             </div>
                         )}
@@ -789,7 +823,7 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                     <div className="flex justify-between items-end">
                         <span className="text-[15px] font-bold text-gray-900">Total Due</span>
                         <div className="text-right">
-                            <span className="text-[24px] font-bold text-black leading-none tracking-tight block">{tiers[0]?.currency} {total.toFixed(2)}</span>
+                            <span className="text-[24px] font-bold text-black leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
                             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
                         </div>
 
@@ -814,7 +848,7 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                         {loading ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
                         ) : (
-                            <>Pay {tiers[0]?.currency} {total.toFixed(2)}</>
+                            <>Pay {formatCurrency(total, tiers[0]?.currency)}</>
                         )}
                     </button>
                     <div className="flex justify-center mt-3 md:hidden">
@@ -925,6 +959,29 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
         }
     }
 
+    const handleShare = async () => {
+        const shareData = {
+            title: `I'm going to ${event.title}!`,
+            text: `Join me at ${event.title} at ${event.venue_name}!`,
+            url: window.location.href
+        }
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData)
+            } catch (err) {
+                console.error('Share failed:', err)
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`)
+                toast.success('Link copied to clipboard!')
+            } catch (err) {
+                toast.error('Failed to copy link')
+            }
+        }
+    }
+
     return (
         <div className="flex flex-col h-full overflow-hidden animate-fade-in relative">
             <div className="flex-shrink-0 flex justify-between items-center mb-4">
@@ -946,53 +1003,52 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
                 </div>
             </div>
 
-            {/* Bottom Actions - Fixed/Sticky feel within flex */}
-            <div className="flex-shrink-0 pt-4 bg-white border-t border-gray-100 mt-2">
-                <div className="bg-gray-50 rounded-xl p-3 mb-3 border border-gray-100">
-                    <p className="text-[10px] font-medium text-gray-500 mb-2 uppercase tracking-wider">Add to Calendar</p>
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
-                            onClick={() => handleAddToCalendar('google')}
-                            className="h-8 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700 hover:border-gray-900 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>
-                            Google
-                        </button>
-                        <button
-                            onClick={() => handleAddToCalendar('ics')}
-                            className="h-8 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700 hover:border-gray-900 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            Outlook/Apple
-                        </button>
-                    </div>
-                </div>
+            {/* Bottom Actions - Compact */}
+            <div className="flex-shrink-0 pt-4 bg-white border-t border-gray-100 mt-2 space-y-3">
+                {/* Primary Action */}
+                <button
+                    onClick={() => window.open(`/api/wallet/apple?ticketId=${ticket.id}`, '_blank')}
+                    className="w-full bg-black text-white h-12 rounded-xl text-[15px] font-bold tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-black/10"
+                >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                        <path d="M12.02 0C19.2 0 24 4.54 24 11.2V24H0V11.2C0 4.54 4.8 0 11.98 0H12.02ZM6.34 21.06C6.34 21.6 6.76 22.02 7.3 22.02H16.7C17.24 22.02 17.66 21.6 17.66 21.06V11.4C17.66 8.3 15.34 6 12.02 6C8.7 6 6.34 8.3 6.34 11.4V21.06ZM12 7.82C13.68 7.82 15.06 9.2 15.06 10.88V13.5H16.5V11.4C16.5 8.92 14.48 6.9 12 6.9C9.52 6.9 7.5 8.92 7.5 11.4V13.5H8.94V10.88C8.94 9.2 10.32 7.82 12 7.82Z" />
+                    </svg>
+                    Add to Apple Wallet
+                </button>
 
-                <div className="space-y-2">
+                {/* Secondary Actions Grid */}
+                <div className="grid grid-cols-3 gap-2">
+                    <button
+                        onClick={handleShare}
+                        className="h-10 bg-gray-50 hover:bg-gray-100 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 transition-colors flex flex-col items-center justify-center gap-1"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                        Share
+                    </button>
                     <button
                         onClick={handleDownloadPDF}
                         disabled={downloading}
-                        className="w-full bg-black text-white h-11 rounded-xl text-[14px] font-medium tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
+                        className="h-10 bg-gray-50 hover:bg-gray-100 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 transition-colors flex flex-col items-center justify-center gap-1"
                     >
-                        {downloading ? 'Generatng PDF...' : (
+                        {downloading ? (
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin" />
+                        ) : (
                             <>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                Download Ticket
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                Save PDF
                             </>
                         )}
                     </button>
                     <button
-                        onClick={() => window.open(`/api/wallet/apple?ticketId=${ticket.id}`, '_blank')}
-                        className="w-full bg-black text-white h-11 rounded-xl text-[14px] font-medium tracking-wide hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
+                        onClick={() => handleAddToCalendar('google')}
+                        className="h-10 bg-gray-50 hover:bg-gray-100 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 transition-colors flex flex-col items-center justify-center gap-1"
                     >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                            <path d="M12.02 0C19.2 0 24 4.54 24 11.2V24H0V11.2C0 4.54 4.8 0 11.98 0H12.02ZM6.34 21.06C6.34 21.6 6.76 22.02 7.3 22.02H16.7C17.24 22.02 17.66 21.6 17.66 21.06V11.4C17.66 8.3 15.34 6 12.02 6C8.7 6 6.34 8.3 6.34 11.4V21.06ZM12 7.82C13.68 7.82 15.06 9.2 15.06 10.88V13.5H16.5V11.4C16.5 8.92 14.48 6.9 12 6.9C9.52 6.9 7.5 8.92 7.5 11.4V13.5H8.94V10.88C8.94 9.2 10.32 7.82 12 7.82Z" />
-                        </svg>
-                        Add to Apple Wallet
+                        <Calendar className="w-4 h-4" />
+                        Calendar
                     </button>
                 </div>
 
-                <div className="flex justify-center mt-3">
+                <div className="flex justify-center mt-2">
                     <div className="flex items-center gap-1.5 opacity-50">
                         <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
                     </div>
@@ -1015,7 +1071,7 @@ const SuccessView = ({ event, ticket, tierName }: { event: Event, ticket: any, t
 
 // Receipt Style Ticket Component
 const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: { id?: string, event: Event, ticket: any, tierName?: string, forceExpanded?: boolean }) => {
-    const [isOpen, setIsOpen] = useState(false)
+    const [isOpen, setIsOpen] = useState(true) // Expanded by default
     const showContent = isOpen || forceExpanded
 
     return (
@@ -1115,6 +1171,81 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false }: {
                     transform: 'rotate(180deg)'
                 }}
             />
+        </div>
+    )
+}
+
+const EventCardSkeleton = () => (
+    <div className={`
+        fixed z-50 bg-white shadow-2xl font-sans
+        bottom-4 left-4 right-4 
+        mb-[env(safe-area-inset-bottom)]
+        rounded-2xl
+        md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0
+        md:bottom-12 md:right-12 p-4
+        animate-pulse
+    `}>
+        {/* Header Skeleton */}
+        <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200" />
+                <div className="space-y-2">
+                    <div className="h-4 w-32 bg-gray-200 rounded" />
+                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                </div>
+            </div>
+            <div className="h-5 w-16 bg-gray-200 rounded" />
+        </div>
+
+        {/* Description Lines */}
+        <div className="space-y-2 mb-6">
+            <div className="h-3 w-full bg-gray-200 rounded" />
+            <div className="h-3 w-[90%] bg-gray-200 rounded" />
+            <div className="h-3 w-[80%] bg-gray-200 rounded" />
+        </div>
+
+        {/* Date/Loc Skeleton */}
+        <div className="flex justify-between mb-6">
+            <div className="h-4 w-24 bg-gray-200 rounded" />
+            <div className="h-4 w-32 bg-gray-200 rounded" />
+        </div>
+
+        {/* Button Skeleton */}
+        {/* Button Skeleton */}
+        <div className="h-10 w-full bg-gray-200 rounded-lg" />
+    </div>
+)
+
+const SummaryTicketItem = ({ tier, qty }: { tier: TicketTier, qty: number }) => {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const hasDescription = !!tier.description
+
+    return (
+        <div className="text-[14px] py-1">
+            <div className="flex justify-between items-start gap-4">
+                <div className="flex-1">
+                    <button
+                        onClick={() => hasDescription && setIsExpanded(!isExpanded)}
+                        className={`text-left font-bold text-gray-900 leading-tight flex items-center gap-1.5 ${hasDescription ? 'hover:text-gray-700 cursor-pointer' : ''}`}
+                        disabled={!hasDescription}
+                    >
+                        {tier.name}
+                        <span className="text-gray-400 font-normal whitespace-nowrap">x{qty}</span>
+                        {hasDescription && (
+                            <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        )}
+                    </button>
+                </div>
+                <div className="font-bold flex-shrink-0 whitespace-nowrap">
+                    {formatCurrency(tier.price * qty, tier.currency)}
+                </div>
+            </div>
+
+            {hasDescription && isExpanded && (
+                <div className="text-[11px] text-gray-400 leading-snug mt-1.5 animate-fade-in pl-1">
+                    {tier.description}
+                </div>
+            )}
         </div>
     )
 }

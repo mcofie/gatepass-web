@@ -38,6 +38,7 @@ const useTimer = (expiresAt: string | undefined) => {
 import { Reservation, Event, TicketTier } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { formatCurrency } from '@/utils/format'
 
 interface CheckoutClientProps {
     reservation: Reservation
@@ -260,17 +261,17 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
                         <div className="space-y-3 pt-6 border-t border-white/5">
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-400">Subtotal</span>
-                                <span className="font-medium tabular-nums text-gray-200">{currency} {subtotal.toFixed(2)}</span>
+                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal, currency)}</span>
                             </div>
                             {feeBearer === 'customer' && calculatedFee > 0 && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Platform Fees</span>
-                                    <span className="font-medium tabular-nums text-gray-200">{currency} {calculatedFee.toFixed(2)}</span>
+                                    <span className="text-gray-400">Fees</span>
+                                    <span className="font-medium tabular-nums text-gray-200">{formatCurrency(calculatedFee, currency)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-end pt-4">
                                 <span className="text-sm font-medium text-gray-400">Total Due</span>
-                                <span className="text-3xl font-bold tracking-tight text-white tabular-nums">{currency} <span className="text-amber-500">{paymentTotal.toFixed(2)}</span></span>
+                                <span className="text-3xl font-bold tracking-tight text-amber-500 tabular-nums">{formatCurrency(paymentTotal, currency)}</span>
                             </div>
                         </div>
                     </div>
