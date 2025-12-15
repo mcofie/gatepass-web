@@ -20,6 +20,7 @@ import { calculateFees } from '@/utils/fees'
 interface EventDetailClientProps {
     event: Event
     tiers: TicketTier[]
+    isFeedItem?: boolean
 }
 
 // Simple Timer Hook
@@ -54,351 +55,351 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
     return timeLeft
 }
 
-export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
-    const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
-    const [direction, setDirection] = useState<'forward' | 'back'>('forward')
-    const [loading, setLoading] = useState(false)
-    const [verifying, setVerifying] = useState(false)
-    const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
-    const [reservation, setReservation] = useState<any>(null)
-    const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
+export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDetailClientProps) {
+const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
+const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+const [loading, setLoading] = useState(false)
+const [verifying, setVerifying] = useState(false)
+const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
+const [reservation, setReservation] = useState<any>(null)
+const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
 
-    // Mobile Expansion State
-    const [isExpanded, setIsExpanded] = useState(false)
-    // On mount, check if mobile? Actually, defaulting to false is fine; desktop naturally ignores it via MD styles.
-    // However, on Desktop we always want it "expanded" effectively.
-    // We'll use CSS to force expansion on desktop, so state only controls mobile.
+// Mobile Expansion State
+const [isExpanded, setIsExpanded] = useState(false)
+// On mount, check if mobile? Actually, defaulting to false is fine; desktop naturally ignores it via MD styles.
+// However, on Desktop we always want it "expanded" effectively.
+// We'll use CSS to force expansion on desktop, so state only controls mobile.
 
-    // Navigation Helper
-    const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
-        setDirection(dir)
-        setView(newView)
-        // Auto-expand on navigation to deeper views
-        if (newView !== 'details') setIsExpanded(true)
-    }
+// Navigation Helper
+const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
+    setDirection(dir)
+    setView(newView)
+    // Auto-expand on navigation to deeper views
+    if (newView !== 'details') setIsExpanded(true)
+}
 
-    // Form State
-    const [guestName, setGuestName] = useState('')
-    const [guestEmail, setGuestEmail] = useState('')
-    const [guestPhone, setGuestPhone] = useState('')
+// Form State
+const [guestName, setGuestName] = useState('')
+const [guestEmail, setGuestEmail] = useState('')
+const [guestPhone, setGuestPhone] = useState('')
 
-    // Discount State
-    const [promoCode, setPromoCode] = useState('')
-    const [discount, setDiscount] = useState<Discount | null>(null)
-    const [discountError, setDiscountError] = useState('')
-    const [applyingDiscount, setApplyingDiscount] = useState(false)
+// Discount State
+const [promoCode, setPromoCode] = useState('')
+const [discount, setDiscount] = useState<Discount | null>(null)
+const [discountError, setDiscountError] = useState('')
+const [applyingDiscount, setApplyingDiscount] = useState(false)
 
-    const router = useRouter()
-    const searchParams = useSearchParams()
-    const supabase = createClient()
-    const timeLeft = useTimer(reservation?.expires_at)
+const router = useRouter()
+const searchParams = useSearchParams()
+const supabase = createClient()
+const timeLeft = useTimer(reservation?.expires_at)
 
-    // Handle Payment Callback (Redirect Flow)
-    useEffect(() => {
-        const reference = searchParams.get('reference') || searchParams.get('trxref')
-        if (reference) {
-            const verifyPayment = async () => {
-                setVerifying(true)
-                try {
-                    // Use reference as reservationId fallback since we link them
-                    const response = await fetch('/api/paystack/verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ reference, reservationId: reference })
-                    })
-                    const result = await response.json()
-
-                    // Clear params to avoid re-verification loop (optional, but good UX)
-                    window.history.replaceState({}, '', window.location.pathname)
-
-                    if (!result.success) throw new Error(result.error || 'Verification failed')
-
-                    setPurchasedTickets(result.tickets || [])
-                    navigate('success', 'forward')
-                    // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
-                } catch (error: any) {
-                    console.error('Verification Error:', error)
-                    toast.error(error.message || 'Payment verification failed')
-                } finally {
-                    setVerifying(false)
-                }
-            }
-            verifyPayment()
-        }
-    }, [searchParams])
-
-    useEffect(() => {
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user && !user.is_anonymous) {
-                // Pre-fill or skip form? Let's pre-fill for now so they can verify phone
-                // Fetch profile
-                const { data: profile } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', user.id).single()
-                if (profile) {
-                    setGuestName(profile.full_name || '')
-                    setGuestEmail(profile.email || user.email || '')
-                    setGuestPhone(profile.phone_number || '')
-                }
-            }
-        }
-        checkUser()
-    }, [])
-
-    const handleQuantityChange = (tierId: string, delta: number) => {
-        setSelectedTickets(prev => {
-            const current = prev[tierId] || 0
-            const intent = current + delta
-            if (intent < 0) return prev
-
-            // Max Per Order Check
-            const tier = tiers.find(t => t.id === tierId)
-            if (tier?.max_per_order && intent > tier.max_per_order) {
-                toast.error(`Limit of ${tier.max_per_order} tickets per order`)
-                return prev
-            }
-            // Stock Check (Optional here, since we disable button, but good for safety)
-            if (tier && (tier.quantity_sold + intent) > tier.total_quantity) {
-                toast.error('Not enough tickets available')
-                return prev
-            }
-
-            return { ...prev, [tierId]: intent }
-        })
-    }
-
-    const calculatedTotal = Object.entries(selectedTickets).reduce((acc, [tierId, qty]) => {
-        const tier = tiers.find(t => t.id === tierId)
-        return acc + (tier ? tier.price * qty : 0)
-    }, 0)
-
-    // Discount Calculation
-    const discountAmount = discount
-        ? (discount.type === 'fixed'
-            ? discount.value
-            : (calculatedTotal * (discount.value / 100)))
-        : 0
-
-    const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
-    const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
-    const platformFees = clientFees
-    const totalDue = customerTotal
-
-    const applyPromoCode = async () => {
-        if (!promoCode.trim()) return
-        setApplyingDiscount(true)
-        setDiscountError('')
-        setDiscount(null)
-
-        try {
-            const { data, error } = await supabase
-                .schema('gatepass')
-                .from('discounts')
-                .select('*')
-                .eq('event_id', event.id)
-                .eq('code', promoCode.toUpperCase())
-                .single()
-
-            if (error || !data) {
-                setDiscountError('Invalid promo code')
-                return
-            }
-
-            // Check limits
-            if (data.max_uses && data.used_count >= data.max_uses) {
-                setDiscountError('This code has been fully redeemed')
-                return
-            }
-
-            setDiscount(data as Discount)
-
-            // Update the existing reservation with this discount (Secure RPC)
-            if (reservation) {
-                console.log('Linking Discount to Reservation via RPC:', reservation.id)
-                const { data: rpcData, error: updateError } = await supabase.rpc('apply_reservation_discount', {
-                    p_reservation_id: reservation.id,
-                    p_discount_code: promoCode
+// Handle Payment Callback (Redirect Flow)
+useEffect(() => {
+    const reference = searchParams.get('reference') || searchParams.get('trxref')
+    if (reference) {
+        const verifyPayment = async () => {
+            setVerifying(true)
+            try {
+                // Use reference as reservationId fallback since we link them
+                const response = await fetch('/api/paystack/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference, reservationId: reference })
                 })
+                const result = await response.json()
 
-                if (updateError || (rpcData && !rpcData.success)) {
-                    console.error('Failed to link discount:', updateError || rpcData?.error)
-                    const errorMsg = updateError?.message || rpcData?.error || 'Failed to apply discount'
-                    // If "Discount code usage limit reached", show that
-                    setDiscountError(errorMsg)
-                    return
-                }
+                // Clear params to avoid re-verification loop (optional, but good UX)
+                window.history.replaceState({}, '', window.location.pathname)
+
+                if (!result.success) throw new Error(result.error || 'Verification failed')
+
+                setPurchasedTickets(result.tickets || [])
+                navigate('success', 'forward')
+                // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
+            } catch (error: any) {
+                console.error('Verification Error:', error)
+                toast.error(error.message || 'Payment verification failed')
+            } finally {
+                setVerifying(false)
             }
+        }
+        verifyPayment()
+    }
+}, [searchParams])
 
-            toast.success('Discount applied!')
-        } catch (e) {
-            setDiscountError('Failed to verify code')
-        } finally {
-            setApplyingDiscount(false)
+useEffect(() => {
+    const checkUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user && !user.is_anonymous) {
+            // Pre-fill or skip form? Let's pre-fill for now so they can verify phone
+            // Fetch profile
+            const { data: profile } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', user.id).single()
+            if (profile) {
+                setGuestName(profile.full_name || '')
+                setGuestEmail(profile.email || user.email || '')
+                setGuestPhone(profile.phone_number || '')
+            }
         }
     }
+    checkUser()
+}, [])
 
-    const handleContinueToCheckout = () => {
-        navigate('checkout', 'forward')
-    }
+const handleQuantityChange = (tierId: string, delta: number) => {
+    setSelectedTickets(prev => {
+        const current = prev[tierId] || 0
+        const intent = current + delta
+        if (intent < 0) return prev
 
-    // Step 1: Create Reservation (Invoked on "Continue to Payment")
-    const handleCreateReservation = async () => {
-        setLoading(true)
-        try {
-            let userId: string | null = null
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (user) {
-                userId = user.id
-            }
-            // Guest Flow: No signup required anymore. We just pass the details.
-
-            // 2. Determine Selection
-            const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
-            if (!firstTierId) throw new Error('No tickets selected')
-            const qty = selectedTickets[firstTierId]
-            const selectedTier = tiers.find(t => t.id === firstTierId)
-
-            if (!selectedTier || !qty) throw new Error('Please select a ticket')
-
-            // 3. Create Reservation
-            console.log('Creating Reservation with Discount:', discount)
-            const newReservation = await createReservation(event.id, selectedTier.id, userId, qty, supabase, {
-                email: guestEmail,
-                name: guestName,
-                phone: guestPhone
-            }, discount?.id)
-            if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
-
-            setReservation(newReservation)
-            setReservation(newReservation)
-            navigate('summary', 'forward')
-
-        } catch (error: any) {
-            if (error.message?.includes('already registered')) {
-                toast.info('An account with this email already exists. Please log in.')
-                router.push(`/login?redirect=/events/${event.id}`)
-            } else {
-                toast.error(error.message || 'An unexpected error occurred')
-            }
-        } finally {
-            setLoading(false)
+        // Max Per Order Check
+        const tier = tiers.find(t => t.id === tierId)
+        if (tier?.max_per_order && intent > tier.max_per_order) {
+            toast.error(`Limit of ${tier.max_per_order} tickets per order`)
+            return prev
         }
-    }
+        // Stock Check (Optional here, since we disable button, but good for safety)
+        if (tier && (tier.quantity_sold + intent) > tier.total_quantity) {
+            toast.error('Not enough tickets available')
+            return prev
+        }
 
-    // Step 2: Payment (Invoked on "Pay Now")
-    const handlePaystackPayment = async () => {
-        if (!reservation) {
-            toast.error('No active reservation found. Please try again.')
+        return { ...prev, [tierId]: intent }
+    })
+}
+
+const calculatedTotal = Object.entries(selectedTickets).reduce((acc, [tierId, qty]) => {
+    const tier = tiers.find(t => t.id === tierId)
+    return acc + (tier ? tier.price * qty : 0)
+}, 0)
+
+// Discount Calculation
+const discountAmount = discount
+    ? (discount.type === 'fixed'
+        ? discount.value
+        : (calculatedTotal * (discount.value / 100)))
+    : 0
+
+const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
+const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
+const platformFees = clientFees
+const totalDue = customerTotal
+
+const applyPromoCode = async () => {
+    if (!promoCode.trim()) return
+    setApplyingDiscount(true)
+    setDiscountError('')
+    setDiscount(null)
+
+    try {
+        const { data, error } = await supabase
+            .schema('gatepass')
+            .from('discounts')
+            .select('*')
+            .eq('event_id', event.id)
+            .eq('code', promoCode.toUpperCase())
+            .single()
+
+        if (error || !data) {
+            setDiscountError('Invalid promo code')
             return
         }
 
-        setLoading(true)
+        // Check limits
+        if (data.max_uses && data.used_count >= data.max_uses) {
+            setDiscountError('This code has been fully redeemed')
+            return
+        }
 
-        const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
-        const selectedTier = tiers.find(t => t.id === firstTierId)
+        setDiscount(data as Discount)
 
-        // Safety Sync: Ensure discount is linked before payment
-        if (discount && reservation && reservation.discount_id !== discount.id) {
-            console.log('Syncing Discount ID before payment...', discount.id)
-            await supabase.rpc('apply_reservation_discount', {
+        // Update the existing reservation with this discount (Secure RPC)
+        if (reservation) {
+            console.log('Linking Discount to Reservation via RPC:', reservation.id)
+            const { data: rpcData, error: updateError } = await supabase.rpc('apply_reservation_discount', {
                 p_reservation_id: reservation.id,
                 p_discount_code: promoCode
             })
-            // Update local state implicitly or just proceed
-        }
 
-        try {
-            // Call Initialize API
-            const response = await fetch('/api/paystack/initialize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: guestEmail || 'customer@gatepass.com',
-                    amount: Math.round(totalDue * 100),
-                    currency: selectedTier?.currency || 'GHS',
-                    reservationId: reservation.id,
-                    callbackUrl: window.location.href // Return to this page
-                })
-            })
-
-            const data = await response.json()
-
-            if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
-
-            // Redirect to Paystack
-            window.location.href = data.authorization_url
-
-        } catch (error: any) {
-            console.error('Payment Error:', error)
-            toast.error(error.message)
-            setLoading(false)
-        }
-    }
-
-
-    const hasSelection = calculatedTotal > 0
-    const cheapestTier = tiers.length > 0 ? tiers[0] : null
-    const isModalExpanded = view !== 'details'
-
-    // Mobile Expansion Logic
-    const toggleExpand = () => {
-        if (view === 'details') {
-            // Haptic Feedback
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                navigator.vibrate(10) // Taptic-like light impact
+            if (updateError || (rpcData && !rpcData.success)) {
+                console.error('Failed to link discount:', updateError || rpcData?.error)
+                const errorMsg = updateError?.message || rpcData?.error || 'Failed to apply discount'
+                // If "Discount code usage limit reached", show that
+                setDiscountError(errorMsg)
+                return
             }
-            setIsExpanded(!isExpanded)
         }
+
+        toast.success('Discount applied!')
+    } catch (e) {
+        setDiscountError('Failed to verify code')
+    } finally {
+        setApplyingDiscount(false)
+    }
+}
+
+const handleContinueToCheckout = () => {
+    navigate('checkout', 'forward')
+}
+
+// Step 1: Create Reservation (Invoked on "Continue to Payment")
+const handleCreateReservation = async () => {
+    setLoading(true)
+    try {
+        let userId: string | null = null
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user) {
+            userId = user.id
+        }
+        // Guest Flow: No signup required anymore. We just pass the details.
+
+        // 2. Determine Selection
+        const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
+        if (!firstTierId) throw new Error('No tickets selected')
+        const qty = selectedTickets[firstTierId]
+        const selectedTier = tiers.find(t => t.id === firstTierId)
+
+        if (!selectedTier || !qty) throw new Error('Please select a ticket')
+
+        // 3. Create Reservation
+        console.log('Creating Reservation with Discount:', discount)
+        const newReservation = await createReservation(event.id, selectedTier.id, userId, qty, supabase, {
+            email: guestEmail,
+            name: guestName,
+            phone: guestPhone
+        }, discount?.id)
+        if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
+
+        setReservation(newReservation)
+        setReservation(newReservation)
+        navigate('summary', 'forward')
+
+    } catch (error: any) {
+        if (error.message?.includes('already registered')) {
+            toast.info('An account with this email already exists. Please log in.')
+            router.push(`/login?redirect=/events/${event.id}`)
+        } else {
+            toast.error(error.message || 'An unexpected error occurred')
+        }
+    } finally {
+        setLoading(false)
+    }
+}
+
+// Step 2: Payment (Invoked on "Pay Now")
+const handlePaystackPayment = async () => {
+    if (!reservation) {
+        toast.error('No active reservation found. Please try again.')
+        return
     }
 
-    const cardHeightClass = (view === 'details' && !isExpanded)
-        ? 'max-h-[160px]' // Collapsed height: Compact for 1 line
-        : 'max-h-[85vh]'     // Expanded height
+    setLoading(true)
 
-    if (verifying) {
-        return (
-            // Full Screen Verification Loader
-            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-fade-in">
-                <div className="w-16 h-16 border-4 border-black/10 border-t-black rounded-full animate-spin mb-4" />
-                <h2 className="text-xl font-bold tracking-tight text-black">Verifying Payment</h2>
-                <p className="text-sm text-gray-500 mt-2">Securing your ticket...</p>
-            </div>
-        )
+    const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
+    const selectedTier = tiers.find(t => t.id === firstTierId)
+
+    // Safety Sync: Ensure discount is linked before payment
+    if (discount && reservation && reservation.discount_id !== discount.id) {
+        console.log('Syncing Discount ID before payment...', discount.id)
+        await supabase.rpc('apply_reservation_discount', {
+            p_reservation_id: reservation.id,
+            p_discount_code: promoCode
+        })
+        // Update local state implicitly or just proceed
     }
 
-    if (loading && view === 'details') {
-        return <EventCardSkeleton />
-    }
+    try {
+        // Call Initialize API
+        const response = await fetch('/api/paystack/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: guestEmail || 'customer@gatepass.com',
+                amount: Math.round(totalDue * 100),
+                currency: selectedTier?.currency || 'GHS',
+                reservationId: reservation.id,
+                callbackUrl: window.location.href // Return to this page
+            })
+        })
 
-    if (loading && view !== 'details' && view !== 'summary' && view !== 'checkout') {
-        return (
-            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                <div className="w-8 h-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
-            </div>
-        )
-    }
+        const data = await response.json()
 
+        if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
+
+        // Redirect to Paystack
+        window.location.href = data.authorization_url
+
+    } catch (error: any) {
+        console.error('Payment Error:', error)
+        toast.error(error.message)
+        setLoading(false)
+    }
+}
+
+
+const hasSelection = calculatedTotal > 0
+const cheapestTier = tiers.length > 0 ? tiers[0] : null
+const isModalExpanded = view !== 'details'
+
+// Mobile Expansion Logic
+const toggleExpand = () => {
+    if (view === 'details') {
+        // Haptic Feedback
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(10) // Taptic-like light impact
+        }
+        setIsExpanded(!isExpanded)
+    }
+}
+
+const cardHeightClass = (view === 'details' && !isExpanded)
+    ? 'max-h-[160px]' // Collapsed height: Compact for 1 line
+    : 'max-h-[85vh]'     // Expanded height
+
+if (verifying) {
     return (
-        <>
+        // Full Screen Verification Loader
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-fade-in">
+            <div className="w-16 h-16 border-4 border-black/10 border-t-black rounded-full animate-spin mb-4" />
+            <h2 className="text-xl font-bold tracking-tight text-black">Verifying Payment</h2>
+            <p className="text-sm text-gray-500 mt-2">Securing your ticket...</p>
+        </div>
+    )
+}
 
-            {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
-            {(isModalExpanded || isExpanded) && (
-                <div
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
-                    onClick={() => {
-                        if (view === 'success') window.location.reload()
-                        else if (view !== 'details') navigate('details', 'back')
-                        else setIsExpanded(false) // Dismiss focus mode on mobile
-                    }}
-                />
-            )}
+if (loading && view === 'details') {
+    return <EventCardSkeleton />
+}
 
-            {/* Floating Card / Modal Container */}
+if (loading && view !== 'details' && view !== 'summary' && view !== 'checkout') {
+    return (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
+        </div>
+    )
+}
+
+return (
+    <>
+
+        {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
+        {(isModalExpanded || isExpanded) && (
             <div
-                onClick={toggleExpand}
-                style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
-                className={`
-                fixed z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
+                onClick={() => {
+                    if (view === 'success') window.location.reload()
+                    else if (view !== 'details') navigate('details', 'back')
+                    else setIsExpanded(false) // Dismiss focus mode on mobile
+                }}
+            />
+        )}
+
+        {/* Floating Card / Modal Container */}
+        <div
+            onClick={toggleExpand}
+            style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
+            className={`
+                ${isFeedItem ? 'absolute' : 'fixed'} z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
                 rounded-2xl flex flex-col overflow-hidden
@@ -409,87 +410,87 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
                 ${(view === 'details' && !isExpanded) ? 'cursor-pointer active:scale-[0.98]' : ''}
             `}>
-                {view === 'details' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                        <DetailsView
-                            event={event}
-                            cheapestTier={cheapestTier}
-                            onGetTickets={(e: React.MouseEvent) => {
-                                e.stopPropagation(); // Prevent toggling when clicking button
-                                navigate('tickets', 'forward')
-                            }}
-                            isExpanded={isExpanded}
-                        />
-                    </div>
-                )}
-                {view === 'tickets' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                        <TicketsView
-                            tiers={tiers}
-                            selectedTickets={selectedTickets}
-                            onQuantityChange={handleQuantityChange}
-                            onContinue={handleContinueToCheckout}
-                            onBack={() => navigate('details', 'back')}
-                            total={calculatedTotal}
-                            hasSelection={hasSelection}
-                        />
-                    </div>
-                )}
-                {view === 'checkout' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                        <CheckoutFormView
-                            guestName={guestName} setGuestName={setGuestName}
-                            guestEmail={guestEmail} setGuestEmail={setGuestEmail}
-                            guestPhone={guestPhone} setGuestPhone={setGuestPhone}
-                            onBack={() => navigate('tickets', 'back')}
-                            onContinue={handleCreateReservation}
-                            loading={loading}
-                        />
-                    </div>
-                )}
-                {view === 'summary' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
-                        <SummaryView
-                            event={event}
-                            tiers={tiers}
-                            selectedTickets={selectedTickets}
-                            subtotal={calculatedTotal}
-                            fees={platformFees}
-                            total={totalDue}
-                            timeLeft={timeLeft}
-                            loading={loading}
-                            onBack={() => navigate('checkout', 'back')}
-                            onPay={handlePaystackPayment}
-                            promoCode={promoCode}
-                            setPromoCode={setPromoCode}
-                            onApplyDiscount={applyPromoCode}
-                            discount={discount}
-                            discountError={discountError}
-                            applyingDiscount={applyingDiscount}
-                        />
-                    </div>
-                )}
+            {view === 'details' && (
+                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <DetailsView
+                        event={event}
+                        cheapestTier={cheapestTier}
+                        onGetTickets={(e: React.MouseEvent) => {
+                            e.stopPropagation(); // Prevent toggling when clicking button
+                            navigate('tickets', 'forward')
+                        }}
+                        isExpanded={isExpanded}
+                    />
+                </div>
+            )}
+            {view === 'tickets' && (
+                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <TicketsView
+                        tiers={tiers}
+                        selectedTickets={selectedTickets}
+                        onQuantityChange={handleQuantityChange}
+                        onContinue={handleContinueToCheckout}
+                        onBack={() => navigate('details', 'back')}
+                        total={calculatedTotal}
+                        hasSelection={hasSelection}
+                    />
+                </div>
+            )}
+            {view === 'checkout' && (
+                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <CheckoutFormView
+                        guestName={guestName} setGuestName={setGuestName}
+                        guestEmail={guestEmail} setGuestEmail={setGuestEmail}
+                        guestPhone={guestPhone} setGuestPhone={setGuestPhone}
+                        onBack={() => navigate('tickets', 'back')}
+                        onContinue={handleCreateReservation}
+                        loading={loading}
+                    />
+                </div>
+            )}
+            {view === 'summary' && (
+                <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <SummaryView
+                        event={event}
+                        tiers={tiers}
+                        selectedTickets={selectedTickets}
+                        subtotal={calculatedTotal}
+                        fees={platformFees}
+                        total={totalDue}
+                        timeLeft={timeLeft}
+                        loading={loading}
+                        onBack={() => navigate('checkout', 'back')}
+                        onPay={handlePaystackPayment}
+                        promoCode={promoCode}
+                        setPromoCode={setPromoCode}
+                        onApplyDiscount={applyPromoCode}
+                        discount={discount}
+                        discountError={discountError}
+                        applyingDiscount={applyingDiscount}
+                    />
+                </div>
+            )}
 
-                {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
-                {view === 'details' && !isExpanded && (
-                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-900 dark:via-zinc-900/95 flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
-                        <span className="text-[12px] font-bold text-black dark:text-white mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
-                        <ChevronDown className="w-5 h-5 text-black dark:text-white animate-bounce" />
-                    </div>
-                )}
+            {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
+            {view === 'details' && !isExpanded && (
+                <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-900 dark:via-zinc-900/95 flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
+                    <span className="text-[12px] font-bold text-black dark:text-white mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
+                    <ChevronDown className="w-5 h-5 text-black dark:text-white animate-bounce" />
+                </div>
+            )}
 
-                {view === 'success' && purchasedTickets.length > 0 && (
-                    <div className="animate-scale-in">
-                        <SuccessView
-                            event={event}
-                            tickets={purchasedTickets}
-                            tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
-                        />
-                    </div>
-                )}
-            </div>
-        </>
-    )
+            {view === 'success' && purchasedTickets.length > 0 && (
+                <div className="animate-scale-in">
+                    <SuccessView
+                        event={event}
+                        tickets={purchasedTickets}
+                        tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
+                    />
+                </div>
+            )}
+        </div>
+    </>
+)
 }
 
 // Sub-components

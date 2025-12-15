@@ -6,9 +6,10 @@ import { Volume2, VolumeX } from 'lucide-react'
 interface EventBackgroundProps {
     videoUrl: string | null
     posterUrl: string | null
+    forcePause?: boolean
 }
 
-export function EventBackground({ videoUrl, posterUrl }: EventBackgroundProps) {
+export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgroundProps) {
     const [isMuted, setIsMuted] = useState(true)
     const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -18,6 +19,17 @@ export function EventBackground({ videoUrl, posterUrl }: EventBackgroundProps) {
             setIsMuted(!isMuted)
         }
     }
+
+    // Handle Play/Pause
+    React.useEffect(() => {
+        if (videoRef.current) {
+            if (forcePause) {
+                videoRef.current.pause()
+            } else {
+                videoRef.current.play().catch(e => console.log('Autoplay prevented', e))
+            }
+        }
+    }, [forcePause])
 
     if (!videoUrl) {
         return (
@@ -37,7 +49,6 @@ export function EventBackground({ videoUrl, posterUrl }: EventBackgroundProps) {
                 ref={videoRef}
                 src={videoUrl}
                 className="w-full h-full object-cover opacity-90 transition-opacity duration-1000"
-                autoPlay
                 loop
                 muted={isMuted}
                 playsInline

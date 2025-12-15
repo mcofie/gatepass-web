@@ -1,33 +1,45 @@
+import { createClient } from '@/utils/supabase/server'
+import { EventFeed } from '@/components/EventFeed'
+import { LandingHeader } from '@/components/LandingHeader'
+import React from 'react'
+
 export const revalidate = 0
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient()
+
+  // Fetch all active events with their necessary relations
+  // Ordered by start date (soonest first)
+  const { data: events } = await supabase
+    .schema('gatepass')
+    .from('events')
+    .select(`
+      *,
+      organizers(*),
+      ticket_tiers(*)
+    `)
+    // .eq('status', 'published') // Temporarily removed for debugging
+    .order('starts_at', { ascending: true })
+
+  // Transform/sort tiers if necessary locally if not working in query
+  const eventsWithSortedTiers = (events || []).map(event => ({
+    ...event,
+    ticket_tiers: (event.ticket_tiers || []).sort((a: any, b: any) => a.price - b.price)
+  }))
+
   return (
-    <div className="min-h-screen bg-white text-black selection:bg-black selection:text-white flex flex-col relative overflow-hidden">
-      {/* Minimal Header - Centered Logo */}
-      <header className="absolute top-0 left-0 right-0 z-50 py-8 flex justify-center items-center pointer-events-none mix-blend-difference text-white">
-        <div className="text-xl font-bold tracking-tighter cursor-default pointer-events-auto">GatePass.</div>
-      </header>
+    <main className="h-screen w-full bg-black overflow-hidden relative">
+      {/* Global Header/Nav Overlay if needed? 
+              EventFeed items have their own header/branding feeling if consistent with Detail page.
+              But maybe we want a global "GatePass" overlay that stays putt?
+              Let's emulate the detail page where each page handles its own nav/brand for now, 
+              or adds it inside EventFeed. 
+              
+              Actually, let's add a fixed global nav overlay here for consistency across the feed.
+          */}
+      <EventFeed events={eventsWithSortedTiers} />
 
-      {/* Main Content - Vertically Centered */}
-      <main className="flex-grow flex flex-col justify-center px-6 md:px-12 max-w-screen-2xl mx-auto w-full z-10">
-        {/* Minimal Hero Text */}
-        <div>
-          <h1 className="text-[14vw] md:text-[12vw] leading-[0.8] font-bold tracking-tighter mb-8 animate-slide-up" style={{ animationDelay: '0.1s', opacity: 0 }}>
-            Experience<br />
-            Curated<br />
-            Events.
-          </h1>
-          <p className="max-w-md text-lg md:text-xl text-gray-500 font-medium leading-relaxed pl-1 animate-slide-up" style={{ animationDelay: '0.3s', opacity: 0 }}>
-            Seamless reservations. Exclusive access.
-            <br />The premium platform for modern experiences.
-          </p>
-        </div>
-      </main>
-
-      {/* Minimal Footer - Empty/Clean */}
-      <footer className="px-6 py-8 flex justify-between items-end">
-        {/* Removed Copyright */}
-      </footer>
-    </div>
+      <LandingHeader />
+    </main>
   )
 }
