@@ -20,10 +20,53 @@ export default function CreateEventPage() {
         starts_at: '',
         ends_at: '',
         poster_url: '',
+        video_url: '',
+        latitude: null as number | null,
+        longitude: null as number | null,
         slug: '',
         fee_bearer: 'customer' as 'customer' | 'organizer',
-        platform_fee_percent: 5.0
+        platform_fee_percent: 5.0,
+        organization_id: ''
     })
+
+    // Fetch or Create Organizer on Mount
+    React.useEffect(() => {
+        const initOrganizer = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Check for existing organizer profile
+            const { data: existingOrgs } = await supabase
+                .schema('gatepass')
+                .from('organizers')
+                .select('*')
+                .eq('user_id', user.id)
+
+            if (existingOrgs && existingOrgs.length > 0) {
+                setFormData(prev => ({ ...prev, organization_id: existingOrgs[0].id }))
+            } else {
+                // Auto-create default organizer
+                const name = user.user_metadata?.full_name || 'My Organization'
+                const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(7)
+
+                const { data: newOrg, error } = await supabase
+                    .schema('gatepass')
+                    .from('organizers')
+                    .insert({
+                        user_id: user.id,
+                        name: name,
+                        slug: slug,
+                    })
+                    .select()
+                    .single()
+
+                if (newOrg) {
+                    setFormData(prev => ({ ...prev, organization_id: newOrg.id }))
+                }
+            }
+        }
+        initOrganizer()
+    }, [])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
@@ -46,13 +89,16 @@ export default function CreateEventPage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('Not authenticated')
 
+            if (!formData.organization_id) throw new Error('Organization profile not found')
+
             const { data, error } = await supabase
                 .schema('gatepass')
                 .from('events')
                 .insert({
                     ...formData,
                     ends_at: formData.ends_at || null,
-                    organizer_id: user.id,
+                    organizer_id: user.id, // Legacy: User Creator
+                    organization_id: formData.organization_id, // New: Linked Organization
                     is_published: false // Default to draft
                 })
                 .select()
@@ -145,6 +191,34 @@ export default function CreateEventPage() {
                             </div>
                         </div>
 
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Latitude (Optional)</label>
+                                <input
+                                    name="latitude"
+                                    value={formData.latitude || ''}
+                                    onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
+                                    type="number"
+                                    step="any"
+                                    placeholder="e.g. 5.6037"
+                                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Longitude (Optional)</label>
+                                <input
+                                    name="longitude"
+                                    value={formData.longitude || ''}
+                                    onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
+                                    type="number"
+                                    step="any"
+                                    placeholder="e.g. -0.1870"
+                                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+
                         <div className="pt-4 border-t">
                             <h3 className="text-sm font-semibold text-gray-900 mb-4">Ticket Settings</h3>
                             <div className="grid grid-cols-2 gap-4">
@@ -214,6 +288,18 @@ export default function CreateEventPage() {
                             />
                         </div>
 
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Video URL (Optional)</label>
+                            <input
+                                name="video_url"
+                                value={formData.video_url}
+                                onChange={handleChange}
+                                type="url"
+                                placeholder="https://... (MP4 preferred)"
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black focus:outline-none"
+                            />
+                        </div>
+
                     </div>
 
                     <div className="pt-6 border-t flex justify-end gap-3">
@@ -229,7 +315,7 @@ export default function CreateEventPage() {
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }

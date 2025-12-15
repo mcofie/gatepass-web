@@ -42,6 +42,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 venue_name: event.venue_name,
                 venue_address: event.venue_address,
                 poster_url: event.poster_url,
+                video_url: event.video_url,
                 is_published: event.is_published,
                 fee_bearer: event.fee_bearer,
                 platform_fee_percent: event.platform_fee_percent
@@ -272,6 +273,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         onChange={e => setEvent({ ...event, poster_url: e.target.value })}
                                         className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
                                         placeholder="https://..."
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Video URL (Optional)</label>
+                                    <input
+                                        value={event.video_url || ''}
+                                        onChange={e => setEvent({ ...event, video_url: e.target.value })}
+                                        className="w-full border-gray-200 rounded-lg p-3 focus:ring-black focus:border-black transition-all"
+                                        placeholder="https://... (MP4 preferred)"
                                     />
                                 </div>
                                 <div className="flex items-center gap-3 pt-2">

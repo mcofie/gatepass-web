@@ -9,10 +9,28 @@ export interface Event {
     starts_at: string
     ends_at?: string
     poster_url?: string
+    video_url?: string
+    latitude?: number
+    longitude?: number
     is_published: boolean
-    organizer_id: string
+    organizer_id: string // This is the user_id (Creator)
+    organization_id?: string // This is the profile/brand
     fee_bearer: 'customer' | 'organizer'
     platform_fee_percent: number
+    organizers?: Organizer
+}
+
+export interface Organizer {
+    id: string
+    user_id: string
+    name: string
+    slug: string
+    logo_url?: string
+    description?: string
+    website?: string
+    twitter?: string
+    instagram?: string
+    created_at: string
 }
 
 export interface TicketTier {

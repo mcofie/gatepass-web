@@ -4,6 +4,8 @@ import './globals.css'
 import { NavBar } from '@/components/common/NavBar'
 import { Footer } from '@/components/common/Footer'
 
+import { ToastProvider } from '@/components/ui/Toast'
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
@@ -19,11 +21,13 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={`${inter.variable} font-sans antialiased`}>
-                <NavBar />
-                <main className="min-h-screen">
-                    {children}
-                </main>
-                <Footer />
+                <ToastProvider>
+                    <NavBar />
+                    <main className="min-h-screen">
+                        {children}
+                    </main>
+                    <Footer />
+                </ToastProvider>
             </body>
         </html>
     )
