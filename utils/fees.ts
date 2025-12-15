@@ -5,6 +5,7 @@ interface FeeResult {
     subtotal: number
     platformFee: number // 4%, always absorbed in ticket price (customer perspective) or deducted (organizer perspective)
     processorFee: number // 1.95%, added to total if customer bears, or deducted from payout if organizer bears
+    clientFees: number // Total fees paid by customer
     customerTotal: number // What the customer pays
     organizerPayout: number // What the organizer gets (Net)
 }
@@ -18,25 +19,27 @@ export const calculateFees = (subtotal: number, feeBearer: 'customer' | 'organiz
     // Assuming straightforward multiplication based on prompt context.
     const processorFee = subtotal * PROCESSOR_FEE_PERCENT
 
-    let customerTotal = subtotal
+    // Updated Interpretation: Platform Fee is added to the fee (Customer pays on top).
+    // Processor Fee is added if Customer bears it.
 
-    if (feeBearer === 'customer') {
-        customerTotal = subtotal + processorFee
-    }
+    // Customer Pays:
+    // 1. Ticket Price (Subtotal)
+    // 2. Platform Fee (4%)
+    // 3. Processor Fee (1.95%) [If applicable]
 
-    // Payout = Total Collected (from Customer perspective relative to ticket price) - ALL Fees?
-    // User request: "payout fee for the organizer is ticket price - platform fee - payment processor fee"
-    // This implies straightforward deduction from the Base Ticket Price regardless of who paid the extra.
-    // If Customer PAID the extra processor fee, the Organizer shouldn't necessarily "lose" it from their base, 
-    // BUT usually the payment processor takes their cut from the TOTAL incoming.
+    const clientFees = platformFee + (feeBearer === 'customer' ? processorFee : 0)
+    const customerTotal = subtotal + clientFees
 
-    // Let's interpret "ticket price - platform fee - payment processor fee" literally for now as the NET.
-    const organizerPayout = subtotal - platformFee - processorFee
+    // Payout Logic:
+    // If Customer pays Platform Fee, Organizer keeps Ticket Price.
+    // If Organizer bears Processor Fee, it comes out of Ticket Price.
+    const organizerPayout = subtotal - (feeBearer === 'organizer' ? processorFee : 0)
 
     return {
         subtotal,
         platformFee,
         processorFee,
+        clientFees, // Total fees visible to/paid by customer
         customerTotal,
         organizerPayout
     }

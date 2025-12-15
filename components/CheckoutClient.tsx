@@ -84,10 +84,10 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
     // const platformFeePercent = reservation.events?.platform_fee_percent || 0 // Deprecated in favor of global constant
 
     const subtotal = price * quantity
-    const { processorFee, customerTotal } = calculateFees(subtotal, feeBearer)
+    const { clientFees, customerTotal } = calculateFees(subtotal, feeBearer)
 
-    // Legacy mapping: calculatedFee = processorFee (since Platform Fee is hidden)
-    const calculatedFee = processorFee
+    // Legacy mapping: calculatedFee = clientFees (Total fees shown to customer)
+    const calculatedFee = clientFees
     const paymentTotal = customerTotal
 
     const handlePaystack = async () => {

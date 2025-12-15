@@ -151,8 +151,8 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
         : 0
 
     const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
-    const { processorFee, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
-    const platformFees = processorFee
+    const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
+    const platformFees = clientFees
     const totalDue = customerTotal
 
     const applyPromoCode = async () => {
