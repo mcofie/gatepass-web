@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
 import { Globe, Calendar, ChevronDown } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
+import { calculateFees } from '@/utils/fees'
 
 interface EventDetailClientProps {
     event: Event
@@ -150,8 +151,9 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
         : 0
 
     const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
-    const platformFees = discountedSubtotal * 0.05
-    const totalDue = discountedSubtotal + platformFees
+    const { processorFee, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
+    const platformFees = processorFee
+    const totalDue = customerTotal
 
     const applyPromoCode = async () => {
         if (!promoCode.trim()) return

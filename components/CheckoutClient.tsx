@@ -39,6 +39,7 @@ import { Reservation, Event, TicketTier } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatCurrency } from '@/utils/format'
+import { calculateFees } from '@/utils/fees'
 
 interface CheckoutClientProps {
     reservation: Reservation
@@ -79,13 +80,15 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
     const price = reservation.ticket_tiers?.price || 0
     const quantity = reservation.quantity
     const currency = reservation.ticket_tiers?.currency || 'GHS'
-    const feeBearer = reservation.events?.fee_bearer || 'customer'
-    const platformFeePercent = reservation.events?.platform_fee_percent || 0
+    const feeBearer = (reservation.events?.fee_bearer as 'customer' | 'organizer') || 'customer'
+    // const platformFeePercent = reservation.events?.platform_fee_percent || 0 // Deprecated in favor of global constant
 
     const subtotal = price * quantity
-    const calculatedFee = (subtotal * platformFeePercent) / 100
-    // If customer bears fee, add it. Otherwise, absorb it (total stays subtotal).
-    const paymentTotal = feeBearer === 'customer' ? subtotal + calculatedFee : subtotal
+    const { processorFee, customerTotal } = calculateFees(subtotal, feeBearer)
+
+    // Legacy mapping: calculatedFee = processorFee (since Platform Fee is hidden)
+    const calculatedFee = processorFee
+    const paymentTotal = customerTotal
 
     const handlePaystack = async () => {
         if (isGuest) {

@@ -9,6 +9,7 @@ import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
+import { calculateFees } from '@/utils/fees'
 
 interface EventManageClientProps {
     event: Event
@@ -814,6 +815,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Guest</th>
                                         <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Ticket</th>
                                         <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
+                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Net Payout</th>
                                         <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
@@ -837,6 +839,14 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             <td className="px-8 py-5">
                                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100">
                                                     {ticket.ticket_tiers?.name}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <span className="font-mono text-xs font-bold text-gray-700">
+                                                    {formatCurrency(
+                                                        calculateFees(ticket.ticket_tiers?.price || 0, event.fee_bearer as 'customer' | 'organizer').organizerPayout,
+                                                        ticket.ticket_tiers?.currency
+                                                    )}
                                                 </span>
                                             </td>
                                             <td className="px-8 py-5">
