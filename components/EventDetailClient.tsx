@@ -145,6 +145,19 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             const current = prev[tierId] || 0
             const intent = current + delta
             if (intent < 0) return prev
+
+            // Max Per Order Check
+            const tier = tiers.find(t => t.id === tierId)
+            if (tier?.max_per_order && intent > tier.max_per_order) {
+                toast.error(`Limit of ${tier.max_per_order} tickets per order`)
+                return prev
+            }
+            // Stock Check (Optional here, since we disable button, but good for safety)
+            if (tier && (tier.quantity_sold + intent) > tier.total_quantity) {
+                toast.error('Not enough tickets available')
+                return prev
+            }
+
             return { ...prev, [tierId]: intent }
         })
     }
@@ -193,6 +206,23 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             }
 
             setDiscount(data as Discount)
+
+            // Update the existing reservation with this discount
+            if (reservation) {
+                console.log('Linking Discount to Reservation:', reservation.id)
+                const { error: updateError } = await supabase
+                    .schema('gatepass')
+                    .from('reservations')
+                    .update({ discount_id: data.id })
+                    .eq('id', reservation.id)
+
+                if (updateError) {
+                    console.error('Failed to link discount:', updateError)
+                    toast.error('Failed to apply discount to order')
+                    return
+                }
+            }
+
             toast.success('Discount applied!')
         } catch (e) {
             setDiscountError('Failed to verify code')
@@ -226,11 +256,12 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
             if (!selectedTier || !qty) throw new Error('Please select a ticket')
 
             // 3. Create Reservation
+            console.log('Creating Reservation with Discount:', discount)
             const newReservation = await createReservation(event.id, selectedTier.id, userId, qty, supabase, {
                 email: guestEmail,
                 name: guestName,
                 phone: guestPhone
-            })
+            }, discount?.id)
             if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
 
             setReservation(newReservation)
@@ -260,6 +291,13 @@ export function EventDetailClient({ event, tiers }: EventDetailClientProps) {
 
         const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
         const selectedTier = tiers.find(t => t.id === firstTierId)
+
+        // Safety Sync: Ensure discount is linked before payment
+        if (discount && reservation && reservation.discount_id !== discount.id) {
+            console.log('Syncing Discount ID before payment...', discount.id)
+            await supabase.schema('gatepass').from('reservations').update({ discount_id: discount.id }).eq('id', reservation.id)
+            // Update local state implicitly or just proceed
+        }
 
         try {
             // Call Initialize API
@@ -1146,7 +1184,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
 
 // Receipt Style Ticket Component
 const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false, isPrint = false }: { id?: string, event: Event, ticket: any, tierName?: string, forceExpanded?: boolean, isPrint?: boolean }) => {
-    const [isOpen, setIsOpen] = useState(true) // Expanded by default
+    const [isOpen, setIsOpen] = useState(false) // Collapsed by default
     const showContent = isOpen || forceExpanded
 
     const handleWhatsAppShare = (e: React.MouseEvent) => {

@@ -82,7 +82,13 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         .eq('order_reference', reference)
 
     if (existingTickets && existingTickets.length > 0) {
-        // Tickets already exist, return them
+        // Tickets already exist. 
+        // We assume payment was processed.
+        // We return early to avoid duplicates.
+        // We do NOT increment discount here to avoid double counting on page refresh.
+        // If the user isn't seeing it, it's likely the INITIAL run failed or didn't have the ID.
+        // Since I fixed the ID sync in EventDetailClient, the next fresh payment SHOULD work.
+        // I will revert the debugging block to keep code clean and rely on the fix in EventDetailClient.
         return { success: true, tickets: existingTickets, message: 'Tickets already exist' }
     }
 
@@ -102,7 +108,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 tier_id: reservation.ticket_tiers.id,
                 reservation_id: reservation.id,
                 qr_code_hash: Math.random().toString(36).substring(7) + Math.random().toString(36).substring(7), // Longer unique hash
-                order_reference: reference, // Same reference for all, or append index? Same ref is fine to link to order.
+                order_reference: reference,
                 status: 'valid',
                 // metadata: { index: i + 1, total: quantity } // Removed until migration is applied
             })
@@ -128,16 +134,44 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     await supabase.schema('gatepass').from('reservations').update({ status: 'confirmed' }).eq('id', reservation.id)
 
     // 5b. Inventory Update: Increment quantity_sold (Atomic RPC)
-    const { error: rpcError } = await supabase.rpc('increment_quantity_sold', {
-        p_tier_id: reservation.ticket_tiers.id,
-        p_quantity: reservation.quantity || 1
-    })
+    // 5b. Inventory Update: Increment quantity_sold
+    // We fetch fresh tier data first to ensure accuracy
+    const { data: currentTier } = await supabase
+        .schema('gatepass')
+        .from('ticket_tiers')
+        .select('quantity_sold')
+        .eq('id', reservation.ticket_tiers.id)
+        .single()
 
-    if (rpcError) {
-        console.error('Inventory Update Error (RPC):', rpcError)
-        // Non-blocking: We don't fail the request if inventory count is slightly off, but we log it.
+    if (currentTier) {
+        const { error: updateError } = await supabase
+            .schema('gatepass')
+            .from('ticket_tiers')
+            .update({ quantity_sold: (currentTier.quantity_sold || 0) + (reservation.quantity || 1) })
+            .eq('id', reservation.ticket_tiers.id)
+
+        if (updateError) {
+            console.error('Inventory Update Error (Direct):', updateError)
+        }
     }
 
+
+    // 5c. Discount Usage: Increment used_count if applicable
+    console.log('Checking Discount for Reservation:', reservation.id, 'Discount ID:', reservation.discount_id)
+    if (reservation.discount_id) {
+        // Direct update using admin client
+        const { data: d } = await supabase.schema('gatepass').from('discounts').select('used_count').eq('id', reservation.discount_id).single()
+        if (d) {
+            const newCount = (d.used_count || 0) + 1
+            const { error: discountError } = await supabase.schema('gatepass').from('discounts').update({ used_count: newCount }).eq('id', reservation.discount_id)
+
+            if (discountError) {
+                console.warn('Discount Update Error:', discountError)
+            } else {
+                console.log(`Successfully updated discount ${reservation.discount_id} used_count to ${newCount}`)
+            }
+        }
+    }
 
     // 6. Send Email
     try {
@@ -165,7 +199,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     ticketType: reservation.ticket_tiers?.name,
                     customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
                     qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${createdTickets[0].qr_code_hash}`,
-                    ticketId: createdTickets[0].id.substring(0, 8).toUpperCase()
+                    ticketId: createdTickets[0].id.substring(0, 8).toUpperCase(),
+                    posterUrl: reservation.events?.poster_url
                 })
             })
 

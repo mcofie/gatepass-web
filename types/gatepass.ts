@@ -46,6 +46,7 @@ export interface TicketTier {
     currency: string
     total_quantity: number
     quantity_sold: number
+    max_per_order?: number
     description?: string
 }
 
@@ -80,6 +81,7 @@ export interface Reservation {
     quantity: number
     status: 'pending' | 'confirmed' | 'cancelled' | 'expired'
     expires_at: string
+    discount_id?: string
     events?: Event
     ticket_tiers?: TicketTier
     profiles?: Profile

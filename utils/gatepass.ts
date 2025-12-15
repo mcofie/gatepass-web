@@ -7,7 +7,8 @@ export const createReservation = async (
     userId: string | null,
     quantity: number,
     supabaseClient?: SupabaseClient,
-    guestDetails?: { email: string, name: string, phone: string }
+    guestDetails?: { email: string, name: string, phone: string },
+    discountId?: string
 ) => {
     const client = supabaseClient || createClient()
 
@@ -32,7 +33,7 @@ export const createReservation = async (
     const { data: tier, error: tierError } = await client
         .schema('gatepass')
         .from('ticket_tiers')
-        .select('total_quantity, quantity_sold')
+        .select('total_quantity, quantity_sold, max_per_order')
         .eq('id', tierId)
         .single()
 
@@ -42,7 +43,12 @@ export const createReservation = async (
         throw new Error('Tickets are sold out for this tier')
     }
 
+    if (tier.max_per_order && quantity > tier.max_per_order) {
+        throw new Error(`You can only purchase up to ${tier.max_per_order} tickets per order`)
+    }
+
     // 1. Create a reservation record
+    console.log('Inserting Reservation with Discount ID:', discountId)
     const { data, error } = await client
         .schema('gatepass')
         .from('reservations')
@@ -54,7 +60,8 @@ export const createReservation = async (
             status: 'pending',
             guest_email: guestDetails?.email,
             guest_name: guestDetails?.name,
-            guest_phone: guestDetails?.phone
+            guest_phone: guestDetails?.phone,
+            discount_id: discountId
         })
         .select()
         .single()

@@ -166,7 +166,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     // ---------------- DISCOUNTS LOGIC ----------------
     const fetchDiscounts = async () => {
         const { data } = await supabase.schema('gatepass').from('discounts').select('*').eq('event_id', event.id).order('created_at', { ascending: false })
-        if (data) setDiscounts(data as Discount[])
+        if (data) {
+            console.log('Fetched Discounts:', data)
+            setDiscounts(data as Discount[])
+        }
     }
 
     const addDiscount = async (e: React.FormEvent) => {
@@ -178,7 +181,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 code: discountForm.code.toUpperCase(),
                 type: discountForm.type,
                 value: discountForm.value,
-                max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null
+                max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
+                used_count: 0
             })
             if (error) throw error
 
@@ -280,7 +284,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     // On Tab Change
     React.useEffect(() => {
-        if (activeTab === 'discounts' && !discounts.length) {
+        if (activeTab === 'discounts') {
             fetchDiscounts()
         }
     }, [activeTab])
@@ -1084,7 +1088,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         <p className="text-sm font-medium text-gray-500">
                                             {discount.type === 'percentage' ? `${discount.value}% OFF` : `-$${discount.value}`}
                                             <span className="mx-2 text-gray-300">|</span>
-                                            Used: {discount.used_count} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
+                                            Used: {discount.used_count || 0} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
                                         </p>
                                     </div>
                                 </div>

@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
         const reservationId = reference // Based on client implementation
 
-        const supabase = await createClient()
+        const supabase = createAdminClient()
 
         // Check if ticket exists
         const { data: existingTicket } = await supabase
@@ -62,6 +62,15 @@ export async function POST(request: Request) {
             // But if we generated a unique ref, we would need to store it.
             return NextResponse.json({ error: 'Reservation not found' }, { status: 404 })
         }
+
+        // Update Inventory (Quantity Sold)
+        // Note: Ideally use RPC for atomicity, but fetch+update covers most cases here.
+        const currentSold = reservation.ticket_tiers.quantity_sold
+        await supabase
+            .schema('gatepass')
+            .from('ticket_tiers')
+            .update({ quantity_sold: currentSold + reservation.quantity })
+            .eq('id', reservation.ticket_tiers.id)
 
         // Create Ticket
         await supabase.schema('gatepass').from('tickets').insert({

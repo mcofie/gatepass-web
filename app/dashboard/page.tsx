@@ -105,7 +105,7 @@ export default async function DashboardPage() {
                                         <div className="text-right">
                                             <p className="text-[15px] font-bold text-black tabular-nums">{formatCurrency(sale.ticket_tiers?.price || 0, sale.ticket_tiers?.currency)}</p>
                                             <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
-                                                {new Date(sale.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                {new Date(sale.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                             </p>
                                         </div>
                                     </div>
