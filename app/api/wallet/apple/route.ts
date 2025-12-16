@@ -118,7 +118,8 @@ export async function GET(req: Request) {
         return new NextResponse(buffer as any, {
             headers: {
                 'Content-Type': 'application/vnd.apple.pkpass',
-                'Content-Disposition': `attachment; filename="${event.title.replace(/[^a-z0-9]/gi, '_')}.pkpass"`
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Content-Disposition': `inline; filename="${event.title.replace(/[^a-z0-9]/gi, '_')}.pkpass"`
             }
         })
 
