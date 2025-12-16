@@ -39,22 +39,37 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Incomplete event data' }, { status: 500 })
         }
 
-        // 2. Load Certificates
+        // 2. Load Certificates (Priority: File System (Dev) -> Supabase Storage (Prod))
+        let signerCert: Buffer, signerKey: Buffer, wwdr: Buffer;
+
         const certPath = path.resolve(process.cwd(), 'certs')
+        const hasLocalCerts = fs.existsSync(path.join(certPath, 'signerCert.pem'))
 
-        try {
-            if (!fs.existsSync(path.join(certPath, 'signerCert.pem'))) {
-                throw new Error('Certificates missing')
+        if (hasLocalCerts) {
+            console.log('Loading Apple Wallet certificates from Local Filesystem')
+            signerCert = fs.readFileSync(path.join(certPath, 'signerCert.pem'))
+            signerKey = fs.readFileSync(path.join(certPath, 'signerKey.pem'))
+            wwdr = fs.readFileSync(path.join(certPath, 'wwdr.pem'))
+        } else {
+            console.log('Loading Apple Wallet certificates from Supabase Storage (certificates bucket)')
+            // Fetch from Supabase Storage
+            const [certData, keyData, wwdrData] = await Promise.all([
+                supabase.storage.from('certificates').download('signerCert.pem'),
+                supabase.storage.from('certificates').download('signerKey.pem'),
+                supabase.storage.from('certificates').download('wwdr.pem')
+            ])
+
+            if (certData.error || keyData.error || wwdrData.error) {
+                console.error('Storage Download Error:', certData.error || keyData.error || wwdrData.error)
+                return NextResponse.json({
+                    error: 'Server Misconfiguration: Missing Certificates. Please upload .pem files to "certificates" bucket in Supabase OR add to /certs locally.'
+                }, { status: 501 })
             }
-        } catch (e) {
-            return NextResponse.json({
-                error: 'Server Misconfiguration: Missing Apple Developer Certificates. Please add signerCert.pem, signerKey.pem, and wwdr.pem to /certs.'
-            }, { status: 501 })
-        }
 
-        const signerCert = fs.readFileSync(path.join(certPath, 'signerCert.pem'))
-        const signerKey = fs.readFileSync(path.join(certPath, 'signerKey.pem'))
-        const wwdr = fs.readFileSync(path.join(certPath, 'wwdr.pem'))
+            signerCert = Buffer.from(await certData.data.arrayBuffer())
+            signerKey = Buffer.from(await keyData.data.arrayBuffer())
+            wwdr = Buffer.from(await wwdrData.data.arrayBuffer())
+        }
 
         // 3. Create Pass (Requires Certificates)
         const pass = new PKPass({}, {
