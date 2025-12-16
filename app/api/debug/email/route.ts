@@ -22,7 +22,8 @@ export async function GET(request: Request) {
             ticketType: 'VIP Debugger',
             customerName: 'Debug User',
             qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=DEBUG',
-            ticketId: 'e8471b69-8260-449e-8c34-3102146312a8'
+            ticketId: 'e8471b69-8260-449e-8c34-3102146312a8',
+            posterUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=1000'
         }))
 
         // Also send it

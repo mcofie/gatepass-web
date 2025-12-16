@@ -100,9 +100,13 @@ export const TicketEmail = ({
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
-                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                            <Text className="text-gray-300 font-bold text-xl uppercase tracking-widest">Event Poster</Text>
-                                        </div>
+                                        <Img
+                                            src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=1000"
+                                            width="100%"
+                                            height="100%"
+                                            alt="Default Event"
+                                            className="w-full h-full object-cover grayscale opacity-50 block"
+                                        />
                                     )}
                                 </Section>
 
