@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { EventDetailClient } from '@/components/EventDetailClient'
 import { EventBackground } from '@/components/EventBackground'
+import { LandingHeader } from '@/components/LandingHeader'
 import React from 'react'
 import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
@@ -92,14 +93,7 @@ export default async function EventPage({ params }: PageProps) {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
             {/* Navigation & Brand */}
-            <div className="absolute top-0 left-0 right-0 p-8 flex justify-between items-center z-10 pointer-events-none">
-                <div className="flex items-center gap-4 pointer-events-auto">
-                    {/* Platform Name */}
-                    <a href="/" className="text-white font-bold text-lg hover:opacity-80 transition-opacity">
-                        GatePass
-                    </a>
-                </div>
-            </div>
+            <LandingHeader />
 
 
             {/* Social Links (Bottom Left) */}

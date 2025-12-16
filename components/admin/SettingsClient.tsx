@@ -53,7 +53,7 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                 .from('public')
                 .getPublicUrl(filePath)
 
-            setOrganizer(prev => ({ ...prev, logo_url: publicUrl }))
+            setOrganizer((prev: any) => ({ ...prev, logo_url: publicUrl }))
             toast.success('Logo uploaded!')
         } catch (error: any) {
             toast.error('Error uploading logo: ' + error.message)
