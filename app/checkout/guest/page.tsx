@@ -44,48 +44,23 @@ function GuestCheckoutContent() {
         e.preventDefault()
         setLoading(true)
         try {
-            // Attempt to create a user for the guest
-            const { data, error } = await supabase.auth.signUp({
-                email: guestDetails.email,
-                password: `GuestPass_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-                options: {
-                    data: {
-                        full_name: `${guestDetails.firstName} ${guestDetails.lastName}`,
-                        phone_number: guestDetails.phone
-                    }
-                }
-            })
-
-            if (error) throw error
-
-            if (data.user) {
-                // Ensure profile is updated
-                await supabase.schema('gatepass').from('profiles').upsert({
-                    id: data.user.id,
-                    full_name: `${guestDetails.firstName} ${guestDetails.lastName}`,
-                    phone_number: guestDetails.phone,
+            // Direct Guest Reservation (No Signup)
+            if (eventId && tierId) {
+                const reservation = await createReservation(eventId, tierId, null, quantity, supabase, {
                     email: guestDetails.email,
-                    updated_at: new Date().toISOString()
+                    name: `${guestDetails.firstName} ${guestDetails.lastName}`.trim(),
+                    phone: guestDetails.phone
                 })
 
-                // Create Reservation
-                if (eventId && tierId) {
-                    const reservation = await createReservation(eventId, tierId, data.user.id, quantity, supabase)
-                    if (reservation && reservation.id) {
-                        router.push(`/checkout/${reservation.id}`)
-                    } else {
-                        throw new Error('Failed to create reservation.')
-                    }
+                if (reservation && reservation.id) {
+                    router.push(`/checkout/${reservation.id}`)
+                } else {
+                    throw new Error('Failed to create reservation.')
                 }
             }
         } catch (error: unknown) {
             const e = error as Error
-            if (e.message?.includes('already registered')) {
-                alert('An account with this email already exists. Please log in first.')
-                router.push(`/login?redirect=/events/${eventId}`)
-            } else {
-                alert('Error processing guest checkout: ' + e.message)
-            }
+            alert('Error processing guest checkout: ' + e.message)
         } finally {
             setLoading(false)
         }

@@ -28,6 +28,7 @@ export default async function DashboardPage() {
                 created_at,
                 status,
                 profiles ( full_name, email ),
+                reservations ( guest_name, guest_email ),
                 ticket_tiers ( name, price, currency, events ( title ) )
             `)
             .order('created_at', { ascending: false })
@@ -91,11 +92,11 @@ export default async function DashboardPage() {
                                     <div key={sale.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 transition-colors group">
                                         <div className="flex items-center gap-5">
                                             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm shadow-inner">
-                                                {sale.profiles?.full_name?.charAt(0) || 'G'}
+                                                {sale.profiles?.full_name?.charAt(0) || sale.reservations?.guest_name?.charAt(0) || 'G'}
                                             </div>
                                             <div>
                                                 <p className="text-[15px] font-semibold text-gray-900 group-hover:text-black transition-colors">
-                                                    {sale.profiles?.full_name || 'Guest User'}
+                                                    {sale.profiles?.full_name || sale.reservations?.guest_name || 'Guest User'}
                                                 </p>
                                                 <p className="text-[13px] text-gray-500">
                                                     purchased <span className="font-medium text-gray-700">{sale.ticket_tiers?.name}</span> • {sale.ticket_tiers?.events?.title}

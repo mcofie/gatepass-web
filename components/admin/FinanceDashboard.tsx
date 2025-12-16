@@ -41,6 +41,9 @@ export function FinanceDashboard() {
     const fetchTransactions = async () => {
         setLoading(true)
         try {
+            // Get current user for filtering
+            const { data: { user } } = await supabase.auth.getUser()
+
             // Base query
             let query = supabase
                 .schema('gatepass')
@@ -54,13 +57,19 @@ export function FinanceDashboard() {
                     reservation_id,
                     reservations!inner (
                         event_id,
-                        events (
-                            title
+                        events!inner (
+                            title,
+                            organizer_id
                         )
                     )
                 `)
                 .eq('status', 'success')
                 .order('paid_at', { ascending: false })
+
+            if (user) {
+                // Explicitly filter by organizer's events
+                query = query.eq('reservations.events.organizer_id', user.id)
+            }
 
             // Apply Period Filter
             if (period === '30days') {

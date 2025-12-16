@@ -56,7 +56,6 @@ export const TicketEmail = ({
 
     return (
         <Html>
-            <Head />
             <Preview>{previewText}</Preview>
             <Tailwind
                 config={{
@@ -78,6 +77,7 @@ export const TicketEmail = ({
                     },
                 }}
             >
+                <Head />
                 <Body className="bg-white my-auto mx-auto font-sans antialiased text-black">
                     <Container className="my-[40px] mx-auto p-0 max-w-[420px]">
 

@@ -288,12 +288,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
             navigate('summary', 'forward')
 
         } catch (error: any) {
-            if (error.message?.includes('already registered')) {
-                toast.info('An account with this email already exists. Please log in.')
-                router.push(`/login?redirect=/events/${event.id}`)
-            } else {
-                toast.error(error.message || 'An unexpected error occurred')
-            }
+            console.error('Reservation Error:', error)
+            toast.error(error.message || 'An unexpected error occurred')
         } finally {
             setLoading(false)
         }

@@ -50,6 +50,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     // Payouts State
     const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0 })
+    const [transactions, setTransactions] = useState<any[]>([])
     const [loadingPayouts, setLoadingPayouts] = useState(false)
 
     // Tier Form
@@ -277,8 +278,9 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             .from('tickets')
             .select(`
                 id, status, order_reference, created_at,
-                ticket_tiers ( name ),
-                profiles!inner ( full_name, id )
+                ticket_tiers ( name, price, currency ),
+                reservations ( guest_name, guest_email ),
+                profiles ( full_name, id )
             `, { count: 'exact' })
             .eq('event_id', event.id)
             .order('created_at', { ascending: false })
@@ -297,19 +299,35 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         setLoadingTickets(false)
     }
 
+
+
+    // ... (rest of code)
+
+    // Updated Payouts Logic
     const fetchPayouts = async () => {
         setLoadingPayouts(true)
         try {
             const { data, error } = await supabase
                 .schema('gatepass')
                 .from('transactions')
-                .select(`amount, reservations!inner(event_id)`)
+                .select(`
+                    *,
+                    reservations!inner (
+                        event_id,
+                        guest_name,
+                        guest_email,
+                        profiles ( full_name, email )
+                    )
+                `)
                 .eq('status', 'success')
                 .eq('reservations.event_id', event.id)
+                .order('created_at', { ascending: false })
 
             if (error) throw error
 
-            const total = data.reduce((acc, tx) => acc + tx.amount, 0)
+            setTransactions(data || [])
+
+            const total = data.reduce((acc, tx) => acc + (tx.amount || 0), 0)
             const fee = total * 0.04 // 4% Platform Fee
 
             setPayoutStats({
@@ -466,6 +484,64 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Transaction History Table */}
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden">
+                        <div className="px-8 py-6 border-b border-gray-100">
+                            <h3 className="font-bold text-xl text-gray-900">Transaction History</h3>
+                        </div>
+                        {transactions.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
+                                        <tr>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Date</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Payer</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Amount</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {transactions.map((tx: any) => (
+                                            <tr key={tx.id} className="hover:bg-gray-50/80 transition-colors">
+                                                <td className="px-8 py-4 text-gray-500">
+                                                    {new Date(tx.paid_at || tx.created_at).toLocaleDateString()}
+                                                    <div className="text-xs text-gray-400">
+                                                        {new Date(tx.paid_at || tx.created_at).toLocaleTimeString()}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-4">
+                                                    <div className="font-bold text-gray-900">
+                                                        {tx.reservations?.profiles?.full_name || tx.reservations?.guest_name || 'Guest User'}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        {tx.reservations?.profiles?.email || tx.reservations?.guest_email || 'No email'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-4 font-mono text-xs text-gray-500">
+                                                    {tx.reference}
+                                                </td>
+                                                <td className="px-8 py-4 font-bold text-gray-900">
+                                                    {formatCurrency(tx.amount, tx.currency)}
+                                                </td>
+                                                <td className="px-8 py-4">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${tx.status === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600'
+                                                        }`}>
+                                                        {tx.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="p-12 text-center text-gray-500">
+                                No transactions found yet.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -1073,11 +1149,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             <td className="px-8 py-5">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 border border-white shadow-sm ring-1 ring-gray-100">
-                                                        {ticket.profiles?.full_name?.charAt(0) || 'G'}
+                                                        {ticket.profiles?.full_name?.charAt(0) || ticket.reservations?.guest_name?.charAt(0) || 'G'}
                                                     </div>
                                                     <div>
-                                                        <div className="font-bold text-gray-900 group-hover:text-black transition-colors">{ticket.profiles?.full_name || 'Guest User'}</div>
-                                                        <div className="text-xs text-gray-400 font-mono tracking-tight">{ticket.profiles?.id.slice(0, 8)}...</div>
+                                                        <div className="font-bold text-gray-900 group-hover:text-black transition-colors">
+                                                            {ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400 font-mono tracking-tight">
+                                                            {ticket.profiles?.id ? ticket.profiles.id.slice(0, 8) + '...' : (ticket.reservations?.guest_email || 'No Email')}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
