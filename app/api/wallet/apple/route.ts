@@ -72,7 +72,15 @@ export async function GET(req: Request) {
         }
 
         // 3. Create Pass (Requires Certificates)
-        const pass = new PKPass({}, {
+        const pass = new PKPass({
+            description: 'GatePass Event Ticket',
+            organizationName: 'GatePass',
+            passTypeIdentifier: 'pass.so.gatepass',
+            teamIdentifier: 'TEAM123456',
+            backgroundColor: 'rgb(0, 0, 0)',
+            labelColor: 'rgb(255, 255, 255)',
+            foregroundColor: 'rgb(255, 255, 255)'
+        } as any, {
             signerCert,
             signerKey,
             wwdr
