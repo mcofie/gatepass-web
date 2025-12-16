@@ -67,6 +67,7 @@ export interface Ticket {
     events?: Event
     profiles?: Profile
     reservations?: Reservation
+    checked_in_by?: string | null
 }
 
 export interface Profile {
@@ -104,4 +105,17 @@ export interface Discount {
     used_count: number
     expires_at?: string
     tier_id?: string | null
+}
+
+export interface EventStaff {
+    id: string
+    created_at: string
+    event_id: string
+    name: string
+    email: string
+    access_code: string
+    role: string
+    last_active_at?: string
+    // Extended properties
+    check_in_count?: number
 }

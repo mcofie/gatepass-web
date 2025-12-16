@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download } from 'lucide-react'
-import { Event, TicketTier, Discount } from '@/types/gatepass'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail } from 'lucide-react'
+import { Event, TicketTier, Discount, EventStaff } from '@/types/gatepass'
+import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
@@ -27,7 +28,7 @@ interface EventManageClientProps {
 
 export function EventManageClient({ event: initialEvent, initialTiers }: EventManageClientProps) {
     const [event, setEvent] = useState(initialEvent)
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts'>('tickets')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team'>('tickets')
     const [loading, setLoading] = useState(false)
 
     // Tickets State
@@ -58,6 +59,11 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: []
     })
     const [creatingTier, setCreatingTier] = useState(false)
+
+    // Staff State
+    const [staff, setStaff] = useState<EventStaff[]>([])
+    const [staffForm, setStaffForm] = useState({ name: '', email: '' })
+    const [creatingStaff, setCreatingStaff] = useState(false)
 
     // Tier Editing State
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
@@ -363,11 +369,58 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 organizerNet: totalNetParams,
                 transactionCount: data.length
             })
-        } catch (e) {
+        }
+
+        catch (e) {
             console.error('Payout Fetch Error:', e)
             toast.error('Failed to load payout data')
         } finally {
             setLoadingPayouts(false)
+        }
+    }
+
+    // ---------------- STAFF LOGIC ----------------
+    const fetchStaff = async () => {
+        const data = await fetchEventStaff(event.id)
+        setStaff(data as EventStaff[])
+    }
+
+    const handleAddStaff = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!staffForm.name || !staffForm.email) {
+            toast.error('Please fill in all fields')
+            return
+        }
+
+        setCreatingStaff(true)
+        try {
+            const result = await createEventStaff(event.id, staffForm.name, staffForm.email)
+            if (result.success) {
+                if (result.warning) {
+                    toast.warning(result.warning)
+                } else {
+                    toast.success('Staff invited & access code sent!')
+                }
+                setStaffForm({ name: '', email: '' })
+                await fetchStaff()
+            } else {
+                toast.error(result.error || 'Failed to add staff')
+            }
+        } catch (e: any) {
+            toast.error('Error: ' + e.message)
+        } finally {
+            setCreatingStaff(false)
+        }
+    }
+
+    const handleDeleteStaff = async (id: string) => {
+        if (!confirm('Revoke access for this staff member?')) return
+        const result = await deleteEventStaff(id)
+        if (result.success) {
+            toast.success('Access revoked')
+            await fetchStaff()
+        } else {
+            toast.error(result.error || 'Failed to delete')
         }
     }
 
@@ -427,6 +480,12 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             : "text-gray-500 hover:text-black hover:bg-gray-200/50"
     )
 
+    React.useEffect(() => {
+        if (activeTab === 'team') {
+            fetchStaff()
+        }
+    }, [activeTab])
+
     return (
         <div className="container mx-auto p-6 max-w-5xl font-sans">
             {/* Header */}
@@ -462,6 +521,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
                     <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
                     <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
+                    <button onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
                     <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
                 </div>
             </div>
@@ -569,6 +629,136 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 No transactions found yet.
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* TEAM TAB */}
+            {activeTab === 'team' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {/* Invite Form */}
+                        <div className="md:col-span-1 border border-gray-100 rounded-3xl p-6 bg-white shadow-sm h-fit">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-blue-50 rounded-xl">
+                                    <Mail className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <h3 className="font-bold text-lg text-gray-900">Invite Staff</h3>
+                            </div>
+                            <form onSubmit={handleAddStaff} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Staff Name</label>
+                                    <input
+                                        value={staffForm.name}
+                                        onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all"
+                                        placeholder="e.g. John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={staffForm.email}
+                                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all"
+                                        placeholder="john@example.com"
+                                    />
+                                </div>
+                                <button
+                                    disabled={creatingStaff}
+                                    className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {creatingStaff ? (
+                                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Plus className="w-4 h-4" /> Send Access Code
+                                        </>
+                                    )}
+                                </button>
+                                <p className="text-xs text-center text-gray-400 mt-2">
+                                    They will receive an email with a unique code to log in to the Check-in App.
+                                </p>
+                            </form>
+                        </div>
+
+                        {/* Staff List */}
+                        <div className="md:col-span-2">
+                            <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden">
+                                <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+                                    <h3 className="font-bold text-xl text-gray-900">Active Staff</h3>
+                                    <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600">
+                                        {staff.length} Members
+                                    </span>
+                                </div>
+                                {staff.length > 0 ? (
+                                    <div className="divide-y divide-gray-50">
+                                        {staff
+                                            .sort((a, b) => (b.check_in_count || 0) - (a.check_in_count || 0))
+                                            .map((member) => (
+                                                <div key={member.id} className="p-6 hover:bg-gray-50 transition-colors flex items-center justify-between group">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative">
+                                                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm">
+                                                                {member.name.charAt(0)}
+                                                            </div>
+                                                            {(member.check_in_count || 0) > 0 && (
+                                                                <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
+                                                                    {member.check_in_count}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                                                                {member.name}
+                                                                {(member.check_in_count || 0) > 0 && (
+                                                                    <span className="bg-green-50 text-green-700 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide font-bold">
+                                                                        {member.check_in_count} Scans
+                                                                    </span>
+                                                                )}
+                                                            </h4>
+                                                            <p className="text-sm text-gray-500">{member.email}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-6">
+                                                        <div className="text-right">
+                                                            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-0.5">Access Code</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <code className="bg-black/5 px-2 py-1 rounded text-sm font-bold text-black font-mono tracking-wider">
+                                                                    {member.access_code}
+                                                                </code>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(member.access_code)
+                                                                        toast.success('Code copied')
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-black transition-colors"
+                                                                >
+                                                                    <Copy className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleDeleteStaff(member.id)}
+                                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                            title="Revoke Access"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-12 text-center text-gray-500">
+                                        <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                        <p className="font-medium">No staff members yet.</p>
+                                        <p className="text-sm mt-1">Invite your team to help with check-ins.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { TicketEmail } from '@/emails/TicketEmail'
+import { StaffAccessEmail } from '@/emails/StaffAccessEmail'
 
 interface SendTicketEmailProps {
     to: string
@@ -32,6 +33,36 @@ export const sendTicketEmail = async (props: SendTicketEmailProps) => {
         to: props.to,
         subject: `Your Ticket for ${props.eventName}`,
         react: TicketEmail(props),
+    })
+
+    if (error) {
+        throw new Error(`Resend Error: ${error.message}`)
+    }
+
+    return { messageId: data?.id }
+}
+
+interface SendStaffAccessEmailProps {
+    to: string
+    eventName: string
+    staffName: string
+    accessCode: string
+}
+
+export const sendStaffAccessEmail = async (props: SendStaffAccessEmailProps) => {
+    const resendApiKey = process.env.RESEND_API_KEY
+
+    if (!resendApiKey) {
+        throw new Error('RESEND_API_KEY is missing.')
+    }
+
+    const resend = new Resend(resendApiKey)
+
+    const { data, error } = await resend.emails.send({
+        from: 'GatePass Team <notifications@updates.gatepass.so>',
+        to: props.to,
+        subject: `Staff Access Code for ${props.eventName}`,
+        react: StaffAccessEmail(props),
     })
 
     if (error) {
