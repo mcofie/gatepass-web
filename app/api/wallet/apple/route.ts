@@ -100,7 +100,7 @@ export async function GET(req: Request) {
         const buffer = pass.getAsBuffer()
 
         // 5. Return Stream
-        return new NextResponse(buffer, {
+        return new NextResponse(buffer as any, {
             headers: {
                 'Content-Type': 'application/vnd.apple.pkpass',
                 'Content-Disposition': `attachment; filename="${event.title.replace(/[^a-z0-9]/gi, '_')}.pkpass"`
