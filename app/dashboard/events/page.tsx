@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Plus, MoreHorizontal, Calendar, MapPin } from 'lucide-react'
 import { Event } from '@/types/gatepass'
 import { DeleteEventButton } from '@/components/admin/DeleteEventButton'
@@ -44,7 +45,7 @@ export default async function AdminEventsPage() {
                                 <div className="flex items-start gap-6">
                                     <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-xs overflow-hidden border border-gray-200">
                                         {event.poster_url ? (
-                                            <img src={event.poster_url} alt="" className="w-full h-full object-cover" />
+                                            <Image src={event.poster_url} alt="" fill className="object-cover" />
                                         ) : (
                                             <Calendar className="w-6 h-6" />
                                         )}
@@ -68,8 +69,8 @@ export default async function AdminEventsPage() {
                                 {/* Status & Actions */}
                                 <div className="flex items-center gap-6 pl-22 sm:pl-0">
                                     <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${event.is_published
-                                            ? 'bg-green-50 text-green-600 border border-green-100'
-                                            : 'bg-yellow-50 text-yellow-600 border border-yellow-100'
+                                        ? 'bg-green-50 text-green-600 border border-green-100'
+                                        : 'bg-yellow-50 text-yellow-600 border border-yellow-100'
                                         }`}>
                                         {event.is_published ? 'Live' : 'Draft'}
                                     </div>

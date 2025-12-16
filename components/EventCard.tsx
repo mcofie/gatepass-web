@@ -1,8 +1,10 @@
 'use client'
 
 import React from 'react'
+import Image from 'next/image'
 import { Event } from '@/types/gatepass'
 import { MapPin } from 'lucide-react'
+
 
 interface EventCardProps {
     event: Event
@@ -28,9 +30,11 @@ export function EventCard({ event }: EventCardProps) {
         <div className="group h-full flex flex-col bg-white dark:bg-zinc-900/50 rounded-3xl overflow-hidden border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1 transition-all duration-500">
             {/* Image Container */}
             <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-zinc-800">
-                <img
+                <Image
                     src={event.poster_url || 'https://placehold.co/800x600'}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                     alt="Event Poster"
                 />
 

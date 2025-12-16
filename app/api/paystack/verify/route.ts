@@ -43,8 +43,9 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, tickets: result.tickets })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Verification Handler Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        const errorMessage = error instanceof Error ? error.message : 'Unknown payment verification error'
+        return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 }

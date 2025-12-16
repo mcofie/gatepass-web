@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import Script from 'next/script'
 import { useRouter, useSearchParams } from 'next/navigation'
 // Dynamic imports for heavy libraries
@@ -512,9 +513,9 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
     <div className="animate-fade-in flex flex-col h-full">
         <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700">
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700 relative">
                     {event.organizers?.logo_url ? (
-                        <img src={event.organizers.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                        <Image src={event.organizers.logo_url} alt="Logo" fill className="object-cover" />
                     ) : (
                         <span className="text-[10px]">{event.organizers?.name?.substring(0, 2).toUpperCase() || 'GP'}</span>
                     )}
@@ -1320,7 +1321,7 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false, isP
             {!isPrint && (
                 <div className="w-full relative bg-[#f3f4f6] h-32">
                     {event.poster_url ? (
-                        <img src={event.poster_url} className="w-full h-full object-cover" alt="Event Poster" />
+                        <Image src={event.poster_url} fill className="object-cover" alt="Event Poster" />
                     ) : (
                         <div className="w-full h-full bg-[#111827] flex items-center justify-center">
                             <span className="text-[#ffffff] font-bold tracking-widest uppercase opacity-20">GatePass</span>
@@ -1409,10 +1410,13 @@ const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false, isP
                         {/* QR Code Area */}
                         <div className="flex flex-col items-center justify-center pt-2 pb-2">
                             <div className={`bg-white border-2 border-[#111827] rounded-xl shadow-sm ${isPrint ? 'p-2' : 'p-3'}`}>
-                                <img
+                                <Image
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
                                     alt="QR Code"
+                                    width={128}
+                                    height={128}
                                     className={`${isPrint ? 'w-24 h-24' : 'w-32 h-32'} object-contain mix-blend-multiply`}
+                                    unoptimized // QR code API often dynamic/external
                                 />
                             </div>
                             <p className="text-center text-[10px] font-mono text-[#9ca3af] mt-3 tracking-widest uppercase">Scan at entry</p>

@@ -72,6 +72,7 @@ export async function GET(req: Request) {
         }
 
         // 3. Create Pass (Requires Certificates)
+        // Note: Casting to any because 'passkit-generator' types might not fully cover all fields or custom fields
         const pass = new PKPass({
             description: 'GatePass Event Ticket',
             organizationName: 'GatePass',
@@ -80,7 +81,7 @@ export async function GET(req: Request) {
             backgroundColor: 'rgb(0, 0, 0)',
             labelColor: 'rgb(255, 255, 255)',
             foregroundColor: 'rgb(255, 255, 255)'
-        } as any, {
+        } as unknown as { [key: string]: any }, {
             signerCert,
             signerKey,
             wwdr
@@ -123,7 +124,8 @@ export async function GET(req: Request) {
         const buffer = pass.getAsBuffer()
 
         // 5. Return Stream
-        return new NextResponse(buffer as any, {
+        return new NextResponse(buffer as unknown as BodyInit, {
+            status: 200,
             headers: {
                 'Content-Type': 'application/vnd.apple.pkpass',
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -131,8 +133,9 @@ export async function GET(req: Request) {
             }
         })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Wallet Generation Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+        return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 }

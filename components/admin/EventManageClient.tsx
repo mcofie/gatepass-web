@@ -10,9 +10,14 @@ import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
-import { DateTimePicker } from '@/components/common/DateTimePicker'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
+import dynamic from 'next/dynamic'
 import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
+
+const DateTimePicker = dynamic(() => import('@/components/common/DateTimePicker').then(mod => mod.DateTimePicker), { ssr: false })
+const AnalyticsCharts = dynamic(() => import('@/components/admin/AnalyticsCharts'), {
+    loading: () => <div className="h-[300px] w-full bg-gray-50/50 rounded-3xl animate-pulse" />,
+    ssr: false
+})
 
 
 interface EventManageClientProps {
@@ -511,46 +516,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
                     {/* 2. Charts Row */}
                     {analyticsTickets.length > 0 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-[300px]">
-                                <h3 className="font-bold text-gray-900 mb-4">Sales Volume</h3>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={aggregateSalesOverTime(analyticsTickets)}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                                        <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-                                        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                            cursor={{ stroke: '#f3f4f6', strokeWidth: 2 }}
-                                        />
-                                        <Line type="monotone" dataKey="count" stroke="#000000" strokeWidth={3} dot={{ r: 4, fill: '#000000' }} activeDot={{ r: 6 }} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-[300px]">
-                                <h3 className="font-bold text-gray-900 mb-4">Ticket Type Distribution</h3>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={aggregateTicketTypes(analyticsTickets)}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {aggregateTicketTypes(analyticsTickets).map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={['#000000', '#666666', '#999999', '#CCCCCC'][index % 4]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
+                        <AnalyticsCharts tickets={analyticsTickets} />
                     )}
 
                     <form onSubmit={updateEvent} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
