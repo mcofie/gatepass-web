@@ -181,7 +181,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 ticketType: reservation.ticket_tiers?.name,
                 customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
                 qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketsToProcess[0].qr_code_hash}`,
-                ticketId: ticketsToProcess[0].id.substring(0, 8).toUpperCase(),
+                ticketId: ticketsToProcess[0].id,
                 posterUrl: reservation.events?.poster_url
             })
 

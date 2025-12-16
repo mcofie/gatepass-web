@@ -58,6 +58,17 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
 
 export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDetailClientProps) {
     const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
+
+    // Track View Count
+    useEffect(() => {
+        if (!isFeedItem) {
+            const supabase = createClient()
+            supabase.schema('gatepass').rpc('increment_event_view', { event_id: event.id })
+                .then(({ error }) => {
+                    if (error) console.error('Error incrementing view count:', error)
+                })
+        }
+    }, [event.id, isFeedItem])
     const [direction, setDirection] = useState<'forward' | 'back'>('forward')
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)

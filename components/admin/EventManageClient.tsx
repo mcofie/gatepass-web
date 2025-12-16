@@ -4,13 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2 } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye } from 'lucide-react'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
 import { DateTimePicker } from '@/components/common/DateTimePicker'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
+import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
+import { Download } from 'lucide-react'
 
 interface EventManageClientProps {
     event: Event
@@ -36,8 +39,9 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
-    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage', value: 0, max_uses: 0 })
+    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0 })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
+    const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
 
     // Payouts State
     const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0 })
@@ -184,28 +188,58 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         }
     }
 
-    const addDiscount = async (e: React.FormEvent) => {
+    const handleSaveDiscount = async (e: React.FormEvent) => {
         e.preventDefault()
         setCreatingDiscount(true)
         try {
-            const { error } = await supabase.schema('gatepass').from('discounts').insert({
-                event_id: event.id,
-                code: discountForm.code.toUpperCase(),
-                type: discountForm.type,
-                value: discountForm.value,
-                max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
-                used_count: 0
-            })
-            if (error) throw error
+            if (editingDiscountId) {
+                const { error } = await supabase.schema('gatepass').from('discounts').update({
+                    code: discountForm.code.toUpperCase(),
+                    type: discountForm.type,
+                    value: discountForm.value,
+                    max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
+                }).eq('id', editingDiscountId)
+
+                if (error) throw error
+                toast.success('Discount updated!')
+                setEditingDiscountId(null)
+            } else {
+                const { error } = await supabase.schema('gatepass').from('discounts').insert({
+                    event_id: event.id,
+                    code: discountForm.code.toUpperCase(),
+                    type: discountForm.type,
+                    value: discountForm.value,
+                    max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
+                    used_count: 0
+                })
+
+                if (error) throw error
+                toast.success('Discount code created!')
+            }
 
             await fetchDiscounts()
             setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0 })
-            toast.success('Discount code created!')
         } catch (e: any) {
             toast.error(e.message)
         } finally {
             setCreatingDiscount(false)
         }
+    }
+
+    const startEditingDiscount = (discount: Discount) => {
+        setEditingDiscountId(discount.id)
+        setDiscountForm({
+            code: discount.code,
+            type: discount.type,
+            value: discount.value,
+            max_uses: discount.max_uses || 0
+        })
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    const cancelEditingDiscount = () => {
+        setEditingDiscountId(null)
+        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0 })
     }
 
     const deleteDiscount = async (id: string) => {
@@ -278,11 +312,31 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         }
     }
 
+    // Analytics State
+    const [analyticsTickets, setAnalyticsTickets] = useState<any[]>([])
+
+    const fetchAllTickets = async () => {
+        const { data } = await supabase
+            .schema('gatepass')
+            .from('tickets')
+            .select('created_at, ticket_tiers(name)')
+            .eq('event_id', event.id)
+            .order('created_at', { ascending: true })
+
+        if (data) setAnalyticsTickets(data)
+    }
+
+    useEffect(() => {
+        if (activeTab === 'details') {
+            fetchAllTickets()
+        }
+    }, [activeTab])
+
     useEffect(() => {
         if (activeTab === 'attendees') {
             fetchTickets(ticketPage)
         }
-    }, [activeTab, ticketPage, searchQuery]) // Re-fetch on search
+    }, [activeTab, ticketPage, searchQuery])
 
     const updateTicketStatus = async (ticketId: string, status: string) => {
         if (!confirm(`Mark as ${status}?`)) return
@@ -407,7 +461,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
                     {/* 1. Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center">
                                 <DollarSign className="w-6 h-6" />
@@ -427,6 +481,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                             </div>
                         </div>
                         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                                <Eye className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-500">Total Views</p>
+                                <p className="text-2xl font-black text-gray-900">{event.view_count?.toLocaleString() || 0}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center">
                                 <BarChart3 className="w-6 h-6" />
                             </div>
@@ -436,6 +499,50 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                             </div>
                         </div>
                     </div>
+
+                    {/* 2. Charts Row */}
+                    {analyticsTickets.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-[300px]">
+                                <h3 className="font-bold text-gray-900 mb-4">Sales Volume</h3>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={aggregateSalesOverTime(analyticsTickets)}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                                        <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                                        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                            cursor={{ stroke: '#f3f4f6', strokeWidth: 2 }}
+                                        />
+                                        <Line type="monotone" dataKey="count" stroke="#000000" strokeWidth={3} dot={{ r: 4, fill: '#000000' }} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-[300px]">
+                                <h3 className="font-bold text-gray-900 mb-4">Ticket Type Distribution</h3>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={aggregateTicketTypes(analyticsTickets)}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {aggregateTicketTypes(analyticsTickets).map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={['#000000', '#666666', '#999999', '#CCCCCC'][index % 4]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
 
                     <form onSubmit={updateEvent} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                         {/* LEFT COLUMN (8 cols) */}
@@ -945,6 +1052,16 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 />
                             </div>
                             <button
+                                onClick={() => {
+                                    const csv = generateCSV(tickets)
+                                    downloadCSV(csv, `${event.slug}-guests.csv`)
+                                }}
+                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-all"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export
+                            </button>
+                            <button
                                 onClick={() => setIsCheckInMode(!isCheckInMode)}
                                 className={clsx("flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all border", {
                                     'bg-green-500 text-white border-green-600 shadow-md shadow-green-500/20': isCheckInMode,
@@ -1075,8 +1192,18 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             {activeTab === 'discounts' && (
                 <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
-                        <h3 className="font-bold text-xl mb-6">Create Discount Code</h3>
-                        <form onSubmit={addDiscount} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-xl">{editingDiscountId ? 'Edit Discount Code' : 'Create Discount Code'}</h3>
+                            {editingDiscountId && (
+                                <button
+                                    onClick={cancelEditingDiscount}
+                                    className="text-sm font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                                >
+                                    Cancel Edit
+                                </button>
+                            )}
+                        </div>
+                        <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                             <div className="md:col-span-1">
                                 <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Code</label>
                                 <input
@@ -1130,7 +1257,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     disabled={creatingDiscount}
                                     className="bg-black text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 disabled:opacity-50 shadow-lg shadow-black/20 hover:-translate-y-0.5 transition-all"
                                 >
-                                    {creatingDiscount ? 'Creating...' : 'Create Discount'}
+                                    {creatingDiscount ? 'Saving...' : (editingDiscountId ? 'Update Discount' : 'Create Discount')}
                                 </button>
                             </div>
                         </form>
@@ -1152,12 +1279,20 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         </p>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => deleteDiscount(discount.id)}
-                                    className="text-gray-400 hover:text-red-600 font-bold text-sm px-4 py-2 rounded-lg hover:bg-red-50 transition-colors"
-                                >
-                                    Delete
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => startEditingDiscount(discount)}
+                                        className="text-gray-400 hover:text-black font-bold text-sm px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => deleteDiscount(discount.id)}
+                                        className="text-gray-400 hover:text-red-600 font-bold text-sm px-4 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
                         ))}
                         {discounts.length === 0 && (

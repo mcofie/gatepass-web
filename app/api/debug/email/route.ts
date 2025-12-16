@@ -40,7 +40,14 @@ export async function GET(request: Request) {
             ticketId: 'DBG-1234'
         })
 
-        return NextResponse.json({ success: true, messageId: info.messageId, htmlPreview: emailHtml.substring(0, 500) + '...' })
+        return NextResponse.json({
+            success: true,
+            messageId: info.messageId,
+            to,
+            from: 'GatePass <notifications@updates.gatepass.so>',
+            checkSpam: 'Please check your Spam and Promotions folders.',
+            htmlPreview: emailHtml.substring(0, 500) + '...'
+        })
 
     } catch (error: any) {
         return NextResponse.json({

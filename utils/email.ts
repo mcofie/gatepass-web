@@ -23,7 +23,7 @@ export const sendTicketEmail = async (props: SendTicketEmailProps) => {
     const resend = new Resend(resendApiKey)
 
     const { data, error } = await resend.emails.send({
-        from: 'GatePass <onboarding@resend.dev>',
+        from: 'GatePass <notifications@updates.gatepass.so>',
         to: props.to,
         subject: `Your Ticket for ${props.eventName}`,
         react: TicketEmail(props),

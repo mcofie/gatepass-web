@@ -23,6 +23,7 @@ export interface Event {
     platform_fee_percent: number
     organizers?: Organizer
     is_featured?: boolean
+    view_count?: number
 }
 
 export interface Organizer {
