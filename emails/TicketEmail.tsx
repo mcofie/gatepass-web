@@ -86,99 +86,87 @@ export const TicketEmail = ({
                             <Text className="text-2xl font-black tracking-tighter m-0">GATEPASS</Text>
                         </Section>
 
-                        {ticketList.map((ticket, index) => (
-                            <Section key={ticket.id} className="mb-8 border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
-
-                                {/* Poster Image (Only for first ticket if multiple? Or all? Let's do all for full ticket feel) */}
-                                <Section className="bg-gray-50 h-[240px] relative">
-                                    {posterUrl ? (
-                                        <Img
-                                            src={posterUrl}
-                                            width="100%"
-                                            height="100%"
-                                            alt={eventName}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <Img
-                                            src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=1000"
-                                            width="100%"
-                                            height="100%"
-                                            alt="Default Event"
-                                            className="w-full h-full object-cover grayscale opacity-50 block"
-                                        />
-                                    )}
-                                </Section>
-
-                                <Section className="p-8">
-                                    {/* Event Title */}
-                                    <Heading className="text-2xl font-black text-gray-900 leading-tight mb-2 text-center">
-                                        {eventName}
-                                    </Heading>
-                                    <Text className="text-sm text-gray-500 text-center m-0 mb-8 font-medium">
-                                        Admit One • {customerName}
-                                    </Text>
-
-                                    {/* Info Grid */}
-                                    <Section className="bg-gray-50 rounded-2xl p-6 mb-8">
-                                        <Row className="mb-4">
-                                            <Column align="left">
-                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">DATE</Text>
-                                                <Text className="text-sm font-bold text-gray-900 m-0">{eventDate}</Text>
-                                            </Column>
-                                            <Column align="right">
-                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">TIER</Text>
-                                                <Text className="text-sm font-bold text-gray-900 m-0">{ticket.type}</Text>
-                                            </Column>
-                                        </Row>
-                                        <Row>
-                                            <Column align="left">
-                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">VENUE</Text>
-                                                <Link href={mapUrl} className="text-sm font-bold text-gray-900 m-0 underline decoration-gray-300 underline-offset-2">
-                                                    {venueName}
-                                                </Link>
-                                            </Column>
-                                        </Row>
-                                    </Section>
-
-                                    {/* QR Code */}
-                                    <Section className="text-center mb-6">
-                                        <div className="bg-white p-2 border-2 border-dashed border-gray-200 rounded-xl inline-block">
-                                            <Img
-                                                src={ticket.qrCodeUrl}
-                                                width="160"
-                                                height="160"
-                                                alt="QR Code"
-                                                className="rounded-lg"
-                                            />
-                                        </div>
-                                        <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
-                                            {ticket.id.substring(0, 8).toUpperCase()}
-                                        </Text>
-                                    </Section>
-
-                                    {/* CTAs */}
-                                    <Button
-                                        href={`https://gatepass.so/ticket/${ticket.id}`}
-                                        className="bg-black text-white px-6 py-4 rounded-xl text-sm font-bold no-underline block w-full text-center"
-                                    >
-                                        Access Ticket
-                                    </Button>
-                                </Section>
+                        {/* Header Image (Only if poster exists) */}
+                        {posterUrl && (
+                            <Section className="bg-gray-100 relative">
+                                <Img
+                                    src={posterUrl}
+                                    width="100%"
+                                    alt={eventName}
+                                    className="w-full object-cover rounded-t-3xl"
+                                />
                             </Section>
+                        )}
+
+                        <Section className="p-8 bg-white border border-gray-200 rounded-b-3xl" style={{ borderTop: posterUrl ? 'none' : '1px solid #e5e7eb', borderRadius: posterUrl ? '0 0 24px 24px' : '24px' }}>
+                            {/* Event Title */}
+                            <Heading className="text-2xl font-black text-gray-900 leading-tight mb-2 text-center">
+                                {eventName}
+                            </Heading>
+                            <Text className="text-sm text-gray-500 text-center m-0 mb-8 font-medium">
+                                Admit One • {customerName}
+                            </Text>
+
+                            {/* Info Grid */}
+                            <Section className="bg-gray-50 rounded-2xl p-6 mb-8 border border-gray-100">
+                                <Row className="mb-4">
+                                    <Column align="left">
+                                        <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">DATE</Text>
+                                        <Text className="text-sm font-bold text-gray-900 m-0">{eventDate}</Text>
+                                    </Column>
+                                    <Column align="right">
+                                        <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">TIER</Text>
+                                        <Text className="text-sm font-bold text-gray-900 m-0">{ticket.type}</Text>
+                                    </Column>
+                                </Row>
+                                <Row>
+                                    <Column align="left">
+                                        <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">VENUE</Text>
+                                        <Link href={mapUrl} className="text-sm font-bold text-gray-900 m-0 underline decoration-gray-300 underline-offset-2">
+                                            {venueName}
+                                        </Link>
+                                    </Column>
+                                </Row>
+                            </Section>
+
+                            {/* QR Code */}
+                            <Section className="text-center mb-8">
+                                <div className="bg-white p-3 border-2 border-dashed border-gray-200 rounded-2xl inline-block">
+                                    <Img
+                                        src={ticket.qrCodeUrl}
+                                        width="160"
+                                        height="160"
+                                        alt="QR Code"
+                                        className="rounded-lg mix-blend-multiply"
+                                    />
+                                </div>
+                                <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
+                                    {ticket.id.substring(0, 8).toUpperCase()}
+                                </Text>
+                            </Section>
+
+                            {/* CTAs */}
+                            <Button
+                                href={`https://gatepass.so/ticket/${ticket.id}`}
+                                className="bg-black text-white px-8 py-4 rounded-xl text-base font-bold no-underline block w-full text-center shadow-lg shadow-black/20 hover:bg-gray-900 transition-all"
+                            >
+                                Access Ticket
+                            </Button>
+                        </Section>
+                    </Section>
                         ))}
 
-                        {/* Footer */}
-                        <Section className="mt-8 text-center">
-                            <Text className="text-xs text-gray-400 m-0">
-                                © 2025 GatePass. All rights reserved.
-                            </Text>
-                        </Section>
+                    {/* Footer */}
+                    <Section className="mt-8 text-center">
+                        <Text className="text-xs text-gray-400 m-0">
+                            © 2025 GatePass. All rights reserved.
+                        </Text>
+                    </Section>
 
-                    </Container>
-                </Body>
-            </Tailwind>
-        </Html>
+                </Container>
+            </Body>
+        </Tailwind>
+        </Html >
     );
 };
 

@@ -148,16 +148,27 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         // 5c. Discount Usage: Increment used_count if applicable
         console.log('Checking Discount for Reservation:', reservation.id, 'Discount ID:', reservation.discount_id)
         if (reservation.discount_id) {
-            // Direct update using admin client
-            const { data: d } = await supabase.schema('gatepass').from('discounts').select('used_count').eq('id', reservation.discount_id).single()
-            if (d) {
-                const newCount = (d.used_count || 0) + 1
-                const { error: discountError } = await supabase.schema('gatepass').from('discounts').update({ used_count: newCount }).eq('id', reservation.discount_id)
+            // Try Atomic RPC First
+            const { data: rpcData, error: rpcError } = await supabase.rpc('increment_discount_usage', {
+                p_discount_id: reservation.discount_id
+            })
 
-                if (discountError) {
-                    console.warn('Discount Update Error:', discountError)
-                } else {
-                    console.log(`Successfully updated discount ${reservation.discount_id} used_count to ${newCount}`)
+            if (!rpcError && rpcData?.success) {
+                console.log(`Successfully incremented discount ${reservation.discount_id} usage (Atomic)`)
+            } else {
+                if (rpcError) console.warn('Atomic Discount Update Failed (RPC missing?):', rpcError.message)
+
+                // Fallback: Read-Modify-Write
+                const { data: d } = await supabase.schema('gatepass').from('discounts').select('used_count').eq('id', reservation.discount_id).single()
+                if (d) {
+                    const newCount = (d.used_count || 0) + 1
+                    const { error: discountError } = await supabase.schema('gatepass').from('discounts').update({ used_count: newCount }).eq('id', reservation.discount_id)
+
+                    if (discountError) {
+                        console.warn('Discount Update Error (Fallback):', discountError)
+                    } else {
+                        console.log(`Successfully updated discount ${reservation.discount_id} used_count to ${newCount} (Fallback)`)
+                    }
                 }
             }
         }

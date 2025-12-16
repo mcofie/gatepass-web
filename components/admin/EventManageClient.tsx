@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download } from 'lucide-react'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -13,7 +13,7 @@ import { calculateFees } from '@/utils/fees'
 import { DateTimePicker } from '@/components/common/DateTimePicker'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
-import { Download } from 'lucide-react'
+
 
 interface EventManageClientProps {
     event: Event
@@ -58,6 +58,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [editForm, setEditForm] = useState<{ name: string, price: number, total_quantity: number, description: string, perks: string[] }>({
         name: '', price: 0, total_quantity: 0, description: '', perks: []
     })
+
+    const [copiedId, setCopiedId] = useState<string | null>(null)
+
+    const copyCode = (code: string, id: string) => {
+        navigator.clipboard.writeText(code)
+        setCopiedId(id)
+        toast.success('Code copied!')
+        setTimeout(() => setCopiedId(null), 2000)
+    }
 
     const supabase = createClient()
     const router = useRouter()
@@ -1271,7 +1280,16 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         %
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-lg tracking-tight mb-1">{discount.code}</h4>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h4 className="font-bold text-lg tracking-tight">{discount.code}</h4>
+                                            <button
+                                                onClick={() => copyCode(discount.code, discount.id)}
+                                                className="text-gray-400 hover:text-black transition-colors p-1"
+                                                title="Copy Code"
+                                            >
+                                                {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                            </button>
+                                        </div>
                                         <p className="text-sm font-medium text-gray-500">
                                             {discount.type === 'percentage' ? `${discount.value}% OFF` : `-$${discount.value}`}
                                             <span className="mx-2 text-gray-300">|</span>
