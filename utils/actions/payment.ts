@@ -180,9 +180,16 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 venueName: reservation.events?.venue_name,
                 ticketType: reservation.ticket_tiers?.name,
                 customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
+                // Keep legacy single props for safety/fallback
                 qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketsToProcess[0].qr_code_hash}`,
                 ticketId: ticketsToProcess[0].id,
-                posterUrl: reservation.events?.poster_url
+                posterUrl: reservation.events?.poster_url,
+                // Pass consolidated tickets list
+                tickets: ticketsToProcess.map((t: any) => ({
+                    id: t.id,
+                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
+                    type: reservation.ticket_tiers?.name || 'Ticket'
+                }))
             })
 
             console.log('Email successfully sent. Message ID:', emailInfo.messageId)

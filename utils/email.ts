@@ -8,9 +8,14 @@ interface SendTicketEmailProps {
     venueName: string
     ticketType: string
     customerName: string
-    qrCodeUrl: string
-    ticketId: string
+    qrCodeUrl?: string
+    ticketId?: string
     posterUrl?: string
+    tickets?: {
+        id: string
+        qrCodeUrl: string
+        type: string
+    }[]
 }
 
 export const sendTicketEmail = async (props: SendTicketEmailProps) => {
