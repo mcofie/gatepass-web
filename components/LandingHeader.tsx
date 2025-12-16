@@ -1,28 +1,23 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Info, X } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 
 export function LandingHeader() {
     const [isOpen, setIsOpen] = useState(false)
-
-    // Close popup when clicking outside could be handled by a backdrop or just clicking the toggle again.
-    // For simplicity and "mobile feel", maybe a backdrop? 
-    // User request: "pop up with animation when it is clicked or tabbed", implied toggle.
-    // We'll stick to simple toggle for now.
 
     return (
         <>
             <div className="absolute top-0 left-0 right-0 p-6 md:p-8 z-50 pointer-events-none flex flex-col items-start">
                 {/* Header Row - Blends with video */}
-                <div className="flex items-center gap-3 pointer-events-auto mix-blend-difference text-white">
+                <div className="flex items-center gap-0.5 pointer-events-auto mix-blend-difference text-white">
                     <div className="text-xl font-bold tracking-tighter cursor-pointer">GatePass.</div>
                     <button
                         onClick={() => setIsOpen(!isOpen)}
-                        className="group flex items-center justify-center w-8 h-8 rounded-full border border-white/30 backdrop-blur-sm hover:bg-white/20 transition-all"
+                        className="group flex items-center justify-center w-6 h-6 hover:opacity-70 transition-opacity"
                         aria-label={isOpen ? "Close info" : "Show info"}
                     >
-                        {isOpen ? <X size={16} /> : <Info size={16} />}
+                        {isOpen ? <X size={16} /> : <ChevronDown size={20} strokeWidth={2.5} />}
                     </button>
                 </div>
 
