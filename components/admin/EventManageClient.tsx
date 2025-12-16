@@ -54,15 +54,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [loadingPayouts, setLoadingPayouts] = useState(false)
 
     // Tier Form
-    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, description: string, perks: string[] }>({
-        name: '', price: 0, total_quantity: 100, description: '', perks: []
+    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[] }>({
+        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: []
     })
     const [creatingTier, setCreatingTier] = useState(false)
 
     // Tier Editing State
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
-    const [editForm, setEditForm] = useState<{ name: string, price: number, total_quantity: number, description: string, perks: string[] }>({
-        name: '', price: 0, total_quantity: 0, description: '', perks: []
+    const [editForm, setEditForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[] }>({
+        name: '', price: 0, total_quantity: 0, max_per_order: 10, description: '', perks: []
     })
 
     const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -139,7 +139,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             if (error) throw error
 
             await fetchTiers()
-            setTierForm({ name: '', price: 0, total_quantity: 100, description: '', perks: [] })
+            setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [] })
             toast.success('Ticket tier added')
         } catch (e: any) {
             toast.error(e.message)
@@ -164,6 +164,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             name: tier.name,
             price: tier.price,
             total_quantity: tier.total_quantity,
+            max_per_order: tier.max_per_order || 10,
             description: tier.description || '',
             perks: tier.perks || []
         })
@@ -171,7 +172,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     const cancelEditing = () => {
         setEditingTierId(null)
-        setEditForm({ name: '', price: 0, total_quantity: 0, description: '', perks: [] })
+        setEditForm({ name: '', price: 0, total_quantity: 0, max_per_order: 10, description: '', perks: [] })
     }
 
     const saveTier = async (id: string) => {
@@ -180,6 +181,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 name: editForm.name,
                 price: editForm.price,
                 total_quantity: editForm.total_quantity,
+                max_per_order: editForm.max_per_order,
                 description: editForm.description,
                 perks: editForm.perks
             }).eq('id', id)
@@ -918,6 +920,16 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                                     className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
                                                 />
                                             </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Max Per Order</label>
+                                            <input
+                                                type="number"
+                                                value={editForm.max_per_order || ''}
+                                                onChange={e => setEditForm({ ...editForm, max_per_order: Number(e.target.value) })}
+                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
+                                                placeholder="10"
+                                            />
                                         </div>
                                         <div>
                                             <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Description</label>

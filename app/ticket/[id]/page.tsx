@@ -164,13 +164,14 @@ export default async function PublicTicketPage({ params }: Props) {
 
                         <div className="rounded-2xl p-4 flex items-center gap-4 border border-dashed" style={{ backgroundColor: '#f9fafb', borderColor: '#e5e7eb' }}>
                             <div className="p-1.5 rounded-lg shadow-sm border flex-shrink-0" style={{ backgroundColor: '#ffffff', borderColor: '#f3f4f6' }}>
-                                <Image
+                                {/* Use standard img for better html2canvas compatibility */}
+                                <img
                                     src={qrUrl}
                                     alt="Ticket QR"
                                     width={64}
                                     height={64}
                                     className="object-contain"
-                                    unoptimized
+                                    crossOrigin="anonymous"
                                 />
                             </div>
                             <div className="flex-1 min-w-0">

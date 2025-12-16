@@ -46,9 +46,9 @@ export const PublicTicketActions = ({ ticketId, eventTitle }: WrapperProps) => {
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
             pdf.save(`ticket-${eventTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`)
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('PDF Generation Error:', error)
-            alert('Could not generate PDF. Please try again.')
+            alert(`Could not generate PDF: ${error.message || 'Unknown error'}. Please try again or take a screenshot.`)
         }
     }
 

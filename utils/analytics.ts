@@ -41,8 +41,8 @@ export function generateCSV(tickets: any[]) {
 
     const rows = tickets.map(t => [
         t.order_reference || 'N/A',
-        t.profiles?.full_name || 'Guest',
-        t.profiles?.email || 'N/A', // Assuming profile join fetches email? If not, might need update.
+        t.profiles?.full_name || t.reservations?.guest_name || 'Guest',
+        t.profiles?.email || t.reservations?.guest_email || 'N/A',
         t.ticket_tiers?.name || 'General',
         t.status,
         new Date(t.created_at).toLocaleDateString(),
