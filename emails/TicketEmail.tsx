@@ -40,7 +40,7 @@ export const TicketEmail = ({
 }: TicketEmailProps) => {
     const previewText = `Your ticket for ${eventName}`;
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName)}`;
-    const dashboardUrl = `https://updates.gatepass.so/ticket/${ticketId}`; // Public Ticket Page
+    const dashboardUrl = `https://gatepass.so/ticket/${ticketId}`; // Public Ticket Page
 
     return (
         <Html>

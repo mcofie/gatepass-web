@@ -22,7 +22,7 @@ export async function GET(request: Request) {
             ticketType: 'VIP Debugger',
             customerName: 'Debug User',
             qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=DEBUG',
-            ticketId: 'DBG-1234'
+            ticketId: 'e8471b69-8260-449e-8c34-3102146312a8'
         }))
 
         // Also send it
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
             ticketType: 'VIP Debugger',
             customerName: 'Debug User',
             qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=DEBUG',
-            ticketId: 'DBG-1234'
+            ticketId: 'e8471b69-8260-449e-8c34-3102146312a8'
         })
 
         return NextResponse.json({

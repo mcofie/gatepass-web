@@ -627,9 +627,15 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
             </div>
         </div>
 
-        <button onClick={onGetTickets} className={`w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-all active:scale-[0.98] ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
-            Get Tickets
-        </button>
+        {isFeedItem ? (
+            <Link href={`/events/${event.slug || event.id}`} className={`w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-all active:scale-[0.98] flex items-center justify-center ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                Get Tickets
+            </Link>
+        ) : (
+            <button onClick={onGetTickets} className={`w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-all active:scale-[0.98] ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                Get Tickets
+            </button>
+        )}
         <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
             <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
         </div>
