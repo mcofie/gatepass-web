@@ -83,7 +83,7 @@ export default async function EventPage({ params }: PageProps) {
         .order('price', { ascending: true })
 
     return (
-        <div className="h-screen w-full bg-black relative overflow-hidden">
+        <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
             {/* Full Screen Background */}
             <EventBackground
                 videoUrl={event.video_url}

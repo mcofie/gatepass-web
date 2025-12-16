@@ -29,7 +29,7 @@ export default async function Home() {
   }))
 
   return (
-    <main className="h-screen w-full bg-black overflow-hidden relative">
+    <main className="h-[100dvh] w-full bg-black overflow-hidden relative">
       {/* Global Header/Nav Overlay if needed? 
               EventFeed items have their own header/branding feeling if consistent with Detail page.
               But maybe we want a global "GatePass" overlay that stays putt?

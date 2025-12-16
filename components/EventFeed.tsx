@@ -44,13 +44,13 @@ export const EventFeed = ({ events }: EventFeedProps) => {
     return (
         <div
             ref={containerRef}
-            className="h-screen w-full overflow-y-scroll snap-y snap-mandatory bg-black no-scrollbar"
+            className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory bg-black no-scrollbar"
         >
             {events.map((event, index) => (
                 <div
                     key={event.id}
                     data-index={index}
-                    className="event-feed-item h-screen w-full snap-start relative"
+                    className="event-feed-item h-[100dvh] w-full snap-start relative"
                 >
                     <EventFeedItem
                         event={event}

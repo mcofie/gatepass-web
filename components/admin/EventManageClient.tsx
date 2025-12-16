@@ -19,6 +19,9 @@ const AnalyticsCharts = dynamic(() => import('@/components/admin/AnalyticsCharts
     loading: () => <div className="h-[300px] w-full bg-gray-50/50 rounded-3xl animate-pulse" />,
     ssr: false
 })
+import { StaffTab } from '@/components/admin/tabs/StaffTab'
+import { AttendeesTab } from '@/components/admin/tabs/AttendeesTab'
+import { TicketsTab } from '@/components/admin/tabs/TicketsTab'
 
 
 interface EventManageClientProps {
@@ -34,14 +37,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     // Tickets State
     const [tiers, setTiers] = useState<TicketTier[]>(initialTiers) // Kept initialTiers from props
 
-    // Attendees State
-    const [tickets, setTickets] = useState<any[]>([])
-    const [loadingTickets, setLoadingTickets] = useState(false)
-    const [ticketPage, setTicketPage] = useState(0)
-    const [ticketCount, setTicketCount] = useState(0)
-    const [searchQuery, setSearchQuery] = useState('')
-    const [isCheckInMode, setIsCheckInMode] = useState(false)
-    const TICKETS_PER_PAGE = 20
+
+
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
@@ -54,22 +51,6 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
     const [transactions, setTransactions] = useState<any[]>([])
     const [loadingPayouts, setLoadingPayouts] = useState(false)
 
-    // Tier Form
-    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[] }>({
-        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: []
-    })
-    const [creatingTier, setCreatingTier] = useState(false)
-
-    // Staff State
-    const [staff, setStaff] = useState<EventStaff[]>([])
-    const [staffForm, setStaffForm] = useState({ name: '', email: '' })
-    const [creatingStaff, setCreatingStaff] = useState(false)
-
-    // Tier Editing State
-    const [editingTierId, setEditingTierId] = useState<string | null>(null)
-    const [editForm, setEditForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[] }>({
-        name: '', price: 0, total_quantity: 0, max_per_order: 10, description: '', perks: []
-    })
 
     const [copiedId, setCopiedId] = useState<string | null>(null)
 
@@ -125,80 +106,6 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             toast.error('Error: ' + e.message)
         } finally {
             setLoading(false)
-        }
-    }
-
-    // ---------------- TICKETS / TIERS LOGIC ----------------
-    const fetchTiers = async () => {
-        const { data } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', event.id).order('price')
-        if (data) setTiers(data as TicketTier[])
-    }
-
-    const addTier = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setCreatingTier(true)
-        try {
-            const { error } = await supabase.schema('gatepass').from('ticket_tiers').insert({
-                event_id: event.id,
-                ...tierForm
-            })
-            if (error) throw error
-
-            await fetchTiers()
-            setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [] })
-            toast.success('Ticket tier added')
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setCreatingTier(false)
-        }
-    }
-
-    const deleteTier = async (id: string) => {
-        if (!confirm('Are you sure?')) return
-        const { error } = await supabase.schema('gatepass').from('ticket_tiers').delete().eq('id', id)
-        if (error) toast.error(error.message)
-        else {
-            await fetchTiers()
-            toast.success('Tier deleted')
-        }
-    }
-
-    const startEditing = (tier: TicketTier) => {
-        setEditingTierId(tier.id)
-        setEditForm({
-            name: tier.name,
-            price: tier.price,
-            total_quantity: tier.total_quantity,
-            max_per_order: tier.max_per_order || 10,
-            description: tier.description || '',
-            perks: tier.perks || []
-        })
-    }
-
-    const cancelEditing = () => {
-        setEditingTierId(null)
-        setEditForm({ name: '', price: 0, total_quantity: 0, max_per_order: 10, description: '', perks: [] })
-    }
-
-    const saveTier = async (id: string) => {
-        try {
-            const { error } = await supabase.schema('gatepass').from('ticket_tiers').update({
-                name: editForm.name,
-                price: editForm.price,
-                total_quantity: editForm.total_quantity,
-                max_per_order: editForm.max_per_order,
-                description: editForm.description,
-                perks: editForm.perks
-            }).eq('id', id)
-
-            if (error) throw error
-
-            await fetchTiers()
-            cancelEditing()
-            toast.success('Tier updated')
-        } catch (e: any) {
-            toast.error('Error updating tier: ' + e.message)
         }
     }
 
@@ -279,37 +186,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         }
     }
 
-    // ---------------- ATTENDEES LOGIC ----------------
-    const fetchTickets = async (page = 0) => {
-        setLoadingTickets(true)
-        const from = page * TICKETS_PER_PAGE
-        const to = from + TICKETS_PER_PAGE - 1
 
-        let query = supabase
-            .schema('gatepass')
-            .from('tickets')
-            .select(`
-                id, status, order_reference, created_at,
-                ticket_tiers ( name, price, currency ),
-                reservations ( guest_name, guest_email ),
-                profiles ( full_name, id )
-            `, { count: 'exact' })
-            .eq('event_id', event.id)
-            .order('created_at', { ascending: false })
-            .range(from, to)
-
-        if (searchQuery) {
-            query = query.ilike('profiles.full_name', `%${searchQuery}%`)
-        }
-
-        const { data, count } = await query
-
-        if (data) {
-            setTickets(data)
-            setTicketCount(count || 0)
-        }
-        setLoadingTickets(false)
-    }
 
 
 
@@ -379,51 +256,6 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         }
     }
 
-    // ---------------- STAFF LOGIC ----------------
-    const fetchStaff = async () => {
-        const data = await fetchEventStaff(event.id)
-        setStaff(data as EventStaff[])
-    }
-
-    const handleAddStaff = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!staffForm.name || !staffForm.email) {
-            toast.error('Please fill in all fields')
-            return
-        }
-
-        setCreatingStaff(true)
-        try {
-            const result = await createEventStaff(event.id, staffForm.name, staffForm.email)
-            if (result.success) {
-                if (result.warning) {
-                    toast.warning(result.warning)
-                } else {
-                    toast.success('Staff invited & access code sent!')
-                }
-                setStaffForm({ name: '', email: '' })
-                await fetchStaff()
-            } else {
-                toast.error(result.error || 'Failed to add staff')
-            }
-        } catch (e: any) {
-            toast.error('Error: ' + e.message)
-        } finally {
-            setCreatingStaff(false)
-        }
-    }
-
-    const handleDeleteStaff = async (id: string) => {
-        if (!confirm('Revoke access for this staff member?')) return
-        const result = await deleteEventStaff(id)
-        if (result.success) {
-            toast.success('Access revoked')
-            await fetchStaff()
-        } else {
-            toast.error(result.error || 'Failed to delete')
-        }
-    }
-
     // Analytics State
     const [analyticsTickets, setAnalyticsTickets] = useState<any[]>([])
 
@@ -444,21 +276,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         }
     }, [activeTab])
 
-    useEffect(() => {
-        if (activeTab === 'attendees') {
-            fetchTickets(ticketPage)
-        }
-    }, [activeTab, ticketPage, searchQuery])
 
-    const updateTicketStatus = async (ticketId: string, status: string) => {
-        if (!confirm(`Mark as ${status}?`)) return
-        const { error } = await supabase.schema('gatepass').from('tickets').update({ status }).eq('id', ticketId)
-        if (error) toast.error(error.message)
-        else {
-            await fetchTickets(ticketPage)
-            toast.success(`Ticket marked as ${status}`)
-        }
-    }
 
     // On Tab Change
     React.useEffect(() => {
@@ -480,11 +298,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             : "text-gray-500 hover:text-black hover:bg-gray-200/50"
     )
 
-    React.useEffect(() => {
-        if (activeTab === 'team') {
-            fetchStaff()
-        }
-    }, [activeTab])
+
 
     return (
         <div className="container mx-auto p-6 max-w-5xl font-sans">
@@ -633,135 +447,6 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 </div>
             )}
 
-            {/* TEAM TAB */}
-            {activeTab === 'team' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {/* Invite Form */}
-                        <div className="md:col-span-1 border border-gray-100 rounded-3xl p-6 bg-white shadow-sm h-fit">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 bg-blue-50 rounded-xl">
-                                    <Mail className="w-5 h-5 text-blue-600" />
-                                </div>
-                                <h3 className="font-bold text-lg text-gray-900">Invite Staff</h3>
-                            </div>
-                            <form onSubmit={handleAddStaff} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Staff Name</label>
-                                    <input
-                                        value={staffForm.name}
-                                        onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all"
-                                        placeholder="e.g. John Doe"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
-                                    <input
-                                        type="email"
-                                        value={staffForm.email}
-                                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all"
-                                        placeholder="john@example.com"
-                                    />
-                                </div>
-                                <button
-                                    disabled={creatingStaff}
-                                    className="w-full bg-black text-white py-3 rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    {creatingStaff ? (
-                                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <>
-                                            <Plus className="w-4 h-4" /> Send Access Code
-                                        </>
-                                    )}
-                                </button>
-                                <p className="text-xs text-center text-gray-400 mt-2">
-                                    They will receive an email with a unique code to log in to the Check-in App.
-                                </p>
-                            </form>
-                        </div>
-
-                        {/* Staff List */}
-                        <div className="md:col-span-2">
-                            <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden">
-                                <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
-                                    <h3 className="font-bold text-xl text-gray-900">Active Staff</h3>
-                                    <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-600">
-                                        {staff.length} Members
-                                    </span>
-                                </div>
-                                {staff.length > 0 ? (
-                                    <div className="divide-y divide-gray-50">
-                                        {staff
-                                            .sort((a, b) => (b.check_in_count || 0) - (a.check_in_count || 0))
-                                            .map((member) => (
-                                                <div key={member.id} className="p-6 hover:bg-gray-50 transition-colors flex items-center justify-between group">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="relative">
-                                                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-sm">
-                                                                {member.name.charAt(0)}
-                                                            </div>
-                                                            {(member.check_in_count || 0) > 0 && (
-                                                                <div className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
-                                                                    {member.check_in_count}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                                                                {member.name}
-                                                                {(member.check_in_count || 0) > 0 && (
-                                                                    <span className="bg-green-50 text-green-700 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide font-bold">
-                                                                        {member.check_in_count} Scans
-                                                                    </span>
-                                                                )}
-                                                            </h4>
-                                                            <p className="text-sm text-gray-500">{member.email}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-6">
-                                                        <div className="text-right">
-                                                            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-0.5">Access Code</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <code className="bg-black/5 px-2 py-1 rounded text-sm font-bold text-black font-mono tracking-wider">
-                                                                    {member.access_code}
-                                                                </code>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        navigator.clipboard.writeText(member.access_code)
-                                                                        toast.success('Code copied')
-                                                                    }}
-                                                                    className="text-gray-400 hover:text-black transition-colors"
-                                                                >
-                                                                    <Copy className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => handleDeleteStaff(member.id)}
-                                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                            title="Revoke Access"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                    </div>
-                                ) : (
-                                    <div className="p-12 text-center text-gray-500">
-                                        <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                        <p className="font-medium">No staff members yet.</p>
-                                        <p className="text-sm mt-1">Invite your team to help with check-ins.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* DETAILS TAB */}
             {activeTab === 'details' && (
@@ -1096,379 +781,17 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             )}
 
             {/* TICKETS TAB */}
+            {/* TICKETS TAB */}
             {activeTab === 'tickets' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="grid lg:grid-cols-2 gap-6">
-                        {tiers.map(tier => (
-                            <div key={tier.id} className="relative group bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
-                                {editingTierId === tier.id ? (
-                                    // Editing Mode
-                                    <div className="space-y-5">
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Name</label>
-                                            <input
-                                                value={editForm.name}
-                                                onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
-                                                autoFocus
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Price</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
-                                                    <input
-                                                        type="number"
-                                                        value={editForm.price}
-                                                        onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                                                        className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 pl-8 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Quantity</label>
-                                                <input
-                                                    type="number"
-                                                    value={editForm.total_quantity}
-                                                    onChange={e => setEditForm({ ...editForm, total_quantity: Number(e.target.value) })}
-                                                    className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Max Per Order</label>
-                                            <input
-                                                type="number"
-                                                value={editForm.max_per_order || ''}
-                                                onChange={e => setEditForm({ ...editForm, max_per_order: Number(e.target.value) })}
-                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-bold text-gray-900"
-                                                placeholder="10"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Description</label>
-                                            <textarea
-                                                value={editForm.description}
-                                                onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium resize-none text-sm"
-                                                rows={2}
-                                                placeholder="Short description..."
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">Perks (Comma separated)</label>
-                                            <input
-                                                value={editForm.perks?.join(', ') || ''}
-                                                onChange={e => setEditForm({ ...editForm, perks: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                                                className="w-full bg-gray-50 border-gray-100 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium text-sm"
-                                                placeholder="e.g. VIP Access, Free Drink"
-                                            />
-                                        </div>
-                                        <div className="flex gap-2 justify-end pt-2">
-                                            <button onClick={cancelEditing} className="px-4 py-2 rounded-xl font-bold text-sm text-gray-500 hover:text-black hover:bg-gray-50 transition-colors">Cancel</button>
-                                            <button onClick={() => saveTier(tier.id)} className="px-4 py-2 bg-black text-white rounded-xl font-bold text-sm hover:bg-gray-900 shadow-md hover:shadow-lg transition-all">Save Changes</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    // Viewing Mode
-                                    <div className="flex flex-col h-full justify-between">
-                                        <div>
-                                            <div className="flex justify-between items-start mb-1">
-                                                <h4 className="font-extrabold text-xl text-gray-900 tracking-tight">{tier.name}</h4>
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => startEditing(tier)}
-                                                        className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-lg transition-all"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteTier(tier.id)}
-                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="mb-4">
-                                                <span className="text-3xl font-black text-gray-900">{formatCurrency(tier.price, tier.currency)}</span>
-                                                <span className="text-gray-400 text-sm font-medium ml-1">/ ticket</span>
-                                            </div>
-
-                                            {tier.description && (
-                                                <p className="text-sm text-gray-500 mb-5 leading-relaxed border-l-2 border-gray-100 pl-3">
-                                                    {tier.description}
-                                                </p>
-                                            )}
-
-                                            {/* Perks List */}
-                                            {tier.perks && tier.perks.length > 0 && (
-                                                <div className="mb-6 space-y-2">
-                                                    {tier.perks.map((perk, i) => (
-                                                        <div key={i} className="flex items-center gap-2.5 text-sm text-gray-700 font-medium">
-                                                            <div className="w-5 h-5 rounded-full bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0">
-                                                                <Check className="w-3 h-3" strokeWidth={3} />
-                                                            </div>
-                                                            {perk}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Progress Bar */}
-                                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100/50 mt-auto">
-                                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                                                <span>Sales Progress</span>
-                                                <span>{Math.round((tier.quantity_sold / tier.total_quantity) * 100)}%</span>
-                                            </div>
-                                            <div className="w-full bg-gray-200 rounded-full h-2 mb-3 overflow-hidden">
-                                                <div
-                                                    className={`h-2 rounded-full transition-all duration-1000 ease-out ${(tier.quantity_sold / tier.total_quantity) >= 1 ? 'bg-red-500' : 'bg-black'
-                                                        }`}
-                                                    style={{ width: `${Math.min((tier.quantity_sold / tier.total_quantity) * 100, 100)}%` }}
-                                                ></div>
-                                            </div>
-                                            <div className="flex justify-between items-end">
-                                                <div>
-                                                    <div className="text-lg font-black text-gray-900">{tier.quantity_sold}</div>
-                                                    <div className="text-[10px] uppercase font-bold text-gray-400">Sold</div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-lg font-black text-gray-400">{tier.total_quantity}</div>
-                                                    <div className="text-[10px] uppercase font-bold text-gray-400">Total Capacity</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-
-                        {/* Add New Tier Card */}
-                        <div className="bg-gray-50/50 p-6 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col justify-center hover:border-gray-300 transition-colors">
-                            <h3 className="font-bold text-xl mb-6 text-center text-gray-900">Add New Ticket Tier</h3>
-                            <form onSubmit={addTier} className="space-y-4">
-                                <div>
-                                    <input
-                                        value={tierForm.name}
-                                        onChange={e => setTierForm({ ...tierForm, name: e.target.value })}
-                                        required
-                                        placeholder="Ticket Name (e.g. VIP)"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-bold text-gray-900"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input
-                                        type="number"
-                                        value={tierForm.price}
-                                        onChange={e => setTierForm({ ...tierForm, price: Number(e.target.value) })}
-                                        required
-                                        placeholder="Price"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-bold text-gray-900"
-                                    />
-                                    <input
-                                        type="number"
-                                        value={tierForm.total_quantity}
-                                        onChange={e => setTierForm({ ...tierForm, total_quantity: Number(e.target.value) })}
-                                        required
-                                        placeholder="Quantity"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-bold text-gray-900"
-                                    />
-                                </div>
-                                <div>
-                                    <textarea
-                                        value={tierForm.description || ''}
-                                        onChange={e => setTierForm({ ...tierForm, description: e.target.value })}
-                                        placeholder="Description (optional)"
-                                        rows={2}
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium resize-none text-sm"
-                                    />
-                                </div>
-                                <div>
-                                    <input
-                                        value={tierForm.perks?.join(', ') || ''}
-                                        onChange={e => setTierForm({ ...tierForm, perks: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                                        placeholder="Perks (comma separated, e.g. Free Drink)"
-                                        className="w-full bg-white border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium text-sm"
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    className="w-full bg-black text-white py-3.5 rounded-xl font-bold shadow-lg shadow-black/10 hover:shadow-black/20 hover:-translate-y-0.5 transition-all disabled:opacity-50"
-                                    disabled={creatingTier}
-                                >
-                                    {creatingTier ? 'Adding...' : 'Add Tier'}
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                <TicketsTab event={event} tiers={tiers} onTiersUpdate={setTiers} />
             )}
 
             {/* ATTENDEES TAB */}
-            {activeTab === 'attendees' && (
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
-                        <h3 className="font-bold text-xl text-gray-900">Guest List</h3>
-                        <div className="flex gap-2">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search details..."
-                                    value={searchQuery}
-                                    onChange={(e) => {
-                                        setSearchQuery(e.target.value)
-                                        setTicketPage(0) // Reset page on search
-                                    }}
-                                    className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                />
-                            </div>
-                            <button
-                                onClick={() => {
-                                    const csv = generateCSV(tickets)
-                                    downloadCSV(csv, `${event.slug}-guests.csv`)
-                                }}
-                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-all"
-                            >
-                                <Download className="w-4 h-4" />
-                                Export
-                            </button>
-                            <button
-                                onClick={() => setIsCheckInMode(!isCheckInMode)}
-                                className={clsx("flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all border", {
-                                    'bg-green-500 text-white border-green-600 shadow-md shadow-green-500/20': isCheckInMode,
-                                    'bg-white text-gray-700 border-gray-200 hover:bg-gray-50': !isCheckInMode
-                                })}
-                            >
-                                <ScanLine className="w-4 h-4" />
-                                {isCheckInMode ? 'Check-in Mode' : 'Check-in'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {loadingTickets ? (
-                        <div className="p-12 text-center text-gray-500 animate-pulse">Loading guest list...</div>
-                    ) : tickets.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
-                                    <tr>
-                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
-                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Guest</th>
-                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Ticket</th>
-                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
-                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Net Payout</th>
-                                        <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {tickets.map((ticket: any) => (
-                                        <tr key={ticket.id} className={clsx("hover:bg-gray-50/80 transition-colors group", {
-                                            'opacity-40 grayscale': isCheckInMode && ticket.status !== 'valid'
-                                        })}>
-                                            <td className="px-8 py-5 font-mono text-xs text-gray-500">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
-                                            <td className="px-8 py-5">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 border border-white shadow-sm ring-1 ring-gray-100">
-                                                        {ticket.profiles?.full_name?.charAt(0) || ticket.reservations?.guest_name?.charAt(0) || 'G'}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-gray-900 group-hover:text-black transition-colors">
-                                                            {ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
-                                                        </div>
-                                                        <div className="text-xs text-gray-400 font-mono tracking-tight">
-                                                            {ticket.profiles?.id ? ticket.profiles.id.slice(0, 8) + '...' : (ticket.reservations?.guest_email || 'No Email')}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100">
-                                                    {ticket.ticket_tiers?.name}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className="font-mono text-xs font-bold text-gray-700">
-                                                    {formatCurrency(
-                                                        calculateFees(ticket.ticket_tiers?.price || 0, event.fee_bearer as 'customer' | 'organizer').organizerPayout,
-                                                        ticket.ticket_tiers?.currency
-                                                    )}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className={clsx("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border", {
-                                                    'bg-green-50 text-green-700 border-green-200/50': ticket.status === 'valid',
-                                                    'bg-gray-50 text-gray-500 border-gray-200/50': ticket.status === 'used',
-                                                    'bg-red-50 text-red-700 border-red-200/50': ticket.status === 'cancelled'
-                                                })}>
-                                                    <span className={clsx("w-1.5 h-1.5 rounded-full", {
-                                                        'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]': ticket.status === 'valid',
-                                                        'bg-gray-400': ticket.status === 'used',
-                                                        'bg-red-500': ticket.status === 'cancelled'
-                                                    })}></span>
-                                                    {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5 text-right">
-                                                {ticket.status === 'valid' && (
-                                                    <button
-                                                        onClick={() => updateTicketStatus(ticket.id, 'used')}
-                                                        className={clsx("font-bold bg-black text-white rounded-lg hover:bg-gray-800 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
-                                                            'px-6 py-3 text-sm w-full': isCheckInMode,
-                                                            'px-4 py-2 text-xs': !isCheckInMode
-                                                        })}
-                                                    >
-                                                        Check In
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div className="p-24 text-center">
-                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path></svg>
-                            </div>
-                            <h3 className="text-gray-900 font-bold text-lg mb-2">No tickets sold yet</h3>
-                            <p className="text-gray-500">When people purchase tickets, they will appear here.</p>
-                        </div>
-                    )}
-
-                    {/* Pagination Footer */}
-                    {tickets.length > 0 && (
-                        <div className="border-t border-gray-100 p-4 bg-gray-50/30 flex items-center justify-between">
-                            <p className="text-xs text-gray-500 font-medium">
-                                Showing <span className="font-bold text-gray-900">{ticketPage * TICKETS_PER_PAGE + 1}</span> to <span className="font-bold text-gray-900">{Math.min((ticketPage + 1) * TICKETS_PER_PAGE, ticketCount)}</span> of <span className="font-bold text-gray-900">{ticketCount}</span> results
-                            </p>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setTicketPage(p => Math.max(0, p - 1))}
-                                    disabled={ticketPage === 0 || loadingTickets}
-                                    className="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
-                                >
-                                    Previous
-                                </button>
-                                <button
-                                    onClick={() => setTicketPage(p => p + 1)}
-                                    disabled={(ticketPage + 1) * TICKETS_PER_PAGE >= ticketCount || loadingTickets}
-                                    className="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
-                                >
-                                    Next
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+            {
+                activeTab === 'attendees' && (
+                    <AttendeesTab event={event} />
+                )
+            }
 
             {/* DISCOUNTS TAB */}
             {activeTab === 'discounts' && (
@@ -1621,6 +944,86 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* PAYOUTS TAB */}
+            {activeTab === 'payouts' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+                            <h4 className="text-gray-500 font-bold text-xs uppercase tracking-wider mb-2">Total Revenue</h4>
+                            <p className="text-3xl font-bold text-gray-900">{formatCurrency(payoutStats.totalCollected, event.currency)}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+                            <h4 className="text-gray-500 font-bold text-xs uppercase tracking-wider mb-2">Platform Fees</h4>
+                            <p className="text-3xl font-bold text-gray-900">{formatCurrency(payoutStats.platformFee, event.currency)}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+                            <h4 className="text-gray-500 font-bold text-xs uppercase tracking-wider mb-2">Net Payout</h4>
+                            <p className="text-3xl font-bold text-green-600">{formatCurrency(payoutStats.organizerNet, event.currency)}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+                            <h4 className="text-gray-500 font-bold text-xs uppercase tracking-wider mb-2">Transactions</h4>
+                            <p className="text-3xl font-bold text-gray-900">{payoutStats.transactionCount}</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden">
+                        <div className="px-8 py-6 border-b border-gray-100">
+                            <h3 className="font-bold text-xl text-gray-900">Recent Transactions</h3>
+                        </div>
+                        {loadingPayouts ? (
+                            <div className="p-12 text-center text-gray-500 animate-pulse">Loading transaction history...</div>
+                        ) : transactions.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
+                                        <tr>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Date</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Customer</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Items</th>
+                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {transactions.map((tx: any) => (
+                                            <tr key={tx.id} className="hover:bg-gray-50/80 transition-colors">
+                                                <td className="px-8 py-5 text-gray-500 font-mono text-xs">
+                                                    {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </td>
+                                                <td className="px-8 py-5 font-mono text-xs text-gray-500">{tx.gateway_reference?.substring(0, 12)}...</td>
+                                                <td className="px-8 py-5">
+                                                    <div>
+                                                        <div className="font-bold text-gray-900">{tx.reservations?.guest_name || tx.reservations?.profiles?.full_name || 'Guest'}</div>
+                                                        <div className="text-xs text-gray-400">{tx.reservations?.guest_email || tx.reservations?.profiles?.email}</div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                        {(tiers.find(t => t.id === tx.reservations?.tier_id)?.name || 'Ticket')} x {tx.reservations?.quantity}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5 text-right font-mono font-bold text-gray-900">
+                                                    {formatCurrency(tx.amount, tx.currency)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="p-24 text-center">
+                                <p className="text-gray-500">No transactions recorded yet.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* TEAM TAB */}
+            {activeTab === 'team' && (
+                <StaffTab eventId={event.id} />
             )}
         </div>
     )

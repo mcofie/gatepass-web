@@ -24,6 +24,7 @@ export interface Event {
     organizers?: Organizer
     is_featured?: boolean
     view_count?: number
+    currency?: string
 }
 
 export interface Organizer {
