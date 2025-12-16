@@ -1,7 +1,7 @@
 
 import { Ticket } from "@/types/gatepass"
 
-export function aggregateSalesOverTime(tickets: any[]) {
+export function aggregateSalesOverTime(tickets: Ticket[]) {
     const salesMap = new Map<string, number>()
 
     tickets.forEach(ticket => {
@@ -22,7 +22,7 @@ export function aggregateSalesOverTime(tickets: any[]) {
     // It's safer to sort. 
 }
 
-export function aggregateTicketTypes(tickets: any[]) {
+export function aggregateTicketTypes(tickets: Ticket[]) {
     const typeMap = new Map<string, number>()
 
     tickets.forEach(ticket => {
@@ -33,7 +33,7 @@ export function aggregateTicketTypes(tickets: any[]) {
     return Array.from(typeMap.entries()).map(([name, value]) => ({ name, value }))
 }
 
-export function generateCSV(tickets: any[]) {
+export function generateCSV(tickets: Ticket[]) {
     const headers = ['Reference', 'Guest Name', 'Email', 'Ticket Type', 'Status', 'Purchase Date', 'Checked In']
 
     // Check if tickets is empty

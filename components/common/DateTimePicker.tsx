@@ -15,12 +15,10 @@ interface DateTimePickerProps {
 
 export function DateTimePicker({ date, setDate, label, required }: DateTimePickerProps) {
     const [isOpen, setIsOpen] = useState(false)
-    const [selectedDate, setSelectedDate] = useState<Date | undefined>(date)
     const [timeValue, setTimeValue] = useState<string>(date ? format(date, 'HH:mm') : '12:00')
 
-    // Update local state when prop changes
+    // Sync time value when date prop changes
     useEffect(() => {
-        setSelectedDate(date)
         if (date) {
             setTimeValue(format(date, 'HH:mm'))
         }
@@ -41,7 +39,7 @@ export function DateTimePicker({ date, setDate, label, required }: DateTimePicke
 
     const handleDateSelect = (newDate: Date | undefined) => {
         if (!newDate) {
-            setSelectedDate(undefined)
+            setDate(undefined)
             return
         }
 
@@ -49,7 +47,6 @@ export function DateTimePicker({ date, setDate, label, required }: DateTimePicke
         const [hours, minutes] = timeValue.split(':').map(Number)
         const dateWithTime = set(newDate, { hours, minutes })
 
-        setSelectedDate(dateWithTime)
         setDate(dateWithTime)
     }
 
@@ -57,10 +54,9 @@ export function DateTimePicker({ date, setDate, label, required }: DateTimePicke
         const newTime = e.target.value
         setTimeValue(newTime)
 
-        if (selectedDate) {
+        if (date) {
             const [hours, minutes] = newTime.split(':').map(Number)
-            const newDateTime = set(selectedDate, { hours, minutes })
-            setSelectedDate(newDateTime)
+            const newDateTime = set(date, { hours, minutes })
             setDate(newDateTime)
         }
     }
@@ -94,7 +90,7 @@ export function DateTimePicker({ date, setDate, label, required }: DateTimePicke
                             `}</style>
                             <DayPicker
                                 mode="single"
-                                selected={selectedDate}
+                                selected={date}
                                 onSelect={handleDateSelect}
                                 showOutsideDays
                                 className="border-0"

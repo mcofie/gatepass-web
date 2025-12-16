@@ -186,11 +186,24 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
     }, 0)
 
     // Discount Calculation
-    const discountAmount = discount
-        ? (discount.type === 'fixed'
-            ? discount.value
-            : (calculatedTotal * (discount.value / 100)))
-        : 0
+    // Discount Calculation
+    const discountAmount = React.useMemo(() => {
+        if (!discount) return 0
+
+        let targetAmount = calculatedTotal // Default: All tickets
+
+        // If Tier Specific, filter only relevant amount
+        if (discount.tier_id) {
+            const qty = selectedTickets[discount.tier_id] || 0
+            const tier = tiers.find(t => t.id === discount.tier_id)
+            if (!tier || qty === 0) return 0 // Apply nothing if target tier not selected
+            targetAmount = tier.price * qty
+        }
+
+        return discount.type === 'fixed'
+            ? discount.value // Fixed usually applies once to order? Or per item? Legacy suggests once to order. Stick to that.
+            : (targetAmount * (discount.value / 100))
+    }, [discount, calculatedTotal, selectedTickets, tiers])
 
     const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
     const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
@@ -221,6 +234,17 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
             if (data.max_uses && data.used_count >= data.max_uses) {
                 setDiscountError('This code has been fully redeemed')
                 return
+            }
+
+            // Check Tier Restriction
+            if (data.tier_id) {
+                const requiredTier = tiers.find(t => t.id === data.tier_id)
+                const hasTierInCart = (selectedTickets[data.tier_id] || 0) > 0
+
+                if (!hasTierInCart) {
+                    setDiscountError(`This code is only valid for ${requiredTier?.name || 'specific'} tickets`)
+                    return
+                }
             }
 
             setDiscount(data as Discount)

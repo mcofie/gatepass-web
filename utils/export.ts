@@ -1,4 +1,4 @@
-export function exportToCSV(data: any[], filename: string) {
+export function exportToCSV(data: Record<string, any>[], filename: string) {
     if (!data || !data.length) return
 
     // 1. Get Headers

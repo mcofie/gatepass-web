@@ -4,7 +4,6 @@ import {
     Column,
     Head,
     Heading,
-    Hr,
     Html,
     Img,
     Link,
@@ -86,7 +85,7 @@ export const TicketEmail = ({
                             <Text className="text-2xl font-black tracking-tighter m-0">GATEPASS</Text>
                         </Section>
 
-                        {ticketList.map((ticket, index) => (
+                        {ticketList.map((ticket) => (
                             <Section key={ticket.id} className="mb-8 border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
                                 {/* Header Image (Only if poster exists) */}
                                 {posterUrl && (

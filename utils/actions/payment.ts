@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { verifyPaystackTransaction } from '@/lib/paystack'
+import { Ticket } from '@/types/gatepass'
 
 export type PaymentResult = {
     success: boolean
-    tickets?: any[]
+    tickets?: Ticket[]
     message?: string
     error?: string
 }
@@ -74,7 +75,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     }
 
     // 4. Idempotency & Creation Logic
-    let ticketsToProcess: any[] = []
+    let ticketsToProcess: Ticket[] = []
 
     // Check if tickets already exist for this reference
     const { data: existingTickets } = await supabase
@@ -85,7 +86,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
     if (existingTickets && existingTickets.length > 0) {
         console.log('Tickets already exist for reference:', reference)
-        ticketsToProcess = existingTickets
+        ticketsToProcess = existingTickets as Ticket[]
     } else {
         // Generate Tickets Loop
         const quantity = reservation.quantity || 1
@@ -113,7 +114,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 lastError = ticketError
             } else if (ticket) {
                 // Attach reservation data so frontend can show guest_name/profiles immediately
-                ticketsToProcess.push({ ...ticket, reservations: reservation })
+                ticketsToProcess.push({ ...(ticket as Ticket), reservations: reservation })
             }
         }
 
@@ -196,7 +197,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 ticketId: ticketsToProcess[0].id,
                 posterUrl: reservation.events?.poster_url,
                 // Pass consolidated tickets list
-                tickets: ticketsToProcess.map((t: any) => ({
+                tickets: ticketsToProcess.map((t) => ({
                     id: t.id,
                     qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
                     type: reservation.ticket_tiers?.name || 'Ticket'

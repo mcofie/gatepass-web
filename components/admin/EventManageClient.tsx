@@ -44,7 +44,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
-    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0 })
+    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0, tier_id: '' })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
 
@@ -215,6 +215,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     type: discountForm.type,
                     value: discountForm.value,
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
+                    tier_id: discountForm.tier_id || null
                 }).eq('id', editingDiscountId)
 
                 if (error) throw error
@@ -227,7 +228,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     type: discountForm.type,
                     value: discountForm.value,
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
-                    used_count: 0
+                    used_count: 0,
+                    tier_id: discountForm.tier_id || null
                 })
 
                 if (error) throw error
@@ -235,7 +237,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             }
 
             await fetchDiscounts()
-            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0 })
+            await fetchDiscounts()
+            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '' })
         } catch (e: any) {
             toast.error(e.message)
         } finally {
@@ -249,14 +252,15 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             code: discount.code,
             type: discount.type,
             value: discount.value,
-            max_uses: discount.max_uses || 0
+            max_uses: discount.max_uses || 0,
+            tier_id: discount.tier_id || ''
         })
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
     const cancelEditingDiscount = () => {
         setEditingDiscountId(null)
-        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0 })
+        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '' })
     }
 
     const deleteDiscount = async (id: string) => {
@@ -316,6 +320,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     *,
                     reservations!inner (
                         event_id,
+                        tier_id,
+                        quantity,
                         guest_name,
                         guest_email,
                         profiles ( full_name, email )
@@ -329,13 +335,32 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
             setTransactions(data || [])
 
-            const total = data.reduce((acc, tx) => acc + (tx.amount || 0), 0)
-            const fee = total * 0.04 // 4% Platform Fee
+            // Calculate exact payout based on ticket sales, not just raw transaction totals
+            // This ensures we respect the fee_bearer setting (customer vs organizer)
+            let totalVolume = 0 // Total processed (TPV)
+            let totalPlatformFees = 0
+            let totalNetParams = 0
+
+            data.forEach(tx => {
+                totalVolume += (tx.amount || 0)
+
+                // Find tier price
+                const tier = tiers.find(t => t.id === tx.reservations?.tier_id)
+                const price = tier?.price || 0
+                const quantity = tx.reservations?.quantity || 1
+                const subtotal = price * quantity
+
+                // Use centralized fee logic
+                const fees = calculateFees(subtotal, event.fee_bearer as 'customer' | 'organizer')
+
+                totalPlatformFees += fees.platformFee + fees.processorFee // Total fees deducted/collected
+                totalNetParams += fees.organizerPayout
+            })
 
             setPayoutStats({
-                totalCollected: total,
-                platformFee: fee,
-                organizerNet: total - fee,
+                totalCollected: totalVolume,
+                platformFee: totalPlatformFees,
+                organizerNet: totalNetParams,
                 transactionCount: data.length
             })
         } catch (e) {
@@ -1270,7 +1295,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </button>
                             )}
                         </div>
-                        <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                             <div className="md:col-span-1">
                                 <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Code</label>
                                 <input
@@ -1303,13 +1328,16 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     type="number"
                                     required
                                     min="0"
-                                    value={discountForm.value}
-                                    onChange={e => setDiscountForm({ ...discountForm, value: parseFloat(e.target.value) })}
+                                    value={isNaN(discountForm.value) ? '' : discountForm.value}
+                                    onChange={e => {
+                                        const val = parseFloat(e.target.value)
+                                        setDiscountForm({ ...discountForm, value: isNaN(val) ? 0 : val })
+                                    }}
                                     className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Limit (Optional)</label>
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Total Usage Limit</label>
                                 <input
                                     type="number"
                                     min="0"
@@ -1319,7 +1347,25 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     placeholder="∞"
                                 />
                             </div>
-                            <div className="md:col-span-4 flex justify-end pt-2">
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 block">Applies To</label>
+                                <div className="relative">
+                                    <select
+                                        value={discountForm.tier_id || ''}
+                                        onChange={e => setDiscountForm({ ...discountForm, tier_id: e.target.value })}
+                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium appearance-none truncate pr-8"
+                                    >
+                                        <option value="">All Tiers</option>
+                                        {tiers.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="md:col-span-5 flex justify-end pt-2">
                                 <button
                                     disabled={creatingDiscount}
                                     className="bg-black text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 disabled:opacity-50 shadow-lg shadow-black/20 hover:-translate-y-0.5 transition-all"
@@ -1348,10 +1394,14 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                                 {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                                             </button>
                                         </div>
-                                        <p className="text-sm font-medium text-gray-500">
+                                        <p className="text-sm font-medium text-gray-500 mt-1">
                                             {discount.type === 'percentage' ? `${discount.value}% OFF` : `-$${discount.value}`}
                                             <span className="mx-2 text-gray-300">|</span>
                                             Used: {discount.used_count || 0} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
+                                            <span className="mx-2 text-gray-300">|</span>
+                                            <span className={clsx("text-xs uppercase font-bold tracking-wider", discount.tier_id ? "text-purple-600" : "text-gray-400")}>
+                                                {discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Specific Tier') : 'All Tickets'}
+                                            </span>
                                         </p>
                                     </div>
                                 </div>

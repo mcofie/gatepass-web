@@ -66,6 +66,7 @@ export interface Ticket {
     ticket_tiers?: TicketTier
     events?: Event
     profiles?: Profile
+    reservations?: Reservation
 }
 
 export interface Profile {
@@ -88,6 +89,8 @@ export interface Reservation {
     events?: Event
     ticket_tiers?: TicketTier
     profiles?: Profile
+    guest_name?: string
+    guest_email?: string
 }
 
 export interface Discount {
@@ -100,4 +103,5 @@ export interface Discount {
     max_uses?: number
     used_count: number
     expires_at?: string
+    tier_id?: string | null
 }
