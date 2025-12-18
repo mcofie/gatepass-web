@@ -54,11 +54,15 @@ export default function OnboardingPage() {
         }
     }
 
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center font-sans p-6">
-            <div className="max-w-lg w-full">
+    const handleLogout = async () => {
+        await supabase.auth.signOut()
+        router.push('/login')
+    }
 
-                <div className="text-center mb-10">
+    return (
+        <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center font-sans p-6">
+            <div className="flex-1 flex flex-col items-center justify-center w-full max-w-lg">
+                <div className="text-center mb-10 animate-fade-in-up">
                     <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-black/20">
                         <Sparkles className="w-6 h-6" />
                     </div>
@@ -66,8 +70,9 @@ export default function OnboardingPage() {
                     <p className="text-gray-500 text-lg">Create a workspace to manage your events and team.</p>
                 </div>
 
-                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 md:p-10">
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 md:p-10 w-full animate-fade-in-up delay-100">
                     <form onSubmit={handleSubmit} className="space-y-8">
+                        {/* ... Input Fields ... */}
                         <div className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-gray-900 ml-1">Organization Name</label>
@@ -83,13 +88,13 @@ export default function OnboardingPage() {
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-gray-900 ml-1">URL Slug</label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">gatepass.xyz/</span>
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">gatepass.so/org/</span>
                                     <Input
                                         value={slug}
                                         onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                                         placeholder="acme-events"
                                         required
-                                        className="h-14 bg-gray-50 border-gray-200 text-lg font-medium focus:bg-white transition-all rounded-xl pl-32 pr-4"
+                                        className="h-14 bg-gray-50 border-gray-200 text-lg font-medium focus:bg-white transition-all rounded-xl pl-40 pr-4"
                                     />
                                 </div>
                                 <p className="text-xs text-gray-400 ml-1">This will be your public profile URL.</p>
@@ -109,6 +114,14 @@ export default function OnboardingPage() {
                         </Button>
                     </form>
                 </div>
+            </div>
+
+            {/* Simple Footer */}
+            <div className="py-8 text-center text-sm text-gray-400 animate-fade-in delay-200">
+                <p className="mb-2">&copy; {new Date().getFullYear()} GatePass Inc.</p>
+                <button onClick={handleLogout} className="text-gray-500 hover:text-black hover:underline transition-colors font-medium">
+                    Log out
+                </button>
             </div>
         </div>
     )

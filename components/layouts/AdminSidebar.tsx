@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, LogOut, LayoutDashboard, Settings, Banknote, Activity, Users, ScanLine, Sparkles } from 'lucide-react'
+import { Home, Calendar, LogOut, LayoutDashboard, Settings, Banknote, Activity, Users, ScanLine, Sparkles, History } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 
@@ -12,9 +12,30 @@ export function AdminSidebar() {
     const router = useRouter()
     const supabase = createClient()
     const [user, setUser] = useState<User | null>(null)
+    const [isOwner, setIsOwner] = useState(false)
+    const [orgDetails, setOrgDetails] = useState<{ name: string } | null>(null)
 
     useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => setUser(data.user))
+        const checkOwner = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            setUser(user)
+            if (user) {
+                // Check if Owner
+                const { data: ownerData } = await supabase.schema('gatepass').from('organizers').select('id, name').eq('user_id', user.id).single()
+                if (ownerData) {
+                    setIsOwner(true)
+                    setOrgDetails({ name: ownerData.name })
+                } else {
+                    // Check if Staff
+                    const { data: staffData } = await supabase.schema('gatepass').from('organization_team').select('organization:organization_id(name)').eq('user_id', user.id).single()
+                    if (staffData && staffData.organization) {
+                        // @ts-ignore
+                        setOrgDetails({ name: staffData.organization.name })
+                    }
+                }
+            }
+        }
+        checkOwner()
     }, [])
 
     const handleLogout = async () => {
@@ -36,8 +57,11 @@ export function AdminSidebar() {
         { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
         { name: 'Customers', path: '/dashboard/customers', icon: Users },
         { name: 'Events', path: '/dashboard/events', icon: Calendar },
-        ...(isAdmin ? [{ name: 'Curate Feed', path: '/dashboard/curate', icon: Sparkles }] : []),
-        { name: 'Finance', path: '/dashboard/finance', icon: Banknote },
+        ...(isOwner ? [{ name: 'Activity Log', path: '/dashboard/activity', icon: History }] : []),
+        ...(isAdmin ? [
+            { name: 'Curate Feed', path: '/dashboard/curate', icon: Sparkles },
+            { name: 'Finance', path: '/dashboard/finance', icon: Banknote }
+        ] : []),
         { name: 'Settings', path: '/dashboard/settings', icon: Settings },
     ]
 
@@ -45,9 +69,16 @@ export function AdminSidebar() {
         <aside className="w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-[#1a1a1a]">
             {/* Brand */}
             <div className="p-8 pb-12">
-                <Link href="/" className="text-xl font-bold tracking-tighter flex items-center gap-3">
-                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-black text-[10px] font-black pointer-events-none">GP</div>
-                    GatePass.
+                <Link href="/" className="flex items-center gap-3 group">
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
+                        {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
+                    </div>
+                    <div>
+                        <h1 className="font-bold tracking-tight text-lg leading-tight">
+                            {orgDetails?.name || 'GatePass.'}
+                        </h1>
+                        {orgDetails?.name && <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Organization</p>}
+                    </div>
                 </Link>
             </div>
 
@@ -89,6 +120,13 @@ export function AdminSidebar() {
                 >
                     <LogOut className="w-3.5 h-3.5" /> Sign Out
                 </button>
+            </div>
+
+            <div className="px-8 pb-8 pt-2 text-center">
+                <p className="text-[10px] text-gray-700 font-bold uppercase tracking-widest flex items-center justify-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
+                    <span className="w-1.5 h-1.5 bg-gray-600 rounded-full"></span>
+                    GatePass
+                </p>
             </div>
         </aside>
     )

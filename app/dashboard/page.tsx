@@ -8,29 +8,87 @@ export const revalidate = 0
 export default async function DashboardPage() {
     const supabase = await createClient()
 
-    // Parallel fetch for stats and activity
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null // handled by middleware usually
+
+    // 1. Determine Organization Context
+    // Check if owner
+    let { data: org } = await supabase
+        .schema('gatepass')
+        .from('organizers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+    // If not owner, check if team member
+    if (!org) {
+        const { data: teamMember } = await supabase
+            .schema('gatepass')
+            .from('organization_team')
+            .select('organization_id')
+            .eq('user_id', user.id)
+            .single()
+
+        if (teamMember) {
+            org = { id: teamMember.organization_id }
+        }
+    }
+
+    // If still no org, they need to onboard
+    if (!org) {
+        // We'll let the UI handle empty state or redirect, but for stats we return zeros
+        // Ideally checking "redirect" here but safe to just return empty stats
+        // Actually, let's return early structure to avoid crashes
+        return (
+            <div className="max-w-7xl mx-auto py-12 text-center">
+                <h2 className="text-2xl font-bold">No Organization Found</h2>
+                <p className="mb-4">Please create an organization to get started.</p>
+                <a href="/onboarding" className="text-blue-600 hover:underline">Go to Onboarding</a>
+            </div>
+        )
+    }
+
+    const orgId = org.id
+
+    // Parallel fetch for stats and activity (Scoped to Org)
     const [eventRes, ticketRes, recentSalesRes] = await Promise.all([
-        supabase.schema('gatepass').from('events').select('*', { count: 'exact', head: true }),
-        // Fetch all valid/used tickets with their tier price
+        supabase
+            .schema('gatepass')
+            .from('events')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', orgId),
+
+        // Fetch all valid/used tickets linked to ANY event by this org
         supabase.schema('gatepass')
             .from('tickets')
             .select(`
                 status,
-                ticket_tiers ( price, currency )
+                ticket_tiers!inner ( 
+                    price, 
+                    currency,
+                    events!inner ( organization_id )
+                )
             `)
+            .eq('ticket_tiers.events.organization_id', orgId)
             .in('status', ['valid', 'used']),
 
-        // Fetch recent 5 sales
+        // Fetch recent 5 sales for this org
         supabase.schema('gatepass')
-            .from('tickets') // TODO: Fix recent activty
+            .from('tickets')
             .select(`
                 id,
                 created_at,
                 status,
                 profiles ( full_name, email ),
                 reservations ( guest_name, guest_email ),
-                ticket_tiers ( name, price, currency, events ( title ) )
+                ticket_tiers!inner ( 
+                    name, 
+                    price, 
+                    currency, 
+                    events!inner ( title, organization_id ) 
+                )
             `)
+            .eq('ticket_tiers.events.organization_id', orgId) // Scoping recent sales
             .order('created_at', { ascending: false })
             .limit(5)
     ])
@@ -40,12 +98,15 @@ export default async function DashboardPage() {
     let currencySymbol = 'GHS'
 
     if (ticketRes.data) {
-        ticketRes.data.forEach((t: any) => {
-            if (t.ticket_tiers) {
-                totalRevenue += t.ticket_tiers.price
-                currencySymbol = t.ticket_tiers.currency // Assumption: Single currency for now
-            }
-        })
+        if (ticketRes.data) {
+            ticketRes.data.forEach((t: any) => {
+                const tier = Array.isArray(t.ticket_tiers) ? t.ticket_tiers[0] : t.ticket_tiers
+                if (tier) {
+                    totalRevenue += tier.price
+                    currencySymbol = tier.currency // Assumption: Single currency for now
+                }
+            })
+        }
     }
 
     const stats = [
@@ -78,49 +139,55 @@ export default async function DashboardPage() {
             </div>
 
             <div className="grid lg:grid-cols-3 gap-8">
-                {/* Activity Feed */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between px-1">
-                        <h3 className="font-bold text-xl tracking-tight">Recent Activity</h3>
-                        <a href="/dashboard/events" className="text-sm font-medium text-gray-400 hover:text-black transition-colors">View All</a>
-                    </div>
+                {/* Main Content Area */}
+                <div className="lg:col-span-2 space-y-8">
 
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-                        {recentSalesRes.data && recentSalesRes.data.length > 0 ? (
-                            <div className="divide-y divide-gray-50">
-                                {recentSalesRes.data.map((sale: any) => (
-                                    <div key={sale.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 transition-colors group">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm shadow-inner">
-                                                {sale.profiles?.full_name?.charAt(0) || sale.reservations?.guest_name?.charAt(0) || 'G'}
+
+
+                    {/* Recent Sales */}
+                    <div>
+                        <div className="flex items-center justify-between px-1 mb-4">
+                            <h3 className="font-bold text-xl tracking-tight">Recent Sales</h3>
+                            <a href="/dashboard/events" className="text-sm font-medium text-gray-400 hover:text-black transition-colors">View All</a>
+                        </div>
+
+                        <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+                            {recentSalesRes.data && recentSalesRes.data.length > 0 ? (
+                                <div className="divide-y divide-gray-50">
+                                    {recentSalesRes.data.map((sale: any) => (
+                                        <div key={sale.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 transition-colors group">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm shadow-inner">
+                                                    {sale.profiles?.full_name?.charAt(0) || sale.reservations?.guest_name?.charAt(0) || 'G'}
+                                                </div>
+                                                <div>
+                                                    <p className="text-[15px] font-semibold text-gray-900 group-hover:text-black transition-colors">
+                                                        {sale.profiles?.full_name || sale.reservations?.guest_name || 'Guest User'}
+                                                    </p>
+                                                    <p className="text-[13px] text-gray-500">
+                                                        purchased <span className="font-medium text-gray-700">{sale.ticket_tiers?.name}</span> • {sale.ticket_tiers?.events?.title}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[15px] font-semibold text-gray-900 group-hover:text-black transition-colors">
-                                                    {sale.profiles?.full_name || sale.reservations?.guest_name || 'Guest User'}
-                                                </p>
-                                                <p className="text-[13px] text-gray-500">
-                                                    purchased <span className="font-medium text-gray-700">{sale.ticket_tiers?.name}</span> • {sale.ticket_tiers?.events?.title}
+                                            <div className="text-right">
+                                                <p className="text-[15px] font-bold text-black tabular-nums">{formatCurrency(sale.ticket_tiers?.price || 0, sale.ticket_tiers?.currency)}</p>
+                                                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
+                                                    {new Date(sale.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-[15px] font-bold text-black tabular-nums">{formatCurrency(sale.ticket_tiers?.price || 0, sale.ticket_tiers?.currency)}</p>
-                                            <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
-                                                {new Date(sale.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="py-24 text-center text-gray-400">
-                                <p className="text-sm font-medium">No recent activity found.</p>
-                            </div>
-                        )}
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="py-24 text-center text-gray-400">
+                                    <p className="text-sm font-medium">No recent activity found.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Quick Actions */}
+                {/* Quick Actions (Sidebar) */}
                 <div className="space-y-6">
                     <div className="bg-black text-white rounded-3xl p-8 shadow-2xl shadow-black/20 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-white/10 transition-colors duration-500" />
@@ -153,5 +220,6 @@ export default async function DashboardPage() {
                 </div>
             </div>
         </div>
+
     )
 }

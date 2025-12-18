@@ -11,6 +11,8 @@ import { ImageDropzone } from '@/components/common/ImageDropzone'
 import { TicketManager } from '@/components/common/TicketManager'
 import { TicketTier } from '@/types/gatepass'
 import { PreviewModal } from '@/components/common/PreviewModal'
+import { logActivity } from '@/app/actions/logger'
+import { toast } from 'sonner'
 
 export default function CreateEventPage() {
     const router = useRouter()
@@ -139,6 +141,18 @@ export default function CreateEventPage() {
 
             if (!formData.organization_id) throw new Error('Organization profile not found')
 
+            // Ensure profile exists to satisfy FK
+            const { data: profile } = await supabase.schema('gatepass').from('profiles').select('id').eq('id', user.id).single()
+
+            if (!profile) {
+                await supabase.schema('gatepass').from('profiles').insert({
+                    id: user.id,
+                    email: user.email,
+                    full_name: user.user_metadata?.full_name || '',
+                    updated_at: new Date().toISOString()
+                })
+            }
+
             const { tiers, ...eventData } = formData
 
             const { data, error } = await supabase
@@ -148,7 +162,7 @@ export default function CreateEventPage() {
                     ...eventData,
                     starts_at: formData.starts_at?.toISOString(),
                     ends_at: formData.ends_at?.toISOString() || null,
-                    organizer_id: user.id, // Legacy: User Creator
+                    organizer_id: user.id, // Reverted: Must be User ID (Profile FK)
                     organization_id: formData.organization_id, // New: Linked Organization
                     is_published: false // Default to draft
                 })
@@ -177,10 +191,13 @@ export default function CreateEventPage() {
 
             if (error) throw error
 
+            // Log Activity
+            await logActivity(formData.organization_id, 'create_event', 'event', data.id, { title: data.title })
+
             router.push(`/dashboard/events/${data.id}`)
             router.refresh()
         } catch (e: any) {
-            alert('Error creating event: ' + e.message)
+            toast.error('Error creating event: ' + e.message)
         } finally {
             setLoading(false)
         }

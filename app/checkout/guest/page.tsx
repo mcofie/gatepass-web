@@ -8,6 +8,7 @@ import { Event, TicketTier } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency } from '@/utils/format'
 import { Input } from '@/components/ui/Input'
+import { toast } from 'sonner'
 
 function GuestCheckoutContent() {
     const router = useRouter()

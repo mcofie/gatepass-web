@@ -13,6 +13,7 @@ import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
 import dynamic from 'next/dynamic'
 import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
+import { logActivity } from '@/app/actions/logger'
 
 const DateTimePicker = dynamic(() => import('@/components/common/DateTimePicker').then(mod => mod.DateTimePicker), { ssr: false })
 const AnalyticsCharts = dynamic(() => import('@/components/admin/AnalyticsCharts'), {
@@ -55,6 +56,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     const [copiedId, setCopiedId] = useState<string | null>(null)
 
+    const [isAdmin, setIsAdmin] = useState(false)
+
     const copyCode = (code: string, id: string) => {
         navigator.clipboard.writeText(code)
         setCopiedId(id)
@@ -64,6 +67,33 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
     const supabase = createClient()
     const router = useRouter()
+
+    // Check Admin Status
+    useEffect(() => {
+        const checkAdmin = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user || !event.organization_id) return
+
+            // 1. Check if Owner
+            const { data: org } = await supabase.schema('gatepass').from('organizers').select('user_id').eq('id', event.organization_id).single()
+            if (org && org.user_id === user.id) {
+                setIsAdmin(true)
+                return
+            }
+
+            // 2. Check if Team Admin
+            const { data: teamMember } = await supabase.schema('gatepass').from('organization_team')
+                .select('role')
+                .eq('organization_id', event.organization_id)
+                .eq('user_id', user.id)
+                .single()
+
+            if (teamMember && teamMember.role === 'admin') {
+                setIsAdmin(true)
+            }
+        }
+        checkAdmin()
+    }, [event.organization_id])
 
     // Stats Calculation
     const stats = React.useMemo(() => {
@@ -101,6 +131,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
             }).eq('id', event.id)
 
             if (error) throw error
+
+            // Log Activity
+            await logActivity(event.organization_id || '', 'update_event', 'event', event.id, { title: event.title })
+
             toast.success('Event updated successfully')
             router.refresh()
         } catch (e: any) {
@@ -177,14 +211,20 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '' })
     }
 
-    const deleteDiscount = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this discount code?')) return
-        const { error } = await supabase.schema('gatepass').from('discounts').delete().eq('id', id)
-        if (error) toast.error(error.message)
-        else {
-            await fetchDiscounts()
-            toast.success('Discount deleted')
-        }
+    const deleteDiscount = (id: string) => {
+        toast('Are you sure you want to delete this discount code?', {
+            action: {
+                label: 'Delete',
+                onClick: async () => {
+                    const { error } = await supabase.schema('gatepass').from('discounts').delete().eq('id', id)
+                    if (error) toast.error(error.message)
+                    else {
+                        await fetchDiscounts()
+                        toast.success('Discount deleted')
+                    }
+                }
+            }
+        })
     }
 
 
@@ -337,7 +377,9 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                     <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
                     <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
                     <button onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
-                    <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
+                    {isAdmin && (
+                        <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
+                    )}
                 </div>
             </div>
 
@@ -346,91 +388,149 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Organizer Due Card */}
-                        <div className="bg-black text-white p-8 rounded-3xl shadow-xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full translate-x-10 -translate-y-10 blur-3xl group-hover:bg-white/15 transition-colors" />
-                            <div className="relative z-10">
-                                <p className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-2">Organizer Payout Due</p>
-                                <h2 className="text-5xl font-black tracking-tighter mb-4">
-                                    {formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
-                                </h2>
-                                <p className="text-sm text-gray-400">
-                                    Net earnings after 4% platform fee deduction.
-                                </p>
+                        <div className="bg-black text-white p-10 rounded-[2rem] shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-40 bg-white/5 rounded-full translate-x-10 -translate-y-10 blur-3xl group-hover:bg-white/10 transition-colors duration-500" />
+                            <div className="relative z-10 flex flex-col h-full justify-between gap-8">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                                            <DollarSign className="w-4 h-4 text-white" />
+                                        </div>
+                                        <p className="text-sm font-bold uppercase tracking-widest text-white/60">Balance Due</p>
+                                    </div>
+                                    <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60">
+                                        {formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
+                                    </h2>
+                                </div>
+                                <div className="p-4 rounded-xl bg-white/10 border border-white/5 backdrop-blur-sm">
+                                    <p className="text-sm text-gray-300 leading-relaxed font-medium">
+                                        This is your net payout after platform fees (4%). Payouts are processed weekly on Mondays.
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
                         {/* Breakdown Card */}
-                        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-                            <h3 className="font-bold text-lg text-gray-900 border-b border-gray-100 pb-4">Revenue Breakdown</h3>
-
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500 font-medium">Total Gross Sales</span>
-                                    <span className="font-bold text-gray-900">{formatCurrency(payoutStats.totalCollected, initialTiers?.[0]?.currency || 'GHS')}</span>
+                        <div className="bg-white p-10 rounded-[2rem] border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col gap-6">
+                            <div className="flex items-center justify-between border-b border-gray-100 pb-6">
+                                <h3 className="font-bold text-xl text-gray-900 flex items-center gap-2">
+                                    <BarChart3 className="w-5 h-5 text-gray-400" />
+                                    Financial Summary
+                                </h3>
+                                <div className="text-xs font-bold px-3 py-1 bg-gray-100 rounded-full text-gray-500">
+                                    Real-time
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500 font-medium">Successful Transactions</span>
-                                    <span className="font-bold text-gray-900">{payoutStats.transactionCount}</span>
+                            </div>
+
+                            <div className="space-y-5 flex-1">
+                                <div className="flex justify-between items-center group">
+                                    <span className="text-gray-500 font-medium group-hover:text-black transition-colors">Gross Sales Volume</span>
+                                    <span className="font-bold text-gray-900 text-lg tabular-nums">{formatCurrency(payoutStats.totalCollected, initialTiers?.[0]?.currency || 'GHS')}</span>
+                                </div>
+                                <div className="flex justify-between items-center group">
+                                    <span className="text-gray-500 font-medium group-hover:text-black transition-colors">Total Transactions</span>
+                                    <span className="font-bold text-gray-900 text-lg tabular-nums">{payoutStats.transactionCount}</span>
                                 </div>
                                 <div className="h-px bg-gray-100 w-full" />
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500 font-medium">Platform Fee (4%)</span>
-                                    <span className="font-bold text-red-500">
+                                <div className="flex justify-between items-center group">
+                                    <div className="flex flex-col">
+                                        <span className="text-gray-500 font-medium group-hover:text-red-500 transition-colors">Platform Fees</span>
+                                        <span className="text-[10px] text-gray-400 font-medium">4% processing fee</span>
+                                    </div>
+                                    <span className="font-bold text-red-500 text-lg tabular-nums">
                                         - {formatCurrency(payoutStats.platformFee, initialTiers?.[0]?.currency || 'GHS')}
                                     </span>
                                 </div>
                                 <div className="h-px bg-gray-100 w-full" />
-                                <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
-                                    <span className="font-bold text-gray-900">Net Payout</span>
-                                    <span className="font-bold text-gray-900 text-lg">{formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}</span>
+                                <div className="flex justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <span className="font-bold text-gray-900">Net Earnings</span>
+                                    <span className="font-black text-gray-900 text-xl tabular-nums tracking-tight">{formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Transaction History Table */}
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden">
-                        <div className="px-8 py-6 border-b border-gray-100">
-                            <h3 className="font-bold text-xl text-gray-900">Transaction History</h3>
+                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+                        <div className="px-8 py-8 border-b border-gray-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center border border-gray-100">
+                                    <ScanLine className="w-5 h-5 text-gray-900" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-xl text-gray-900">Recent Transactions</h3>
+                                    <p className="text-sm text-gray-500 font-medium">{transactions.length} successful payments found</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => downloadCSV(transactions, `gatepass-transactions-${event.slug}`)}
+                                disabled={transactions.length === 0}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-lg shadow-gray-900/10 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export CSV
+                            </button>
                         </div>
+
                         {transactions.length > 0 ? (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
                                         <tr>
-                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Date</th>
-                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Payer</th>
-                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
-                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Amount</th>
-                                            <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Time</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Customer</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Amount</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {transactions.map((tx: any) => (
-                                            <tr key={tx.id} className="hover:bg-gray-50/80 transition-colors">
-                                                <td className="px-8 py-4 text-gray-500">
-                                                    {new Date(tx.paid_at || tx.created_at).toLocaleDateString()}
-                                                    <div className="text-xs text-gray-400">
-                                                        {new Date(tx.paid_at || tx.created_at).toLocaleTimeString()}
+                                            <tr key={tx.id} className="group hover:bg-gray-50/50 transition-colors">
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-2 h-2 rounded-full bg-gray-200 group-hover:bg-black transition-colors" />
+                                                        <div>
+                                                            <div className="font-bold text-gray-900">
+                                                                {new Date(tx.paid_at || tx.created_at).toLocaleDateString()}
+                                                            </div>
+                                                            <div className="text-xs text-gray-400 font-medium">
+                                                                {new Date(tx.paid_at || tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-4">
-                                                    <div className="font-bold text-gray-900">
-                                                        {tx.reservations?.profiles?.full_name || tx.reservations?.guest_name || 'Guest User'}
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 border border-white shadow-sm">
+                                                            {(tx.reservations?.profiles?.full_name || tx.reservations?.guest_name || '?')[0]}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-gray-900">
+                                                                {tx.reservations?.profiles?.full_name || tx.reservations?.guest_name || 'Guest User'}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 font-medium">
+                                                                {tx.reservations?.profiles?.email || tx.reservations?.guest_email || 'No email'}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-xs text-gray-400">
-                                                        {tx.reservations?.profiles?.email || tx.reservations?.guest_email || 'No email'}
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="font-mono text-xs font-medium text-gray-500 bg-gray-50 px-2 py-1 rounded-md inline-block border border-gray-100 select-all">
+                                                        {tx.reference}
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-4 font-mono text-xs text-gray-500">
-                                                    {tx.reference}
+                                                <td className="px-8 py-5 text-right">
+                                                    <span className="font-bold text-gray-900 tabular-nums">
+                                                        {formatCurrency(tx.amount, tx.currency)}
+                                                    </span>
                                                 </td>
-                                                <td className="px-8 py-4 font-bold text-gray-900">
-                                                    {formatCurrency(tx.amount, tx.currency)}
-                                                </td>
-                                                <td className="px-8 py-4">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${tx.status === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600'
+                                                <td className="px-8 py-5 text-right">
+                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold capitalize shadow-sm ${tx.status === 'success'
+                                                        ? 'bg-[#E8FCEC] text-[#145D25] border border-[#BCF0C6]'
+                                                        : 'bg-gray-100 text-gray-600 border border-gray-200'
                                                         }`}>
+                                                        {tx.status === 'success' && <div className="w-1.5 h-1.5 rounded-full bg-[#145D25]" />}
                                                         {tx.status}
                                                     </span>
                                                 </td>
@@ -440,8 +540,14 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </table>
                             </div>
                         ) : (
-                            <div className="p-12 text-center text-gray-500">
-                                No transactions found yet.
+                            <div className="p-20 flex flex-col items-center justify-center text-center">
+                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                    <ScanLine className="w-8 h-8 text-gray-300" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-1">No transactions yet</h3>
+                                <p className="text-gray-500 max-w-xs mx-auto">
+                                    When people buy tickets, their payments will appear here in real-time.
+                                </p>
                             </div>
                         )}
                     </div>

@@ -127,14 +127,14 @@ export default async function AdminEventsPage() {
                         ))}
                     </div>
                 ) : (
-                    <div className="py-32 text-center bg-white rounded-3xl border border-gray-100 border-dashed">
-                        <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-gray-400 shadow-inner">
-                            <Calendar className="w-10 h-10" />
+                    <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-3xl border border-gray-100 border-dashed animate-fade-in">
+                        <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
+                            <Calendar className="w-10 h-10 text-gray-300" />
                         </div>
                         <h3 className="text-2xl font-bold text-gray-900 mb-2">No events created</h3>
                         <p className="text-gray-500 mb-8 max-w-sm mx-auto">Get started by creating your first event. It only takes a few minutes.</p>
                         <Link href="/dashboard/events/create">
-                            <button className="bg-black text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition">
+                            <button className="bg-black text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
                                 Create Event
                             </button>
                         </Link>

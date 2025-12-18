@@ -40,6 +40,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
+import { toast } from 'sonner'
 
 interface CheckoutClientProps {
     reservation: Reservation
@@ -93,7 +94,7 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
     const handlePaystack = async () => {
         if (isGuest) {
             if (!guestForm.firstName || !guestForm.lastName || !guestForm.email || !guestForm.phone) {
-                alert('Please fill in all guest details.')
+                toast.error('Please fill in all guest details.')
                 return
             }
             // Update Profile
@@ -106,7 +107,7 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
             }).eq('id', user.id)
 
             if (error) {
-                alert('Error processing details: ' + error.message)
+                toast.error('Error processing details: ' + error.message)
                 setPaying(false)
                 return
             }
@@ -115,7 +116,7 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
         const PaystackPop = window.PaystackPop
 
         if (!PaystackPop) {
-            alert('Paystack SDK not loaded. Please refresh.')
+            toast.error('Paystack SDK not loaded. Please refresh.')
             return
         }
 
@@ -151,12 +152,12 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
 
                 processPayment().catch(err => {
                     console.error('Payment Verification Error:', err)
-                    alert('Payment successful but verification failed: ' + err.message)
+                    toast.error('Payment successful but verification failed: ' + err.message)
                 })
             },
             onClose: function () {
                 setPaying(false)
-                alert('Transaction cancelled')
+                toast.info('Transaction cancelled')
             }
         }
 

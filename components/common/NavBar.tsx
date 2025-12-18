@@ -37,7 +37,7 @@ export function NavBar() {
         setIsMobileMenuOpen(false)
     }
 
-    if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/events/') || pathname.startsWith('/ticket/') || pathname === '/login' || pathname === '/privacy-policy' || pathname === '/terms-of-service') return null
+    if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/events/') || pathname.startsWith('/ticket/') || pathname === '/login' || pathname === '/privacy-policy' || pathname === '/terms-of-service' || pathname.startsWith('/onboarding')) return null
 
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center py-4 px-4 pointer-events-none">

@@ -31,10 +31,28 @@ export function CustomerCRM() {
         const fetchCustomers = async () => {
             setLoading(true)
             try {
+                // Determine Organization Context (Similar to Dashboard)
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) throw new Error('No user')
+
+                let { data: org } = await supabase.schema('gatepass').from('organizers').select('id').eq('user_id', user.id).single()
+                if (!org) {
+                    const { data: teamMember } = await supabase.schema('gatepass').from('organization_team').select('organization_id').eq('user_id', user.id).single()
+                    if (teamMember) org = { id: teamMember.organization_id }
+                }
+
+                if (!org) {
+                    setCustomers([])
+                    setHasMore(false)
+                    setLoading(false)
+                    return
+                }
+
                 let query = supabase
                     .schema('gatepass')
                     .from('customer_stats')
                     .select('*')
+                    .eq('organization_id', org.id) // Filter by Org
                     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
                 if (searchQuery) {

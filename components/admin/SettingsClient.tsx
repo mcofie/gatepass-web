@@ -3,10 +3,11 @@
 import React, { useState } from 'react'
 import { OrganizationSettings } from './settings/OrganizationSettings'
 import { TeamSettings } from './settings/TeamSettings'
-import { Settings, Users, Shield } from 'lucide-react'
+import { SettlementSettings } from './settings/SettlementSettings'
+import { Settings, Users, Shield, Wallet } from 'lucide-react'
 
 export function SettingsClient({ initialSettings, initialOrganizer }: { initialSettings: Record<string, any>, initialOrganizer: any }) {
-    const [activeTab, setActiveTab] = useState<'details' | 'team'>('details')
+    const [activeTab, setActiveTab] = useState<'details' | 'team' | 'settlement'>('details')
 
     if (!initialOrganizer) {
         return <div className="p-8">Loading...</div>
@@ -25,8 +26,8 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                     <button
                         onClick={() => setActiveTab('details')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'details'
-                                ? 'bg-black text-white shadow-lg shadow-black/10'
-                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                            ? 'bg-black text-white shadow-lg shadow-black/10'
+                            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                             }`}
                     >
                         <Settings className="w-4 h-4" />
@@ -35,12 +36,22 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                     <button
                         onClick={() => setActiveTab('team')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'team'
-                                ? 'bg-black text-white shadow-lg shadow-black/10'
-                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                            ? 'bg-black text-white shadow-lg shadow-black/10'
+                            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                             }`}
                     >
                         <Users className="w-4 h-4" />
                         Team
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settlement')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'settlement'
+                            ? 'bg-black text-white shadow-lg shadow-black/10'
+                            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                    >
+                        <Wallet className="w-4 h-4" />
+                        Settlement
                     </button>
                 </div>
 
@@ -52,8 +63,12 @@ export function SettingsClient({ initialSettings, initialOrganizer }: { initialS
                     {activeTab === 'team' && (
                         <TeamSettings organizer={initialOrganizer} />
                     )}
+                    {activeTab === 'settlement' && (
+                        <SettlementSettings organizer={initialOrganizer} />
+                    )}
                 </div>
             </div>
         </div>
     )
 }
+

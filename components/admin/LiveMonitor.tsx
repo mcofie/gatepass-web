@@ -31,6 +31,25 @@ export function LiveMonitor() {
     // Fetch Active Events (Last 24h + Future)
     useEffect(() => {
         const fetchEvents = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            let orgId = null
+
+            // Check if Owner
+            const { data: ownerData } = await supabase.schema('gatepass').from('organizers').select('id').eq('user_id', user.id).single()
+            if (ownerData) {
+                orgId = ownerData.id
+            } else {
+                // Check if Staff
+                const { data: staffData } = await supabase.schema('gatepass').from('organization_team').select('organization_id').eq('user_id', user.id).single()
+                if (staffData) {
+                    orgId = staffData.organization_id
+                }
+            }
+
+            if (!orgId) return
+
             const today = new Date()
             today.setHours(today.getHours() - 24)
 
@@ -38,6 +57,7 @@ export function LiveMonitor() {
                 .schema('gatepass')
                 .from('events')
                 .select('id, title, venue_name, starts_at')
+                .eq('organization_id', orgId)
                 .gte('ends_at', today.toISOString()) // Only relevant events
                 .order('starts_at', { ascending: true })
 
@@ -158,8 +178,17 @@ export function LiveMonitor() {
     }, [selectedEventId])
 
     if (!selectedEventId) return (
-        <div className="p-12 text-center text-gray-500">
-            No active events found for monitoring.
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 animate-fade-in">
+            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
+                <Activity className="w-10 h-10 text-gray-300" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">No Active Events</h2>
+            <p className="text-gray-500 max-w-md mb-8">
+                The Live Monitor tracks events happening in the last 24 hours or scheduled for the future. Create an event to start monitoring.
+            </p>
+            <a href="/dashboard/events" className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
+                View All Events
+            </a>
         </div>
     )
 

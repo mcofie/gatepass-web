@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { Resend } from 'resend'
+import { logActivity } from '@/app/actions/logger'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -31,6 +32,9 @@ export async function inviteTeamMember(organizationId: string, email: string, ro
         }
         return { error: dbError.message }
     }
+
+    // Log Activity
+    await logActivity(organizationId, 'invite_staff', 'staff', undefined, { email, role })
 
     // 3. Send Email
     try {

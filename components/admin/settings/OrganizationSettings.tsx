@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
+import { logActivity } from '@/app/actions/logger'
 import { Loader2 } from 'lucide-react'
 
 export function OrganizationSettings({ organizer }: { organizer: any }) {
@@ -12,6 +13,9 @@ export function OrganizationSettings({ organizer }: { organizer: any }) {
     const [name, setName] = React.useState(organizer?.name || '')
     const [website, setWebsite] = React.useState(organizer?.website || '')
     const [slug, setSlug] = React.useState(organizer?.slug || '')
+    const [description, setDescription] = React.useState(organizer?.description || '')
+    const [twitter, setTwitter] = React.useState(organizer?.twitter || '')
+    const [instagram, setInstagram] = React.useState(organizer?.instagram || '')
 
     const supabase = createClient()
 
@@ -27,6 +31,9 @@ export function OrganizationSettings({ organizer }: { organizer: any }) {
                     name,
                     website,
                     slug,
+                    description,
+                    twitter,
+                    instagram
                 })
                 .eq('id', organizer.id)
 
@@ -61,31 +68,63 @@ export function OrganizationSettings({ organizer }: { organizer: any }) {
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-900 ml-1">Website</label>
-                    <Input
-                        value={website}
-                        onChange={e => setWebsite(e.target.value)}
-                        className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
-                        placeholder="https://example.com"
+                    <label className="text-sm font-bold text-gray-900 ml-1">Bio</label>
+                    <textarea
+                        value={description}
+                        onChange={e => setDescription(e.target.value)}
+                        className="w-full min-h-[100px] bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-y"
+                        placeholder="Tell us about what you do..."
                     />
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-900 ml-1">Slug</label>
-                    <Input
-                        value={slug}
-                        onChange={e => setSlug(e.target.value)}
-                        className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
-                        placeholder="my-org"
-                    />
-                    <p className="text-xs text-gray-400 ml-1">Used for your public profile URL.</p>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-900 ml-1">Website</label>
+                        <Input
+                            value={website}
+                            onChange={e => setWebsite(e.target.value)}
+                            className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
+                            placeholder="https://example.com"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-900 ml-1">Slug</label>
+                        <Input
+                            value={slug}
+                            onChange={e => setSlug(e.target.value)}
+                            className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
+                            placeholder="my-org"
+                        />
+                    </div>
+                </div>
+
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-900 ml-1">X (Twitter)</label>
+                        <Input
+                            value={twitter}
+                            onChange={e => setTwitter(e.target.value)}
+                            className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
+                            placeholder="@username"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-900 ml-1">Instagram</label>
+                        <Input
+                            value={instagram}
+                            onChange={e => setInstagram(e.target.value)}
+                            className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
+                            placeholder="@username"
+                        />
+                    </div>
                 </div>
 
                 <div className="pt-4">
                     <Button
                         type="submit"
                         disabled={loading}
-                        className="h-12 px-8 bg-black text-white font-bold rounded-xl hover:bg-gray-800"
+                        className="h-12 px-8 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
                     >
                         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Save Changes

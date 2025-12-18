@@ -81,23 +81,28 @@ export function TeamSettings({ organizer }: { organizer: any }) {
         }
     }
 
-    const handleRemove = async (id: string, email: string) => {
-        if (!confirm(`Are you sure you want to remove ${email} from the team?`)) return
+    const handleRemove = (id: string, email: string) => {
+        toast(`Are you sure you want to remove ${email} from the team?`, {
+            action: {
+                label: 'Remove',
+                onClick: async () => {
+                    try {
+                        const { error } = await supabase
+                            .schema('gatepass')
+                            .from('organization_team')
+                            .delete()
+                            .eq('id', id)
 
-        try {
-            const { error } = await supabase
-                .schema('gatepass')
-                .from('organization_team')
-                .delete()
-                .eq('id', id)
+                        if (error) throw error
 
-            if (error) throw error
-
-            toast.success('Team member removed')
-            setMembers(prev => prev.filter(m => m.id !== id))
-        } catch (error: any) {
-            toast.error(error.message)
-        }
+                        toast.success('Team member removed')
+                        setMembers(prev => prev.filter(m => m.id !== id))
+                    } catch (error: any) {
+                        toast.error(error.message)
+                    }
+                }
+            }
+        })
     }
 
     return (

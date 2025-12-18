@@ -50,15 +50,21 @@ export function StaffTab({ eventId }: StaffTabProps) {
         }
     }
 
-    const handleDeleteStaff = async (id: string) => {
-        if (!confirm('Revoke access for this staff member?')) return
-        const result = await deleteEventStaff(id)
-        if (result.success) {
-            toast.success('Access revoked')
-            await fetchStaff()
-        } else {
-            toast.error(result.error || 'Failed to delete')
-        }
+    const handleDeleteStaff = (id: string) => {
+        toast('Revoke access for this staff member?', {
+            action: {
+                label: 'Revoke',
+                onClick: async () => {
+                    const result = await deleteEventStaff(id)
+                    if (result.success) {
+                        toast.success('Access revoked')
+                        await fetchStaff()
+                    } else {
+                        toast.error(result.error || 'Failed to delete')
+                    }
+                }
+            }
+        })
     }
 
     return (
@@ -178,10 +184,14 @@ export function StaffTab({ eventId }: StaffTabProps) {
                                     ))}
                             </div>
                         ) : (
-                            <div className="p-12 text-center text-gray-500">
-                                <ShieldCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                <p className="font-medium">No staff members yet.</p>
-                                <p className="text-sm mt-1">Invite your team to help with check-ins.</p>
+                            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-gray-50/50 rounded-3xl border border-gray-100 border-dashed m-6">
+                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100">
+                                    <ShieldCheck className="w-8 h-8 text-gray-300" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-1">No staff members yet</h3>
+                                <p className="text-sm text-gray-500 max-w-xs mx-auto">
+                                    Invite your team members to help manage events and scan tickets.
+                                </p>
                             </div>
                         )}
                     </div>

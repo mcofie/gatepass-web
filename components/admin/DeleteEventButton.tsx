@@ -11,19 +11,24 @@ export function DeleteEventButton({ eventId }: { eventId: string }) {
     const router = useRouter()
     const supabase = createClient()
 
-    const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this event? This cannot be undone.')) return
-
-        setLoading(true)
-        try {
-            const { error } = await supabase.schema('gatepass').from('events').delete().eq('id', eventId)
-            if (error) throw error
-            router.refresh()
-        } catch (e: any) {
-            toast.error('Error deleting event: ' + e.message)
-        } finally {
-            setLoading(false)
-        }
+    const handleDelete = () => {
+        toast('Are you sure you want to delete this event? This cannot be undone.', {
+            action: {
+                label: 'Delete',
+                onClick: async () => {
+                    setLoading(true)
+                    try {
+                        const { error } = await supabase.schema('gatepass').from('events').delete().eq('id', eventId)
+                        if (error) throw error
+                        router.refresh()
+                    } catch (e: any) {
+                        toast.error('Error deleting event: ' + e.message)
+                    } finally {
+                        setLoading(false)
+                    }
+                }
+            }
+        })
     }
 
     return (
