@@ -9,9 +9,15 @@ export async function GET(request: Request) {
 
     if (code) {
         const supabase = await createClient()
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
 
-        if (!error) {
+        // Try to exchange the code
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+        // If exchange failed, check if we actually have a session anyway 
+        // (handles double-traversal/pre-fetching issues)
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!exchangeError || session) {
             const { data: { user } } = await supabase.auth.getUser()
 
             if (user) {
@@ -80,8 +86,8 @@ export async function GET(request: Request) {
             // Fallback
             return NextResponse.redirect(`${origin}${next}`)
         } else {
-            console.error('[Auth Callback] Exchange Error:', error)
-            return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(error.message)}`)
+            console.error('[Auth Callback] Exchange Error:', exchangeError)
+            return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(exchangeError?.message || 'Exchange failed')}`)
         }
     }
 
