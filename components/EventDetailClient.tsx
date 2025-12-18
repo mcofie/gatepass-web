@@ -10,12 +10,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
+import { cn, getContrastColor } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
+
 import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
-import { Globe, Calendar, ChevronDown, ChevronUp, Check } from 'lucide-react'
+import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
 
@@ -64,9 +66,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
     useEffect(() => {
         if (!isFeedItem) {
             const supabase = createClient()
-            supabase.schema('gatepass').rpc('increment_event_view', { event_id: event.id })
+            supabase.rpc('increment_event_view', { event_id: event.id })
                 .then(({ error }) => {
-                    if (error) console.error('Error incrementing view count:', error)
+                    if (error) console.error('Error incrementing view count:', error.message || error)
                 })
         }
     }, [event.id, isFeedItem])
@@ -467,6 +469,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
                             onBack={() => navigate('details', 'back')}
                             total={calculatedTotal}
                             hasSelection={hasSelection}
+                            primaryColor={event.primary_color}
+                            logoUrl={event.logo_url}
                         />
                     </div>
                 )}
@@ -479,6 +483,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
                             onBack={() => navigate('tickets', 'back')}
                             onContinue={handleCreateReservation}
                             loading={loading}
+                            primaryColor={event.primary_color}
                         />
                     </div>
                 )}
@@ -501,6 +506,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
                             discount={discount}
                             discountError={discountError}
                             applyingDiscount={applyingDiscount}
+                            primaryColor={event.primary_color}
                         />
                     </div>
                 )}
@@ -529,155 +535,214 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
 
 // Sub-components
 
-const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean, isFeedItem?: boolean }) => (
-    <div className="animate-fade-in flex flex-col h-full">
-        <div className="flex justify-between items-start mb-2">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700 relative">
-                    {event.organizers?.logo_url ? (
-                        <Image src={event.organizers.logo_url} alt="Logo" fill className="object-cover" />
-                    ) : (
-                        <span className="text-[10px]">{event.organizers?.name?.substring(0, 2).toUpperCase() || 'GP'}</span>
-                    )}
-                </div>
-                <div>
-                    {isFeedItem ? (
-                        <Link href={`/events/${event.slug || event.id}`} className="hover:underline decoration-white/50 underline-offset-2">
+const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean, isFeedItem?: boolean }) => {
+    const [showHostInfo, setShowHostInfo] = useState(false)
+    const [contentHeight, setContentHeight] = useState<number | 'auto'>('auto')
+    const descriptionRef = React.useRef<HTMLDivElement>(null)
+    const hostInfoRef = React.useRef<HTMLDivElement>(null)
+
+    // Dynamic Height Calculation
+    useEffect(() => {
+        const updateHeight = () => {
+            const target = showHostInfo ? hostInfoRef.current : descriptionRef.current
+            if (target) {
+                // Use scrollHeight to capture full content including potential overflow/clamping
+                // Add a small buffer (4px) to prevent sub-pixel cutting
+                setContentHeight(target.scrollHeight + 4)
+            }
+        }
+
+        updateHeight()
+
+        // Robust ResizeObserver instead of just window resize
+        const observer = new ResizeObserver(updateHeight)
+        if (descriptionRef.current) observer.observe(descriptionRef.current)
+        if (hostInfoRef.current) observer.observe(hostInfoRef.current)
+
+        return () => observer.disconnect()
+    }, [showHostInfo, event.description, isExpanded])
+
+    return (
+        <div className="animate-fade-in flex flex-col h-full">
+            {/* Header: Logo, Title, Host Name + Toggle, Price */}
+            <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-3">
+                    {/* Organizer Logo */}
+                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700 relative">
+                        {event.organizers?.logo_url ? (
+                            <Image src={event.organizers.logo_url} alt="Logo" fill className="object-cover" />
+                        ) : (
+                            <span className="text-[10px]">{event.organizers?.name?.substring(0, 2).toUpperCase() || 'GP'}</span>
+                        )}
+                    </div>
+
+                    {/* Title & Host Toggle */}
+                    <div>
+                        {isFeedItem ? (
+                            <Link href={`/events/${event.slug || event.id}`} className="hover:underline decoration-white/50 underline-offset-2">
+                                <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
+                            </Link>
+                        ) : (
                             <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
-                        </Link>
-                    ) : (
-                        <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
-                    )}
-                    <p className="text-[12px] text-gray-500 dark:text-gray-400 font-medium">{event.organizers?.name || 'GatePass Event'}</p>
-                </div>
-            </div>
-            {cheapestTier && (
-                <div className="text-right">
-                    <span className="block text-[16px] font-bold text-gray-400">
-                        {formatCurrency(cheapestTier.price, cheapestTier.currency)}
-                    </span>
-                </div>
-            )}
-        </div>
+                        )}
 
-        {/* Collapsible Content - partially visible on mobile, full on expand */}
-        <div className={`transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${!isExpanded ? 'max-h-[40px] md:max-h-[500px] md:opacity-100' : 'opacity-100 max-h-[800px]'}`}>
-            <p className={`text-[13px] font-normal text-black dark:text-gray-300 leading-relaxed mb-4 mt-2 ${!isExpanded ? 'line-clamp-1 md:line-clamp-none' : ''}`}>
-                {event.description}
-            </p>
-
-            {/* Organizer Bio Section - Hidden on Collapse */}
-            <div className={`transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
-                {event.organizers?.description && (
-                    <>
-                        <div className="h-px w-full bg-gray-200 dark:bg-zinc-800 mb-4" />
-                        <div className="mb-4">
-                            <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
-                            <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3 line-clamp-3">
-                                {event.organizers.description}
+                        {/* Interactive Host Name */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowHostInfo(!showHostInfo); }}
+                            className="flex items-center gap-0.5 group outline-none"
+                        >
+                            <p className="text-[12px] text-gray-500 dark:text-gray-400 font-medium group-hover:text-black dark:group-hover:text-white transition-colors">
+                                {event.organizers?.name || 'GatePass Event'}
                             </p>
+                            <ChevronRight
+                                className={`w-3 h-3 text-gray-400 group-hover:text-black dark:group-hover:text-white transition-transform duration-300 ${showHostInfo ? 'rotate-90' : ''}`}
+                            />
+                        </button>
+                    </div>
+                </div>
+                {cheapestTier && (
+                    <div className="text-right">
+                        <span className="block text-[16px] font-bold text-gray-400">
+                            {formatCurrency(cheapestTier.price, cheapestTier.currency)}
+                        </span>
+                    </div>
+                )}
+            </div>
 
-                            {/* Organizer Socials */}
-                            <div className="flex items-center gap-3">
-                                {event.organizers.website && (
-                                    <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                        <Globe className="w-3.5 h-3.5" />
-                                    </a>
-                                )}
-                                {event.organizers.instagram && (
-                                    <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
-                                    </a>
-                                )}
-                                {event.organizers.twitter && (
-                                    <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
-                                    </a>
+            {/* Sliding Content Container */}
+            <div className={`transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${!isExpanded ? 'md:h-auto md:opacity-100' : 'opacity-100 h-auto'}`}>
+                <div
+                    className="relative overflow-hidden w-full transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                    style={{ height: contentHeight === 'auto' ? 'auto' : `${contentHeight}px` }}
+                >
+                    {/* The Rail: Width 200% to hold both views side-by-side */}
+                    <div
+                        className="flex transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform w-[200%] items-start"
+                        style={{ transform: showHostInfo ? 'translateX(-50%)' : 'translateX(0)' }}
+                    >
+                        {/* Slide 1: Event Description */}
+                        <div className="w-1/2 pr-4" ref={descriptionRef}>
+                            <div
+                                className={`text-[13px] font-normal text-black dark:text-gray-300 leading-relaxed mb-4 mt-2 prose prose-sm dark:prose-invert max-w-none ${!isExpanded ? 'line-clamp-1 md:line-clamp-none' : ''}`}
+                                dangerouslySetInnerHTML={{ __html: event.description || '' }}
+                            />
+                            {!isExpanded && !showHostInfo && (
+                                <span className="text-[11px] font-bold text-gray-400 block -mt-3 mb-2 md:hidden">Read more...</span>
+                            )}
+                        </div>
+
+                        {/* Slide 2: Host Info */}
+                        <div className="w-1/2 pl-1 pr-4" ref={hostInfoRef}>
+                            <div className="mt-2 mb-4 animate-fade-in">
+                                <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
+                                <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                                    {event.organizers?.description || 'No bio available.'}
+                                </p>
+
+                                {/* Organizer Socials */}
+                                {event.organizers && (
+                                    <div className="flex items-center gap-3">
+                                        {event.organizers.website && (
+                                            <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                                <Globe className="w-3.5 h-3.5" />
+                                            </a>
+                                        )}
+                                        {event.organizers.instagram && (
+                                            <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
+                                            </a>
+                                        )}
+                                        {event.organizers.twitter && (
+                                            <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                            </a>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
-                    </>
-                )}
-
-                <div className="h-px w-full bg-gray-200 dark:bg-zinc-800 mb-4" />
-            </div>
-        </div>
-
-        {/* Persistent Date/Location (Always Visible but styled differently when collapsed?) 
-            Actually, user said "tickets cost and dates" should assume visible.
-            Let's keep them visible at bottom for expanded.
-            For collapsed, we might want them visible too? 
-            "only show relevant things like... dates"
-        */}
-        <div className="flex flex-col gap-3 mb-5 mt-auto">
-            <div className="flex items-start gap-3">
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <span className="text-[13px] font-medium text-black dark:text-white leading-tight">
-                    {(() => {
-                        const startDate = new Date(event.starts_at)
-                        const endDate = event.ends_at ? new Date(event.ends_at) : null
-
-                        let dateString = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                        const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
-
-                        if (endDate) {
-                            const isSameDay = startDate.getDate() === endDate.getDate() &&
-                                startDate.getMonth() === endDate.getMonth() &&
-                                startDate.getFullYear() === endDate.getFullYear()
-
-                            const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
-
-                            if (isSameDay) {
-                                return `${dateString} • ${startTime} - ${endTime}`
-                            } else {
-                                const endDateString = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                return `${dateString}, ${startTime} - ${endDateString}, ${endTime}`
-                            }
-                        }
-
-                        return `${dateString} • ${startTime}`
-                    })()}
-                </span>
-            </div>
-            <div className={`flex items-start gap-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 h-0 overflow-hidden md:opacity-100 md:h-auto' : 'opacity-100'}`}>
-                <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <div className="flex flex-col">
-                    <span className="text-[13px] font-medium text-black dark:text-white leading-tight mb-0.5">{event.venue_name}</span>
-                    <span className="text-[12px] text-gray-500 dark:text-gray-400 leading-tight">{event.venue_address}</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        {isFeedItem ? (
-            <Link href={`/events/${event.slug || event.id}`} className={`w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-all active:scale-[0.98] flex items-center justify-center ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
-                Get Tickets
-            </Link>
-        ) : (
-            <button onClick={onGetTickets} className={`w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-all active:scale-[0.98] ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
-                Get Tickets
-            </button>
-        )}
-        <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
-            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
-        </div>
-    </div >
-)
+            {/* Persistent Date/Location */}
+            <div className="flex flex-col gap-3 mb-5 mt-auto">
+                <div className="flex items-start gap-3">
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    <span className="text-[13px] font-medium text-black dark:text-white leading-tight">
+                        {(() => {
+                            const startDate = new Date(event.starts_at)
+                            const endDate = event.ends_at ? new Date(event.ends_at) : null
 
-const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void }) => {
+                            let dateString = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+
+                            if (endDate) {
+                                const isSameDay = startDate.getDate() === endDate.getDate() &&
+                                    startDate.getMonth() === endDate.getMonth() &&
+                                    startDate.getFullYear() === endDate.getFullYear()
+
+                                const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+
+                                if (isSameDay) {
+                                    return `${dateString} • ${startTime} - ${endTime}`
+                                } else {
+                                    const endDateString = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                    return `${dateString}, ${startTime} - ${endDateString}, ${endTime}`
+                                }
+                            }
+
+                            return `${dateString} • ${startTime}`
+                        })()}
+                    </span>
+                </div>
+                <div className={`flex items-start gap-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 h-0 overflow-hidden md:opacity-100 md:h-auto' : 'opacity-100'}`}>
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    <div className="flex flex-col">
+                        <span className="text-[13px] font-medium text-black dark:text-white leading-tight mb-0.5">{event.venue_name}</span>
+                        <span className="text-[12px] text-gray-500 dark:text-gray-400 leading-tight">{event.venue_address}</span>
+                    </div>
+                </div>
+            </div>
+
+            {isFeedItem ? (
+                <Link href={`/events/${event.slug || event.id}`}
+                    style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
+                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                    Get Tickets
+                </Link>
+            ) : (
+                <button
+                    onClick={onGetTickets}
+                    style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
+                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                    Get Tickets
+                </button>
+            )}
+            <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
+            </div>
+        </div >
+    )
+}
+
+const TicketCard = ({ tier, qty, onQuantityChange, primaryColor, logoUrl }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void, primaryColor?: string, logoUrl?: string }) => {
     const [showPerks, setShowPerks] = useState(false)
     const isSelected = qty > 0
     const isSoldOut = tier.quantity_sold >= tier.total_quantity
     const remaining = tier.total_quantity - tier.quantity_sold
     const isLowStock = remaining > 0 && remaining <= 10
     const hasPerks = tier.perks && tier.perks.length > 0
+    const themeColor = primaryColor || '#000000'
 
     return (
         <div
+            style={isSelected ? { backgroundColor: themeColor, color: '#ffffff' } : {}}
             className={`
-                relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between 
+                relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between
                 transition-all duration-300 snap-center min-h-[320px]
                 ${isSelected
-                    ? 'bg-black text-white dark:bg-white dark:text-black scale-[1.02] ring-0'
+                    ? 'scale-[1.02] ring-0 shadow-xl'
                     : 'bg-white text-black dark:bg-zinc-900 dark:text-white ring-1 ring-black/5 dark:ring-white/10'
                 }
             `}
@@ -693,27 +758,32 @@ const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: nu
             )}
 
             <div className="space-y-4">
+                {logoUrl && (
+                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden relative mb-1 ring-1 ring-black/5 dark:ring-white/10">
+                        <Image src={logoUrl} alt="Event Logo" fill className="object-cover" />
+                    </div>
+                )}
                 <div>
-                    <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>
+                    <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>
                         {formatCurrency(tier.price, tier.currency)}
                     </div>
-                    <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-gray-200 dark:text-gray-700' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
+                    <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-white/90' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
                 </div>
 
                 {tier.description && (
-                    <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
                         {tier.description}
                     </p>
                 )}
 
-                <div className={`h-px w-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-100 dark:bg-zinc-800'}`} />
+                <div className={`h-px w-full ${isSelected ? 'bg-white/20' : 'bg-gray-100 dark:bg-zinc-800'}`} />
 
                 {hasPerks ? (
                     <div>
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setShowPerks(!showPerks); }}
-                            className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider mb-2 hover:opacity-80 transition-opacity ${isSelected ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}
+                            className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider mb-2 hover:opacity-80 transition-opacity ${isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}
                         >
                             <span>Perks</span>
                             {showPerks ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -726,7 +796,7 @@ const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: nu
                                         <div className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-black/5 text-black'}`}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
-                                        <span className={isSelected ? 'text-gray-300 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'}>{perk}</span>
+                                        <span className={isSelected ? 'text-white/90' : 'text-gray-600 dark:text-gray-300'}>{perk}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -737,19 +807,19 @@ const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: nu
                 )}
             </div>
 
-            <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-white/10 dark:bg-black/10' : 'bg-gray-50 dark:bg-zinc-800'}`}>
+            <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-black/20' : 'bg-gray-50 dark:bg-zinc-800'}`}>
                 <button
                     onClick={() => onQuantityChange(tier.id, -1)}
                     disabled={qty === 0}
-                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                 >
                     -
                 </button>
-                <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white dark:text-black' : 'text-black dark:text-white'}`}>{qty}</span>
+                <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>{qty}</span>
                 <button
                     onClick={() => onQuantityChange(tier.id, 1)}
                     disabled={isSoldOut}
-                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/20 text-white dark:text-black dark:hover:bg-black/20' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                 >
                     +
                 </button>
@@ -758,14 +828,16 @@ const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: nu
     )
 }
 
-const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection }: {
+const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection, primaryColor, logoUrl }: {
     tiers: TicketTier[],
     selectedTickets: Record<string, number>,
     onQuantityChange: (tierId: string, delta: number) => void,
     onContinue: () => void,
     onBack: () => void,
     total: number,
-    hasSelection: boolean
+    hasSelection: boolean,
+    primaryColor?: string
+    logoUrl?: string
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-6 px-1">
@@ -782,6 +854,8 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                     tier={tier}
                     qty={selectedTickets[tier.id] || 0}
                     onQuantityChange={onQuantityChange}
+                    primaryColor={primaryColor}
+                    logoUrl={logoUrl}
                 />
             ))}
         </div>
@@ -797,7 +871,9 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                 <button
                     onClick={onContinue}
                     disabled={!hasSelection}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-between px-4"
+                    style={{ backgroundColor: hasSelection ? (primaryColor || '#000000') : undefined, color: '#ffffff' }}
+                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-between px-4 shadow-lg bg-black dark:bg-zinc-800"
+
                 >
                     <span>Checkout</span>
                     <span>{formatCurrency(total, tiers[0]?.currency)}</span>
@@ -814,13 +890,14 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
 
 )
 
-const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading }: {
+const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading, primaryColor }: {
     guestName: string, setGuestName: (name: string) => void,
     guestEmail: string, setGuestEmail: (email: string) => void,
     guestPhone: string, setGuestPhone: (phone: string) => void,
     onBack: () => void,
     onContinue: () => void,
-    loading: boolean
+    loading: boolean,
+    primaryColor?: string
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-8 px-1">
@@ -872,6 +949,10 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                 <button
                     onClick={onContinue}
                     disabled={loading || !guestName || !guestEmail}
+                    style={{
+                        backgroundColor: (guestName && guestEmail) ? (primaryColor || undefined) : undefined,
+                        color: (guestName && guestEmail && primaryColor) ? getContrastColor(primaryColor) : '#ffffff'
+                    }}
                     className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                     {loading ? 'Processing...' : 'Continue to Payment'}
@@ -882,7 +963,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     </div>
 )
 
-const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets }: {
+const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number,
@@ -898,7 +979,8 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
     discountError: string,
     applyingDiscount: boolean,
     selectedTickets: Record<string, number>,
-    timeLeft: { label: string, seconds: number }
+    timeLeft: { label: string, seconds: number },
+    primaryColor?: string
 }) => {
     const [showPromo, setShowPromo] = useState(false)
 
@@ -1039,6 +1121,10 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                     <button
                         onClick={onPay}
                         disabled={loading || timeLeft.label === 'EXPIRED'}
+                        style={{
+                            backgroundColor: primaryColor || undefined,
+                            color: primaryColor ? getContrastColor(primaryColor) : '#ffffff'
+                        }}
                         className="w-full bg-black dark:bg-white text-white dark:text-black h-12 rounded-xl text-[14px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
                     >
                         {loading ? (

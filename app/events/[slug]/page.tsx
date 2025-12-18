@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     let query = supabase
         .schema('gatepass')
         .from('events')
-        .select('title, description, poster_url')
+        .select('title, description, poster_url, is_published')
 
     if (isUuid) {
         query = query.eq('id', slug)
@@ -32,6 +32,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     if (!event) {
         return {
             title: 'Event Not Found | GatePass',
+        }
+    }
+
+    // SEO Protection for Unpublished
+    if (!event.is_published) {
+        return {
+            title: `Preview: ${event.title} | GatePass`,
+            robots: {
+                index: false,
+                follow: false,
+            }
         }
     }
 
@@ -74,6 +85,50 @@ export default async function EventPage({ params }: PageProps) {
         )
     }
 
+    // ----------------------------------------------------------------
+    // Authorization Check for Private Events
+    // ----------------------------------------------------------------
+    const { data: { user } } = await supabase.auth.getUser()
+    let canView = event.is_published
+
+    if (!canView && user) {
+        // 1. Owner Check
+        if (event.organizers?.user_id === user.id) {
+            canView = true
+        } else {
+            // 2. Team Check
+            const { data: teamMember } = await supabase.schema('gatepass').from('organization_team')
+                .select('role')
+                .eq('organization_id', event.organization_id)
+                .eq('user_id', user.id)
+                .single()
+
+            if (teamMember && (teamMember.role === 'admin' || teamMember.role === 'owner')) {
+                canView = true
+            }
+        }
+    }
+
+    if (!canView) {
+        return (
+            <div className="h-[100dvh] w-full bg-black flex flex-col items-center justify-center relative overflow-hidden">
+                <LandingHeader />
+                <div className="text-center space-y-6 z-10 px-6 animate-in fade-in zoom-in duration-500">
+                    <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mx-auto border border-zinc-800 shadow-2xl">
+                        <svg className="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Event Unavailable</h1>
+                        <p className="text-zinc-500 max-w-md mx-auto text-sm leading-relaxed">
+                            This event is currently private or has not been published yet. <br />
+                            Please check back later or contact the organizer.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     // Fetch tiers
     const { data: tiers } = await supabase
         .schema('gatepass')
@@ -91,6 +146,13 @@ export default async function EventPage({ params }: PageProps) {
             />
             {/* Subtle Cinematic Vignette - Darker at bottom for card visibility if on mobile */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+
+            {/* DRAFT MODE BANNER */}
+            {!event.is_published && (
+                <div className="absolute top-0 left-0 right-0 bg-yellow-400 text-black text-[11px] font-bold uppercase tracking-widest text-center py-2 z-50 pointer-events-auto">
+                    Draft Preview — Only visible to you
+                </div>
+            )}
 
             {/* Navigation & Brand */}
             <LandingHeader />

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
 import { Activity, Calendar, Tickets, Settings, Users, FileText, History } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Log {
     id: string
@@ -66,7 +67,22 @@ export function ActivityFeed({ organizationId }: { organizationId: string }) {
         }
     }, [organizationId])
 
-    if (loading) return <div className="h-40 animate-pulse bg-gray-50 rounded-xl" />
+    if (loading) return (
+        <div className="space-y-6">
+            <Skeleton className="h-6 w-32 bg-gray-200" />
+            <div className="space-y-6 ml-3 border-l border-gray-100">
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="relative pl-8">
+                        <Skeleton className="absolute -left-[9px] top-1 w-5 h-5 rounded-full bg-gray-200" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-3/4 bg-gray-200" />
+                            <Skeleton className="h-3 w-1/4 bg-gray-100" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
 
     if (logs.length === 0) {
         return (

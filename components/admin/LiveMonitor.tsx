@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Activity, Users, Ticket, ArrowUp, Clock } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type EventSummary = {
     id: string
@@ -23,6 +24,7 @@ type CheckInLog = {
 export function LiveMonitor() {
     const supabase = createClient()
     const [events, setEvents] = useState<EventSummary[]>([])
+    const [loading, setLoading] = useState(true)
     const [selectedEventId, setSelectedEventId] = useState<string>('')
     const [stats, setStats] = useState({ totalSold: 0, checkedIn: 0, percent: 0 })
     const [feed, setFeed] = useState<CheckInLog[]>([])
@@ -65,6 +67,7 @@ export function LiveMonitor() {
                 setEvents(data)
                 setSelectedEventId(data[0].id)
             }
+            setLoading(false)
         }
         fetchEvents()
     }, [])
@@ -176,6 +179,34 @@ export function LiveMonitor() {
         }
 
     }, [selectedEventId])
+
+    if (loading) {
+        return (
+            <div className="space-y-8 animate-fade-in max-w-6xl mx-auto">
+                <div className="flex justify-between items-end">
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-32 bg-gray-200" />
+                        <Skeleton className="h-8 w-48 bg-gray-200" />
+                    </div>
+                    <Skeleton className="h-10 w-48 rounded-lg bg-gray-200" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => (
+                        <Skeleton key={i} className="h-48 rounded-3xl bg-gray-200" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-4">
+                        <Skeleton className="h-8 w-32 mb-6 bg-gray-200" />
+                        {[1, 2, 3, 4].map(i => (
+                            <Skeleton key={i} className="h-16 w-full rounded-xl bg-gray-100" />
+                        ))}
+                    </div>
+                    <Skeleton className="h-40 w-full rounded-3xl bg-gray-200" />
+                </div>
+            </div>
+        )
+    }
 
     if (!selectedEventId) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 animate-fade-in">

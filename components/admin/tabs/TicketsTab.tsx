@@ -260,7 +260,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate }: TicketsTabProps) {
                                                 <input
                                                     value={editForm.name}
                                                     onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm"
+                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm text-gray-900"
                                                     placeholder="Ticket Name"
                                                 />
                                             </div>
@@ -270,7 +270,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate }: TicketsTabProps) {
                                                     type="number"
                                                     value={editForm.price}
                                                     onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) })}
-                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm"
+                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm text-gray-900"
                                                     placeholder="0.00"
                                                 />
                                             </div>
@@ -282,7 +282,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate }: TicketsTabProps) {
                                                     type="number"
                                                     value={editForm.total_quantity}
                                                     onChange={e => setEditForm({ ...editForm, total_quantity: parseInt(e.target.value) })}
-                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm"
+                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm text-gray-900"
                                                     placeholder="100"
                                                 />
                                             </div>
@@ -292,7 +292,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate }: TicketsTabProps) {
                                                     type="number"
                                                     value={editForm.max_per_order}
                                                     onChange={e => setEditForm({ ...editForm, max_per_order: parseInt(e.target.value) })}
-                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm"
+                                                    className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm text-gray-900"
                                                     placeholder="10"
                                                 />
                                             </div>
@@ -326,7 +326,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate }: TicketsTabProps) {
                                                             }
                                                         }
                                                     }}
-                                                    className="flex-1 bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm"
+                                                    className="flex-1 bg-gray-50 border-gray-200 rounded-lg p-2 font-bold text-sm text-gray-900"
                                                     placeholder="Add a perk..."
                                                 />
                                                 <button
@@ -348,7 +348,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate }: TicketsTabProps) {
                                             <textarea
                                                 value={editForm.description}
                                                 onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-medium text-sm min-h-[80px] resize-none"
+                                                className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 font-medium text-sm text-gray-900 min-h-[80px] resize-none"
                                                 placeholder="Ticket description..."
                                             />
                                         </div>

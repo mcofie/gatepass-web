@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Home, Calendar, LogOut, LayoutDashboard, Settings, Banknote, Activity, Users, ScanLine, Sparkles, History } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export function AdminSidebar() {
     const pathname = usePathname()
@@ -14,6 +15,7 @@ export function AdminSidebar() {
     const [user, setUser] = useState<User | null>(null)
     const [isOwner, setIsOwner] = useState(false)
     const [orgDetails, setOrgDetails] = useState<{ name: string } | null>(null)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const checkOwner = async () => {
@@ -34,6 +36,7 @@ export function AdminSidebar() {
                     }
                 }
             }
+            setLoading(false)
         }
         checkOwner()
     }, [])
@@ -69,17 +72,27 @@ export function AdminSidebar() {
         <aside className="w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-[#1a1a1a]">
             {/* Brand */}
             <div className="p-8 pb-12">
-                <Link href="/" className="flex items-center gap-3 group">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
-                        {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
+                {loading ? (
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="w-10 h-10 rounded-xl bg-[#222]" />
+                        <div className="space-y-1">
+                            <Skeleton className="w-24 h-4 bg-[#222]" />
+                            <Skeleton className="w-16 h-2 bg-[#222]" />
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="font-bold tracking-tight text-lg leading-tight">
-                            {orgDetails?.name || 'GatePass.'}
-                        </h1>
-                        {orgDetails?.name && <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Organization</p>}
-                    </div>
-                </Link>
+                ) : (
+                    <Link href="/" className="flex items-center gap-3 group">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
+                            {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
+                        </div>
+                        <div>
+                            <h1 className="font-bold tracking-tight text-lg leading-tight">
+                                {orgDetails?.name || 'GatePass.'}
+                            </h1>
+                            {orgDetails?.name && <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Organization</p>}
+                        </div>
+                    </Link>
+                )}
             </div>
 
             {/* Navigation */}
@@ -104,15 +117,25 @@ export function AdminSidebar() {
             {/* User Profile */}
             <div className="p-4 border-t border-[#1a1a1a]">
                 <div className="bg-[#111] rounded-2xl p-1 mb-2 border border-[#1a1a1a]">
-                    <div className="flex items-center gap-3 px-3 py-2.5">
-                        <div className="w-8 h-8 bg-gradient-to-tr from-gray-700 to-gray-600 rounded-full flex items-center justify-center text-[10px] font-bold shadow-inner">
-                            {user?.email?.charAt(0).toUpperCase()}
+                    {loading ? (
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                            <Skeleton className="w-8 h-8 rounded-full bg-[#222]" />
+                            <div className="space-y-1">
+                                <Skeleton className="w-32 h-3 bg-[#222]" />
+                                <Skeleton className="w-20 h-2 bg-[#222]" />
+                            </div>
                         </div>
-                        <div className="overflow-hidden flex-1">
-                            <p className="text-[12px] font-medium text-white truncate">{user?.email}</p>
-                            <p className="text-[10px] text-gray-500">Administrator</p>
+                    ) : (
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                            <div className="w-8 h-8 bg-gradient-to-tr from-gray-700 to-gray-600 rounded-full flex items-center justify-center text-[10px] font-bold shadow-inner">
+                                {user?.email?.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="overflow-hidden flex-1">
+                                <p className="text-[12px] font-medium text-white truncate">{user?.email}</p>
+                                <p className="text-[10px] text-gray-500">Administrator</p>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
                 <button
                     onClick={handleLogout}

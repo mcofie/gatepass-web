@@ -25,6 +25,8 @@ export interface Event {
     is_featured?: boolean
     view_count?: number
     currency?: string
+    primary_color?: string
+    logo_url?: string
 }
 
 export interface Organizer {

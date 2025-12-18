@@ -24,6 +24,7 @@ import { StaffTab } from '@/components/admin/tabs/StaffTab'
 import { AttendeesTab } from '@/components/admin/tabs/AttendeesTab'
 import { TicketsTab } from '@/components/admin/tabs/TicketsTab'
 import { RichTextEditor } from '@/components/common/RichTextEditor'
+import { MediaUploader } from '@/components/admin/MediaUploader'
 
 
 interface EventManageClientProps {
@@ -109,6 +110,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
         e.preventDefault()
         setLoading(true)
         try {
+            if (event.is_published && tiers.length === 0) {
+                throw new Error('You must create at least one ticket tier before publishing.')
+            }
+
             const { error } = await supabase.schema('gatepass').from('events').update({
                 title: event.title,
                 slug: event.slug,
@@ -127,7 +132,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                 video_url: event.video_url,
                 is_published: event.is_published,
                 fee_bearer: event.fee_bearer,
-                platform_fee_percent: event.platform_fee_percent
+                platform_fee_percent: event.platform_fee_percent,
+                primary_color: event.primary_color
             }).eq('id', event.id)
 
             if (error) throw error
@@ -342,7 +348,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
 
 
     return (
-        <div className="container mx-auto p-6 max-w-5xl font-sans">
+        <div className="container mx-auto p-6 max-w-7xl font-sans">
             {/* Header */}
             <div className="flex flex-col gap-6 mb-10">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-2">
@@ -463,7 +469,10 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </div>
                             </div>
                             <button
-                                onClick={() => downloadCSV(transactions, `gatepass-transactions-${event.slug}`)}
+                                onClick={() => {
+                                    const csv = generateCSV(transactions)
+                                    downloadCSV(csv, `gatepass-transactions-${event.slug}`)
+                                }}
                                 disabled={transactions.length === 0}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-lg shadow-gray-900/10 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                             >
@@ -622,7 +631,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         <input
                                             value={event.title}
                                             onChange={e => setEvent({ ...event, title: e.target.value })}
-                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3.5 text-lg font-bold focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none"
+                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3.5 text-lg font-bold focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none text-gray-900"
                                             placeholder="E.g. Summer Music Festival"
                                         />
                                     </div>
@@ -637,6 +646,73 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 </div>
                             </div>
 
+                            {/* Poster Image */}
+                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
+                                <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                                        <ImageIcon className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    Event Poster
+                                </h3>
+                                <div className="space-y-4">
+                                    <MediaUploader
+                                        type="image"
+                                        path={`${event.organization_id}/${event.id}`}
+                                        value={event.poster_url || ''}
+                                        onChange={(url) => setEvent({ ...event, poster_url: url })}
+                                    />
+                                    <p className="text-xs text-gray-500 text-center px-4">
+                                        Recommended: 1080x1350px (4:5) or 1080x1920px (9:16). Max 5MB.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Event Logo */}
+                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
+                                <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-pink-50 flex items-center justify-center">
+                                        <ImageIcon className="w-4 h-4 text-pink-600" />
+                                    </div>
+                                    Event Logo
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="flex justify-center">
+                                        <div className="w-32">
+                                            <MediaUploader
+                                                type="image"
+                                                path={`${event.organization_id}/${event.id}`}
+                                                value={event.logo_url || ''}
+                                                onChange={(url) => setEvent({ ...event, logo_url: url })}
+                                                className="!rounded-full !aspect-square"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 text-center px-4">
+                                        Displayed on ticket cards. Square image recommended.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Event Video */}
+                            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
+                                <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center">
+                                        <Video className="w-4 h-4 text-purple-600" />
+                                    </div>
+                                    Event Video
+                                </h3>
+                                <div className="space-y-4">
+                                    <MediaUploader
+                                        type="video"
+                                        path={`${event.organization_id}/${event.id}`}
+                                        value={event.video_url || ''}
+                                        onChange={(url) => setEvent({ ...event, video_url: url })}
+                                    />
+                                    <p className="text-xs text-gray-500 text-center px-4">
+                                        Short teaser video (15-30s). Max 50MB. Will be auto-optimized to WebM.
+                                    </p>
+                                </div>
+                            </div>
                             {/* Location */}
                             <div className="p-8 rounded-3xl border border-gray-100 bg-white shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
                                 <div className="flex items-center gap-3 border-b pb-4 border-gray-100">
@@ -652,7 +728,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             <input
                                                 value={event.venue_name}
                                                 onChange={e => setEvent({ ...event, venue_name: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
+                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium text-gray-900"
                                                 placeholder="e.g. The National Theatre"
                                             />
                                         </div>
@@ -661,7 +737,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             <input
                                                 value={event.venue_address}
                                                 onChange={e => setEvent({ ...event, venue_address: e.target.value })}
-                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium"
+                                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium text-gray-900"
                                                 placeholder="e.g. Accra, Ghana"
                                             />
                                         </div>
@@ -674,7 +750,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                                 step="any"
                                                 value={event.latitude || ''}
                                                 onChange={e => setEvent({ ...event, latitude: parseFloat(e.target.value) })}
-                                                className="w-full bg-white border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-mono"
+                                                className="w-full bg-white border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-mono text-gray-900"
                                                 placeholder="5.6037"
                                             />
                                         </div>
@@ -685,7 +761,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                                 step="any"
                                                 value={event.longitude || ''}
                                                 onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
-                                                className="w-full bg-white border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-mono"
+                                                className="w-full bg-white border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-mono text-gray-900"
                                                 placeholder="-0.1870"
                                             />
                                         </div>
@@ -723,6 +799,37 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     </div>
                                 </div>
                             </div>
+                            {/* Branding */}
+                            <div className="p-8 rounded-3xl border border-gray-100 bg-white shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
+                                <div className="flex items-center gap-3 border-b pb-4 border-gray-100">
+                                    <div className="p-2 bg-gray-50 rounded-xl">
+                                        <div className="w-5 h-5 rounded-full border border-gray-300" style={{ background: event.primary_color || '#000000' }} />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">Event Branding</h3>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Theme Color</label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            value={event.primary_color || '#000000'}
+                                            onChange={e => setEvent({ ...event, primary_color: e.target.value })}
+                                            type="color"
+                                            className="w-12 h-12 p-1 rounded-xl cursor-pointer bg-white border border-gray-200"
+                                        />
+                                        <input
+                                            value={event.primary_color || ''}
+                                            onChange={e => setEvent({ ...event, primary_color: e.target.value })}
+                                            type="text"
+                                            placeholder="#000000"
+                                            className="w-32 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium uppercase text-gray-900"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Used for buttons and accents on your public event page.
+                                    </p>
+                                </div>
+                            </div>
+
 
                         </div>
 
@@ -740,7 +847,13 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                             name="toggle"
                                             id="pub"
                                             checked={event.is_published}
-                                            onChange={e => setEvent({ ...event, is_published: e.target.checked })}
+                                            onChange={e => {
+                                                if (e.target.checked && tiers.length === 0) {
+                                                    toast.error('You must create at least one ticket tier before publishing.')
+                                                    return
+                                                }
+                                                setEvent({ ...event, is_published: e.target.checked })
+                                            }}
                                             className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
                                             style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
                                         />
@@ -808,9 +921,8 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                 <div>
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Fee Bearer</label>
                                     <select
-                                        value={event.fee_bearer}
                                         onChange={e => setEvent({ ...event, fee_bearer: e.target.value as 'customer' | 'organizer' })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all text-gray-900"
                                     >
                                         <option value="customer">Customer Pays Fees</option>
                                         <option value="organizer">Absorb Fees</option>
@@ -833,19 +945,19 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     <input
                                         value={event.social_website || ''}
                                         onChange={e => setEvent({ ...event, social_website: e.target.value })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all"
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all text-gray-900"
                                         placeholder="Website URL"
                                     />
                                     <input
                                         value={event.social_instagram || ''}
                                         onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all"
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all text-gray-900"
                                         placeholder="Instagram Username"
                                     />
                                     <input
                                         value={event.social_twitter || ''}
                                         onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all"
+                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2 text-xs focus:ring-black focus:border-black transition-all text-gray-900"
                                         placeholder="X (Twitter)"
                                     />
                                 </div>
@@ -914,7 +1026,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     required
                                     value={discountForm.code}
                                     onChange={e => setDiscountForm({ ...discountForm, code: e.target.value })}
-                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all uppercase font-medium"
+                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all uppercase font-medium text-gray-900"
                                     placeholder="e.g. EARLYBIRD"
                                 />
                             </div>
@@ -924,7 +1036,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     <select
                                         value={discountForm.type}
                                         onChange={e => setDiscountForm({ ...discountForm, type: e.target.value as 'percentage' | 'fixed' })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium appearance-none"
+                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium appearance-none text-gray-900"
                                     >
                                         <option value="percentage">Percent (%)</option>
                                         <option value="fixed">Fixed Amount</option>
@@ -945,7 +1057,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         const val = parseFloat(e.target.value)
                                         setDiscountForm({ ...discountForm, value: isNaN(val) ? 0 : val })
                                     }}
-                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium text-gray-900"
                                 />
                             </div>
                             <div>
@@ -955,7 +1067,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     min="0"
                                     value={discountForm.max_uses}
                                     onChange={e => setDiscountForm({ ...discountForm, max_uses: parseInt(e.target.value) })}
-                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium"
+                                    className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium text-gray-900"
                                     placeholder="∞"
                                 />
                             </div>
@@ -965,7 +1077,7 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     <select
                                         value={discountForm.tier_id || ''}
                                         onChange={e => setDiscountForm({ ...discountForm, tier_id: e.target.value })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium appearance-none truncate pr-8"
+                                        className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all font-medium appearance-none truncate pr-8 text-gray-900"
                                     >
                                         <option value="">All Tiers</option>
                                         {tiers.map(t => (

@@ -6,6 +6,7 @@ import { Search, Mail, Phone, ShoppingBag, TrendingUp, User, Filter, Download } 
 import { formatCurrency } from '@/utils/format'
 import { toast } from 'sonner'
 import { exportToCSV } from '@/utils/export'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type Customer = {
     email: string
@@ -160,39 +161,67 @@ export function CustomerCRM() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {filteredCustomers.map((c, i) => (
-                            <tr key={c.email} className="hover:bg-gray-50/50 transition-colors group">
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 group-hover:bg-black group-hover:text-white transition-colors">
-                                            {c.name.charAt(0)}
+                        {loading ? (
+                            Array.from({ length: 5 }).map((_, i) => (
+                                <tr key={i} className="animate-pulse">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <Skeleton className="w-8 h-8 rounded-full bg-gray-200" />
+                                            <Skeleton className="h-4 w-32 bg-gray-200" />
                                         </div>
-                                        <span className="font-bold text-gray-900">{c.name}</span>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 text-gray-500">
-                                    <div className="flex flex-col">
-                                        <span className="flex items-center gap-1.5 text-xs">
-                                            <Mail className="w-3 h-3" /> {c.email}
-                                        </span>
-                                        {c.phone && (
-                                            <span className="flex items-center gap-1.5 text-xs mt-0.5 opacity-70">
-                                                <Phone className="w-3 h-3" /> {c.phone}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="space-y-2">
+                                            <Skeleton className="h-3 w-40 bg-gray-200" />
+                                            <Skeleton className="h-2 w-24 bg-gray-100" />
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <Skeleton className="h-4 w-24 bg-gray-200 ml-auto" />
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="space-y-1">
+                                            <Skeleton className="h-4 w-16 bg-gray-200 ml-auto" />
+                                            <Skeleton className="h-2 w-12 bg-gray-100 ml-auto" />
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            filteredCustomers.map((c, i) => (
+                                <tr key={c.email} className="hover:bg-gray-50/50 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 group-hover:bg-black group-hover:text-white transition-colors">
+                                                {c.name.charAt(0)}
+                                            </div>
+                                            <span className="font-bold text-gray-900">{c.name}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-500">
+                                        <div className="flex flex-col">
+                                            <span className="flex items-center gap-1.5 text-xs">
+                                                <Mail className="w-3 h-3" /> {c.email}
                                             </span>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 text-right text-gray-500">
-                                    {new Date(c.last_seen).toLocaleDateString()}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <div className="font-bold text-gray-900">{formatCurrency(c.total_spent, 'GHS')}</div>
-                                    <div className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-0.5">
-                                        {c.tickets_bought} Orders
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                                            {c.phone && (
+                                                <span className="flex items-center gap-1.5 text-xs mt-0.5 opacity-70">
+                                                    <Phone className="w-3 h-3" /> {c.phone}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-right text-gray-500">
+                                        {new Date(c.last_seen).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="font-bold text-gray-900">{formatCurrency(c.total_spent, 'GHS')}</div>
+                                        <div className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-0.5">
+                                            {c.tickets_bought} Orders
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
                 {filteredCustomers.length === 0 && (

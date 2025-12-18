@@ -81,7 +81,10 @@ export default async function AdminEventsPage() {
                                         </div>
                                     )}
                                     <div className="absolute top-4 right-4 flex gap-2">
-                                        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border ${event.is_published
+                                        {/* Theme Color Indicator */}
+                                        <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: event.primary_color || '#000000' }} />
+
+                                        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border flex items-center ${event.is_published
                                             ? 'bg-green-500/90 text-white border-white/20'
                                             : 'bg-yellow-400/90 text-black border-white/20'
                                             }`}>

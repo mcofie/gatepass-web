@@ -84,7 +84,7 @@ export function StaffTab({ eventId }: StaffTabProps) {
                             <input
                                 value={staffForm.name}
                                 onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
-                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all"
+                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all text-gray-900"
                                 placeholder="e.g. John Doe"
                             />
                         </div>
@@ -94,7 +94,7 @@ export function StaffTab({ eventId }: StaffTabProps) {
                                 type="email"
                                 value={staffForm.email}
                                 onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all"
+                                className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black outline-none transition-all text-gray-900"
                                 placeholder="john@example.com"
                             />
                         </div>

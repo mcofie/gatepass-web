@@ -49,7 +49,7 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     }
 
     return (
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 focus-within:ring-2 focus-within:ring-black focus-within:bg-white transition-all">
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 focus-within:ring-2 focus-within:ring-black focus-within:bg-white transition-all text-gray-900">
             {/* Toolbar */}
             <div className="flex items-center gap-1 p-2 border-b border-gray-200 bg-gray-100/50">
                 <button

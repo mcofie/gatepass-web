@@ -4,8 +4,6 @@ import { Search, Download, ScanLine } from 'lucide-react'
 import { generateCSV, downloadCSV } from '@/utils/analytics'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
 import { Event } from '@/types/gatepass'
 
 interface AttendeesTabProps {
@@ -35,7 +33,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                 id, status, order_reference, created_at,
                 ticket_tiers ( name, price, currency ),
                 reservations ( guest_name, guest_email ),
-                profiles ( full_name, id )
+                profiles ( full_name, id, email )
             `, { count: 'exact' })
             .eq('event_id', event.id)
             .order('created_at', { ascending: false })
@@ -83,7 +81,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                 setSearchQuery(e.target.value)
                                 setTicketPage(0) // Reset page on search
                             }}
-                            className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                            className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-black/5 focus:border-black transition-all text-gray-900"
                         />
                     </div>
                     <button
@@ -119,8 +117,8 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Guest</th>
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Ticket</th>
+                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Purchased</th>
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Net Payout</th>
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -139,8 +137,8 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                                 <div className="font-bold text-gray-900 group-hover:text-black transition-colors">
                                                     {ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
                                                 </div>
-                                                <div className="text-xs text-gray-400 font-mono tracking-tight">
-                                                    {ticket.profiles?.id ? ticket.profiles.id.slice(0, 8) + '...' : (ticket.reservations?.guest_email || 'No Email')}
+                                                <div className="text-xs text-gray-400 tracking-tight">
+                                                    {ticket.profiles?.email || ticket.reservations?.guest_email || 'No Email'}
                                                 </div>
                                             </div>
                                         </div>
@@ -151,31 +149,34 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                         </span>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <span className="font-mono text-xs font-bold text-gray-700">
-                                            {formatCurrency(
-                                                calculateFees(ticket.ticket_tiers?.price || 0, event.fee_bearer as 'customer' | 'organizer').organizerPayout,
-                                                ticket.ticket_tiers?.currency
-                                            )}
+                                        <span className="text-xs text-gray-500 font-medium">
+                                            {new Date(ticket.created_at).toLocaleDateString(undefined, {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                year: 'numeric'
+                                            })}
                                         </span>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <span className={clsx("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border", {
-                                            'bg-green-50 text-green-700 border-green-200/50': ticket.status === 'valid',
-                                            'bg-gray-50 text-gray-500 border-gray-200/50': ticket.status === 'used',
-                                            'bg-red-50 text-red-700 border-red-200/50': ticket.status === 'cancelled'
+                                        <span className={clsx("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold", {
+                                            'bg-green-100/80 text-green-700': ticket.status === 'valid',
+                                            'bg-gray-100/80 text-gray-600': ticket.status === 'used',
+                                            'bg-blue-100/80 text-blue-700': ticket.status === 'checked_in',
+                                            'bg-red-100/80 text-red-700': ticket.status === 'cancelled'
                                         })}>
                                             <span className={clsx("w-1.5 h-1.5 rounded-full", {
-                                                'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]': ticket.status === 'valid',
+                                                'bg-green-500': ticket.status === 'valid',
                                                 'bg-gray-400': ticket.status === 'used',
+                                                'bg-blue-500': ticket.status === 'checked_in',
                                                 'bg-red-500': ticket.status === 'cancelled'
                                             })}></span>
-                                            {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                                            {(ticket.status === 'checked_in' ? 'Checked In' : ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1))}
                                         </span>
                                     </td>
                                     <td className="px-8 py-5 text-right">
                                         {ticket.status === 'valid' && (
                                             <button
-                                                onClick={() => updateTicketStatus(ticket.id, 'used')}
+                                                onClick={() => updateTicketStatus(ticket.id, 'checked_in')}
                                                 className={clsx("font-bold bg-black text-white rounded-lg hover:bg-gray-800 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
                                                     'px-6 py-3 text-sm w-full': isCheckInMode,
                                                     'px-4 py-2 text-xs': !isCheckInMode
