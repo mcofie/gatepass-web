@@ -52,16 +52,17 @@
 }
 
 /* Base Styles */
-:root {
-  --background: var(--color-background-light);
-  --foreground: var(--color-foreground-light);
-  --surface: var(--color-surface-light);
-  --surface-glass: var(--color-surface-glass-light);
-  --border: var(--color-border-light);
-}
-
-@media (prefers-color-scheme: dark) {
+/* Base Styles using Tailwind v4 variables */
+@layer base {
   :root {
+    --background: var(--color-background-light);
+    --foreground: var(--color-foreground-light);
+    --surface: var(--color-surface-light);
+    --surface-glass: var(--color-surface-glass-light);
+    --border: var(--color-border-light);
+  }
+
+  .dark {
     --background: var(--color-background-dark);
     --foreground: var(--color-foreground-dark);
     --surface: var(--color-surface-dark);

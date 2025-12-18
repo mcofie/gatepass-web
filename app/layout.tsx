@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { NavBar } from '@/components/common/NavBar'
 import { Footer } from '@/components/common/Footer'
+import { ThemeProvider } from "@/components/providers/theme-provider"
 
 import { Toaster } from 'sonner'
 
@@ -22,14 +23,21 @@ export default function RootLayout({
     children: React.ReactNode
 }>) {
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
             <body className={`${inter.variable} font-sans antialiased`}>
-                <NavBar />
-                <main className="min-h-screen">
-                    {children}
-                </main>
-                <Footer />
-                <Toaster position="bottom-right" />
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme="system"
+                    enableSystem
+                    disableTransitionOnChange
+                >
+                    <NavBar />
+                    <main className="min-h-screen">
+                        {children}
+                    </main>
+                    <Footer />
+                    <Toaster position="bottom-right" />
+                </ThemeProvider>
             </body>
         </html>
     )

@@ -42,7 +42,7 @@ export function AdminSidebar() {
     ]
 
     return (
-        <aside className="w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col min-h-screen border-r border-[#1a1a1a]">
+        <aside className="w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-[#1a1a1a]">
             {/* Brand */}
             <div className="p-8 pb-12">
                 <Link href="/" className="text-xl font-bold tracking-tighter flex items-center gap-3">

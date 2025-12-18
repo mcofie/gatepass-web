@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
+import { ThemeToggle } from './ThemeToggle'
 
 export function NavBar() {
     const [user, setUser] = useState<User | null>(null)
@@ -63,6 +64,8 @@ export function NavBar() {
                                 Dashboard
                             </Link>
                         )}
+
+                        <ThemeToggle />
 
                         {user ? (
                             <div className="flex items-center gap-4 pl-6 border-l border-gray-200 dark:border-white/10">
@@ -151,10 +154,17 @@ export function NavBar() {
                                     </button>
                                 </Link>
                             )}
+
+                            <div className="h-px bg-gray-200 dark:bg-white/10 my-2 mx-2"></div>
+
+                            <div className="px-4 py-2 flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">Appearance</span>
+                                <ThemeToggle />
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
-        </nav>
+        </nav >
     )
 }

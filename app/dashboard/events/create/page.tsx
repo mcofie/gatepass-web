@@ -139,18 +139,19 @@ export default function CreateEventPage() {
 
             if (!formData.organization_id) throw new Error('Organization profile not found')
 
+            const { tiers, ...eventData } = formData
+
             const { data, error } = await supabase
                 .schema('gatepass')
                 .from('events')
                 .insert({
-                    ...formData,
+                    ...eventData,
                     starts_at: formData.starts_at?.toISOString(),
                     ends_at: formData.ends_at?.toISOString() || null,
                     organizer_id: user.id, // Legacy: User Creator
                     organization_id: formData.organization_id, // New: Linked Organization
                     is_published: false // Default to draft
                 })
-                .select()
                 .select()
                 .single()
 
@@ -388,18 +389,10 @@ export default function CreateEventPage() {
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                                         <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Choose who pays the processing fees.
+                                    </p>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Platform Fee (%)</label>
-                                <input
-                                    name="platform_fee_percent"
-                                    value={formData.platform_fee_percent}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, platform_fee_percent: parseFloat(e.target.value) }))}
-                                    type="number"
-                                    step="0.1"
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent focus:bg-white transition-all outline-none font-medium"
-                                />
                             </div>
                         </div>
                     </div>

@@ -43,11 +43,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/login?redirect=' + request.nextUrl.pathname, request.url))
         }
 
-        // Strict Admin Check for Dashboard only
-        const admins = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
-        if (request.nextUrl.pathname.startsWith('/dashboard') && !admins.includes(user.email?.toLowerCase() || '')) {
-            return NextResponse.redirect(new URL('/', request.url))
-        }
+        // Removed strict admin check to allow Organizers and Staff
+        // Page level/Layout level protection handles specific permissions
     }
 
     // Auth pages should redirect if logged in
@@ -67,6 +64,6 @@ export const config = {
          * - favicon.ico (favicon file)
          * Feel free to modify this pattern to include more paths.
          */
-        '/((?!_next/static|_next/image|favicon.ico).*)',
+        '/((?!_next/static|_next/image|favicon.ico|auth).*)',
     ],
 }

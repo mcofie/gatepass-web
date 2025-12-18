@@ -22,6 +22,7 @@ const AnalyticsCharts = dynamic(() => import('@/components/admin/AnalyticsCharts
 import { StaffTab } from '@/components/admin/tabs/StaffTab'
 import { AttendeesTab } from '@/components/admin/tabs/AttendeesTab'
 import { TicketsTab } from '@/components/admin/tabs/TicketsTab'
+import { RichTextEditor } from '@/components/common/RichTextEditor'
 
 
 interface EventManageClientProps {
@@ -521,13 +522,11 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                                        <textarea
+                                        <RichTextEditor
                                             value={event.description}
-                                            onChange={e => setEvent({ ...event, description: e.target.value })}
-                                            rows={6}
-                                            className="w-full bg-gray-50 border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-black focus:border-transparent transition-all outline-none font-medium resize-none"
+                                            onChange={(value) => setEvent({ ...event, description: value })}
                                             placeholder="Describe your event to attract attendees..."
-                                        ></textarea>
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -710,15 +709,9 @@ export function EventManageClient({ event: initialEvent, initialTiers }: EventMa
                                         <option value="customer">Customer Pays Fees</option>
                                         <option value="organizer">Absorb Fees</option>
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1 block">Pass-on Fee (%)</label>
-                                    <input
-                                        type="number"
-                                        value={event.platform_fee_percent}
-                                        onChange={e => setEvent({ ...event, platform_fee_percent: parseFloat(e.target.value) })}
-                                        className="w-full bg-gray-50 border-gray-200 rounded-lg p-2.5 text-sm focus:ring-black focus:border-black transition-all"
-                                    />
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        If 'Customer Pays', fees are added to the ticket price. If 'Absorb', fees are deducted from your earnings.
+                                    </p>
                                 </div>
                             </div>
 
