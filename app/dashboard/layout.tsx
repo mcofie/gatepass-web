@@ -1,5 +1,7 @@
 import { AdminSidebar } from '@/components/layouts/AdminSidebar'
 import { Metadata } from 'next'
+import { LoginNotification } from '@/components/admin/LoginNotification' // Import the component
+import { Suspense } from 'react'
 
 export const metadata: Metadata = {
     title: 'Dashboard',
@@ -12,6 +14,9 @@ export default function DashboardLayout({
 }) {
     return (
         <div className="min-h-screen bg-[#FAFAFA] flex font-sans selection:bg-black selection:text-white">
+            <Suspense fallback={null}>
+                <LoginNotification />
+            </Suspense>
             <AdminSidebar />
             <main className="flex-1 overflow-x-hidden relative">
                 <header className="absolute top-0 left-0 right-0 h-24 flex items-center justify-between px-12 z-30 pointer-events-none">

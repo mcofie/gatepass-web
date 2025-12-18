@@ -21,7 +21,7 @@ export async function GET(request: Request) {
                 const superAdmins = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
                 if (superAdmins.includes(user.email || '')) {
                     console.log('[Auth Callback] Redirecting Super Admin')
-                    return NextResponse.redirect(`${origin}/dashboard`)
+                    return NextResponse.redirect(`${origin}/dashboard?login=success`)
                 }
 
                 // 2. Check if Owner (Organizer)
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
                 if (organizer) {
                     console.log('[Auth Callback] Redirecting Organizer Owner')
-                    return NextResponse.redirect(`${origin}/dashboard`)
+                    return NextResponse.redirect(`${origin}/dashboard?login=success`)
                 }
 
                 // 3. Check if Staff (Organization Team) - USE ADMIN CLIENT TO BYPASS RLS
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
                             console.log('[Auth Callback] Linked Staff User ID')
                         }
 
-                        return NextResponse.redirect(`${origin}/dashboard`)
+                        return NextResponse.redirect(`${origin}/dashboard?login=success`)
                     }
                 } else {
                     console.error('[Auth Callback] Missing SUPABASE_SERVICE_ROLE_KEY')

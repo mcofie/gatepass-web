@@ -14,20 +14,6 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  experimental: {
-    turbo: {
-      resolveAlias: {
-        '@ffmpeg/ffmpeg': '@ffmpeg/ffmpeg/dist/esm',
-      },
-    },
-  },
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@ffmpeg/ffmpeg': '@ffmpeg/ffmpeg/dist/esm',
-    };
-    return config;
-  },
 
 };
 
