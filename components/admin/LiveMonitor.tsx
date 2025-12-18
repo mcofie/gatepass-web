@@ -185,24 +185,24 @@ export function LiveMonitor() {
             <div className="space-y-8 animate-fade-in max-w-6xl mx-auto">
                 <div className="flex justify-between items-end">
                     <div className="space-y-2">
-                        <Skeleton className="h-4 w-32 bg-gray-200" />
-                        <Skeleton className="h-8 w-48 bg-gray-200" />
+                        <Skeleton className="h-4 w-32 bg-gray-200 dark:bg-white/10" />
+                        <Skeleton className="h-8 w-48 bg-gray-200 dark:bg-white/10" />
                     </div>
-                    <Skeleton className="h-10 w-48 rounded-lg bg-gray-200" />
+                    <Skeleton className="h-10 w-48 rounded-lg bg-gray-200 dark:bg-white/10" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[1, 2, 3].map(i => (
-                        <Skeleton key={i} className="h-48 rounded-3xl bg-gray-200" />
+                        <Skeleton key={i} className="h-48 rounded-3xl bg-gray-200 dark:bg-white/10" />
                     ))}
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-4">
-                        <Skeleton className="h-8 w-32 mb-6 bg-gray-200" />
+                        <Skeleton className="h-8 w-32 mb-6 bg-gray-200 dark:bg-white/10" />
                         {[1, 2, 3, 4].map(i => (
-                            <Skeleton key={i} className="h-16 w-full rounded-xl bg-gray-100" />
+                            <Skeleton key={i} className="h-16 w-full rounded-xl bg-gray-100 dark:bg-white/5" />
                         ))}
                     </div>
-                    <Skeleton className="h-40 w-full rounded-3xl bg-gray-200" />
+                    <Skeleton className="h-40 w-full rounded-3xl bg-gray-200 dark:bg-white/10" />
                 </div>
             </div>
         )
@@ -210,14 +210,14 @@ export function LiveMonitor() {
 
     if (!selectedEventId) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 animate-fade-in">
-            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
-                <Activity className="w-10 h-10 text-gray-300" />
+            <div className="w-20 h-20 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100 dark:border-white/10">
+                <Activity className="w-10 h-10 text-gray-300 dark:text-white/40" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">No Active Events</h2>
-            <p className="text-gray-500 max-w-md mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Active Events</h2>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md mb-8">
                 The Live Monitor tracks events happening in the last 24 hours or scheduled for the future. Create an event to start monitoring.
             </p>
-            <a href="/dashboard/events" className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
+            <a href="/dashboard/events" className="bg-black text-white dark:bg-white dark:text-black px-6 py-3 rounded-xl font-bold text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
                 View All Events
             </a>
         </div>
@@ -230,22 +230,22 @@ export function LiveMonitor() {
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                         <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                        <span className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                             {isConnected ? 'Live Connection Active' : 'Connecting...'}
                         </span>
                     </div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Live Monitor</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Live Monitor</h1>
                 </div>
 
-                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
-                    <Clock className="w-4 h-4 text-gray-500" />
+                <div className="flex items-center gap-2 bg-white dark:bg-[#111] px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
+                    <Clock className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                     <select
                         value={selectedEventId}
                         onChange={(e) => setSelectedEventId(e.target.value)}
-                        className="bg-transparent text-sm font-medium outline-none cursor-pointer"
+                        className="bg-transparent text-sm font-medium outline-none cursor-pointer dark:text-white"
                     >
                         {events.map(e => (
-                            <option key={e.id} value={e.id}>{e.title}</option>
+                            <option key={e.id} value={e.id} className="dark:bg-[#111]">{e.title}</option>
                         ))}
                     </select>
                 </div>
@@ -253,7 +253,7 @@ export function LiveMonitor() {
 
             {/* Big Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-black text-white p-8 rounded-3xl shadow-xl relative overflow-hidden">
+                <div className="bg-black dark:bg-[#111] text-white rounded-3xl p-8 shadow-xl relative overflow-hidden dark:border dark:border-white/10">
                     <div className="absolute top-0 right-0 p-32 bg-green-500/20 rounded-full translate-x-12 -translate-y-12 blur-3xl animate-pulse" />
                     <div className="relative z-10">
                         <div className="flex items-center gap-2 text-gray-400 mb-2">
@@ -268,54 +268,54 @@ export function LiveMonitor() {
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                <div className="bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm flex flex-col justify-center">
                     <div className="flex items-center gap-2 text-gray-400 mb-2">
                         <Ticket className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase tracking-widest">Total Sold</span>
                     </div>
-                    <h2 className="text-4xl font-bold text-gray-900">{stats.totalSold}</h2>
-                    <p className="text-sm text-gray-500 mt-1">Expected attendance</p>
+                    <h2 className="text-4xl font-bold text-gray-900 dark:text-white">{stats.totalSold}</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Expected attendance</p>
                 </div>
 
-                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-center">
+                <div className="bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm flex flex-col justify-center">
                     <div className="flex items-center gap-2 text-gray-400 mb-2">
                         <Activity className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase tracking-widest">Check-in Velocity</span>
                     </div>
-                    <h2 className="text-4xl font-bold text-gray-900">--</h2>
-                    <p className="text-sm text-gray-500 mt-1">Attendees / min (Coming Soon)</p>
+                    <h2 className="text-4xl font-bold text-gray-900 dark:text-white">--</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Attendees / min (Coming Soon)</p>
                 </div>
             </div>
 
             {/* Live Feed */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
-                    <h3 className="font-bold text-lg text-gray-900 mb-6 flex items-center gap-2">
+                <div className="lg:col-span-2 bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm p-6">
+                    <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
                         Live Feed
                     </h3>
 
                     <div className="space-y-0">
                         {feed.map((log, i) => (
-                            <div key={log.id} className={`flex items-center justify-between p-4 rounded-xl transition-all ${i === 0 ? 'bg-green-50 border border-green-100' : 'hover:bg-gray-50 border border-transparent border-b-gray-50'}`}>
+                            <div key={log.id} className={`flex items-center justify-between p-4 rounded-xl transition-all ${i === 0 ? 'bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800' : 'hover:bg-gray-50 dark:hover:bg-white/5 border border-transparent border-b-gray-50 dark:border-b-white/5'}`}>
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-300'}`}>
                                         {log.profile_name.charAt(0)}
                                     </div>
                                     <div>
-                                        <p className="font-bold text-gray-900 text-sm">{log.profile_name}</p>
-                                        <p className="text-xs text-gray-500">{log.ticket_type}</p>
+                                        <p className="font-bold text-gray-900 dark:text-white text-sm">{log.profile_name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{log.ticket_type}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs font-mono font-medium text-gray-500">
+                                    <p className="text-xs font-mono font-medium text-gray-500 dark:text-gray-400">
                                         {new Date(log.checked_in_at).toLocaleTimeString()}
                                     </p>
                                 </div>
                             </div>
                         ))}
                         {feed.length === 0 && (
-                            <div className="text-center py-12 text-gray-400">
+                            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
                                 Waiting for check-ins...
                             </div>
                         )}
@@ -324,9 +324,9 @@ export function LiveMonitor() {
 
                 {/* Quick Actions / QR Scanner Link? */}
                 <div className="space-y-6">
-                    <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 text-blue-900">
+                    <div className="bg-blue-50 dark:bg-blue-900/10 p-6 rounded-3xl border border-blue-100 dark:border-blue-900/20 text-blue-900 dark:text-blue-100">
                         <h4 className="font-bold mb-2">Scanner App</h4>
-                        <p className="text-sm opacity-80 mb-4">Download the GatePass Admin app to scan tickets at the door.</p>
+                        <p className="text-sm opacity-80 mb-4 text-blue-800 dark:text-blue-200">Download the GatePass Admin app to scan tickets at the door.</p>
                         <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold w-full hover:bg-blue-700 transition-colors">
                             Get App Link
                         </button>

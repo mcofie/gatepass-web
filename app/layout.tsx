@@ -1,10 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { NavBar } from '@/components/common/NavBar'
-import { Footer } from '@/components/common/Footer'
 import { ThemeProvider } from "@/components/providers/theme-provider"
-
+import { LayoutShell } from '@/components/layouts/LayoutShell'
 import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -31,11 +29,9 @@ export default function RootLayout({
                     enableSystem
                     disableTransitionOnChange
                 >
-                    <NavBar />
-                    <main className="min-h-screen">
+                    <LayoutShell>
                         {children}
-                    </main>
-                    <Footer />
+                    </LayoutShell>
                     <Toaster position="bottom-right" />
                 </ThemeProvider>
             </body>

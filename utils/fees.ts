@@ -11,35 +11,30 @@ interface FeeResult {
 }
 
 export const calculateFees = (subtotal: number, feeBearer: 'customer' | 'organizer' = 'customer'): FeeResult => {
+    // 1. Platform Fee: ALWAYS 4% paid by the customer on top of ticket.
     const platformFee = subtotal * PLATFORM_FEE_PERCENT
 
-    // Processor fee is typically calculated on the transaction amount.
-    // For simplicity and standard usage, we Calculate it on the Subtotal here unless specified otherwise.
-    // If strict reverse-calc is needed for "Organizer receives exactly X", that's different.
-    // Assuming straightforward multiplication based on prompt context.
+    // 2. Processor Fee: 1.95%
+    // If 'customer' bears fees -> Added to customer total.
+    // If 'organizer' bears fees -> Deducted from organizer payout.
     const processorFee = subtotal * PROCESSOR_FEE_PERCENT
 
-    // Updated Interpretation: Platform Fee is added to the fee (Customer pays on top).
-    // Processor Fee is added if Customer bears it.
-
-    // Customer Pays:
-    // 1. Ticket Price (Subtotal)
-    // 2. Platform Fee (4%)
-    // 3. Processor Fee (1.95%) [If applicable]
-
+    // clientFees = What the customer sees added to the Ticket Price
+    // Always includes Platform Fee. Includes Processor Fee only if Customer bears it.
     const clientFees = platformFee + (feeBearer === 'customer' ? processorFee : 0)
+
+    // customerTotal = Ticket + Client Fees
     const customerTotal = subtotal + clientFees
 
-    // Payout Logic:
-    // If Customer pays Platform Fee, Organizer keeps Ticket Price.
-    // If Organizer bears Processor Fee, it comes out of Ticket Price.
+    // organizerPayout = Ticket - Deductions
+    // If Organizer bears fees, Processor Fee is deducted. Platform Fee is never deducted (customer paid it).
     const organizerPayout = subtotal - (feeBearer === 'organizer' ? processorFee : 0)
 
     return {
         subtotal,
         platformFee,
         processorFee,
-        clientFees, // Total fees visible to/paid by customer
+        clientFees,
         customerTotal,
         organizerPayout
     }

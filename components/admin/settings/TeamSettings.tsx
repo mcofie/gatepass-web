@@ -108,34 +108,34 @@ export function TeamSettings({ organizer }: { organizer: any }) {
     return (
         <div className="max-w-4xl space-y-8">
             {/* Invite Form */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
+            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
+                    <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-500">
                         <UserPlus className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-gray-900">Invite Team Member</h3>
-                        <p className="text-sm text-gray-500">Invite staff to help manage your events.</p>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Invite Team Member</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Invite staff to help manage your events.</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleInvite} className="flex gap-4 items-end">
                     <div className="flex-1 space-y-2">
-                        <label className="text-sm font-bold text-gray-900 ml-1">Email Address</label>
+                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Email Address</label>
                         <Input
                             type="email"
                             value={newEmail}
                             onChange={e => setNewEmail(e.target.value)}
-                            className="h-12 bg-gray-50 border-gray-200 rounded-xl px-4"
+                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white"
                             placeholder="colleague@example.com"
                         />
                     </div>
                     <div className="w-40 space-y-2">
-                        <label className="text-sm font-bold text-gray-900 ml-1">Role</label>
+                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Role</label>
                         <select
                             value={role}
                             onChange={(e) => setRole(e.target.value as any)}
-                            className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 font-medium"
+                            className="w-full h-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 font-medium dark:text-white"
                         >
                             <option value="staff">Staff</option>
                             <option value="admin">Admin</option>
@@ -144,7 +144,7 @@ export function TeamSettings({ organizer }: { organizer: any }) {
                     <Button
                         type="submit"
                         disabled={inviting}
-                        className="h-12 px-6 bg-black text-white font-bold rounded-xl hover:bg-gray-800"
+                        className="h-12 px-6 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200"
                     >
                         {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Invite'}
                     </Button>
@@ -152,42 +152,42 @@ export function TeamSettings({ organizer }: { organizer: any }) {
             </div>
 
             {/* Team List */}
-            <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
-                <h3 className="text-xl font-bold mb-6">Team Members</h3>
+            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
+                <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Team Members</h3>
 
                 <div className="space-y-4">
                     {/* Owner Card (Hardcoded visual) */}
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10">
                         <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-bold text-sm">
+                            <div className="w-10 h-10 bg-black dark:bg-white text-white dark:text-black rounded-full flex items-center justify-center font-bold text-sm">
                                 OW
                             </div>
                             <div>
-                                <p className="font-bold text-gray-900">Owner Account</p>
-                                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Owner</p>
+                                <p className="font-bold text-gray-900 dark:text-white">Owner Account</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Owner</p>
                             </div>
                         </div>
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">Active</span>
+                        <span className="px-3 py-1 bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 rounded-full text-xs font-bold">Active</span>
                     </div>
 
                     {members.length === 0 && (
-                        <div className="py-8 text-center text-gray-400 text-sm">
+                        <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
                             No team members yet. Invite someone above!
                         </div>
                     )}
 
                     {members.map(member => (
-                        <div key={member.id} className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors rounded-2xl border border-gray-100 group">
+                        <div key={member.id} className="flex items-center justify-between p-4 bg-white dark:bg-[#111] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors rounded-2xl border border-gray-100 dark:border-white/10 group">
                             <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${member.user_id ? 'bg-blue-100 text-blue-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${member.user_id ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300'}`}>
                                     {member.email[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <p className="font-bold text-gray-900">{member.email}</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">{member.email}</p>
                                     <div className="flex items-center gap-2">
-                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">{member.role}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">{member.role}</p>
                                         {!member.user_id && (
-                                            <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">Pending Invite</span>
+                                            <span className="text-[10px] bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-2 py-0.5 rounded-full font-bold">Pending Invite</span>
                                         )}
                                     </div>
                                 </div>
@@ -195,7 +195,7 @@ export function TeamSettings({ organizer }: { organizer: any }) {
 
                             <button
                                 onClick={() => handleRemove(member.id, member.email)}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                             >
                                 <Trash2 className="w-5 h-5" />
                             </button>

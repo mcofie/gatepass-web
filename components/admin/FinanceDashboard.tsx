@@ -28,7 +28,11 @@ interface FinancialStats {
     count: number
 }
 
-export function FinanceDashboard() {
+interface FinanceDashboardProps {
+    adminMode?: boolean
+}
+
+export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
     const supabase = createClient()
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
@@ -41,7 +45,7 @@ export function FinanceDashboard() {
     const fetchTransactions = async () => {
         setLoading(true)
         try {
-            // Get current user for filtering
+            // Get current user for filtering ONLY if not admin mode
             const { data: { user } } = await supabase.auth.getUser()
 
             // Base query
@@ -66,7 +70,7 @@ export function FinanceDashboard() {
                 .eq('status', 'success')
                 .order('paid_at', { ascending: false })
 
-            if (user) {
+            if (user && !adminMode) {
                 // Explicitly filter by organizer's events
                 query = query.eq('reservations.events.organizer_id', user.id)
             }
@@ -145,26 +149,26 @@ export function FinanceDashboard() {
             {/* Header */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Financial Overview</h1>
-                    <p className="text-gray-500 mt-2">Track platform revenue and transaction volume.</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Financial Overview</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-2">Track platform revenue and transaction volume.</p>
                 </div>
 
-                <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex items-center gap-2 bg-white dark:bg-[#111] p-1 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
                     <button
                         onClick={() => setPeriod('all')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${period === 'all' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${period === 'all' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         All Time
                     </button>
                     <button
                         onClick={() => setPeriod('30days')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${period === '30days' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${period === '30days' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         Last 30 Days
                     </button>
                     <button
                         onClick={() => setPeriod('7days')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${period === '7days' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${period === '7days' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         7 Days
                     </button>
@@ -174,7 +178,7 @@ export function FinanceDashboard() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Platform Revenue (Hero) */}
-                <div className="bg-black text-white rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                <div className="bg-black dark:bg-[#111] text-white rounded-2xl p-6 shadow-xl relative overflow-hidden group border dark:border-white/10">
                     <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full translate-x-12 -translate-y-12 blur-3xl group-hover:bg-white/10 transition-colors" />
                     <div className="relative z-10">
                         <div className="flex items-center gap-2 text-gray-400 mb-2">
@@ -191,45 +195,45 @@ export function FinanceDashboard() {
                 </div>
 
                 {/* Gross Volume */}
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <div className="bg-white dark:bg-[#111] rounded-2xl p-6 border border-gray-100 dark:border-white/10 shadow-sm">
                     <div className="flex items-center gap-2 text-gray-400 mb-2">
                         <DollarSign className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase tracking-widest">Gross Volume</span>
                     </div>
-                    <div className="text-3xl font-bold text-gray-900 tracking-tight">
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
                         {formatCurrency(stats.totalGross, 'GHS')}
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                         Total transaction value processed
                     </p>
                 </div>
 
                 {/* Transactions */}
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <div className="bg-white dark:bg-[#111] rounded-2xl p-6 border border-gray-100 dark:border-white/10 shadow-sm">
                     <div className="flex items-center gap-2 text-gray-400 mb-2">
                         <Calendar className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase tracking-widest">Transactions</span>
                     </div>
-                    <div className="text-3xl font-bold text-gray-900 tracking-tight">
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
                         {stats.count}
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                         Successful payments breakdown
                     </p>
                 </div>
             </div>
 
             {/* Event Breakdown Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-bold text-lg">Revenue by Event</h3>
-                    <button onClick={handleExport} className="text-xs font-medium text-gray-500 hover:text-black flex items-center gap-1">
+            <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
+                    <h3 className="font-bold text-lg dark:text-white">Revenue by Event</h3>
+                    <button onClick={handleExport} className="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-1">
                         <Download className="w-3.5 h-3.5" /> Export CSV
                     </button>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+                        <thead className="bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
                             <tr>
                                 <th className="px-6 py-3">Event Name</th>
                                 <th className="px-6 py-3 text-right">Transactions</th>
@@ -237,13 +241,13 @@ export function FinanceDashboard() {
                                 <th className="px-6 py-3 text-right">Platform Fee (4%)</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100 dark:divide-white/10">
                             {Object.entries(eventBreakdown).map(([title, data], i) => (
-                                <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{title}</td>
-                                    <td className="px-6 py-4 text-right text-gray-500">{data.count}</td>
-                                    <td className="px-6 py-4 text-right text-gray-900 font-bold">{formatCurrency(data.gross, 'GHS')}</td>
-                                    <td className="px-6 py-4 text-right text-green-600 font-bold bg-green-50/30">
+                                <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{title}</td>
+                                    <td className="px-6 py-4 text-right text-gray-500 dark:text-gray-400">{data.count}</td>
+                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white font-bold">{formatCurrency(data.gross, 'GHS')}</td>
+                                    <td className="px-6 py-4 text-right text-green-600 dark:text-green-400 font-bold bg-green-50/30 dark:bg-green-500/10">
                                         +{formatCurrency(data.fees, 'GHS')}
                                     </td>
                                 </tr>

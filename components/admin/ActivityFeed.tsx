@@ -69,14 +69,14 @@ export function ActivityFeed({ organizationId }: { organizationId: string }) {
 
     if (loading) return (
         <div className="space-y-6">
-            <Skeleton className="h-6 w-32 bg-gray-200" />
-            <div className="space-y-6 ml-3 border-l border-gray-100">
+            <Skeleton className="h-6 w-32 bg-gray-200 dark:bg-white/10" />
+            <div className="space-y-6 ml-3 border-l border-gray-100 dark:border-white/10">
                 {[1, 2, 3].map((i) => (
                     <div key={i} className="relative pl-8">
-                        <Skeleton className="absolute -left-[9px] top-1 w-5 h-5 rounded-full bg-gray-200" />
+                        <Skeleton className="absolute -left-[9px] top-1 w-5 h-5 rounded-full bg-gray-200 dark:bg-white/10" />
                         <div className="space-y-2">
-                            <Skeleton className="h-4 w-3/4 bg-gray-200" />
-                            <Skeleton className="h-3 w-1/4 bg-gray-100" />
+                            <Skeleton className="h-4 w-3/4 bg-gray-200 dark:bg-white/10" />
+                            <Skeleton className="h-3 w-1/4 bg-gray-100 dark:bg-white/5" />
                         </div>
                     </div>
                 ))}
@@ -86,12 +86,12 @@ export function ActivityFeed({ organizationId }: { organizationId: string }) {
 
     if (logs.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-white rounded-3xl border border-gray-100 border-dashed">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100">
-                    <History className="w-8 h-8 text-gray-300" />
+            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 border-dashed">
+                <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100 dark:border-white/5">
+                    <History className="w-8 h-8 text-gray-300 dark:text-gray-500" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-1">No Activity Yet</h3>
-                <p className="text-sm text-gray-500 max-w-xs">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No Activity Yet</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
                     Actions performed by you and your team will appear here in real-time.
                 </p>
             </div>
@@ -102,7 +102,7 @@ export function ActivityFeed({ organizationId }: { organizationId: string }) {
         switch (type) {
             case 'event': return <Calendar className="w-4 h-4 text-blue-500" />
             case 'ticket': return <Tickets className="w-4 h-4 text-green-500" />
-            case 'settings': return <Settings className="w-4 h-4 text-gray-500" />
+            case 'settings': return <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             case 'staff': return <Users className="w-4 h-4 text-purple-500" />
             default: return <Activity className="w-4 h-4 text-gray-400" />
         }
@@ -113,31 +113,31 @@ export function ActivityFeed({ organizationId }: { organizationId: string }) {
 
         switch (log.action) {
             case 'create_event':
-                return <span><span className="font-bold text-gray-900">{actor}</span> created event <span className="font-medium">"{log.metadata?.title}"</span></span>
+                return <span><span className="font-bold text-gray-900 dark:text-white">{actor}</span> created event <span className="font-medium">"{log.metadata?.title}"</span></span>
             case 'update_event':
-                return <span><span className="font-bold text-gray-900">{actor}</span> updated event <span className="font-medium">"{log.metadata?.title}"</span></span>
+                return <span><span className="font-bold text-gray-900 dark:text-white">{actor}</span> updated event <span className="font-medium">"{log.metadata?.title}"</span></span>
             case 'update_settings':
-                return <span><span className="font-bold text-gray-900">{actor}</span> updated organization settings</span>
+                return <span><span className="font-bold text-gray-900 dark:text-white">{actor}</span> updated organization settings</span>
             case 'invite_staff':
-                return <span><span className="font-bold text-gray-900">{actor}</span> invited <span className="font-medium">{log.metadata?.email}</span></span>
+                return <span><span className="font-bold text-gray-900 dark:text-white">{actor}</span> invited <span className="font-medium">{log.metadata?.email}</span></span>
             case 'create_ticket_tier':
-                return <span><span className="font-bold text-gray-900">{actor}</span> added ticket <span className="font-medium">"{log.metadata?.name}"</span></span>
+                return <span><span className="font-bold text-gray-900 dark:text-white">{actor}</span> added ticket <span className="font-medium">"{log.metadata?.name}"</span></span>
             default:
-                return <span><span className="font-bold text-gray-900">{actor}</span> performed {log.action.replace(/_/g, ' ')}</span>
+                return <span><span className="font-bold text-gray-900 dark:text-white">{actor}</span> performed {log.action.replace(/_/g, ' ')}</span>
         }
     }
 
     return (
         <div className="space-y-6">
-            <h3 className="font-bold text-lg text-gray-900">Recent Activity</h3>
-            <div className="relative border-l border-gray-100 ml-3 space-y-6">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white">Recent Activity</h3>
+            <div className="relative border-l border-gray-100 dark:border-white/10 ml-3 space-y-6">
                 {logs.map((log) => (
                     <div key={log.id} className="relative pl-8">
-                        <div className="absolute -left-[9px] top-1 w-5 h-5 rounded-full bg-white border border-gray-100 flex items-center justify-center">
+                        <div className="absolute -left-[9px] top-1 w-5 h-5 rounded-full bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 flex items-center justify-center">
                             {getIcon(log.entity_type)}
                         </div>
                         <div className="text-sm">
-                            <p className="text-gray-600">
+                            <p className="text-gray-600 dark:text-gray-300">
                                 {formatAction(log)}
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">

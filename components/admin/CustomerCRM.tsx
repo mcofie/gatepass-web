@@ -112,11 +112,11 @@ export function CustomerCRM() {
         <div className="space-y-8 animate-fade-in">
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Customer Database</h1>
-                    <p className="text-gray-500 mt-2">View your top spenders and loyal attendees.</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Customer Database</h1>
+                    <p className="text-gray-500 mt-2 dark:text-gray-400">View your top spenders and loyal attendees.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50">
+                    <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                         <Download className="w-4 h-4" /> Export CSV
                     </button>
                 </div>
@@ -130,19 +130,19 @@ export function CustomerCRM() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search by name or email..."
-                        className="w-full pl-10 h-10 rounded-xl border border-gray-200 text-sm outline-none focus:border-black transition-all"
+                        className="w-full pl-10 h-10 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] dark:text-white text-sm outline-none focus:border-black dark:focus:border-white transition-all"
                     />
                 </div>
-                <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 bg-white dark:bg-[#111] p-1 rounded-lg border border-gray-200 dark:border-white/10">
                     <button
                         onClick={() => setSortBy('spend')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${sortBy === 'spend' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${sortBy === 'spend' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         Top Spenders
                     </button>
                     <button
                         onClick={() => setSortBy('recent')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${sortBy === 'recent' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${sortBy === 'recent' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         Recently Active
                     </button>
@@ -150,9 +150,9 @@ export function CustomerCRM() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
+            <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden min-h-[400px]">
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-500 font-medium">
+                    <thead className="bg-gray-50/50 dark:bg-white/5 border-b border-gray-100 dark:border-white/10 text-gray-500 dark:text-gray-400 font-medium">
                         <tr>
                             <th className="px-6 py-4">Customer</th>
                             <th className="px-6 py-4">Contact</th>
@@ -160,7 +160,7 @@ export function CustomerCRM() {
                             <th className="px-6 py-4 text-right">LTV (Total Spend)</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-white/10">
                         {loading ? (
                             Array.from({ length: 5 }).map((_, i) => (
                                 <tr key={i} className="animate-pulse">
@@ -189,16 +189,16 @@ export function CustomerCRM() {
                             ))
                         ) : (
                             filteredCustomers.map((c, i) => (
-                                <tr key={c.email} className="hover:bg-gray-50/50 transition-colors group">
+                                <tr key={c.email} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 group-hover:bg-black group-hover:text-white transition-colors">
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-300 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-colors">
                                                 {c.name.charAt(0)}
                                             </div>
-                                            <span className="font-bold text-gray-900">{c.name}</span>
+                                            <span className="font-bold text-gray-900 dark:text-white">{c.name}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-gray-500">
+                                    <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
                                         <div className="flex flex-col">
                                             <span className="flex items-center gap-1.5 text-xs">
                                                 <Mail className="w-3 h-3" /> {c.email}
@@ -210,11 +210,11 @@ export function CustomerCRM() {
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right text-gray-500">
+                                    <td className="px-6 py-4 text-right text-gray-500 dark:text-gray-400">
                                         {new Date(c.last_seen).toLocaleDateString()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <div className="font-bold text-gray-900">{formatCurrency(c.total_spent, 'GHS')}</div>
+                                        <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(c.total_spent, 'GHS')}</div>
                                         <div className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-0.5">
                                             {c.tickets_bought} Orders
                                         </div>
@@ -236,17 +236,17 @@ export function CustomerCRM() {
                 <button
                     onClick={() => setPage(p => Math.max(0, p - 1))}
                     disabled={page === 0 || loading}
-                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="px-4 py-2 border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                     Previous
                 </button>
-                <div className="text-sm font-medium text-gray-600">
+                <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Page {page + 1}
                 </div>
                 <button
                     onClick={() => setPage(p => p + 1)}
                     disabled={!hasMore || loading}
-                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="px-4 py-2 border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                     Next
                 </button>

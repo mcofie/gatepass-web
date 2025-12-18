@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { MapPin, Calendar, Ticket, ArrowLeft } from 'lucide-react'
 import { PublicTicketActions } from '@/components/ticket/PublicTicketActions'
+import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 // Actually, for a public page, a react component is better/cleaner if installed.
 // The email used: https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=...
 // I'll stick to the API for consistency and zero-dep for now, or just use an img tag.
@@ -113,99 +114,62 @@ export default async function PublicTicketPage({ params }: Props) {
             {/* Brand Header */}
             <div className="absolute top-0 w-full p-8 flex justify-center z-10">
                 <div className="flex items-center gap-2 opacity-50">
-                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#ffffff' }} />
-                    <span className="text-xs font-bold tracking-[0.2em] uppercase" style={{ color: '#ffffff' }}>GatePass Verified</span>
+                    <div className="w-2 h-2 rounded-full animate-pulse z-20" style={{ backgroundColor: '#ffffff' }} />
+                    <span className="text-xs font-bold tracking-[0.2em] uppercase z-20" style={{ color: '#ffffff' }}>GatePass Verified</span>
                 </div>
             </div>
 
             {/* Ticket Container */}
-            <div id="ticket-card" className="w-full max-w-sm relative drop-shadow-2xl z-10 animate-fade-in-up" style={{ backgroundColor: 'transparent' }}>
+            <div className="w-full max-w-sm relative z-10 animate-fade-in-up flex flex-col items-center">
 
-                {/* --- MAIN TICKET BODY --- */}
-                <div className="rounded-t-3xl overflow-hidden relative" style={{ backgroundColor: '#ffffff' }}>
-                    {/* Event Image */}
-                    <div className="h-64 relative" style={{ backgroundColor: '#111827' }}>
-                        {event.poster_url ? (
-                            <Image
-                                src={event.poster_url}
-                                alt={event.title}
-                                fill
-                                className="object-cover"
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                                <span className="font-bold tracking-widest uppercase" style={{ color: '#6b7280' }}>Event</span>
-                            </div>
-                        )}
-                        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.4), transparent)' }} />
+                {/* 1. Visible Ticket (Interactive) */}
+                <ReceiptTicket
+                    id="ticket-card"
+                    event={{
+                        ...event,
+                        venue_address: event.venue_address || '' // Ensure string
+                    }}
+                    ticket={{
+                        ...ticket,
+                        reservations: {
+                            guest_name: guestName
+                        }
+                    }}
+                    tierName={tier.name}
+                    logoUrl={event.organizers?.logo_url}
+                    forceExpanded={true} // Always expanded for public view
+                    isPrint={false}
+                />
 
-                        <div className="absolute bottom-6 left-6 right-6">
-                            <h1 className="text-2xl font-black leading-tight mb-2 drop-shadow-md" style={{ color: '#ffffff' }}>{event.title}</h1>
-                            <p className="font-medium text-sm flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                                <MapPin className="w-4 h-4" style={{ color: '#ffffff' }} />
-                                {event.venue_name}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Main Details */}
-                    <div className="p-6 pb-8">
-                        <div className="flex justify-between items-end mb-6">
-                            <div>
-                                <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#9ca3af' }}>Date</p>
-                                <p className="font-bold text-lg leading-tight" style={{ color: '#111827' }}>{eventDate}</p>
-                                <p className="text-sm font-medium" style={{ color: '#6b7280' }}>{eventTime}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#9ca3af' }}>Admit One</p>
-                                <p className="font-bold text-lg leading-tight" style={{ color: '#111827' }}>{tier.name}</p>
-                            </div>
-                        </div>
-
-                        <div className="rounded-2xl p-4 flex items-center gap-4 border border-dashed" style={{ backgroundColor: '#f9fafb', borderColor: '#e5e7eb' }}>
-                            <div className="p-1.5 rounded-lg shadow-sm border flex-shrink-0" style={{ backgroundColor: '#ffffff', borderColor: '#f3f4f6' }}>
-                                {/* Use standard img for better html2canvas compatibility */}
-                                <img
-                                    src={qrUrl}
-                                    alt="Ticket QR"
-                                    width={64}
-                                    height={64}
-                                    className="object-contain"
-                                    crossOrigin="anonymous"
-                                />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-xs font-mono mb-1 truncate" style={{ color: '#9ca3af' }}>ID: {ticket.id.toUpperCase()}</p>
-                                <div className="h-1 w-full rounded-full overflow-hidden" style={{ backgroundColor: '#e5e7eb' }}>
-                                    <div className="h-full w-2/3" style={{ backgroundColor: '#000000' }} />
-                                </div>
-                                <p className="text-[10px] mt-1.5 uppercase tracking-wide" style={{ color: '#9ca3af' }}>Scan at entry</p>
-                            </div>
-                        </div>
+                {/* 2. Hidden Ticket for Print (Exact Receipt Style) */}
+                <div className="absolute top-0 left-[-9999px]">
+                    <div id="ticket-print-target">
+                        <ReceiptTicket
+                            event={{
+                                ...event,
+                                venue_address: event.venue_address || ''
+                            }}
+                            ticket={{
+                                ...ticket,
+                                reservations: {
+                                    guest_name: guestName
+                                }
+                            }}
+                            tierName={tier.name}
+                            logoUrl={event.organizers?.logo_url}
+                            forceExpanded={true}
+                            isPrint={true}
+                        />
                     </div>
                 </div>
 
-                {/* --- PERFORATION --- */}
-                <div className="relative h-8 w-full overflow-hidden flex items-center" style={{ backgroundColor: '#ffffff' }}>
-                    <div className="absolute left-[-12px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full" style={{ backgroundColor: '#171717' }} />
-                    <div className="w-full border-b-2 border-dashed h-[1px] mx-4" style={{ borderColor: '#d1d5db' }} />
-                    <div className="absolute right-[-12px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full" style={{ backgroundColor: '#171717' }} />
-                </div>
-
-                {/* --- TICKET STUB (Details & Actions) --- */}
-                <div className="rounded-b-3xl p-6 border-t-0 relative" style={{ backgroundColor: '#fafafa' }}>
-                    <div className="mb-6 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#9ca3af' }}>Ticket Holder</p>
-                        <p className="text-xl font-black tracking-tight" style={{ color: '#111827' }}>{guestName}</p>
-                    </div>
-
+                {/* Actions */}
+                <div className="w-full max-w-[300px] mt-6">
                     <PublicTicketActions ticketId={ticket.id} eventTitle={event.title} />
+                </div>
 
-                    <div className="mt-6 flex justify-center opacity-30">
-                        <div className="h-4" /> {/* Spacer */}
-                        <Image src="/logo-black.png" alt="GatePass" width={60} height={20} className="hidden" /> {/* Placeholder checks */}
-                        <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#000000' }}>Verified Ticket</p>
-                    </div>
+                <div className="mt-8 flex justify-center opacity-30">
+                    <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#ffffff' }}>Verified Ticket</p>
                 </div>
 
             </div>

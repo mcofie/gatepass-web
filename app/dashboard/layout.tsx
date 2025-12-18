@@ -3,6 +3,8 @@ import { Metadata } from 'next'
 import { LoginNotification } from '@/components/admin/LoginNotification' // Import the component
 import { Suspense } from 'react'
 
+import { ThemeToggle } from '@/components/common/ThemeToggle'
+
 export const metadata: Metadata = {
     title: 'Dashboard',
 }
@@ -13,7 +15,7 @@ export default function DashboardLayout({
     children: React.ReactNode
 }) {
     return (
-        <div className="min-h-screen bg-[#FAFAFA] flex font-sans selection:bg-black selection:text-white">
+        <div className="min-h-screen bg-[#FAFAFA] dark:bg-black flex font-sans selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
             <Suspense fallback={null}>
                 <LoginNotification />
             </Suspense>
@@ -22,7 +24,8 @@ export default function DashboardLayout({
                 <header className="absolute top-0 left-0 right-0 h-24 flex items-center justify-between px-12 z-30 pointer-events-none">
                     <h2 className="font-bold text-2xl tracking-tight opacity-0">Dashboard</h2> {/* Hidden for layout, real title in page */}
                     <div className="flex items-center gap-4 pointer-events-auto">
-                        <a href="/" target="_blank" className="text-[13px] font-medium text-gray-500 hover:text-black transition-colors bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm hover:shadow-md">
+                        <ThemeToggle />
+                        <a href="/" target="_blank" className="text-[13px] font-medium text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors bg-white dark:bg-[#111] px-4 py-2 rounded-full border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md">
                             View Live Site ↗
                         </a>
                     </div>

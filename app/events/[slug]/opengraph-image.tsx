@@ -10,22 +10,23 @@ export const size = {
 }
 export const contentType = 'image/png'
 
-export default async function Image({ params }: { params: { slug: string } }) {
+export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
+    const { slug } = await params
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
     // Check if slug is UUID or custom slug
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.slug)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
     const query = supabase
         .schema('gatepass')
         .from('events')
         .select('*, profiles!organizer_id(first_name, last_name, full_name)')
 
     const { data: event } = isUUID
-        ? await query.eq('id', params.slug).single()
-        : await query.eq('slug', params.slug).single()
+        ? await query.eq('id', slug).single()
+        : await query.eq('slug', slug).single()
 
     if (!event) {
         return new ImageResponse(

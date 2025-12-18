@@ -267,10 +267,17 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
                                 <span className="text-gray-400">Subtotal</span>
                                 <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal, currency)}</span>
                             </div>
-                            {feeBearer === 'customer' && calculatedFee > 0 && (
+                            {/* Platform Fee: Always Customer */}
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-400">Platform Fee (4%)</span>
+                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal * 0.04, currency)}</span>
+                            </div>
+
+                            {/* Processing Fee: Only if Customer */}
+                            {feeBearer === 'customer' && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Fees</span>
-                                    <span className="font-medium tabular-nums text-gray-200">{formatCurrency(calculatedFee, currency)}</span>
+                                    <span className="text-gray-400">Processing Fee (1.95%)</span>
+                                    <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal * 0.0195, currency)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-end pt-4">

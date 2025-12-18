@@ -52,11 +52,11 @@ export default async function AdminEventsPage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                     <div>
-                        <h1 className="text-4xl font-black tracking-tight text-gray-900 mb-2">Events</h1>
-                        <p className="text-gray-500 font-medium text-lg max-w-xl">Manage your events, track sales, and customize your ticketing pages.</p>
+                        <h1 className="text-4xl font-black tracking-tight text-gray-900 dark:text-white mb-2">Events</h1>
+                        <p className="text-gray-500 font-medium text-lg max-w-xl dark:text-gray-400">Manage your events, track sales, and customize your ticketing pages.</p>
                     </div>
                     <Link href="/dashboard/events/create">
-                        <button className="bg-black text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5">
+                        <button className="bg-black dark:bg-white dark:text-black text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-xl shadow-black/10 dark:shadow-none hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5">
                             <Plus className="w-5 h-5" /> Create Event
                         </button>
                     </Link>
@@ -65,9 +65,9 @@ export default async function AdminEventsPage() {
                 {events && events.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {events.map((event: any) => (
-                            <div key={event.id} className="group bg-white rounded-3xl border border-gray-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 flex flex-col h-full ring-1 ring-black/0 hover:ring-black/5">
+                            <div key={event.id} className="group bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 flex flex-col h-full ring-1 ring-black/0 hover:ring-black/5 dark:hover:ring-white/10">
                                 {/* Poster Aspect Ratio */}
-                                <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                                <div className="relative aspect-[4/3] bg-gray-100 dark:bg-white/5 overflow-hidden">
                                     {event.poster_url ? (
                                         <Image
                                             src={event.poster_url}
@@ -76,7 +76,7 @@ export default async function AdminEventsPage() {
                                             className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                                         />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/20">
                                             <Calendar className="w-12 h-12" />
                                         </div>
                                     )}
@@ -95,11 +95,11 @@ export default async function AdminEventsPage() {
 
                                 {/* Content */}
                                 <div className="p-6 flex-1 flex flex-col">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">{event.title}</h3>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{event.title}</h3>
 
                                     <div className="space-y-2 mb-8">
-                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
-                                            <Calendar className="w-4 h-4 text-gray-400" />
+                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium dark:text-gray-400">
+                                            <Calendar className="w-4 h-4 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
                                             <span>
                                                 {event.starts_at ? (
                                                     <>
@@ -111,15 +111,15 @@ export default async function AdminEventsPage() {
                                                 ) : 'Date TBD'}
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
-                                            <MapPin className="w-4 h-4 text-gray-400" />
+                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium dark:text-gray-400">
+                                            <MapPin className="w-4 h-4 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
                                             <span className="truncate">{event.venue_name || 'Venue TBD'}</span>
                                         </div>
                                     </div>
 
-                                    <div className="mt-auto flex items-center gap-3 pt-6 border-t border-gray-100">
+                                    <div className="mt-auto flex items-center gap-3 pt-6 border-t border-gray-100 dark:border-white/10">
                                         <Link href={`/dashboard/events/${event.id}`} className="flex-1">
-                                            <button className="w-full py-2.5 rounded-xl text-sm font-bold text-gray-700 bg-gray-50 hover:bg-black hover:text-white transition-all">
+                                            <button className="w-full py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-white/5 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">
                                                 Manage
                                             </button>
                                         </Link>
@@ -130,14 +130,14 @@ export default async function AdminEventsPage() {
                         ))}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-3xl border border-gray-100 border-dashed animate-fade-in">
-                        <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
-                            <Calendar className="w-10 h-10 text-gray-300" />
+                    <div className="flex flex-col items-center justify-center py-32 text-center bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 border-dashed animate-fade-in">
+                        <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100 dark:border-white/10">
+                            <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-600" />
                         </div>
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">No events created</h3>
-                        <p className="text-gray-500 mb-8 max-w-sm mx-auto">Get started by creating your first event. It only takes a few minutes.</p>
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No events created</h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-sm mx-auto">Get started by creating your first event. It only takes a few minutes.</p>
                         <Link href="/dashboard/events/create">
-                            <button className="bg-black text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
+                            <button className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
                                 Create Event
                             </button>
                         </Link>

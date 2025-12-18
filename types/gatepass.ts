@@ -40,6 +40,10 @@ export interface Organizer {
     twitter?: string
     instagram?: string
     created_at: string
+    updated_at?: string
+    bank_name?: string
+    account_number?: string
+    account_name?: string
 }
 
 export interface TicketTier {
@@ -78,6 +82,9 @@ export interface Profile {
     full_name?: string
     avatar_url?: string
     email?: string
+    is_super_admin?: boolean
+    username?: string
+    updated_at?: string
 }
 
 export interface Reservation {

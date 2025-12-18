@@ -44,11 +44,11 @@ export default async function ActivityPage() {
             // They are a team member, but not owner.
             return (
                 <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                    <div className="w-16 h-16 bg-gray-100 dark:bg-white/10 rounded-full flex items-center justify-center mb-6">
                         <History className="w-8 h-8 text-gray-400" />
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h1>
-                    <p className="text-gray-500 max-w-md">The Activity Log is only available to the organization owner.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Restricted</h1>
+                    <p className="text-gray-500 dark:text-gray-400 max-w-md">The Activity Log is only available to the organization owner.</p>
                 </div>
             )
         }
@@ -59,11 +59,11 @@ export default async function ActivityPage() {
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
             <div className="flex flex-col gap-1">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Activity Log</h1>
-                <p className="text-gray-500 font-medium">Audit trail of all actions performed within your organization.</p>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Activity Log</h1>
+                <p className="text-gray-500 dark:text-gray-400 font-medium">Audit trail of all actions performed within your organization.</p>
             </div>
 
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm p-8">
                 <ActivityFeed organizationId={org.id} />
             </div>
         </div>

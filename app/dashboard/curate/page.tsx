@@ -32,8 +32,8 @@ export default async function CurationPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
             <div className="flex flex-col gap-1">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Curate Feed</h1>
-                <p className="text-gray-500">Select which events appear on the global landing page.</p>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Curate Feed</h1>
+                <p className="text-gray-500 dark:text-gray-400">Select which events appear on the global landing page.</p>
             </div>
 
             <CurationList initialEvents={events || []} />

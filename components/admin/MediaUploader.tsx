@@ -24,8 +24,9 @@ export function MediaUploader({
     path,
     type,
     maxSizeMB = type === 'video' ? 50 : 5,
-    className
-}: MediaUploaderProps) {
+    className,
+    aspectRatio = 'video'
+}: MediaUploaderProps & { aspectRatio?: 'video' | 'square' | 'auto' }) {
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [isTranscoding, setIsTranscoding] = useState(false)
@@ -168,7 +169,7 @@ export function MediaUploader({
                             e.currentTarget.style.display = 'none'
                         }}
                     />
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-gray-400 text-xs font-mono break-all p-4" style={{ display: 'none' }} ref={(el) => { if (el && el.previousElementSibling && (el.previousElementSibling as HTMLImageElement).style.display === 'none') el.style.display = 'flex' }}>
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-white/5 text-gray-400 dark:text-gray-500 text-xs font-mono break-all p-4" style={{ display: 'none' }} ref={(el) => { if (el && el.previousElementSibling && (el.previousElementSibling as HTMLImageElement).style.display === 'none') el.style.display = 'flex' }}>
                         Failed to load: {value}
                     </div>
                     <button
@@ -197,7 +198,10 @@ export function MediaUploader({
     return (
         <div className={clsx("w-full transition-all", className)}>
             {value ? (
-                <div className="aspect-video w-full rounded-xl border border-gray-200 overflow-hidden relative shadow-sm hover:shadow-md transition-shadow">
+                <div className={clsx(
+                    "w-full rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden relative shadow-sm hover:shadow-md transition-shadow",
+                    aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : ''
+                )}>
                     {renderPreview()}
                 </div>
             ) : (
@@ -208,8 +212,9 @@ export function MediaUploader({
                     onDrop={handleDrop}
                     onClick={() => !isUploading && fileInputRef.current?.click()}
                     className={clsx(
-                        "aspect-video w-full rounded-3xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group relative overflow-hidden",
-                        isDragging ? "border-black bg-gray-50 scale-[1.02]" : "border-gray-200 hover:border-gray-400 hover:bg-gray-50/50",
+                        "w-full rounded-3xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group relative overflow-hidden",
+                        aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : '',
+                        isDragging ? "border-black dark:border-white bg-gray-50 dark:bg-white/10 scale-[1.02]" : "border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/30 hover:bg-gray-50/50 dark:hover:bg-white/5",
                         isUploading && "pointer-events-none opacity-90"
                     )}
                 >
@@ -226,31 +231,31 @@ export function MediaUploader({
                             {isTranscoding ? (
                                 <>
                                     <div className="relative">
-                                        <Loader2 className="w-10 h-10 text-black animate-spin" />
-                                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">{progress}%</div>
+                                        <Loader2 className="w-10 h-10 text-black dark:text-white animate-spin" />
+                                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold dark:text-white">{progress}%</div>
                                     </div>
                                     <div>
-                                        <p className="font-bold text-gray-900">Optimizing Video...</p>
-                                        <p className="text-xs text-gray-500 mt-1">Converting to WebM for best performance</p>
+                                        <p className="font-bold text-gray-900 dark:text-white">Optimizing Video...</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Converting to WebM for best performance</p>
                                     </div>
                                 </>
                             ) : (
                                 <>
                                     <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />
-                                    <p className="font-medium text-gray-600">Uploading to cloud...</p>
+                                    <p className="font-medium text-gray-600 dark:text-gray-300">Uploading to cloud...</p>
                                 </>
                             )}
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-3 text-center p-6 group-hover:scale-105 transition-transform duration-300">
-                            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-black group-hover:text-white transition-colors">
+                            <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-colors">
                                 {type === 'video' ? <FileVideo className="w-6 h-6" /> : <ImageIcon className="w-6 h-6" />}
                             </div>
                             <div>
-                                <p className="font-bold text-gray-900">
+                                <p className="font-bold text-gray-900 dark:text-white">
                                     {isDragging ? 'Drop to upload' : `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1 font-medium">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">
                                     {type === 'video' ? 'MP4, MOV (max 50MB)' : 'JPG, PNG (max 5MB)'}
                                 </p>
                             </div>

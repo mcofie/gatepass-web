@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Event, TicketTier, Discount } from '@/types/gatepass'
 import { cn, getContrastColor } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
+import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 
 import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
@@ -65,6 +66,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
     // Track View Count
     useEffect(() => {
         if (!isFeedItem) {
+            // Skip incrementing views for previews
+            if (event.id === 'preview-id') return
+
             const supabase = createClient()
             supabase.rpc('increment_event_view', { event_id: event.id })
                 .then(({ error }) => {
@@ -431,10 +435,16 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
 
             {/* Floating Card / Modal Container */}
             <div
-                onClick={toggleExpand}
+                onClick={() => {
+                    if (isFeedItem) {
+                        router.push(`/events/${event.slug || event.id}`)
+                    } else {
+                        toggleExpand()
+                    }
+                }}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={`
-                ${isFeedItem ? 'absolute' : 'fixed'} z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
+                ${isFeedItem ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
                 rounded-2xl flex flex-col ${(view === 'details' && !isExpanded) ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
@@ -470,7 +480,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
                             total={calculatedTotal}
                             hasSelection={hasSelection}
                             primaryColor={event.primary_color}
-                            logoUrl={event.logo_url}
                         />
                     </div>
                 )}
@@ -569,10 +578,10 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                 <div className="flex items-center gap-3">
                     {/* Organizer Logo */}
                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700 relative">
-                        {event.organizers?.logo_url ? (
-                            <Image src={event.organizers.logo_url} alt="Logo" fill className="object-cover" />
+                        {event.logo_url ? (
+                            <Image src={event.logo_url} alt="Logo" fill className="object-cover" />
                         ) : (
-                            <span className="text-[10px]">{event.organizers?.name?.substring(0, 2).toUpperCase() || 'GP'}</span>
+                            <span className="text-[10px]">{event.title?.substring(0, 2).toUpperCase() || 'GP'}</span>
                         )}
                     </div>
 
@@ -707,9 +716,11 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
 
             {isFeedItem ? (
                 <Link href={`/events/${event.slug || event.id}`}
+                    prefetch={true}
+                    onClick={(e) => e.stopPropagation()}
                     style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
-                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
-                    Get Tickets
+                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'} group-hover:brightness-110`}>
+                    Reserve
                 </Link>
             ) : (
                 <button
@@ -726,7 +737,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
     )
 }
 
-const TicketCard = ({ tier, qty, onQuantityChange, primaryColor, logoUrl }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void, primaryColor?: string, logoUrl?: string }) => {
+const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void, primaryColor?: string }) => {
     const [showPerks, setShowPerks] = useState(false)
     const isSelected = qty > 0
     const isSoldOut = tier.quantity_sold >= tier.total_quantity
@@ -758,11 +769,6 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor, logoUrl }: { ti
             )}
 
             <div className="space-y-4">
-                {logoUrl && (
-                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden relative mb-1 ring-1 ring-black/5 dark:ring-white/10">
-                        <Image src={logoUrl} alt="Event Logo" fill className="object-cover" />
-                    </div>
-                )}
                 <div>
                     <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>
                         {formatCurrency(tier.price, tier.currency)}
@@ -828,7 +834,7 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor, logoUrl }: { ti
     )
 }
 
-const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection, primaryColor, logoUrl }: {
+const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection, primaryColor }: {
     tiers: TicketTier[],
     selectedTickets: Record<string, number>,
     onQuantityChange: (tierId: string, delta: number) => void,
@@ -837,7 +843,6 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
     total: number,
     hasSelection: boolean,
     primaryColor?: string
-    logoUrl?: string
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-6 px-1">
@@ -855,7 +860,6 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                     qty={selectedTickets[tier.id] || 0}
                     onQuantityChange={onQuantityChange}
                     primaryColor={primaryColor}
-                    logoUrl={logoUrl}
                 />
             ))}
         </div>
@@ -1402,177 +1406,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
     )
 }
 
-// Receipt Style Ticket Component
-const ReceiptTicket = ({ id, event, ticket, tierName, forceExpanded = false, isPrint = false }: { id?: string, event: Event, ticket: any, tierName?: string, forceExpanded?: boolean, isPrint?: boolean }) => {
-    const [isOpen, setIsOpen] = useState(false) // Collapsed by default
-    const showContent = isOpen || forceExpanded
 
-    const handleWhatsAppShare = (e: React.MouseEvent) => {
-        e.stopPropagation()
-        const url = `${window.location.origin}/tickets/${ticket.id}`
-        const text = `Here is your ticket for ${event.title}! 🎟️`
-        window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank')
-    }
-
-    return (
-        <div
-            id={id}
-            onClick={() => setIsOpen(!isOpen)}
-            className={`w-[300px] bg-[#ffffff] relative cursor-pointer transition-all duration-300 ease-in-out overflow-hidden ${isPrint ? 'rounded-xl border-[2px] border-[#111827]' : 'rounded-[20px]'}`}
-            style={{
-                boxShadow: isPrint ? 'none' : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-            }}
-        >
-            {/* Header Image (Web Only) */}
-            {!isPrint && (
-                <div className="w-full relative bg-[#f3f4f6] h-32">
-                    {event.poster_url ? (
-                        <Image src={event.poster_url} fill className="object-cover" alt="Event Poster" />
-                    ) : (
-                        <div className="w-full h-full bg-[#111827] flex items-center justify-center">
-                            <span className="text-[#ffffff] font-bold tracking-widest uppercase opacity-20">GatePass</span>
-                        </div>
-                    )}
-                    {/* Gradient Overlay using explicit RGBA for PDF safety */}
-                    <div
-                        className="absolute inset-0"
-                        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }}
-                    />
-
-                    {/* Floating Success Icon */}
-                    <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2 w-10 h-10 bg-[#000000] rounded-full flex items-center justify-center text-[#ffffff] shadow-lg border-2 border-[#ffffff] z-10">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                    </div>
-                </div>
-            )}
-
-            {/* Main Content Container */}
-            <div className={`relative ${isPrint ? 'p-2' : 'pt-8 p-6'}`}>
-                {/* Print Header (Minimal Left Aligned) */}
-                {isPrint && (
-                    <div className="flex flex-col items-start text-left mb-2 mx-1 mt-1">
-                        <p className="text-[9px] text-[#6b7280] font-bold uppercase tracking-[0.2em] mb-2">Admit One</p>
-                        <h3 className="text-[18px] font-black text-[#111827] uppercase leading-none tracking-tight">{event.title}</h3>
-                    </div>
-                )}
-
-                {/* Web Header (Title) */}
-                {!isPrint && (
-                    <div className="text-center mb-4 mt-2">
-                        <h3 className="text-[16px] font-bold text-[#111827] leading-tight mb-0.5">{event.title}</h3>
-                        <p className="text-[11px] text-[#6b7280] font-medium tracking-wide uppercase">Official Ticket</p>
-                    </div>
-                )}
-
-                {/* Dashed Line + Notches */}
-                {!isPrint ? (
-                    <div className="relative w-[calc(100%+3rem)] -mx-6 h-6 flex items-center justify-center my-2">
-                        <div className="w-full border-t-[2px] border-dashed border-[#e5e7eb] mx-6" />
-                        <div className="absolute left-[-12px] w-6 h-6 bg-[#f4f4f5] rounded-full shadow-[inset_-2px_0_2px_rgba(0,0,0,0.05)]" />
-                        <div className="absolute right-[-12px] w-6 h-6 bg-[#f4f4f5] rounded-full shadow-[inset_2px_0_2px_rgba(0,0,0,0.05)]" />
-                        {/* Note: bg color of notches matches global background (zinc-100/f4f4f5) to look transparent */}
-                    </div>
-                ) : (
-                    <div className="w-full border-t-[2px] border-dashed border-[#111827] my-4 opacity-20" />
-                )}
-
-                {/* Collapsible Section */}
-                <div className={isPrint ? '' : `overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ticket-content-collapsible ${showContent ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                    <div className={`pt-2 pb-4 ticket-content ${!isPrint ? 'max-h-[320px] overflow-y-auto custom-scrollbar pr-1' : ''}`}>
-                        {/* Attendee Info - Cleaner for Print */}
-                        <div className={`rounded-xl ${isPrint ? 'p-2 mb-3 border-none bg-transparent' : 'p-4 mb-6 bg-[#f9fafb] border border-[#f3f4f6]'}`}>
-                            <p className="text-[10px] uppercase tracking-widest text-[#9ca3af] font-bold mb-2">Admit One</p>
-                            <p className="text-[18px] font-bold text-[#111827] leading-none mb-1">
-                                {ticket.reservations?.guest_name || ticket.reservations?.profiles?.full_name || 'Guest User'}
-                            </p>
-                            <p className="text-[12px] text-[#6b7280] font-medium">{tierName}</p>
-                        </div>
-
-                        <div className={`grid grid-cols-2 gap-4 ${isPrint ? 'mb-3' : 'mb-6'}`}>
-                            <div>
-                                <p className="text-[9px] uppercase tracking-widest text-[#9ca3af] font-bold mb-1">Date</p>
-                                <p className="text-[13px] font-bold text-[#111827]">
-                                    {new Date(event.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                </p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[9px] uppercase tracking-widest text-[#9ca3af] font-bold mb-1">Time</p>
-                                <p className="text-[13px] font-bold text-[#111827]">
-                                    {new Date(event.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className={`${isPrint ? 'mb-3' : 'mb-6'}`}>
-                            <p className="text-[9px] uppercase tracking-widest text-[#9ca3af] font-bold mb-1">Venue</p>
-                            <div className="text-[#111827]">
-                                <p className={`text-[13px] font-bold ${isPrint ? 'leading-tight' : 'truncate'}`}>
-                                    {event.venue_name}
-                                </p>
-                                <p className={`text-[11px] text-[#6b7280] ${isPrint ? 'leading-tight mt-0.5' : 'truncate'}`}>{event.venue_address}</p>
-                            </div>
-                        </div>
-
-                        {/* QR Code Area */}
-                        <div className="flex flex-col items-center justify-center pt-2 pb-2">
-                            <div className={`bg-white border-2 border-[#111827] rounded-xl shadow-sm ${isPrint ? 'p-2' : 'p-3'}`}>
-                                <Image
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
-                                    alt="QR Code"
-                                    width={128}
-                                    height={128}
-                                    className={`${isPrint ? 'w-24 h-24' : 'w-32 h-32'} object-contain mix-blend-multiply`}
-                                    unoptimized // QR code API often dynamic/external
-                                />
-                            </div>
-                            <p className="text-center text-[10px] font-mono text-[#9ca3af] mt-3 tracking-widest uppercase">Scan at entry</p>
-                        </div>
-                        <p className="text-center text-[9px] font-mono text-[#d1d5db] tracking-[0.2em] mt-1">{ticket.qr_code_hash?.substring(0, 12)}</p>
-
-                        {!forceExpanded && (
-                            <button
-                                onClick={handleWhatsAppShare}
-                                className="w-full mt-6 h-10 bg-[#25D366] hover:bg-[#1db954] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
-                            >
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
-                                </svg>
-                                Send to Friend
-                            </button>
-                        )}
-
-                        {/* Watermark for Print */}
-                        {isPrint && (
-                            <div className="flex justify-center mt-3 opacity-60">
-                                <p className="text-[8px] text-[#9ca3af] font-medium tracking-widest uppercase">
-                                    Powered by <span className="font-bold text-[#6b7280]">GatePass</span>
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Collapsed Hint */}
-                {!showContent && (
-                    <div className="text-center pt-2 pb-1 animate-pulse collapsed-hint">
-                        <div className="w-8 h-1 bg-[#e5e7eb] rounded-full mx-auto" />
-                    </div>
-                )}
-            </div>
-
-            {/* Scalloped Bottom */}
-            <div
-                className="h-4 w-full bg-[#ffffff] relative"
-                style={{
-                    background: 'radial-gradient(circle, transparent 50%, #ffffff 50%)',
-                    backgroundSize: '16px 16px',
-                    backgroundPosition: '0 100%',
-                    transform: 'rotate(180deg)'
-                }}
-            />
-        </div>
-    )
-}
 
 const EventCardSkeleton = () => (
     <div className={`

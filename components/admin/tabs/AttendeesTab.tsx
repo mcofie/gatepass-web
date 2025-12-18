@@ -67,9 +67,9 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
     }
 
     return (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
-                <h3 className="font-bold text-xl text-gray-900">Guest List</h3>
+        <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="px-8 py-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
+                <h3 className="font-bold text-xl text-gray-900 dark:text-white">Guest List</h3>
                 <div className="flex gap-2">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
@@ -81,7 +81,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                 setSearchQuery(e.target.value)
                                 setTicketPage(0) // Reset page on search
                             }}
-                            className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-black/5 focus:border-black transition-all text-gray-900"
+                            className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-lg text-sm focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 focus:border-black dark:focus:border-white transition-all text-gray-900 dark:text-white"
                         />
                     </div>
                     <button
@@ -89,7 +89,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                             const csv = generateCSV(tickets)
                             downloadCSV(csv, `${event.slug}-guests.csv`)
                         }}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-all"
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
                     >
                         <Download className="w-4 h-4" />
                         Export
@@ -98,7 +98,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                         onClick={() => setIsCheckInMode(!isCheckInMode)}
                         className={clsx("flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all border", {
                             'bg-green-500 text-white border-green-600 shadow-md shadow-green-500/20': isCheckInMode,
-                            'bg-white text-gray-700 border-gray-200 hover:bg-gray-50': !isCheckInMode
+                            'bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5': !isCheckInMode
                         })}
                     >
                         <ScanLine className="w-4 h-4" />
@@ -112,7 +112,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
             ) : tickets.length > 0 ? (
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
+                        <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
                             <tr>
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Guest</th>
@@ -122,19 +122,19 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                 <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                             {tickets.map((ticket: any) => (
-                                <tr key={ticket.id} className={clsx("hover:bg-gray-50/80 transition-colors group", {
+                                <tr key={ticket.id} className={clsx("hover:bg-gray-50/80 dark:hover:bg-white/5 transition-colors group", {
                                     'opacity-40 grayscale': isCheckInMode && ticket.status !== 'valid'
                                 })}>
-                                    <td className="px-8 py-5 font-mono text-xs text-gray-500">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
+                                    <td className="px-8 py-5 font-mono text-xs text-gray-500 dark:text-gray-400">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
                                     <td className="px-8 py-5">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 border border-white shadow-sm ring-1 ring-gray-100">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/10 dark:to-white/5 flex items-center justify-center text-sm font-bold text-gray-600 dark:text-gray-300 border border-white dark:border-white/5 shadow-sm ring-1 ring-gray-100 dark:ring-white/5">
                                                 {ticket.profiles?.full_name?.charAt(0) || ticket.reservations?.guest_name?.charAt(0) || 'G'}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-gray-900 group-hover:text-black transition-colors">
+                                                <div className="font-bold text-gray-900 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors">
                                                     {ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
                                                 </div>
                                                 <div className="text-xs text-gray-400 tracking-tight">
@@ -144,12 +144,12 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                         </div>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100">
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 dark:bg-white/10 text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-white/5">
                                             {ticket.ticket_tiers?.name}
                                         </span>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <span className="text-xs text-gray-500 font-medium">
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                                             {new Date(ticket.created_at).toLocaleDateString(undefined, {
                                                 month: 'short',
                                                 day: 'numeric',
@@ -159,10 +159,10 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                     </td>
                                     <td className="px-8 py-5">
                                         <span className={clsx("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold", {
-                                            'bg-green-100/80 text-green-700': ticket.status === 'valid',
-                                            'bg-gray-100/80 text-gray-600': ticket.status === 'used',
-                                            'bg-blue-100/80 text-blue-700': ticket.status === 'checked_in',
-                                            'bg-red-100/80 text-red-700': ticket.status === 'cancelled'
+                                            'bg-green-100/80 text-green-700 dark:bg-green-500/10 dark:text-green-400': ticket.status === 'valid',
+                                            'bg-gray-100/80 text-gray-600 dark:bg-white/10 dark:text-gray-400': ticket.status === 'used',
+                                            'bg-blue-100/80 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400': ticket.status === 'checked_in',
+                                            'bg-red-100/80 text-red-700 dark:bg-red-500/10 dark:text-red-400': ticket.status === 'cancelled'
                                         })}>
                                             <span className={clsx("w-1.5 h-1.5 rounded-full", {
                                                 'bg-green-500': ticket.status === 'valid',
@@ -177,7 +177,7 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                                         {ticket.status === 'valid' && (
                                             <button
                                                 onClick={() => updateTicketStatus(ticket.id, 'checked_in')}
-                                                className={clsx("font-bold bg-black text-white rounded-lg hover:bg-gray-800 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
+                                                className={clsx("font-bold bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
                                                     'px-6 py-3 text-sm w-full': isCheckInMode,
                                                     'px-4 py-2 text-xs': !isCheckInMode
                                                 })}
@@ -193,32 +193,32 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                 </div>
             ) : (
                 <div className="p-24 text-center">
-                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path></svg>
+                    <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <svg className="w-10 h-10 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path></svg>
                     </div>
-                    <h3 className="text-gray-900 font-bold text-lg mb-2">No tickets sold yet</h3>
-                    <p className="text-gray-500">When people purchase tickets, they will appear here.</p>
+                    <h3 className="text-gray-900 dark:text-white font-bold text-lg mb-2">No tickets sold yet</h3>
+                    <p className="text-gray-500 dark:text-gray-400">When people purchase tickets, they will appear here.</p>
                 </div>
             )}
 
             {/* Pagination Footer */}
             {tickets.length > 0 && (
-                <div className="border-t border-gray-100 p-4 bg-gray-50/30 flex items-center justify-between">
-                    <p className="text-xs text-gray-500 font-medium">
-                        Showing <span className="font-bold text-gray-900">{ticketPage * TICKETS_PER_PAGE + 1}</span> to <span className="font-bold text-gray-900">{Math.min((ticketPage + 1) * TICKETS_PER_PAGE, ticketCount)}</span> of <span className="font-bold text-gray-900">{ticketCount}</span> results
+                <div className="border-t border-gray-100 dark:border-white/10 p-4 bg-gray-50/30 dark:bg-white/5 flex items-center justify-between">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                        Showing <span className="font-bold text-gray-900 dark:text-white">{ticketPage * TICKETS_PER_PAGE + 1}</span> to <span className="font-bold text-gray-900 dark:text-white">{Math.min((ticketPage + 1) * TICKETS_PER_PAGE, ticketCount)}</span> of <span className="font-bold text-gray-900 dark:text-white">{ticketCount}</span> results
                     </p>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setTicketPage(p => Math.max(0, p - 1))}
                             disabled={ticketPage === 0 || loadingTickets}
-                            className="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
+                            className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-white/10 rounded-lg hover:bg-white dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-[#111] dark:text-white shadow-sm"
                         >
                             Previous
                         </button>
                         <button
                             onClick={() => setTicketPage(p => p + 1)}
                             disabled={(ticketPage + 1) * TICKETS_PER_PAGE >= ticketCount || loadingTickets}
-                            className="px-3 py-1.5 text-xs font-bold border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
+                            className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-white/10 rounded-lg hover:bg-white dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-[#111] dark:text-white shadow-sm"
                         >
                             Next
                         </button>

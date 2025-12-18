@@ -9,43 +9,52 @@ export function LandingHeader() {
     return (
         <>
             <div className="absolute top-0 left-0 right-0 p-6 md:p-8 z-50 pointer-events-none flex flex-col items-start">
-                {/* Header Row - Blends with video */}
-                <div className="flex items-center gap-0.5 pointer-events-auto mix-blend-difference text-white">
-                    <div className="text-xl font-bold tracking-tighter cursor-pointer">GatePass.</div>
-                    <button
+                {/* Header Row - Branding Pill */}
+                <div className="pointer-events-auto animate-fade-in">
+                    <div
                         onClick={() => setIsOpen(!isOpen)}
-                        className="group flex items-center justify-center w-6 h-6 hover:opacity-70 transition-opacity"
-                        aria-label={isOpen ? "Close info" : "Show info"}
+                        className="flex items-center gap-3 pl-5 pr-2 py-2 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-all duration-300 hover:bg-black/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
                     >
-                        {isOpen ? <X size={16} /> : <ChevronDown size={20} strokeWidth={2.5} />}
-                    </button>
+                        <span className="text-[14px] font-bold tracking-tight text-white leading-none group-hover:tracking-normal transition-all duration-500">
+                            GatePass
+                        </span>
+                        <div className="w-px h-3 bg-white/20 mx-0.5" />
+                        <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white text-white group-hover:text-black transition-colors duration-300">
+                            {isOpen ? <X size={14} strokeWidth={2.5} /> : <ChevronDown size={14} strokeWidth={2.5} />}
+                        </div>
+                    </div>
                 </div>
 
-                {/* Popup Card - Solid White with refined typography */}
+                {/* Popup Card - Premium Glass */}
                 <div
                     className={`
-            pointer-events-auto mt-4 max-w-[90vw] w-[360px] bg-white text-black p-5 rounded-2xl shadow-xl border border-white/20
-            transform transition-all duration-300 ease-out origin-top-left
-            ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-4 pointer-events-none'}
+            pointer-events-auto mt-4 max-w-[90vw] w-[340px] 
+            bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl 
+            text-black dark:text-white p-6 rounded-3xl shadow-2xl border border-white/20 dark:border-zinc-700/50
+            transform transition-all duration-500 cubic-bezier(0.32, 0.72, 0, 1) origin-top-left
+            ${isOpen ? 'opacity-100 scale-100 translate-y-0 translate-x-0' : 'opacity-0 scale-90 -translate-y-4 -translate-x-4 pointer-events-none blur-sm'}
           `}
                 >
-                    <div className="space-y-3">
-                        <p className="text-[13px] leading-relaxed text-gray-800 tracking-wide font-medium">
-                            <span className="block mb-2 font-bold text-black">Don't just buy a ticket. Feel the vibe.</span>
-                            GatePass is the first video-powered marketplace for events. Watch the highlights, catch the energy, and secure your spot in seconds.
+                    <div className="space-y-4">
+                        <p className="text-[13px] leading-relaxed text-gray-800 dark:text-gray-200 font-medium tracking-wide">
+                            <span className="block mb-2 font-bold text-black dark:text-white text-[15px]">The future of events.</span>
+                            GatePass is the first video-powered marketplace. Watch the highlights, catch the energy, and secure your spot in seconds.
                         </p>
-                        <p className="text-[13px] leading-relaxed text-gray-800 tracking-wide font-medium">
-                            <span className="block mb-2 font-bold text-black">Hosting an event?</span>
-                            Sell out faster with immersive video listings. Enjoy lower fees, instant payouts, and better mobile conversion—with zero setup costs.
-                        </p>
-                        <div className="pt-3 mt-1 border-t border-gray-100 flex flex-col gap-1.5">
-                            <div className="flex gap-3 text-[11px] font-medium text-gray-500 uppercase tracking-wider">
-                                <a href="/terms-of-service" className="hover:text-black transition-colors">Terms & Conditions</a>
-                                <a href="/privacy-policy" className="hover:text-black transition-colors">Privacy Policy</a>
-                            </div>
-                            <p className="text-[11px] text-gray-400 font-medium">
-                                © {new Date().getFullYear()} GatePass Inc. All rights reserved.
+
+                        <div className="h-px bg-gradient-to-r from-transparent via-gray-200 dark:via-zinc-700 to-transparent w-full" />
+
+                        <div className="flex flex-col gap-2">
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">For Creators</p>
+                            <p className="text-[12px] text-gray-600 dark:text-gray-400 font-medium leading-relaxed">
+                                Sell out faster with immersive video listings. Zero setup costs. Instant payouts.
                             </p>
+                        </div>
+
+                        <div className="pt-4 mt-2 border-t border-gray-100 dark:border-zinc-800/50 flex flex-col gap-2">
+                            <div className="flex gap-4 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                <a href="/terms-of-service" className="hover:text-black dark:hover:text-white transition-colors">Terms</a>
+                                <a href="/privacy-policy" className="hover:text-black dark:hover:text-white transition-colors">Privacy</a>
+                            </div>
                         </div>
                     </div>
                 </div>
