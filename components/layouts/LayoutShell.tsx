@@ -9,9 +9,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     const isDashboard = pathname?.startsWith('/dashboard')
     const isAdmin = pathname?.startsWith('/admin')
     const isStudio = pathname?.startsWith('/studio')
+    const isTicket = pathname?.startsWith('/tickets/')
 
-    // Hide global nav/footer on dashboard, admin, and studio
-    const shouldHideGlobalNav = isDashboard || isAdmin || isStudio
+    // Hide global nav/footer on dashboard, admin, studio, and ticket pages
+    const shouldHideGlobalNav = isDashboard || isAdmin || isStudio || isTicket
 
     return (
         <>
