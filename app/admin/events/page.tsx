@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import MasterEventsTable from '@/components/admin/MasterEventsTable'
+import { getFeeSettings } from '@/utils/settings'
 
 // Force dynamic fetch to ensure we see latest data (since we're admin toggling stuff)
 export const revalidate = 0
@@ -18,6 +19,8 @@ export default async function MasterEventsPage() {
         `)
         .order('created_at', { ascending: false })
 
+    const feeSettings = await getFeeSettings()
+
     if (!events) return <div>No events found.</div>
 
     // 2. Fetch ALL successful transactions for these events
@@ -28,7 +31,12 @@ export default async function MasterEventsPage() {
         .from('transactions')
         .select(`
             amount,
-            reservations!inner(event_id)
+            reservations!inner(
+                event_id,
+                quantity,
+                ticket_tiers(price),
+                discounts(type, value)
+            )
         `)
         .eq('status', 'success')
         .in('reservations.event_id', eventIds)
@@ -39,7 +47,10 @@ export default async function MasterEventsPage() {
             ?.filter(tx => (tx.reservations as any)?.event_id === event.id)
             ?.map(tx => ({
                 amount: tx.amount,
-                status: 'success'
+                status: 'success',
+                quantity: (tx.reservations as any)?.quantity || 1,
+                price: (tx.reservations as any)?.ticket_tiers?.price || 0,
+                discounts: (tx.reservations as any)?.discounts
             })) || []
 
         return {
@@ -61,7 +72,7 @@ export default async function MasterEventsPage() {
                 </div>
             </div>
 
-            <MasterEventsTable events={eventsWithFinancials as any} />
+            <MasterEventsTable events={eventsWithFinancials as any} feeRates={feeSettings} />
         </div>
     )
 }

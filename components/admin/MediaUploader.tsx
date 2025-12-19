@@ -164,7 +164,7 @@ export function MediaUploader({
                     <img
                         src={value}
                         alt="Preview"
-                        crossOrigin="anonymous"
+                        referrerPolicy="no-referrer"
                         className="w-full h-full object-cover rounded-xl"
                         onError={(e) => {
                             console.error('[MediaUploader] Image failed to load:', value)
@@ -188,7 +188,7 @@ export function MediaUploader({
 
         return (
             <div className="relative group w-full h-full bg-black rounded-xl overflow-hidden">
-                <video src={value} className="w-full h-full object-cover" controls crossOrigin="anonymous" />
+                <video src={value} className="w-full h-full object-cover" controls />
                 {!disabled && (
                     <button
                         onClick={() => onChange('')}

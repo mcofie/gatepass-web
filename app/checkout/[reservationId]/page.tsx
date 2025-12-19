@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { CheckoutClient } from '@/components/CheckoutClient'
+import { getFeeSettings } from '@/utils/settings'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -21,6 +22,14 @@ export default async function CheckoutPage({ params }: PageProps) {
         .eq('id', reservationId)
         .single()
 
+    let discount = null
+    if (reservation?.discount_id) {
+        const { data: d } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
+        discount = d
+    }
+
+    const feeSettings = await getFeeSettings()
+
     if (!reservation) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -31,7 +40,7 @@ export default async function CheckoutPage({ params }: PageProps) {
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-black text-white selection:bg-amber-500/30 selection:text-amber-200">
-            <CheckoutClient reservation={reservation} />
+            <CheckoutClient reservation={reservation} feeRates={feeSettings} discount={discount} />
         </div>
     )
 }

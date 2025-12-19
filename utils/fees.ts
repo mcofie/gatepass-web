@@ -1,6 +1,37 @@
 export const PLATFORM_FEE_PERCENT = 0.04
 export const PROCESSOR_FEE_PERCENT = 0.0195
 
+/**
+ * Resolves the effective fee rates for a specific event, prioritizing event-specific overrides
+ * over global settings, and falling back to system defaults.
+ */
+export const getEffectiveFeeRates = (
+    globalRates?: FeeRates,
+    eventOverride?: { platform_fee_percent?: number | null },
+    organizerOverride?: { platform_fee_percent?: number | null }
+): FeeRates => {
+    // 1. Determine Platform Fee
+    // Precedence: Event Override > Organizer Override > Global Setting > Default
+    let platformRate = PLATFORM_FEE_PERCENT
+
+    if (eventOverride?.platform_fee_percent && eventOverride.platform_fee_percent > 0) {
+        platformRate = eventOverride.platform_fee_percent
+    } else if (organizerOverride?.platform_fee_percent && organizerOverride.platform_fee_percent > 0) {
+        platformRate = organizerOverride.platform_fee_percent
+    } else if (globalRates?.platformFeePercent) {
+        platformRate = globalRates.platformFeePercent
+    }
+
+    // 2. Determine Processor Fee
+    // Currently only global or default (no event-specific override supported yet)
+    let processorRate = globalRates?.processorFeePercent ?? PROCESSOR_FEE_PERCENT
+
+    return {
+        platformFeePercent: platformRate,
+        processorFeePercent: processorRate
+    }
+}
+
 interface FeeResult {
     subtotal: number
     platformFee: number // 4%, always absorbed in ticket price (customer perspective) or deducted (organizer perspective)
@@ -10,14 +41,27 @@ interface FeeResult {
     organizerPayout: number // What the organizer gets (Net)
 }
 
-export const calculateFees = (subtotal: number, feeBearer: 'customer' | 'organizer' = 'customer'): FeeResult => {
-    // 1. Platform Fee: ALWAYS 4% paid by the customer on top of ticket.
-    const platformFee = subtotal * PLATFORM_FEE_PERCENT
+export interface FeeRates {
+    platformFeePercent: number
+    processorFeePercent: number
+}
 
-    // 2. Processor Fee: 1.95%
+export const calculateFees = (
+    subtotal: number,
+    feeBearer: 'customer' | 'organizer' = 'customer',
+    rates?: FeeRates
+): FeeResult => {
+    // defaults
+    const platformRate = rates?.platformFeePercent ?? PLATFORM_FEE_PERCENT
+    const processorRate = rates?.processorFeePercent ?? PROCESSOR_FEE_PERCENT
+
+    // 1. Platform Fee
+    const platformFee = subtotal * platformRate
+
+    // 2. Processor Fee
     // If 'customer' bears fees -> Added to customer total.
     // If 'organizer' bears fees -> Deducted from organizer payout.
-    const processorFee = subtotal * PROCESSOR_FEE_PERCENT
+    const processorFee = subtotal * processorRate
 
     // clientFees = What the customer sees added to the Ticket Price
     // Always includes Platform Fee. Includes Processor Fee only if Customer bears it.

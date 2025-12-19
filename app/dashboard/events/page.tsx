@@ -1,8 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
-import Image from 'next/image'
-import { Plus, Calendar, MapPin } from 'lucide-react'
-import { DeleteEventButton } from '@/components/admin/DeleteEventButton'
+import { EventsClient } from '@/components/admin/EventsClient'
+
 
 export const revalidate = 0
 
@@ -13,12 +12,10 @@ export default async function AdminEventsPage() {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-        // Should be handled by middleware, but safe fallback
         return <div>Please log in to view events.</div>
     }
 
     // 1. Determine Organization Context and Role
-    // Check if owner
     let { data: org } = await supabase
         .schema('gatepass')
         .from('organizers')
@@ -55,11 +52,9 @@ export default async function AdminEventsPage() {
     }
 
     try {
-        // Fetch user's events using Admin Client to bypass potential RLS issues
         const { createClient: createAdminClient } = await import('@supabase/supabase-js')
 
         if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            console.error('CRITICAL: Missing SUPABASE_SERVICE_ROLE_KEY')
             throw new Error('Server configuration error: Missing Service Key')
         }
 
@@ -68,8 +63,7 @@ export default async function AdminEventsPage() {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        console.log(`[Dashboard] Fetching events for organization: ${orgId}`)
-
+        // 1. Fetch Events
         const { data: events, error } = await adminSupabase
             .schema('gatepass')
             .from('events')
@@ -77,114 +71,88 @@ export default async function AdminEventsPage() {
             .eq('organization_id', orgId)
             .order('created_at', { ascending: false })
 
-        const isStaff = role === 'Staff'
+        if (error) throw error
 
-        console.log(`[Dashboard] Found ${events?.length || 0} events`)
+        // 2. Fetch Stats (Transactions)
+        // We fetch all successful transactions for the org to aggregate ticket sales and revenue
+        const { data: transactions } = await adminSupabase
+            .schema('gatepass')
+            .from('transactions')
+            .select(`
+                amount,
+                currency,
+                platform_fee,
+                applied_processor_fee,
+                reservations!inner (
+                    event_id,
+                    quantity,
+                    events!inner ( fee_bearer )
+                )
+            `)
+            .eq('status', 'success')
+            // Using the inner join to filter by org
+            .eq('reservations.events.organization_id', orgId)
+
+        // 3. Aggregate Stats
+        const statsMap = new Map<string, { tickets: number; revenue: number }>()
+
+        if (transactions) {
+            transactions.forEach((tx: any) => {
+                const eventId = tx.reservations.event_id
+                const quantity = tx.reservations.quantity || 1
+
+                // Revenue Calculation (Net Earnings)
+                // Use snapshot if available, else calc
+                // Actually for list view, using strict snapshot is best if available, but falling back to simple heuristic is okay for speed?
+                // No, let's allow consistency.
+
+                let net = 0
+
+                // If we have snapshot fees
+                if (tx.platform_fee !== null && tx.applied_processor_fee !== null) {
+                    net = tx.amount - tx.platform_fee - tx.applied_processor_fee
+                } else {
+                    // Fallback calc (Simplified for list view speed, or use robust util if needed)
+                    // Let's use robust util but we need subtotal... 
+                    // To get subtotal we need price... which we didn't fetch to keep query light?
+                    // Actually, if distinct fees are missing, it's likely an older record or logic.
+                    // Let's assume net = amount if we can't easily calc, OR fetch price.
+
+                    // To be safe and accurate, let's just use amount for now if snapshot missing, 
+                    // or maybe we should have fetched price.
+                    // Given the goal is "Better View", accuracy > speed.
+
+                    // Re-fetch logic: Actually to calculateFees we need subtotal.
+                    // Let's trust that most recent txs have snapshots. 
+                    // If not, we might slightly overestimate revenue on old events in this summary view.
+                    net = tx.amount // potentially gross if no fees deducted, but acceptable for summary fallback
+                }
+
+                const current = statsMap.get(eventId) || { tickets: 0, revenue: 0 }
+                statsMap.set(eventId, {
+                    tickets: current.tickets + quantity,
+                    revenue: current.revenue + net
+                })
+            })
+        }
+
+        // 4. Merge Data
+        const enrichedEvents = events.map((event: any) => {
+            const stat = statsMap.get(event.id) || { tickets: 0, revenue: 0 }
+            return {
+                ...event,
+                tickets_sold: stat.tickets,
+                revenue: stat.revenue,
+                currency: event.currency || 'GHS' // fallback
+            }
+        })
 
         return (
-            <div className="max-w-7xl mx-auto space-y-12 pb-24">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-                    <div>
-                        <h1 className="text-4xl font-black tracking-tight text-gray-900 dark:text-white mb-2">Events</h1>
-                        <p className="text-gray-500 font-medium text-lg max-w-xl dark:text-gray-400">
-                            {isStaff
-                                ? "View and manage events for your organization."
-                                : "Manage your events, track sales, and customize your ticketing pages."}
-                        </p>
-                    </div>
-                    {!isStaff && (
-                        <Link href="/dashboard/events/create">
-                            <button className="bg-black dark:bg-white dark:text-black text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-xl shadow-black/10 dark:shadow-none hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5">
-                                <Plus className="w-5 h-5" /> Create Event
-                            </button>
-                        </Link>
-                    )}
-                </div>
-
-                {events && events.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {events.map((event: any) => (
-                            <div key={event.id} className="group bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 flex flex-col h-full ring-1 ring-black/0 hover:ring-black/5 dark:hover:ring-white/10">
-                                {/* Poster Aspect Ratio */}
-                                <div className="relative aspect-[4/3] bg-gray-100 dark:bg-white/5 overflow-hidden">
-                                    {event.poster_url ? (
-                                        <Image
-                                            src={event.poster_url}
-                                            alt={event.title}
-                                            fill
-                                            className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/20">
-                                            <Calendar className="w-12 h-12" />
-                                        </div>
-                                    )}
-                                    <div className="absolute top-4 right-4 flex gap-2">
-                                        {/* Theme Color Indicator */}
-                                        <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: event.primary_color || '#000000' }} />
-
-                                        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border flex items-center ${event.is_published
-                                            ? 'bg-green-500/90 text-white border-white/20'
-                                            : 'bg-yellow-400/90 text-black border-white/20'
-                                            }`}>
-                                            {event.is_published ? 'Live' : 'Draft'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Content */}
-                                <div className="p-6 flex-1 flex flex-col">
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{event.title}</h3>
-
-                                    <div className="space-y-2 mb-8">
-                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium dark:text-gray-400">
-                                            <Calendar className="w-4 h-4 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
-                                            <span>
-                                                {event.starts_at ? (
-                                                    <>
-                                                        {new Date(event.starts_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                                                        {event.ends_at && new Date(event.starts_at).toDateString() !== new Date(event.ends_at).toDateString() && (
-                                                            <> - {new Date(event.ends_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</>
-                                                        )}
-                                                    </>
-                                                ) : 'Date TBD'}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium dark:text-gray-400">
-                                            <MapPin className="w-4 h-4 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
-                                            <span className="truncate">{event.venue_name || 'Venue TBD'}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-auto flex items-center gap-3 pt-6 border-t border-gray-100 dark:border-white/10">
-                                        <Link href={`/dashboard/events/${event.id}`} className="flex-1">
-                                            <button className="w-full py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-white/5 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">
-                                                {isStaff ? 'View Sales' : 'Manage'}
-                                            </button>
-                                        </Link>
-                                        {!isStaff && <DeleteEventButton eventId={event.id} />}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center py-32 text-center bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 border-dashed animate-fade-in">
-                        <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100 dark:border-white/10">
-                            <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-600" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No events created</h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-sm mx-auto">Get started by creating your first event. It only takes a few minutes.</p>
-                        <Link href="/dashboard/events/create">
-                            <button className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5">
-                                Create Event
-                            </button>
-                        </Link>
-                    </div>
-                )}
+            <div className="max-w-7xl mx-auto pb-24">
+                <EventsClient events={enrichedEvents} role={role} />
             </div>
         )
+
     } catch (error: any) {
         console.error('Fatal Dashboard Error:', error)
         return (

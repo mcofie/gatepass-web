@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Event, Organizer, TicketTier } from '@/types/gatepass'
 import { Eye, Star, Ban, ExternalLink, MoreHorizontal, CheckCircle } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
+import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -18,15 +18,19 @@ interface MasterEvent extends Event {
         transactions: {
             amount: number
             status: string
+            quantity?: number
+            price?: number
+            discounts?: any
         }[]
     }[]
 }
 
 interface MasterEventsTableProps {
     events: MasterEvent[]
+    feeRates?: FeeRates
 }
 
-export default function MasterEventsTable({ events: initialEvents }: MasterEventsTableProps) {
+export default function MasterEventsTable({ events: initialEvents, feeRates }: MasterEventsTableProps) {
     const [expandedEvent, setExpandedEvent] = useState<string | null>(null)
     const [events, setEvents] = useState(initialEvents)
     const [loading, setLoading] = useState<string | null>(null)
@@ -102,7 +106,22 @@ export default function MasterEventsTable({ events: initialEvents }: MasterEvent
                                     if (tx.status !== 'success') return
 
                                     const bearer = event.fee_bearer || 'customer'
-                                    const { platformFee, processorFee, organizerPayout } = calculateFees(tx.amount, bearer)
+
+                                    // Calculate Subtotal
+                                    const price = (tx as any).price || 0
+                                    const quantity = (tx as any).quantity || 1
+                                    const discountObj = Array.isArray((tx as any).discounts) ? (tx as any).discounts[0] : (tx as any).discounts
+
+                                    let discountAmount = 0
+                                    if (discountObj) {
+                                        if (discountObj.type === 'percentage') discountAmount = (price * quantity) * (discountObj.value / 100)
+                                        else discountAmount = discountObj.value
+                                    }
+
+                                    const subtotal = Math.max(0, (price * quantity) - discountAmount)
+
+                                    const effectiveRates = getEffectiveFeeRates(feeRates, event)
+                                    const { platformFee, processorFee, organizerPayout } = calculateFees(subtotal, bearer, effectiveRates)
 
                                     acc.gross += tx.amount
                                     acc.platformProfits += platformFee

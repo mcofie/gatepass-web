@@ -39,6 +39,8 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                     amount,
                     currency,
                     status,
+                    platform_fee,
+                    applied_processor_fee,
                     reservations!inner (
                         quantity,
                         guest_name,
@@ -46,7 +48,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                         profiles ( full_name, email ),
                         ticket_tiers ( name, price ),
                         events!inner ( title, organization_id, fee_bearer ),
-                        discounts ( type, value )
+                        discounts ( type, value, code )
                     )
                 `, { count: 'exact' })
                 .eq('status', 'success')
@@ -130,7 +132,12 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
                                     // 3. Fee Logic
                                     const feeBearer = event?.fee_bearer || 'customer'
-                                    const { organizerPayout } = calculateFees(subtotal, feeBearer)
+                                    const calculated = calculateFees(subtotal, feeBearer)
+
+                                    const finalPlatformFee = sale.platform_fee ?? calculated.platformFee
+                                    const finalProcessorFee = sale.applied_processor_fee ?? calculated.processorFee
+
+                                    const organizerPayout = sale.amount - finalPlatformFee - finalProcessorFee
 
                                     return (
                                         <tr key={sale.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">

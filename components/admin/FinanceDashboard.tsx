@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { formatCurrency } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
+import { calculateFees, FeeRates, getEffectiveFeeRates, PLATFORM_FEE_PERCENT } from '@/utils/fees'
 import { Calendar, DollarSign, TrendingUp, Filter, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { exportToCSV } from '@/utils/export'
@@ -25,13 +25,18 @@ type FlattenedTransaction = {
     event_title: string
     guest_name: string
     organizer_payout: number
+    platform_fee: number
+    processor_fee: number
+    platform_rate: number
+    processor_rate: number
 }
 
 interface FinanceDashboardProps {
     adminMode?: boolean
+    feeRates?: FeeRates
 }
 
-export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
+export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboardProps) {
     const supabase = createClient()
     const [transactions, setTransactions] = useState<FlattenedTransaction[]>([])
     const [loading, setLoading] = useState(true)
@@ -57,6 +62,10 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                     currency, 
                     status, 
                     paid_at, 
+                    platform_fee,
+                    applied_fee_rate,
+                    applied_processor_fee,
+                    applied_processor_rate,
                     reservation_id,
                     reservations!inner (
                         event_id,
@@ -64,8 +73,12 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                         events!inner (
                             title,
                             organizer_id,
-                            fee_bearer
-                        )
+                            fee_bearer,
+                            platform_fee_percent
+                        ),
+                        quantity,
+                        ticket_tiers (price),
+                        discounts (type, value)
                     )
                 `)
                 .eq('status', 'success')
@@ -92,8 +105,30 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
 
             // Flatten data and calculate fee-aware payouts using calculateFees
             const formatted: FlattenedTransaction[] = data.map((tx: any) => {
-                const bearer = tx.reservations?.events?.fee_bearer || 'customer'
-                const { organizerPayout } = calculateFees(tx.amount, bearer)
+                const event = tx.reservations?.events
+                const effectiveRates = getEffectiveFeeRates(feeRates, event)
+                const bearer = event?.fee_bearer || 'customer'
+
+                // Calculate Subtotal
+                const price = tx.reservations?.ticket_tiers?.price || 0
+                const quantity = tx.reservations?.quantity || 1
+                const discountObj = Array.isArray(tx.reservations?.discounts) ? tx.reservations?.discounts[0] : tx.reservations?.discounts
+
+                let discountAmount = 0
+                if (discountObj) {
+                    if (discountObj.type === 'percentage') discountAmount = (price * quantity) * (discountObj.value / 100)
+                    else discountAmount = discountObj.value
+                }
+
+                const subtotal = Math.max(0, (price * quantity) - discountAmount)
+
+                const calculated = calculateFees(subtotal, bearer, effectiveRates)
+
+                // Robust Payout: Amount - Fees
+                // Prefer stored snapshots, fallback to calculation
+                const finalPlatformFee = tx.platform_fee ?? calculated.platformFee
+                const finalProcessorFee = tx.applied_processor_fee ?? calculated.processorFee
+                const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
 
                 return {
                     id: tx.id,
@@ -103,7 +138,11 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                     paid_at: tx.paid_at,
                     event_title: tx.reservations?.events?.title || 'Unknown Event',
                     guest_name: tx.reservations?.guest_name || 'Guest',
-                    organizer_payout: organizerPayout
+                    organizer_payout: netPayout,
+                    platform_fee: finalPlatformFee,
+                    processor_fee: finalProcessorFee,
+                    platform_rate: tx.applied_fee_rate ?? effectiveRates.platformFeePercent,
+                    processor_rate: tx.applied_processor_rate ?? effectiveRates.processorFeePercent
                 }
             })
 
@@ -118,10 +157,22 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
 
     // Calculations using calculateFees standard
     const stats: FinancialStats = transactions.reduce((acc, tx) => {
-        const { platformFee } = calculateFees(tx.amount, 'customer') // platformFee logic doesn't depend on bearer
+        // We can't actually get the specific event here easily from `tx` unless we carry it. 
+        // But `flattenedTransaction` doesn't strictly have the event obj. 
+        // We really should calculate this during flattening to be accurate if rates vary per event.
+        // For accurate total stats, we should rely on the flattened output if possible or store fee in DB.
+        // For now, let's treat `tx.organizer_payout` as the source of truth for Net.
+        // But platformFee needs to be re-calculated or stored.
+
+        // Since we don't store `platformFee` in the flattened object, let's just approximate or re-fetch?
+        // Actually we can pass event data in flattened object if we want.
+        // Or assume global rates for the "General Overview" if event-specifics are rare.
+        // But the user WANTS event specifics.
+
+        // Better: Calculate platformFee inside the map above and store it.
         return {
             totalGross: acc.totalGross + tx.amount,
-            platformFees: acc.platformFees + platformFee,
+            platformFees: acc.platformFees + (tx.platform_fee || 0),
             organizerNet: acc.organizerNet + tx.organizer_payout,
             count: acc.count + 1
         }
@@ -133,7 +184,7 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
         if (!acc[title]) {
             acc[title] = { gross: 0, fees: 0, count: 0 }
         }
-        const { platformFee } = calculateFees(tx.amount, 'customer')
+        const platformFee = tx.platform_fee
         acc[title].gross += tx.amount
         acc[title].fees += platformFee
         acc[title].count += 1
@@ -191,7 +242,7 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                     <div className="relative z-10">
                         <div className="flex items-center gap-2 text-gray-400 mb-2">
                             <TrendingUp className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Platform Revenue (4%)</span>
+                            <span className="text-xs font-bold uppercase tracking-widest">Platform Revenue ({(feeRates?.platformFeePercent ?? PLATFORM_FEE_PERCENT) * 100}%)</span>
                         </div>
                         <div className="text-4xl font-black tracking-tight">
                             {formatCurrency(stats.platformFees, 'GHS')}
@@ -245,6 +296,8 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold">Event & Guest</th>
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold">Paid Date</th>
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Gross</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Plat. Fee</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Proc. Fee</th>
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Payout</th>
                             </tr>
                         </thead>
@@ -268,6 +321,16 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                                     </td>
                                     <td className="px-6 py-4 text-right text-gray-900 dark:text-white font-bold">
                                         {formatCurrency(tx.amount, tx.currency)}
+                                    </td>
+                                    <td className="px-6 py-4 text-right text-red-500 dark:text-red-400 font-medium text-xs">
+                                        {formatCurrency(tx.platform_fee, tx.currency)}
+                                        <br />
+                                        <span className="opacity-50 text-[9px]">{((tx.platform_rate || 0) * 100).toFixed(2)}%</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right text-gray-500 dark:text-gray-400 font-medium text-xs">
+                                        {formatCurrency(tx.processor_fee, tx.currency)}
+                                        <br />
+                                        <span className="opacity-50 text-[9px]">{((tx.processor_rate || 0) * 100).toFixed(2)}%</span>
                                     </td>
                                     <td className="px-6 py-4 text-right text-green-600 dark:text-green-400 font-bold">
                                         {formatCurrency(tx.organizer_payout, tx.currency)}

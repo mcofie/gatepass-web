@@ -39,14 +39,16 @@ import { Reservation, Event, TicketTier } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatCurrency } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
+import { calculateFees, FeeRates, getEffectiveFeeRates, PLATFORM_FEE_PERCENT, PROCESSOR_FEE_PERCENT } from '@/utils/fees'
 import { toast } from 'sonner'
 
 interface CheckoutClientProps {
     reservation: Reservation
+    feeRates?: FeeRates
+    discount?: any
 }
 
-export function CheckoutClient({ reservation }: CheckoutClientProps) {
+export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClientProps) {
     const router = useRouter()
     const supabase = createClient()
     const [paying, setPaying] = useState(false)
@@ -84,8 +86,30 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
     const feeBearer = (reservation.events?.fee_bearer as 'customer' | 'organizer') || 'customer'
     // const platformFeePercent = reservation.events?.platform_fee_percent || 0 // Deprecated in favor of global constant
 
-    const subtotal = price * quantity
-    const { clientFees, platformFee, processorFee, customerTotal } = calculateFees(subtotal, feeBearer)
+
+    // Calculate Base Subtotal
+    let subtotal = price * quantity
+    let discountAmount = 0
+
+    // Apply Discount
+    if (discount) {
+        if (discount.type === 'percentage') {
+            discountAmount = subtotal * (discount.value / 100)
+        } else {
+            discountAmount = discount.value
+        }
+        // Ensure we don't go below zero
+        if (discountAmount > subtotal) discountAmount = subtotal
+
+        subtotal = subtotal - discountAmount
+    }
+
+    const effectiveRates = getEffectiveFeeRates(feeRates, reservation.events)
+    const { clientFees, platformFee, processorFee, customerTotal } = calculateFees(subtotal, feeBearer, effectiveRates)
+
+    // Defaults for display if fees not passed (should be rare)
+    const platformPct = (effectiveRates.platformFeePercent) * 100
+    const processorPct = (effectiveRates.processorFeePercent) * 100
 
     // Legacy mapping: calculatedFee = clientFees (Total fees shown to customer)
     const calculatedFee = clientFees
@@ -265,17 +289,24 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
                         <div className="space-y-3 pt-6 border-t border-white/5">
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-400">Subtotal</span>
-                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal, currency)}</span>
+                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(price * quantity, currency)}</span>
                             </div>
 
+                            {discount && (
+                                <div className="flex justify-between text-sm text-green-500">
+                                    <span className="">Discount ({discount.code})</span>
+                                    <span className="font-medium tabular-nums">-{formatCurrency(discountAmount, currency)}</span>
+                                </div>
+                            )}
+
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Platform Fee (4%)</span>
+                                <span className="text-gray-400">Platform Fee ({platformPct}%)</span>
                                 <span className="font-medium tabular-nums text-gray-200">{formatCurrency(platformFee, currency)}</span>
                             </div>
 
                             {feeBearer === 'customer' && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Processing Fee (1.95%)</span>
+                                    <span className="text-gray-400">Processing Fee ({processorPct}%)</span>
                                     <span className="font-medium tabular-nums text-gray-200">{formatCurrency(processorFee, currency)}</span>
                                 </div>
                             )}

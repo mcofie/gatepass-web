@@ -3,8 +3,14 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, Organizer } from '@/types/gatepass'
-import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, MoreHorizontal, Ban, Trash2, User } from 'lucide-react'
+import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, MoreHorizontal, Ban, Trash2, User, Loader2, Save } from 'lucide-react'
 import { format } from 'date-fns'
+import { useState } from 'react'
+import { updateOrganizerFee } from '@/app/actions/fees'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { toast } from 'sonner'
+import { getEffectiveFeeRates, PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
 interface UserDetailProps {
     profile: Profile
@@ -14,6 +20,22 @@ interface UserDetailProps {
 
 export function UserDetailClient({ profile, organizer, teamMemberships = [] }: UserDetailProps) {
     const router = useRouter()
+    const [feeSaving, setFeeSaving] = useState(false)
+    const [feeInput, setFeeInput] = useState<string>(organizer?.platform_fee_percent ? (organizer.platform_fee_percent * 100).toString() : '')
+
+    const handleSaveFee = async () => {
+        if (!organizer) return
+        setFeeSaving(true)
+        try {
+            const val = feeInput ? parseFloat(feeInput) / 100 : null
+            await updateOrganizerFee(organizer.id, val)
+            toast.success('Organizer fee updated')
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setFeeSaving(false)
+        }
+    }
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -111,8 +133,37 @@ export function UserDetailClient({ profile, organizer, teamMemberships = [] }: U
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Slug</label>
                                     <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-white/5">{organizer.slug}</p>
+                                </div>
+                                <div className="pt-4 border-t border-gray-100 dark:border-white/5">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-2">Platform Fee Override (%)</label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={feeInput}
+                                            onChange={(e) => setFeeInput(e.target.value)}
+                                            placeholder="Default (4%)"
+                                            className="h-9 text-sm"
+                                            type="number"
+                                        />
+                                        <Button
+                                            size="sm"
+                                            onClick={handleSaveFee}
+                                            disabled={feeSaving}
+                                            className="h-9 px-3 bg-black dark:bg-white text-white dark:text-black hover:opacity-90"
+                                        >
+                                            {feeSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                        </Button>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+                                        Effective Rate: <span className="font-bold text-gray-900 dark:text-white">
+                                            {((organizer.platform_fee_percent && organizer.platform_fee_percent > 0)
+                                                ? organizer.platform_fee_percent * 100
+                                                : PLATFORM_FEE_PERCENT * 100).toFixed(2)}%
+                                        </span>
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
+                                        Set a specific fee for this organizer. Leave empty to use system default.
+                                    </p>
                                 </div>
                             </div>
                         </div>

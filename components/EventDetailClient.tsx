@@ -18,9 +18,9 @@ import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
-import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight } from 'lucide-react'
+import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
+import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { motion } from 'framer-motion'
 
 interface EventDetailClientProps {
@@ -28,6 +28,7 @@ interface EventDetailClientProps {
     tiers: TicketTier[]
     isFeedItem?: boolean
     layoutId?: string
+    feeRates?: FeeRates
 }
 
 // Simple Timer Hook
@@ -62,7 +63,7 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
     return timeLeft
 }
 
-export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId }: EventDetailClientProps) {
+export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates }: EventDetailClientProps) {
     const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
 
     // Track View Count
@@ -214,7 +215,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId }
     }, [discount, calculatedTotal, selectedTickets, tiers])
 
     const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
-    const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer')
+    // Use effective rates for THIS event
+    const effectiveRates = getEffectiveFeeRates(feeRates, event)
+    const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer', effectiveRates)
     const platformFees = clientFees
     const totalDue = customerTotal
 

@@ -4,16 +4,19 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2 } from 'lucide-react'
 import { Event, TicketTier, Discount, EventStaff } from '@/types/gatepass'
 import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
+import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import dynamic from 'next/dynamic'
 import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
 import { logActivity } from '@/app/actions/logger'
+import { updateEventFee, updateEventFeeBearer } from '@/app/actions/fees'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
 
 const DateTimePicker = dynamic(() => import('@/components/common/DateTimePicker').then(mod => mod.DateTimePicker), { ssr: false })
 const AnalyticsCharts = dynamic(() => import('@/components/admin/AnalyticsCharts'), {
@@ -34,13 +37,17 @@ interface EventManageClientProps {
     initialTiers: TicketTier[]
     initialTotalRevenue?: number
     userRole: string
+    feeRates?: FeeRates
+    isSuperAdmin?: boolean
 }
 
 export function EventManageClient({
     event: initialEvent,
     initialTiers,
     initialTotalRevenue = 0,
-    userRole
+    userRole,
+    feeRates,
+    isSuperAdmin = false
 }: EventManageClientProps) {
     const isStaff = userRole === 'Staff'
     const isAdmin = userRole === 'Owner' || userRole === 'Admin'
@@ -71,6 +78,31 @@ export function EventManageClient({
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+
+    const [feeSaving, setFeeSaving] = useState(false)
+    const [feeInput, setFeeInput] = useState<string>(event.platform_fee_percent ? (event.platform_fee_percent * 100).toString() : '')
+
+    // Determine current effective source
+    const feeSource = React.useMemo(() => {
+        if (event.platform_fee_percent && event.platform_fee_percent > 0) return 'Event Specific'
+        if (event.organizers?.platform_fee_percent && event.organizers.platform_fee_percent > 0) return 'Organizer Default'
+        return 'System Default'
+    }, [event])
+
+    const handleSaveFee = async () => {
+        setFeeSaving(true)
+        try {
+            const val = feeInput ? parseFloat(feeInput) / 100 : null
+            await updateEventFee(event.id, val)
+            toast.success('Event fee updated')
+            // Update local state to reflect change? Revalidation handles it but optimistic UI is nice.
+            setEvent({ ...event, platform_fee_percent: val ?? 0 }) // Assuming 0 if null for local usage or proper type
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setFeeSaving(false)
+        }
+    }
 
 
     const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -243,6 +275,8 @@ export function EventManageClient({
                 .from('transactions')
                 .select(`
                     amount,
+                    platform_fee,
+                    applied_processor_fee,
                     reservations!inner (
                         tier_id,
                         quantity,
@@ -268,7 +302,7 @@ export function EventManageClient({
                         quantity,
                         guest_name,
                         guest_email,
-                        discounts ( type, value ),
+                        discounts ( type, value, code ),
                         profiles ( full_name, email )
                     )
                 `, { count: 'exact' })
@@ -313,11 +347,19 @@ export function EventManageClient({
                 const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
                 // Calculate Fees & Payout
+                // Calculate Fees & Payout
                 const feeBearer = event.fee_bearer || 'customer'
-                const { platformFee, organizerPayout } = calculateFees(subtotal, feeBearer)
+                const effectiveRates = getEffectiveFeeRates(feeRates, event)
+                const calculated = calculateFees(subtotal, feeBearer, effectiveRates)
 
-                totalPlatformFees += platformFee
-                totalOrganizerNet += organizerPayout
+                // Use Snapshot if available (Historic Accuracy)
+                const finalPlatformFee = tx.platform_fee ?? calculated.platformFee
+                const finalProcessorFee = tx.applied_processor_fee ?? calculated.processorFee
+
+                const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
+
+                totalPlatformFees += finalPlatformFee
+                totalOrganizerNet += netPayout
             })
 
             setPayoutStats({
@@ -335,12 +377,12 @@ export function EventManageClient({
         }
     }
 
-    // Refresh when page changes
+    // Refresh when page changes or event settings change (e.g. fee bearer toggled)
     useEffect(() => {
         if (activeTab === 'payouts') {
             fetchPayouts()
         }
-    }, [payoutPage, activeTab])
+    }, [payoutPage, activeTab, event.fee_bearer, event.platform_fee_percent])
 
     // Analytics State
     const [analyticsTickets, setAnalyticsTickets] = useState<any[]>([])
@@ -554,9 +596,14 @@ export function EventManageClient({
                                             // Calc Payout (Re-calc for display row)
                                             const subtotal = Math.max(0, (price * quantity) - discountAmount)
                                             const feeBearer = event.fee_bearer || 'customer'
-                                            const { platformFee, clientFees, organizerPayout, processorFee } = calculateFees(subtotal, feeBearer)
+                                            const effectiveRates = getEffectiveFeeRates(feeRates, event)
+                                            const calculated = calculateFees(subtotal, feeBearer, effectiveRates)
 
-                                            const deductedFee = feeBearer === 'organizer' ? processorFee : 0
+                                            // Confirmed Logic: Payout = Amount - Fees
+                                            const finalPlatformFee = tx.platform_fee ?? calculated.platformFee
+                                            const finalProcessorFee = tx.applied_processor_fee ?? calculated.processorFee
+                                            const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
+                                            const totalFees = finalPlatformFee + finalProcessorFee
 
                                             return (
                                                 <tr
@@ -576,14 +623,14 @@ export function EventManageClient({
                                                         </div>
                                                     </td>
                                                     <td className="px-8 py-5 text-right font-medium text-gray-900 dark:text-white">
-                                                        {formatCurrency(price * quantity, tx.currency)}
+                                                        {formatCurrency(tx.amount, tx.currency)}
                                                     </td>
                                                     <td className="px-8 py-5 text-right font-medium text-red-500">
-                                                        {deductedFee > 0 ? `- ${formatCurrency(deductedFee, tx.currency)}` : '-'}
+                                                        {totalFees > 0 ? `- ${formatCurrency(totalFees, tx.currency)}` : '-'}
                                                     </td>
                                                     <td className="px-8 py-5 text-right">
                                                         <span className="font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-400/10 px-2 py-1 rounded-md">
-                                                            {formatCurrency(organizerPayout, tx.currency)}
+                                                            {formatCurrency(netPayout, tx.currency)}
                                                         </span>
                                                     </td>
                                                     <td className="px-8 py-5 text-center">
@@ -730,6 +777,93 @@ export function EventManageClient({
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Financial Settings (Super Admin Only) */}
+                                {isSuperAdmin && (
+                                    <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
+                                                    <DollarSign className="w-4 h-4 text-red-600 dark:text-red-400" />
+                                                </div>
+                                                Financial Settings
+                                            </h3>
+                                            <span className={clsx("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border",
+                                                feeSource === 'Event Specific' ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20" :
+                                                    feeSource === 'Organizer Default' ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20" :
+                                                        "bg-gray-50 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10"
+                                            )}>
+                                                {feeSource}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Platform Fee Override (%)</label>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        value={feeInput}
+                                                        onChange={(e) => setFeeInput(e.target.value)}
+                                                        placeholder="Default"
+                                                        className="h-11"
+                                                        type="number"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        onClick={handleSaveFee}
+                                                        disabled={feeSaving}
+                                                        className="h-11 px-6 font-bold"
+                                                    >
+                                                        {feeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                                                    </Button>
+                                                </div>
+                                                <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                                                    Current Effective Rate: <span className="font-bold text-gray-900 dark:text-white">{(getEffectiveFeeRates(feeRates, event).platformFeePercent * 100).toFixed(2)}%</span>.
+                                                    Leave empty to inherit from Organizer or System default.
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-gray-100 dark:border-white/10">
+                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Fee Bearer (Who pays?)</label>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newBearer = 'customer';
+                                                            setEvent({ ...event, fee_bearer: newBearer }); // Optimistic
+                                                            updateEventFeeBearer(event.id, newBearer).then(() => toast.success('Fee bearer updated')).catch(e => toast.error(e.message));
+                                                        }}
+                                                        className={clsx(
+                                                            "px-4 py-3 rounded-xl text-sm font-bold border transition-all text-left flex flex-col gap-1",
+                                                            event.fee_bearer === 'customer'
+                                                                ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white ring-2 ring-offset-2 ring-black/10 dark:ring-white/10"
+                                                                : "bg-white dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-gray-300"
+                                                        )}
+                                                    >
+                                                        <span>Customer</span>
+                                                        <span className="text-[10px] opacity-70 font-normal">Fees added to total</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newBearer = 'organizer';
+                                                            setEvent({ ...event, fee_bearer: newBearer }); // Optimistic
+                                                            updateEventFeeBearer(event.id, newBearer).then(() => toast.success('Fee bearer updated')).catch(e => toast.error(e.message));
+                                                        }}
+                                                        className={clsx(
+                                                            "px-4 py-3 rounded-xl text-sm font-bold border transition-all text-left flex flex-col gap-1",
+                                                            event.fee_bearer === 'organizer'
+                                                                ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white ring-2 ring-offset-2 ring-black/10 dark:ring-white/10"
+                                                                : "bg-white dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-gray-300"
+                                                        )}
+                                                    >
+                                                        <span>Organizer</span>
+                                                        <span className="text-[10px] opacity-70 font-normal">Fees deducted from payout</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Poster Image */}
                                 <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
@@ -1054,7 +1188,18 @@ export function EventManageClient({
                                         <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Fee Bearer</label>
                                         <select
                                             disabled={isStaff}
-                                            onChange={e => setEvent({ ...event, fee_bearer: e.target.value as 'customer' | 'organizer' })}
+                                            value={event.fee_bearer || 'customer'}
+                                            onChange={async (e) => {
+                                                const newBearer = e.target.value as 'customer' | 'organizer'
+                                                // Optimistic update
+                                                setEvent({ ...event, fee_bearer: newBearer })
+                                                try {
+                                                    await updateEventFeeBearer(event.id, newBearer)
+                                                    toast.success('Fee setting updated')
+                                                } catch (err: any) {
+                                                    toast.error('Failed to update: ' + err.message)
+                                                }
+                                            }}
                                             className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
                                         >
                                             <option value="customer">Customer Pays Fees</option>
@@ -1159,7 +1304,7 @@ export function EventManageClient({
 
                             </div>
                         </form>
-                    </div>
+                    </div >
                 )
             }
 

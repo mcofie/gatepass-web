@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { EventManageClient } from '@/components/admin/EventManageClient'
 import { Event, TicketTier } from '@/types/gatepass'
 import { calculateFees } from '@/utils/fees'
+import { getFeeSettings } from '@/utils/settings'
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -12,10 +13,12 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
     const { id } = await params
 
     // Fetch Event (Admin client/Super Admin profile allows fetching any event)
-    const { data: event } = await supabase.schema('gatepass').from('events').select('*').eq('id', id).single()
+    const { data: event } = await supabase.schema('gatepass').from('events').select('*, organizers(*)').eq('id', id).single()
 
     // Fetch Tiers
     const { data: tiers } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', id).order('price')
+
+    const feeSettings = await getFeeSettings()
 
     // Fetch Financials
     const { data: transactions } = await supabase
@@ -52,7 +55,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
             }
 
             const subtotal = Math.max(0, (price * quantity) - discountAmount)
-            const { organizerPayout } = calculateFees(subtotal, feeBearer)
+            const { organizerPayout } = calculateFees(subtotal, feeBearer, feeSettings)
 
             return acc + organizerPayout
         }, 0)
@@ -66,6 +69,8 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
             initialTiers={(tiers as TicketTier[]) || []}
             initialTotalRevenue={totalRevenue}
             userRole="Administrator"
+            feeRates={feeSettings}
+            isSuperAdmin={true}
         />
     )
 }

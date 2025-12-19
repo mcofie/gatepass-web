@@ -2,13 +2,13 @@
 
 import React from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { UserPlus, CalendarPlus, Banknote, ArrowRight } from 'lucide-react'
+import { UserPlus, CalendarPlus, Banknote, ArrowRight, ShieldAlert } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import Link from 'next/link'
 
-interface PulseItem {
+export interface PulseItem {
     id: string
-    type: 'user' | 'event' | 'sale'
+    type: 'user' | 'event' | 'sale' | 'admin_log'
     title: string
     subtitle: string
     timestamp: string
@@ -46,11 +46,13 @@ export function PlatformPulse({ items, viewAllLink }: PlatformPulseProps) {
                         {/* Icon */}
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-inner ${item.type === 'user' ? 'bg-blue-50 border-blue-100 text-blue-600 dark:bg-blue-900/20 dark:border-blue-500/20 dark:text-blue-400' :
                             item.type === 'event' ? 'bg-purple-50 border-purple-100 text-purple-600 dark:bg-purple-900/20 dark:border-purple-500/20 dark:text-purple-400' :
-                                'bg-green-50 border-green-100 text-green-600 dark:bg-green-900/20 dark:border-green-500/20 dark:text-green-400'
+                                item.type === 'admin_log' ? 'bg-orange-50 border-orange-100 text-orange-600 dark:bg-orange-900/20 dark:border-orange-500/20 dark:text-orange-400' :
+                                    'bg-green-50 border-green-100 text-green-600 dark:bg-green-900/20 dark:border-green-500/20 dark:text-green-400'
                             }`}>
                             {item.type === 'user' && <UserPlus className="w-5 h-5" />}
                             {item.type === 'event' && <CalendarPlus className="w-5 h-5" />}
                             {item.type === 'sale' && <Banknote className="w-5 h-5" />}
+                            {item.type === 'admin_log' && <ShieldAlert className="w-5 h-5" />}
                         </div>
 
                         {/* Content */}

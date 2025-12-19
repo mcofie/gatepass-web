@@ -94,6 +94,8 @@ export default async function DashboardPage() {
                 created_at,
                 amount,
                 currency,
+                platform_fee,
+                applied_processor_fee,
                 reservations!inner (
                     quantity,
                     guest_name,
@@ -115,6 +117,8 @@ export default async function DashboardPage() {
             .select(`
                 amount,
                 currency,
+                platform_fee,
+                applied_processor_fee,
                 reservations!inner (
                     quantity,
                     ticket_tiers(price),
@@ -154,7 +158,19 @@ export default async function DashboardPage() {
             const subtotal = Math.max(0, (price * quantity) - discountAmount)
             const { organizerPayout } = calculateFees(subtotal, feeBearer)
 
-            totalRevenue += organizerPayout
+            // Robust Snapshot Logic
+            const finalPlatformFee = tx.platform_fee ?? organizerPayout // If snapshot exists, trust it? No, calculateFees returns payout, not fee?
+            // Wait, calculateFees returns { organizerPayout, platformFee, ... }
+
+            // Recalculate robustly
+            const calculated = calculateFees(subtotal, feeBearer) // We don't have event-specific rates here easily without fetching more. 
+            // Assuming standard rates for fallback is safer than crashing.
+
+            const pFee = tx.platform_fee ?? calculated.platformFee
+            const procFee = tx.applied_processor_fee ?? calculated.processorFee
+
+            const netPayout = tx.amount - pFee - procFee
+            totalRevenue += netPayout
         })
     }
 
@@ -257,8 +273,14 @@ export default async function DashboardPage() {
                                         const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
                                         // 3. Fee Logic
+                                        // 3. Fee Logic
                                         const feeBearer = event?.fee_bearer || 'customer'
-                                        const { organizerPayout } = calculateFees(subtotal, feeBearer)
+                                        const calculated = calculateFees(subtotal, feeBearer)
+
+                                        const pFee = sale.platform_fee ?? calculated.platformFee
+                                        const procFee = sale.applied_processor_fee ?? calculated.processorFee
+
+                                        const organizerPayout = sale.amount - pFee - procFee
 
                                         return (
                                             <div key={sale.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">

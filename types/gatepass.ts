@@ -44,6 +44,7 @@ export interface Organizer {
     bank_name?: string
     account_number?: string
     account_name?: string
+    platform_fee_percent?: number
 }
 
 export interface TicketTier {

@@ -43,6 +43,14 @@ export function ReportsClient() {
                     status: t.status,
                     user: (t.reservations as any)?.profiles?.email || (t.reservations as any)?.guest_name || 'Guest',
                     event: (t.reservations as any)?.events?.title || 'Unknown',
+
+                    // Detailed Fees
+                    platform_fee: t.platform_fee,
+                    platform_rate: t.applied_fee_rate,
+                    processor_fee: t.applied_processor_fee,
+                    processor_rate: t.applied_processor_rate,
+
+                    organizer_payout: t.amount - (t.platform_fee || 0) - (t.applied_processor_fee || 0), // Rough calc for CSV instant view
                     date: t.created_at
                 })) || []
 

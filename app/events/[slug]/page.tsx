@@ -5,6 +5,7 @@ import { LandingHeader } from '@/components/LandingHeader'
 import React from 'react'
 import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
+import { getFeeSettings } from '@/utils/settings'
 
 interface PageProps {
     params: Promise<{ slug: string }>
@@ -135,7 +136,10 @@ export default async function EventPage({ params }: PageProps) {
         .from('ticket_tiers')
         .select('*')
         .eq('event_id', event.id)
+        .eq('event_id', event.id)
         .order('price', { ascending: true })
+
+    const feeSettings = await getFeeSettings()
 
     return (
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
@@ -188,6 +192,7 @@ export default async function EventPage({ params }: PageProps) {
                 event={event as Event}
                 tiers={(tiers as TicketTier[]) || []}
                 layoutId={`event-card-${event.id}`}
+                feeRates={feeSettings}
             />
         </div >
     )

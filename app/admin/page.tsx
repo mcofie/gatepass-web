@@ -29,7 +29,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     let query = supabase
         .schema('gatepass')
         .from('transactions')
-        .select('amount, created_at')
+        .select('amount, created_at, platform_fee, applied_processor_fee')
         .eq('status', 'success')
 
     if (startDate) {
@@ -39,7 +39,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const { data: transactions } = await query
 
     const totalRevenue = transactions?.reduce((acc, tx) => acc + (tx.amount || 0), 0) || 0
-    const estimatedFees = totalRevenue * 0.05
+    // Calculate REAL platform revenue from snapshots
+    const platformRevenue = transactions?.reduce((acc, tx) => acc + (tx.platform_fee || 0), 0) || 0
 
     // Prepare Chart Data
     // We render the number of days selected, or last 30 if 'all'
@@ -153,16 +154,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     icon={Banknote}
                     color="text-green-400"
                     subtitle={range !== 'all' ? `Last ${daysToRender} days` : 'All time'}
-                    trend={12.5}
                 />
                 <StatCard
                     title="Platform Fees"
-                    value={estimatedFees}
+                    value={platformRevenue}
                     currency="GHS"
                     icon={Activity}
                     color="text-purple-400"
-                    subtitle={range !== 'all' ? `Est. (5%)` : 'All time'}
-                    trend={8.2}
+                    subtitle={range !== 'all' ? `Realized Revenue` : 'All time'}
                 />
                 <StatCard
                     title="Active Events"
@@ -170,7 +169,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     icon={Calendar}
                     color="text-blue-400"
                     subtitle="Currently Live"
-                    trend={-2.4}
                 />
                 <StatCard
                     title={range === 'all' ? "Total Users" : "New Users"}
@@ -178,7 +176,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     icon={Users}
                     color="text-orange-400"
                     subtitle={range !== 'all' ? `Last ${daysToRender} days` : 'All time'}
-                    trend={24.1}
                 />
             </div>
 
@@ -202,7 +199,7 @@ function StatCard({ title, value, currency, icon: Icon, color, subtitle, trend }
         style: currency ? 'currency' : 'decimal',
         currency: currency || 'GHS',
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        maximumFractionDigits: 2,
     })
 
     const isPositive = trend > 0

@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { verifyPaystackTransaction } from '@/lib/paystack'
 import { Ticket } from '@/types/gatepass'
+import { calculateFees, getEffectiveFeeRates } from '@/utils/fees'
+import { getFeeSettings } from '@/utils/settings'
 
 export type PaymentResult = {
     success: boolean
@@ -40,32 +42,109 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
 
 
-    // 2. Fetch Reservation details
+    // 2. Fetch Reservation details (Step 1: Raw Fetch to avoid Join killing it)
     const lookupId = reservationId || reference
 
+    const { data: rawReservation, error: rawError } = await supabase
+        .schema('gatepass')
+        .from('reservations')
+        .select('*')
+        .eq('id', lookupId)
+        .single()
+
+    if (rawError || !rawReservation) {
+        console.error('Reservation Fetch Error (Raw):', rawError)
+        return { success: false, error: `Reservation not found (Raw): ${lookupId} - ${rawError?.message}` }
+    }
+
+    // Step 2: Fetch Relations (Decoupled to prevent single failure from killing process)
     const { data: reservation, error: resError } = await supabase
         .schema('gatepass')
         .from('reservations')
-        .select('*, ticket_tiers(*), events(*), profiles:user_id(*)')
+        .select('*, ticket_tiers(*), events(*)')
         .eq('id', lookupId)
         .single()
 
     if (resError || !reservation) {
-        console.error('Reservation Fetch Error:', resError)
-        return { success: false, error: `Reservation not found: ${lookupId}` }
+        console.error('Reservation Relation Fetch Error:', resError)
+        return { success: false, error: `Reservation relations missing (Events/Tiers): ${lookupId}` }
     }
+
+    // Step 3: Manual Organizer Fetch (Robustness)
+    if (reservation.events?.organizer_id) {
+        const { data: org } = await supabase.schema('gatepass').from('organizers').select('platform_fee_percent').eq('id', reservation.events.organizer_id).single()
+        if (org) {
+            // Attach it back to event object as expected by downstream logic
+            reservation.events.organizers = org
+        }
+    }
+
+    // Fetch Profile explicitly (left join equivalent)
+    let userProfile = null
+    if (reservation.user_id) {
+        const { data: p } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', reservation.user_id).single()
+        userProfile = p
+    }
+    // Attach for robust downstream use
+    reservation.profiles = userProfile
+
+
+
+    // 2b. Calculate Fees Snapshot
+    // We must snapshot the fees at the moment of transaction to ensure historical accuracy
+    const globalSettings = await getFeeSettings()
+    const event = reservation.events
+    const organizer = event?.organizers
+    const effectiveRates = getEffectiveFeeRates(globalSettings, event, organizer)
+
+    const rawAmount = tx.amount ? tx.amount / 100 : 0
+    const feeBearer = event?.fee_bearer || 'customer'
+
+    // We calculate based on the raw amount paid. 
+    // WARN: Logic depends on who paid fees. 
+    // If Customer Bearer: rawAmount = (Price + Fees). So we need to reverse calc if we want "ticket price".
+    // But calculateFees expects "subtotal" (ticket price). 
+    // However, for snapshotting "platform_fee", we just need the rate application.
+    // Let's assume the standard flow: validation happened before payment.
+
+    // Simplest approach: Use the Reservation Price * Quantity as the subtotal source of truth.
+    const price = reservation.ticket_tiers.price || 0
+    const qty = reservation.quantity || 1
+
+    // Discount Logic (Duplicate from EventManage but good for safety)
+    let discountAmount = 0
+    // DB might return array or obj depending on join. Assume single discount_id means single discount.
+    // Note: We didn't join discounts above. Let's rely on the fact that if we care about net exactness we needed it.
+    // For now, let's use the effective rate * Subtotal (approx) or just Rate.
+    // Better: Store the RATE. platform_fee = derived.
+
+    // Let's just fetch discount to be precise
+    let subtotal = price * qty
+    if (reservation.discount_id) {
+        const { data: disc } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
+        if (disc) {
+            if (disc.type === 'percentage') subtotal = subtotal - (subtotal * (disc.value / 100))
+            else subtotal = Math.max(0, subtotal - disc.value)
+        }
+    }
+
+    const { platformFee, processorFee } = calculateFees(subtotal, feeBearer, effectiveRates)
 
     // 3. Log Transaction (Create History)
     // We do this before ticket creation so we have a record of the payment attempt
     const { error: txError } = await supabase.schema('gatepass').from('transactions').insert({
         reservation_id: reservation.id,
         reference,
-        amount: tx.amount ? tx.amount / 100 : 0,
+        amount: rawAmount,
         currency: tx.currency,
         channel: tx.channel,
         status: tx.status,
         paid_at: tx.paid_at || tx.paidAt,
         metadata: tx,
+        platform_fee: platformFee,
+        applied_fee_rate: effectiveRates.platformFeePercent,
+        applied_processor_fee: processorFee,
+        applied_processor_rate: effectiveRates.processorFeePercent
     })
 
     if (txError) {
