@@ -36,6 +36,7 @@ interface EventManageClientProps {
     event: Event
     initialTiers: TicketTier[]
     initialTotalRevenue?: number
+    initialTotalDiscountValue?: number
     userRole: string
     feeRates?: FeeRates
     isSuperAdmin?: boolean
@@ -45,6 +46,7 @@ export function EventManageClient({
     event: initialEvent,
     initialTiers,
     initialTotalRevenue = 0,
+    initialTotalDiscountValue = 0,
     userRole,
     feeRates,
     isSuperAdmin = false
@@ -734,6 +736,15 @@ export function EventManageClient({
                                 <div>
                                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Utilization</p>
                                     <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.utilization.toFixed(1)}%</p>
+                                </div>
+                            </div>
+                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+                                    <Ticket className="w-6 h-6 rotate-45" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Discounts</p>
+                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}</p>
                                 </div>
                             </div>
                         </div>

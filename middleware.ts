@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
 
     // Protection Rules
-    if (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/my-tickets')) {
+    if (request.nextUrl.pathname.startsWith('/dashboard')) {
         if (!user) {
             return NextResponse.redirect(new URL('/login?redirect=' + request.nextUrl.pathname, request.url))
         }

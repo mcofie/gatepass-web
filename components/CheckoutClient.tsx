@@ -171,12 +171,13 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
                     }
 
                     // Success
-                    router.push('/my-tickets')
+                    router.push('/')
+                    toast.success('Payment successful! Check your email for tickets.')
                 }
 
                 processPayment().catch(err => {
-                    console.error('Payment Verification Error:', err)
-                    toast.error('Payment successful but verification failed: ' + err.message)
+                    console.error('Payment Verification Error Stack:', err)
+                    toast.error(`Verification Failed: ${err.message || 'Network Error'}`)
                 })
             },
             onClose: function () {

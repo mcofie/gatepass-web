@@ -49,11 +49,29 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
     return {
         title: `${event.title} | GatePass`,
-        description: event.description,
+        description: event.description || `Join us for ${event.title}. Get your tickets now on GatePass.`,
         openGraph: {
             title: event.title,
-            description: event.description,
+            description: event.description || `Join us for ${event.title}.`,
+            url: `https://gatepass.io/events/${slug}`,
+            siteName: 'GatePass',
+            images: event.poster_url ? [
+                {
+                    url: event.poster_url,
+                    width: 1200,
+                    height: 630,
+                    alt: event.title,
+                }
+            ] : [],
+            locale: 'en_US',
+            type: 'website', // or 'event' if supported, but website is safer general usage
+        },
+        twitter: {
+            card: 'summary_large_image',
+            title: event.title,
+            description: event.description || `Join us for ${event.title}.`,
             images: event.poster_url ? [event.poster_url] : [],
+            creator: '@gatepass_io',
         },
     }
 }

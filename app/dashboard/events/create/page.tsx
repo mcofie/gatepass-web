@@ -45,7 +45,7 @@ export default function CreateEventPage() {
         longitude: null as number | null,
         slug: '',
         fee_bearer: 'customer' as 'customer' | 'organizer',
-        platform_fee_percent: 5.0,
+        platform_fee_percent: 4.0,
         organization_id: '',
         primary_color: '#000000',
         tiers: [] as Partial<TicketTier>[]
@@ -149,6 +149,10 @@ export default function CreateEventPage() {
                 if (!formData.venue_name) { toast.error('Venue name is required'); return false }
                 if (!formData.venue_address) { toast.error('Address is required'); return false }
                 if (!formData.starts_at) { toast.error('Start date is required'); return false }
+                return true
+            case 2: // Media
+                if (!formData.poster_url) { toast.error('Event poster is required'); return false }
+                if (!formData.video_url) { toast.error('Event trailer/teaser is required'); return false }
                 return true
             default:
                 return true
@@ -433,7 +437,7 @@ export default function CreateEventPage() {
                                         </p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Trailer/Teaser (Optional)</label>
+                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Trailer/Teaser (Required)</label>
                                         <MediaUploader
                                             type="video"
                                             path={`${formData.organization_id}/uploads`}

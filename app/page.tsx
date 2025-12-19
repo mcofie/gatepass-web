@@ -3,7 +3,28 @@ import { EventFeed } from '@/components/EventFeed'
 import { LandingHeader } from '@/components/LandingHeader'
 import React from 'react'
 
+import { Metadata } from 'next'
+
 export const revalidate = 0
+
+export const metadata: Metadata = {
+  title: 'GatePass | The Operating System for Modern Events',
+  description: 'Discover and book exclusive events, parties, and experiences. GatePass is the premium platform for modern creators and discerning attendees.',
+  keywords: ['events', 'tickets', 'nightlife', 'parties', 'gatepass', 'accra', 'ghana', 'experiences'],
+  openGraph: {
+    title: 'GatePass | The Operating System for Modern Events',
+    description: 'Discover and book exclusive events, parties, and experiences.',
+    type: 'website',
+    locale: 'en_US',
+    siteName: 'GatePass',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'GatePass | The Operating System for Modern Events',
+    description: 'Discover and book exclusive events, parties, and experiences.',
+    creator: '@gatepass_io',
+  }
+}
 
 export default async function Home() {
   const supabase = await createClient()

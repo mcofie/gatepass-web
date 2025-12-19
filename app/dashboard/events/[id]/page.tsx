@@ -66,6 +66,7 @@ amount,
     }
 
     let totalRevenue = 0
+    let totalDiscountValue = 0
     if (transactions) {
         totalRevenue = transactions.reduce((acc, tx) => {
             const r = tx.reservations as any
@@ -89,6 +90,24 @@ amount,
 
             return acc + organizerPayout // Summing net payouts
         }, 0)
+
+        totalDiscountValue = transactions.reduce((acc, tx) => {
+            const r = tx.reservations as any
+            const price = r.ticket_tiers?.price || 0
+            const quantity = r.quantity || 1
+
+            // Discount
+            let discountAmount = 0
+            const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
+            if (discount) {
+                if (discount.type === 'percentage') {
+                    discountAmount = (price * quantity) * (discount.value / 100)
+                } else {
+                    discountAmount = discount.value
+                }
+            }
+            return acc + discountAmount
+        }, 0)
     }
 
     if (!event) return <div>Event not found</div>
@@ -98,6 +117,7 @@ amount,
             event={event as Event}
             initialTiers={(tiers as TicketTier[]) || []}
             initialTotalRevenue={totalRevenue}
+            initialTotalDiscountValue={totalDiscountValue}
             userRole={role}
         />
     )
