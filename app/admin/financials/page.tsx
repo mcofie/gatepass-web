@@ -1,6 +1,8 @@
 import { FinanceDashboard } from '@/components/admin/FinanceDashboard'
 import { getFeeSettings } from '@/utils/settings'
 
+export const dynamic = 'force-dynamic'
+
 export default async function FinancialsPage() {
     const feeSettings = await getFeeSettings()
     return (

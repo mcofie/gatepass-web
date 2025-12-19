@@ -60,7 +60,7 @@ export default async function DashboardPage() {
     }
 
     // Check for missing details
-    const missingOrg = !org.logo_url || !org.description || !org.bank_name || !org.account_number || !org.account_name
+    const missingOrg = !org.logo_url || !org.description || !org.paystack_subaccount_code
     const missingProfile = !profile?.full_name || !profile?.username || !profile?.phone_number
     const needsSetup = missingOrg || missingProfile
 
