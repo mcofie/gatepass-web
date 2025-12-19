@@ -13,6 +13,8 @@ import {
     ScanLine,
     History,
     ShieldAlert,
+    ChevronDown,
+    Plus,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -25,9 +27,11 @@ export function AdminSidebar() {
 
     const [user, setUser] = useState<User | null>(null)
     const [isOwner, setIsOwner] = useState(false)
+    const [role, setRole] = useState<string>('Administrator')
     const [orgDetails, setOrgDetails] = useState<{ name: string } | null>(null)
     const [loading, setLoading] = useState(true)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+    const [orgMenuOpen, setOrgMenuOpen] = useState(false)
 
     useEffect(() => {
         let mounted = true
@@ -71,23 +75,24 @@ export function AdminSidebar() {
 
             if (ownerData) {
                 setIsOwner(true)
+                setRole('Owner')
                 setOrgDetails({ name: ownerData.name })
             } else {
                 setIsOwner(false)
 
                 // Staff?
-                const { data: staffData } = await supabase
+                const { data: teamData } = await supabase
                     .schema('gatepass')
                     .from('organization_team')
-                    .select('organization:organization_id(name)')
+                    .select('role, organization:organization_id(name)')
                     .eq('user_id', authedUser.id)
                     .maybeSingle()
 
                 if (!mounted) return
 
-                const orgName =
-                    // supabase returns alias object under `organization`
-                    (staffData as any)?.organization?.name ?? null
+                const orgName = (teamData as any)?.organization?.name ?? null
+                const rawRole = (teamData as any)?.role ?? 'Staff'
+                setRole(rawRole.charAt(0).toUpperCase() + rawRole.slice(1))
 
                 setOrgDetails(orgName ? { name: orgName } : null)
             }
@@ -135,19 +140,19 @@ export function AdminSidebar() {
     const navItems = useMemo(() => {
         return [
             { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
-            { name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity },
+            ...(role !== 'Staff' ? [{ name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity }] : []),
             { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
             { name: 'Customers', path: '/dashboard/customers', icon: Users },
             { name: 'Events', path: '/dashboard/events', icon: Calendar },
             ...(isOwner ? [{ name: 'Activity Log', path: '/dashboard/activity', icon: History }] : []),
             { name: 'Settings', path: '/dashboard/settings', icon: Settings },
         ]
-    }, [isOwner, isAdmin, isSuperAdmin])
+    }, [isOwner, isAdmin, isSuperAdmin, role])
 
     return (
         <aside className="w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-[#1a1a1a]">
             {/* Brand */}
-            <div className="p-8 pb-12">
+            <div className="p-8 pb-12 relative z-50">
                 {loading ? (
                     <div className="flex items-center gap-3">
                         <Skeleton className="w-10 h-10 rounded-xl bg-[#222]" />
@@ -157,21 +162,64 @@ export function AdminSidebar() {
                         </div>
                     </div>
                 ) : (
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
-                            {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
-                        </div>
-                        <div>
-                            <h1 className="font-bold tracking-tight text-lg leading-tight">
-                                {orgDetails?.name || 'GatePass.'}
-                            </h1>
-                            {orgDetails?.name && (
-                                <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">
-                                    Organization
-                                </p>
+                    <div className="flex items-center gap-2">
+                        <Link href="/dashboard" className="flex items-center gap-3 group flex-1">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
+                                {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
+                            </div>
+                            <div>
+                                <h1 className="font-bold tracking-tight text-lg leading-tight">
+                                    {orgDetails?.name || 'GatePass.'}
+                                </h1>
+                                {orgDetails?.name && (
+                                    <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">
+                                        Organization
+                                    </p>
+                                )}
+                            </div>
+                        </Link>
+
+                        <div className="relative">
+                            <button
+                                onClick={() => setOrgMenuOpen(!orgMenuOpen)}
+                                className="p-1.5 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors"
+                            >
+                                <ChevronDown className={`w-4 h-4 transition-transform ${orgMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {/* Organization Popover */}
+                            {orgMenuOpen && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-40"
+                                        onClick={() => setOrgMenuOpen(false)}
+                                    />
+                                    <div className="absolute top-full right-0 mt-2 w-56 bg-[#111] border border-[#222] rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="p-2">
+                                            <p className="px-3 py-2 text-[10px] uppercase tracking-widest text-gray-500 font-bold">Switch Organization</p>
+                                            <button className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg bg-[#1a1a1a] text-white">
+                                                <div className="w-6 h-6 rounded bg-white text-black flex items-center justify-center text-xs font-bold">
+                                                    {orgDetails?.name?.charAt(0) || 'G'}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold truncate">{orgDetails?.name || 'GatePass'}</p>
+                                                    <p className="text-[10px] text-gray-400">Current</p>
+                                                </div>
+                                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                            </button>
+
+                                            <button className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors mt-1">
+                                                <div className="w-6 h-6 rounded border border-[#333] flex items-center justify-center">
+                                                    <Plus className="w-3 h-3" />
+                                                </div>
+                                                <span className="text-xs font-medium">Create Organization</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
                             )}
                         </div>
-                    </Link>
+                    </div>
                 )}
             </div>
 
@@ -230,7 +278,7 @@ export function AdminSidebar() {
                             </div>
                             <div className="overflow-hidden flex-1">
                                 <p className="text-[12px] font-medium text-white truncate">{user?.email}</p>
-                                <p className="text-[10px] text-gray-500">Administrator</p>
+                                <p className="text-[10px] text-gray-500">{role}</p>
                             </div>
                         </div>
                     )}

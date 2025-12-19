@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Event, Organizer, TicketTier } from '@/types/gatepass'
 import { Eye, Star, Ban, ExternalLink, MoreHorizontal, CheckCircle } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
+import { calculateFees } from '@/utils/fees'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -94,17 +95,26 @@ export default function MasterEventsTable({ events: initialEvents }: MasterEvent
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-white/10">
                         {events.map((event) => {
-                            // Calculate Financials
-                            const grossSales = event.reservations?.reduce((acc, res) => {
-                                const successfulTxAmount = res.transactions
-                                    ?.filter(tx => tx.status === 'success')
-                                    ?.reduce((txAcc, tx) => txAcc + (tx.amount || 0), 0) || 0
-                                return acc + successfulTxAmount
-                            }, 0) || 0
+                            // Calculate Financials - Iterating through ALL transactions in ALL reservations
+                            const financialData = (event.reservations || []).reduce((acc, res) => {
+                                // Iterate through all transactions in this reservation
+                                res.transactions?.forEach(tx => {
+                                    if (tx.status !== 'success') return
 
-                            const feePercent = event.platform_fee_percent || 5
-                            const platformFees = grossSales * (feePercent / 100)
-                            const netRevenue = grossSales - platformFees
+                                    const bearer = event.fee_bearer || 'customer'
+                                    const { platformFee, processorFee, organizerPayout } = calculateFees(tx.amount, bearer)
+
+                                    acc.gross += tx.amount
+                                    acc.platformProfits += platformFee
+                                    acc.processorFees += processorFee
+                                    acc.net += organizerPayout
+                                })
+                                return acc
+                            }, { gross: 0, platformProfits: 0, processorFees: 0, net: 0 })
+
+                            const grossSales = financialData.gross
+                            const platformProfits = financialData.platformProfits
+                            const netRevenue = financialData.net
                             const totalSold = event.ticket_tiers?.reduce((acc, t) => acc + t.quantity_sold, 0) || 0
                             const isExpanded = expandedEvent === event.id
 
@@ -182,14 +192,14 @@ export default function MasterEventsTable({ events: initialEvents }: MasterEvent
                                                         <p className="text-xs text-gray-500 mt-1">{totalSold} total tickets sold</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-3">Platform Fees ({feePercent}%)</p>
-                                                        <p className="text-xl font-bold text-red-500 dark:text-red-400 font-mono">-{formatCurrency(platformFees)}</p>
-                                                        <p className="text-xs text-gray-500 mt-1">Bearer: {event.fee_bearer || 'Organizer'}</p>
+                                                        <p className="text-[10px] font-bold text-blue-400 dark:text-blue-300 uppercase tracking-widest mb-3">Platform Profit</p>
+                                                        <p className="text-xl font-bold text-blue-500 dark:text-blue-400 font-mono tracking-tighter">{formatCurrency(platformProfits)}</p>
+                                                        <p className="text-xs text-gray-500 mt-1">Processor Fees: {formatCurrency(financialData.processorFees)}</p>
                                                     </div>
                                                     <div className="md:border-l border-gray-100 dark:border-white/10 md:pl-8">
-                                                        <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-3">Net Revenue</p>
+                                                        <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-3">Net Payout</p>
                                                         <p className="text-xl font-bold text-green-500 dark:text-green-400 font-mono tracking-tighter">{formatCurrency(netRevenue)}</p>
-                                                        <p className="text-xs text-gray-500 mt-1">Available for Payout</p>
+                                                        <p className="text-xs text-gray-500 mt-1">Available for Organizer</p>
                                                     </div>
                                                     <div className="flex flex-col justify-end">
                                                         <Link href={`/admin/events/${event.id}`} className="text-center w-full bg-black dark:bg-white text-white dark:text-black py-2.5 rounded-xl text-xs font-bold hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-black/10">

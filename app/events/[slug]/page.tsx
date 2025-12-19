@@ -143,6 +143,7 @@ export default async function EventPage({ params }: PageProps) {
             <EventBackground
                 videoUrl={event.video_url}
                 posterUrl={event.poster_url}
+                layoutId={`event-bg-${event.id}`}
             />
             {/* Subtle Cinematic Vignette - Darker at bottom for card visibility if on mobile */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
@@ -183,7 +184,11 @@ export default async function EventPage({ params }: PageProps) {
             </div>
 
             {/* Floating Details Card */}
-            <EventDetailClient event={event as Event} tiers={(tiers as TicketTier[]) || []} />
+            <EventDetailClient
+                event={event as Event}
+                tiers={(tiers as TicketTier[]) || []}
+                layoutId={`event-card-${event.id}`}
+            />
         </div >
     )
 }

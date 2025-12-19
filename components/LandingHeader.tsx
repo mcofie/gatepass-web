@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
+import Link from 'next/link'
 
 export function LandingHeader() {
     const [isOpen, setIsOpen] = useState(false)
@@ -10,19 +11,20 @@ export function LandingHeader() {
         <>
             <div className="absolute top-0 left-0 right-0 p-6 md:p-8 z-50 pointer-events-none flex flex-col items-start">
                 {/* Header Row - Branding Pill */}
-                <div className="pointer-events-auto animate-fade-in">
-                    <div
-                        onClick={() => setIsOpen(!isOpen)}
-                        className="flex items-center gap-3 pl-5 pr-2 py-2 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-all duration-300 hover:bg-black/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer group"
+                <div className="pointer-events-auto animate-fade-in flex items-center gap-2 pl-2 p-2 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-all duration-300 hover:bg-black/30">
+                    <Link
+                        href="/"
+                        className="pl-3 pr-1 text-[14px] font-bold tracking-tight text-white leading-none hover:opacity-80 transition-opacity"
                     >
-                        <span className="text-[14px] font-bold tracking-tight text-white leading-none group-hover:tracking-normal transition-all duration-500">
-                            GatePass
-                        </span>
-                        <div className="w-px h-3 bg-white/20 mx-0.5" />
-                        <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white text-white group-hover:text-black transition-colors duration-300">
-                            {isOpen ? <X size={14} strokeWidth={2.5} /> : <ChevronDown size={14} strokeWidth={2.5} />}
-                        </div>
-                    </div>
+                        GatePass
+                    </Link>
+                    <div className="w-px h-3 bg-white/20 mx-0.5" />
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center hover:bg-white text-white hover:text-black transition-colors duration-300"
+                    >
+                        {isOpen ? <X size={14} strokeWidth={2.5} /> : <ChevronDown size={14} strokeWidth={2.5} />}
+                    </button>
                 </div>
 
                 {/* Popup Card - Premium Glass */}

@@ -20,6 +20,7 @@ export const EventFeedItem = ({ event, tiers, isActive }: EventFeedItemProps) =>
                 videoUrl={event.video_url ?? null}
                 posterUrl={event.poster_url ?? null}
                 forcePause={!isActive}
+                layoutId={`event-bg-${event.id}`}
             />
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
@@ -30,6 +31,7 @@ export const EventFeedItem = ({ event, tiers, isActive }: EventFeedItemProps) =>
                 event={event}
                 tiers={tiers}
                 isFeedItem={true}
+                layoutId={`event-card-${event.id}`}
             />
         </div>
     )

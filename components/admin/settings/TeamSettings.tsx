@@ -15,6 +15,9 @@ type TeamMember = {
     email: string
     role: 'admin' | 'staff'
     created_at: string
+    profiles?: {
+        full_name: string
+    } | null
 }
 
 export function TeamSettings({ organizer }: { organizer: any }) {
@@ -35,14 +38,17 @@ export function TeamSettings({ organizer }: { organizer: any }) {
             const { data, error } = await supabase
                 .schema('gatepass')
                 .from('organization_team')
-                .select('*')
+                .select(`
+                    *,
+                    profiles(full_name)
+                `)
                 .eq('organization_id', organizer.id)
                 .order('created_at', { ascending: false })
 
             if (error) throw error
-            setMembers(data as TeamMember[])
+            setMembers(data as any[])
         } catch (error: any) {
-            console.error('Error fetching team:', error)
+            console.error('Error fetching team:', error.message || error)
         }
     }
 
@@ -183,9 +189,16 @@ export function TeamSettings({ organizer }: { organizer: any }) {
                                     {member.email[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <p className="font-bold text-gray-900 dark:text-white">{member.email}</p>
+                                    <p className="font-bold text-gray-900 dark:text-white">
+                                        {member.profiles?.full_name || member.email}
+                                    </p>
                                     <div className="flex items-center gap-2">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">{member.role}</p>
+                                        <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                                            {member.profiles?.full_name ? member.email : ''}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold bg-white dark:bg-white/5 px-2 py-0.5 rounded border border-gray-100 dark:border-white/10">
+                                            {member.role}
+                                        </p>
                                         {!member.user_id && (
                                             <span className="text-[10px] bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-2 py-0.5 rounded-full font-bold">Pending Invite</span>
                                         )}

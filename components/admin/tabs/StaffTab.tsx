@@ -6,9 +6,10 @@ import { createEventStaff, deleteEventStaff, fetchEventStaff } from '@/utils/act
 
 interface StaffTabProps {
     eventId: string
+    isStaff?: boolean
 }
 
-export function StaffTab({ eventId }: StaffTabProps) {
+export function StaffTab({ eventId, isStaff = false }: StaffTabProps) {
     const [staff, setStaff] = React.useState<EventStaff[]>([])
     const [staffForm, setStaffForm] = React.useState({ name: '', email: '' })
     const [creatingStaff, setCreatingStaff] = React.useState(false)
@@ -69,55 +70,57 @@ export function StaffTab({ eventId }: StaffTabProps) {
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Invite Form */}
-                <div className="md:col-span-1 border border-gray-100 dark:border-white/10 rounded-3xl p-6 bg-white dark:bg-[#111] shadow-sm h-fit">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-xl">
-                            <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className={`grid grid-cols-1 ${isStaff ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-8`}>
+                {/* Invite Form - Hidden for Staff */}
+                {!isStaff && (
+                    <div className="md:col-span-1 border border-gray-100 dark:border-white/10 rounded-3xl p-6 bg-white dark:bg-[#111] shadow-sm h-fit">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-xl">
+                                <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">Invite Staff</h3>
                         </div>
-                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">Invite Staff</h3>
+                        <form onSubmit={handleAddStaff} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-400 mb-1.5">Staff Name</label>
+                                <input
+                                    value={staffForm.name}
+                                    onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
+                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-900 dark:text-white"
+                                    placeholder="e.g. John Doe"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-400 mb-1.5">Email Address</label>
+                                <input
+                                    type="email"
+                                    value={staffForm.email}
+                                    onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-900 dark:text-white"
+                                    placeholder="john@example.com"
+                                />
+                            </div>
+                            <button
+                                disabled={creatingStaff}
+                                className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-bold text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                            >
+                                {creatingStaff ? (
+                                    <span className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <Plus className="w-4 h-4" /> Send Access Code
+                                    </>
+                                )}
+                            </button>
+                            <p className="text-xs text-center text-gray-400 mt-2">
+                                They will receive an email with a unique code to log in to the Check-in App.
+                            </p>
+                        </form>
                     </div>
-                    <form onSubmit={handleAddStaff} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-400 mb-1.5">Staff Name</label>
-                            <input
-                                value={staffForm.name}
-                                onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-900 dark:text-white"
-                                placeholder="e.g. John Doe"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-400 mb-1.5">Email Address</label>
-                            <input
-                                type="email"
-                                value={staffForm.email}
-                                onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-900 dark:text-white"
-                                placeholder="john@example.com"
-                            />
-                        </div>
-                        <button
-                            disabled={creatingStaff}
-                            className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-bold text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-                        >
-                            {creatingStaff ? (
-                                <span className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" />
-                            ) : (
-                                <>
-                                    <Plus className="w-4 h-4" /> Send Access Code
-                                </>
-                            )}
-                        </button>
-                        <p className="text-xs text-center text-gray-400 mt-2">
-                            They will receive an email with a unique code to log in to the Check-in App.
-                        </p>
-                    </form>
-                </div>
+                )}
 
                 {/* Staff List */}
-                <div className="md:col-span-2">
+                <div className={isStaff ? "md:col-span-1" : "md:col-span-2"}>
                     <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden">
                         <div className="px-8 py-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
                             <h3 className="font-bold text-xl text-gray-900 dark:text-white">Active Staff</h3>
@@ -172,13 +175,15 @@ export function StaffTab({ eventId }: StaffTabProps) {
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleDeleteStaff(member.id)}
-                                                    className="p-2 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                    title="Revoke Access"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {!isStaff && (
+                                                    <button
+                                                        onClick={() => handleDeleteStaff(member.id)}
+                                                        className="p-2 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                        title="Revoke Access"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

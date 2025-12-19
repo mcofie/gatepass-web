@@ -17,6 +17,43 @@ export default async function AdminEventsPage() {
         return <div>Please log in to view events.</div>
     }
 
+    // 1. Determine Organization Context and Role
+    // Check if owner
+    let { data: org } = await supabase
+        .schema('gatepass')
+        .from('organizers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+    let role = org ? 'Owner' : null
+    let orgId = org?.id
+
+    // If not owner, check if team member
+    if (!org) {
+        const { data: teamMember } = await supabase
+            .schema('gatepass')
+            .from('organization_team')
+            .select('organization_id, role')
+            .eq('user_id', user.id)
+            .single()
+
+        if (teamMember) {
+            orgId = teamMember.organization_id
+            role = teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)
+        }
+    }
+
+    if (!orgId) {
+        return (
+            <div className="max-w-7xl mx-auto py-12 text-center">
+                <h2 className="text-2xl font-bold">No Organization Found</h2>
+                <p className="mb-4 text-gray-500">You need to be part of an organization to manage events.</p>
+                <Link href="/onboarding" className="text-blue-600 hover:underline">Go to Onboarding</Link>
+            </div>
+        )
+    }
+
     try {
         // Fetch user's events using Admin Client to bypass potential RLS issues
         const { createClient: createAdminClient } = await import('@supabase/supabase-js')
@@ -31,19 +68,16 @@ export default async function AdminEventsPage() {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        console.log(`[Dashboard] Fetching events for organizer: ${user.id}`)
+        console.log(`[Dashboard] Fetching events for organization: ${orgId}`)
 
         const { data: events, error } = await adminSupabase
             .schema('gatepass')
             .from('events')
             .select('*')
-            .eq('organizer_id', user.id)
+            .eq('organization_id', orgId)
             .order('created_at', { ascending: false })
 
-        if (error) {
-            console.error('[Dashboard] Supabase Fetch Error:', error)
-            throw error
-        }
+        const isStaff = role === 'Staff'
 
         console.log(`[Dashboard] Found ${events?.length || 0} events`)
 
@@ -53,13 +87,19 @@ export default async function AdminEventsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                     <div>
                         <h1 className="text-4xl font-black tracking-tight text-gray-900 dark:text-white mb-2">Events</h1>
-                        <p className="text-gray-500 font-medium text-lg max-w-xl dark:text-gray-400">Manage your events, track sales, and customize your ticketing pages.</p>
+                        <p className="text-gray-500 font-medium text-lg max-w-xl dark:text-gray-400">
+                            {isStaff
+                                ? "View and manage events for your organization."
+                                : "Manage your events, track sales, and customize your ticketing pages."}
+                        </p>
                     </div>
-                    <Link href="/dashboard/events/create">
-                        <button className="bg-black dark:bg-white dark:text-black text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-xl shadow-black/10 dark:shadow-none hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5">
-                            <Plus className="w-5 h-5" /> Create Event
-                        </button>
-                    </Link>
+                    {!isStaff && (
+                        <Link href="/dashboard/events/create">
+                            <button className="bg-black dark:bg-white dark:text-black text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-xl shadow-black/10 dark:shadow-none hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5">
+                                <Plus className="w-5 h-5" /> Create Event
+                            </button>
+                        </Link>
+                    )}
                 </div>
 
                 {events && events.length > 0 ? (
@@ -120,10 +160,10 @@ export default async function AdminEventsPage() {
                                     <div className="mt-auto flex items-center gap-3 pt-6 border-t border-gray-100 dark:border-white/10">
                                         <Link href={`/dashboard/events/${event.id}`} className="flex-1">
                                             <button className="w-full py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-white/5 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">
-                                                Manage
+                                                {isStaff ? 'View Sales' : 'Manage'}
                                             </button>
                                         </Link>
-                                        <DeleteEventButton eventId={event.id} />
+                                        {!isStaff && <DeleteEventButton eventId={event.id} />}
                                     </div>
                                 </div>
                             </div>

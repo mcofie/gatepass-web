@@ -1,9 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 
 import { formatCurrency } from '@/utils/format'
-import { Calendar, Ticket, DollarSign } from 'lucide-react'
+import { Calendar, Ticket, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react'
 
 import { calculateFees } from '@/utils/fees'
+import Link from 'next/link'
 
 export const revalidate = 0
 
@@ -18,7 +19,7 @@ export default async function DashboardPage() {
     let { data: org } = await supabase
         .schema('gatepass')
         .from('organizers')
-        .select('id')
+        .select('*')
         .eq('user_id', user.id)
         .single()
 
@@ -27,14 +28,22 @@ export default async function DashboardPage() {
         const { data: teamMember } = await supabase
             .schema('gatepass')
             .from('organization_team')
-            .select('organization_id')
+            .select('organization_id, organizers(*)')
             .eq('user_id', user.id)
             .single()
 
         if (teamMember) {
-            org = { id: teamMember.organization_id }
+            org = teamMember.organizers as any
         }
     }
+
+    // Fetch user profile to check for personal completeness
+    const { data: profile } = await supabase
+        .schema('gatepass')
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
     // If still no org, they need to onboard
     if (!org) {
@@ -49,6 +58,11 @@ export default async function DashboardPage() {
             </div>
         )
     }
+
+    // Check for missing details
+    const missingOrg = !org.logo_url || !org.description || !org.bank_name || !org.account_number || !org.account_name
+    const missingProfile = !profile?.full_name || !profile?.username || !profile?.phone_number
+    const needsSetup = missingOrg || missingProfile
 
     const orgId = org.id
 
@@ -147,11 +161,39 @@ export default async function DashboardPage() {
     const stats = [
         { label: 'Total Events', value: eventRes.count || 0, icon: Calendar },
         { label: 'Tickets Sold', value: ticketRes.count || 0, icon: Ticket },
-        { label: 'Total Revenue', value: `${currencySymbol} ${totalRevenue.toLocaleString()}`, icon: DollarSign },
+        { label: 'Total Revenue', value: formatCurrency(totalRevenue, currencySymbol), icon: DollarSign },
     ]
 
     return (
-        <div className="max-w-7xl mx-auto space-y-12 animate-fade-in">
+        <div className="max-w-7xl mx-auto space-y-8 animate-fade-in pb-20">
+            {/* Setup Progress Nudge */}
+            {needsSetup && (
+                <div className="relative group overflow-hidden bg-white dark:bg-[#111] border border-orange-200 dark:border-orange-500/20 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-500">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl -mr-10 -mt-10" />
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                        <div className="flex items-start md:items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                                <AlertTriangle className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">Complete your account setup</h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                                    {missingOrg && missingProfile
+                                        ? "Your organization profile and personal details are incomplete."
+                                        : missingOrg
+                                            ? "Your organization is missing key details (bio, logo, or settlement info)."
+                                            : "Your personal profile is missing some details (full name or username)."}
+                                </p>
+                            </div>
+                        </div>
+                        <Link href="/dashboard/settings" className="flex items-center gap-2 px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-black/10">
+                            Finish Setup
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex flex-col gap-1">
                 <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>

@@ -9,9 +9,10 @@ interface DashboardChartProps {
         date: string
         revenue: number
     }[]
+    currency?: string
 }
 
-export function DashboardChart({ data }: DashboardChartProps) {
+export function DashboardChart({ data, currency = 'GHS' }: DashboardChartProps) {
     return (
         <div className="w-full h-[400px] bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-sm">
             <div className="mb-8">
@@ -40,7 +41,7 @@ export function DashboardChart({ data }: DashboardChartProps) {
                             axisLine={false}
                             tickLine={false}
                             tick={{ fill: '#6b7280', fontSize: 12 }}
-                            tickFormatter={(value) => `GHS ${value}`}
+                            tickFormatter={(value) => `${currency} ${value.toLocaleString()}`}
                         />
                         <Tooltip
                             contentStyle={{
@@ -51,7 +52,7 @@ export function DashboardChart({ data }: DashboardChartProps) {
                                 color: '#fff'
                             }}
                             itemStyle={{ color: '#fff' }}
-                            formatter={(value: any) => [formatCurrency(Number(value) || 0), 'Revenue']}
+                            formatter={(value: any) => [formatCurrency(Number(value) || 0, currency), 'Revenue']}
                         />
                         <Area
                             type="monotone"

@@ -15,6 +15,7 @@ interface MediaUploaderProps {
     type: 'image' | 'video'
     maxSizeMB?: number // Default 50 for video, 5 for image
     className?: string
+    disabled?: boolean
 }
 
 export function MediaUploader({
@@ -25,7 +26,8 @@ export function MediaUploader({
     type,
     maxSizeMB = type === 'video' ? 50 : 5,
     className,
-    aspectRatio = 'video'
+    aspectRatio = 'video',
+    disabled = false
 }: MediaUploaderProps & { aspectRatio?: 'video' | 'square' | 'auto' }) {
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
@@ -172,12 +174,14 @@ export function MediaUploader({
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-white/5 text-gray-400 dark:text-gray-500 text-xs font-mono break-all p-4" style={{ display: 'none' }} ref={(el) => { if (el && el.previousElementSibling && (el.previousElementSibling as HTMLImageElement).style.display === 'none') el.style.display = 'flex' }}>
                         Failed to load: {value}
                     </div>
-                    <button
-                        onClick={() => onChange('')}
-                        className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
+                    {!disabled && (
+                        <button
+                            onClick={() => onChange('')}
+                            className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             )
         }
@@ -185,12 +189,14 @@ export function MediaUploader({
         return (
             <div className="relative group w-full h-full bg-black rounded-xl overflow-hidden">
                 <video src={value} className="w-full h-full object-cover" controls crossOrigin="anonymous" />
-                <button
-                    onClick={() => onChange('')}
-                    className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black z-10"
-                >
-                    <X className="w-4 h-4" />
-                </button>
+                {!disabled && (
+                    <button
+                        onClick={() => onChange('')}
+                        className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black z-10"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
             </div>
         )
     }
@@ -206,16 +212,16 @@ export function MediaUploader({
                 </div>
             ) : (
                 <div
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
-                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                    onDragEnter={!disabled ? handleDrag : undefined}
+                    onDragLeave={!disabled ? handleDrag : undefined}
+                    onDragOver={!disabled ? handleDrag : undefined}
+                    onDrop={!disabled ? handleDrop : undefined}
+                    onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
                     className={clsx(
-                        "w-full rounded-3xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group relative overflow-hidden",
+                        "w-full rounded-3xl border-2 border-dashed flex flex-col items-center justify-center transition-all duration-300 group relative overflow-hidden",
                         aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : '',
                         isDragging ? "border-black dark:border-white bg-gray-50 dark:bg-white/10 scale-[1.02]" : "border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/30 hover:bg-gray-50/50 dark:hover:bg-white/5",
-                        isUploading && "pointer-events-none opacity-90"
+                        (isUploading || disabled) && "pointer-events-none opacity-80"
                     )}
                 >
                     <input

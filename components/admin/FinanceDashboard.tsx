@@ -3,23 +3,11 @@
 import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { formatCurrency } from '@/utils/format'
+import { calculateFees } from '@/utils/fees'
 import { Calendar, DollarSign, TrendingUp, Filter, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { exportToCSV } from '@/utils/export'
 
-
-type Transaction = {
-    id: string
-    amount: number
-    currency: string
-    status: string
-    paid_at: string
-    reservation_id: string
-    events?: {
-        title: string
-    } | null
-    // In strict TS, join might return array or object depending on relationship. Usually object if single event.
-}
 
 interface FinancialStats {
     totalGross: number
@@ -28,13 +16,24 @@ interface FinancialStats {
     count: number
 }
 
+type FlattenedTransaction = {
+    id: string
+    amount: number
+    currency: string
+    status: string
+    paid_at: string
+    event_title: string
+    guest_name: string
+    organizer_payout: number
+}
+
 interface FinanceDashboardProps {
     adminMode?: boolean
 }
 
 export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
     const supabase = createClient()
-    const [transactions, setTransactions] = useState<Transaction[]>([])
+    const [transactions, setTransactions] = useState<FlattenedTransaction[]>([])
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState<'all' | '30days' | '7days'>('all')
 
@@ -48,7 +47,7 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
             // Get current user for filtering ONLY if not admin mode
             const { data: { user } } = await supabase.auth.getUser()
 
-            // Base query
+            // Base query fetching all necessary relations
             let query = supabase
                 .schema('gatepass')
                 .from('transactions')
@@ -61,17 +60,19 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                     reservation_id,
                     reservations!inner (
                         event_id,
+                        guest_name,
                         events!inner (
                             title,
-                            organizer_id
+                            organizer_id,
+                            fee_bearer
                         )
                     )
                 `)
                 .eq('status', 'success')
                 .order('paid_at', { ascending: false })
 
-            if (user && !adminMode) {
-                // Explicitly filter by organizer's events
+            if (!adminMode && user) {
+                // Explicitly filter by organizer's events if NOT in admin mode
                 query = query.eq('reservations.events.organizer_id', user.id)
             }
 
@@ -87,19 +88,24 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
             }
 
             const { data, error } = await query
-
             if (error) throw error
 
-            // Flatten data structure
-            const formatted = data.map((tx: any) => ({
-                id: tx.id,
-                amount: tx.amount,
-                currency: tx.currency,
-                status: tx.status,
-                paid_at: tx.paid_at,
-                reservation_id: tx.reservation_id,
-                events: tx.reservations?.events
-            }))
+            // Flatten data and calculate fee-aware payouts using calculateFees
+            const formatted: FlattenedTransaction[] = data.map((tx: any) => {
+                const bearer = tx.reservations?.events?.fee_bearer || 'customer'
+                const { organizerPayout } = calculateFees(tx.amount, bearer)
+
+                return {
+                    id: tx.id,
+                    amount: tx.amount,
+                    currency: tx.currency,
+                    status: tx.status,
+                    paid_at: tx.paid_at,
+                    event_title: tx.reservations?.events?.title || 'Unknown Event',
+                    guest_name: tx.reservations?.guest_name || 'Guest',
+                    organizer_payout: organizerPayout
+                }
+            })
 
             setTransactions(formatted)
         } catch (error) {
@@ -110,38 +116,40 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
         }
     }
 
-    // Calculations
+    // Calculations using calculateFees standard
     const stats: FinancialStats = transactions.reduce((acc, tx) => {
-        const gross = tx.amount
-        const fee = gross * 0.04 // 4% Platform Fee
+        const { platformFee } = calculateFees(tx.amount, 'customer') // platformFee logic doesn't depend on bearer
         return {
-            totalGross: acc.totalGross + gross,
-            platformFees: acc.platformFees + fee,
-            organizerNet: acc.organizerNet + (gross - fee), // Simplified logic (ignoring payment processor fees for this view if purely platform fee focus)
+            totalGross: acc.totalGross + tx.amount,
+            platformFees: acc.platformFees + platformFee,
+            organizerNet: acc.organizerNet + tx.organizer_payout,
             count: acc.count + 1
         }
     }, { totalGross: 0, platformFees: 0, organizerNet: 0, count: 0 })
 
     // Group by Event
     const eventBreakdown = transactions.reduce((acc, tx) => {
-        const title = tx.events?.title || 'Unknown Event'
+        const title = tx.event_title
         if (!acc[title]) {
             acc[title] = { gross: 0, fees: 0, count: 0 }
         }
+        const { platformFee } = calculateFees(tx.amount, 'customer')
         acc[title].gross += tx.amount
-        acc[title].fees += (tx.amount * 0.04)
+        acc[title].fees += platformFee
         acc[title].count += 1
         return acc
     }, {} as Record<string, { gross: number, fees: number, count: number }>)
 
     const handleExport = () => {
-        const data = Object.entries(eventBreakdown).map(([title, d]) => ({
-            Event: title,
-            Transactions: d.count,
-            Gross: d.gross,
-            Fees: d.fees
+        const data = transactions.map(tx => ({
+            Date: new Date(tx.paid_at).toLocaleDateString(),
+            ID: tx.id,
+            Event: tx.event_title,
+            Guest: tx.guest_name,
+            Gross: tx.amount,
+            Payout: tx.organizer_payout
         }))
-        exportToCSV(data, 'finance_report')
+        exportToCSV(data, 'global_transactions')
     }
 
     return (
@@ -223,44 +231,56 @@ export function FinanceDashboard({ adminMode = false }: FinanceDashboardProps) {
                 </div>
             </div>
 
-            {/* Event Breakdown Table */}
+            {/* Transaction Log Table */}
             <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
-                    <h3 className="font-bold text-lg dark:text-white">Revenue by Event</h3>
-                    <button onClick={handleExport} className="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-1">
-                        <Download className="w-3.5 h-3.5" /> Export CSV
-                    </button>
+                <div className="p-6 border-b border-gray-100 dark:border-white/10">
+                    <h3 className="font-bold text-lg dark:text-white">Detailed Transaction Log</h3>
+                    <p className="text-xs text-gray-500 mt-1">Real-time feed of all platform sales.</p>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
                             <tr>
-                                <th className="px-6 py-3">Event Name</th>
-                                <th className="px-6 py-3 text-right">Transactions</th>
-                                <th className="px-6 py-3 text-right">Gross Sales</th>
-                                <th className="px-6 py-3 text-right">Platform Fee (4%)</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold">Ref ID</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold">Event & Guest</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold">Paid Date</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Gross</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Payout</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-                            {Object.entries(eventBreakdown).map(([title, data], i) => (
-                                <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
-                                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{title}</td>
-                                    <td className="px-6 py-4 text-right text-gray-500 dark:text-gray-400">{data.count}</td>
-                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white font-bold">{formatCurrency(data.gross, 'GHS')}</td>
-                                    <td className="px-6 py-4 text-right text-green-600 dark:text-green-400 font-bold bg-green-50/30 dark:bg-green-500/10">
-                                        +{formatCurrency(data.fees, 'GHS')}
+                            {transactions.map((tx) => (
+                                <tr key={tx.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                    <td className="px-6 py-4 font-mono text-[10px] text-gray-400">
+                                        #{tx.id.split('-')[0]}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <p className="font-bold text-gray-900 dark:text-white line-clamp-1">{tx.event_title}</p>
+                                        <p className="text-[11px] text-gray-500">{tx.guest_name}</p>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                        {new Date(tx.paid_at).toLocaleDateString(undefined, {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </td>
+                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white font-bold">
+                                        {formatCurrency(tx.amount, tx.currency)}
+                                    </td>
+                                    <td className="px-6 py-4 text-right text-green-600 dark:text-green-400 font-bold">
+                                        {formatCurrency(tx.organizer_payout, tx.currency)}
                                     </td>
                                 </tr>
                             ))}
-                            {Object.keys(eventBreakdown).length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                        No transactions found for this period.
-                                    </td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
+                    {transactions.length === 0 && !loading && (
+                        <div className="p-12 text-center text-gray-400">
+                            No transactions found.
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

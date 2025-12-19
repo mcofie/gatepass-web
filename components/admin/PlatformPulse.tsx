@@ -17,9 +17,10 @@ interface PulseItem {
 
 interface PlatformPulseProps {
     items: PulseItem[]
+    viewAllLink?: string
 }
 
-export function PlatformPulse({ items }: PlatformPulseProps) {
+export function PlatformPulse({ items, viewAllLink }: PlatformPulseProps) {
     if (items.length === 0) {
         return (
             <div className="bg-[#111] border border-white/10 rounded-2xl p-8 text-center text-gray-500">
@@ -84,8 +85,14 @@ export function PlatformPulse({ items }: PlatformPulseProps) {
                 ))}
             </div>
 
-            <div className="p-3 bg-gray-50 dark:bg-white/5 text-center">
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Real-time Data</p>
+            <div className="p-3 bg-gray-50 dark:bg-white/5 text-center border-t border-gray-100 dark:border-white/10">
+                {viewAllLink ? (
+                    <Link href={viewAllLink} className="text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white uppercase tracking-wider transition-colors flex items-center justify-center gap-1">
+                        View All Activity <ArrowRight className="w-3 h-3" />
+                    </Link>
+                ) : (
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Real-time Data</p>
+                )}
             </div>
         </div>
     )

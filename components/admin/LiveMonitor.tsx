@@ -29,45 +29,104 @@ export function LiveMonitor() {
     const [stats, setStats] = useState({ totalSold: 0, checkedIn: 0, percent: 0 })
     const [feed, setFeed] = useState<CheckInLog[]>([])
     const [isConnected, setIsConnected] = useState(false)
+    const [userRole, setUserRole] = useState<string | null>(null)
 
     // Fetch Active Events (Last 24h + Future)
     useEffect(() => {
         const fetchEvents = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            let orgId = null
-
-            // Check if Owner
-            const { data: ownerData } = await supabase.schema('gatepass').from('organizers').select('id').eq('user_id', user.id).single()
-            if (ownerData) {
-                orgId = ownerData.id
-            } else {
-                // Check if Staff
-                const { data: staffData } = await supabase.schema('gatepass').from('organization_team').select('organization_id').eq('user_id', user.id).single()
-                if (staffData) {
-                    orgId = staffData.organization_id
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) {
+                    setLoading(false)
+                    return
                 }
+
+                let orgId = null
+
+                // 1. Check if Owner
+                const { data: ownerData } = await supabase
+                    .schema('gatepass')
+                    .from('organizers')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .maybeSingle()
+
+                if (ownerData) {
+                    orgId = ownerData.id
+                    setUserRole('owner')
+                } else {
+                    // 2. Check if Team member (Staff/Admin)
+                    const { data: teamData } = await supabase
+                        .schema('gatepass')
+                        .from('organization_team')
+                        .select('role, organization_id')
+                        .eq('user_id', user.id)
+                        .maybeSingle()
+
+                    if (teamData) {
+                        orgId = teamData.organization_id
+                        const role = (teamData as any).role?.toLowerCase()
+                        setUserRole(role)
+
+                        if (role === 'staff') {
+                            setLoading(false)
+                            return
+                        }
+                    }
+                }
+
+                // 3. Fallback for Super Admin (Try to find any organization if they are super admin)
+                if (!orgId) {
+                    const { data: profile } = await supabase
+                        .schema('gatepass')
+                        .from('profiles')
+                        .select('is_super_admin')
+                        .eq('id', user.id)
+                        .maybeSingle()
+
+                    if (profile?.is_super_admin) {
+                        // For super admin, just pick the first available organization for now
+                        // or allow them to see all? Monitor is usually org-specific.
+                        const { data: allOrgs } = await supabase
+                            .schema('gatepass')
+                            .from('organizers')
+                            .select('id')
+                            .limit(1)
+                        if (allOrgs && allOrgs.length > 0) {
+                            orgId = allOrgs[0].id
+                        }
+                    }
+                }
+
+                if (!orgId) {
+                    setLoading(false)
+                    return
+                }
+
+                const yesterday = new Date()
+                yesterday.setHours(yesterday.getHours() - 24)
+
+                // Fetch events using a more flexible filter
+                // We want events that either:
+                // a) Have an ends_at in the future (or very recent past)
+                // b) Have NO ends_at but a starts_at in the future (or very recent past)
+                const { data } = await supabase
+                    .schema('gatepass')
+                    .from('events')
+                    .select('id, title, venue_name, starts_at, ends_at')
+                    .eq('organization_id', orgId)
+                    .or(`ends_at.gte.${yesterday.toISOString()},and(ends_at.is.null,starts_at.gte.${yesterday.toISOString()})`)
+                    .order('starts_at', { ascending: true })
+
+                if (data && data.length > 0) {
+                    setEvents(data)
+                    setSelectedEventId(data[0].id)
+                }
+            } catch (error) {
+                console.error('Error fetching monitor events:', error)
+            } finally {
+                setLoading(false)
             }
-
-            if (!orgId) return
-
-            const today = new Date()
-            today.setHours(today.getHours() - 24)
-
-            const { data } = await supabase
-                .schema('gatepass')
-                .from('events')
-                .select('id, title, venue_name, starts_at')
-                .eq('organization_id', orgId)
-                .gte('ends_at', today.toISOString()) // Only relevant events
-                .order('starts_at', { ascending: true })
-
-            if (data && data.length > 0) {
-                setEvents(data)
-                setSelectedEventId(data[0].id)
-            }
-            setLoading(false)
         }
         fetchEvents()
     }, [])
@@ -103,7 +162,7 @@ export function LiveMonitor() {
             const { data: recent } = await supabase
                 .schema('gatepass')
                 .from('tickets')
-                .select(`id, status, ticket_tiers(name), profiles!inner(full_name), reservations(guest_name)`)
+                .select(`id, status, ticket_tiers(name), profiles(full_name), reservations(guest_name)`)
                 .eq('event_id', selectedEventId)
                 .eq('status', 'used')
                 .limit(5)
@@ -204,6 +263,23 @@ export function LiveMonitor() {
                     </div>
                     <Skeleton className="h-40 w-full rounded-3xl bg-gray-200 dark:bg-white/10" />
                 </div>
+            </div>
+        )
+    }
+
+    if (userRole === 'staff') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 animate-fade-in text-red-500">
+                <div className="w-20 h-20 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100 dark:border-red-500/20">
+                    <Activity className="w-10 h-10" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Access Restricted</h2>
+                <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
+                    You do not have administrative access to the Live Monitor. Please contact your organization owner for details.
+                </p>
+                <a href="/dashboard" className="text-sm font-bold text-gray-900 dark:text-white hover:underline transition-all">
+                    Return to Overview
+                </a>
             </div>
         )
     }

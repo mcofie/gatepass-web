@@ -17,9 +17,21 @@ export default async function UsersPage() {
         .from('organizers')
         .select('*')
 
+    const { data: teamMembers } = await supabase
+        .schema('gatepass')
+        .from('organization_team')
+        .select(`
+            id,
+            user_id,
+            role,
+            organization_id,
+            organizers:organization_id (id, name)
+        `)
+
     const users = profiles?.map(profile => ({
         ...profile,
-        organizers: organizers?.filter(org => org.user_id === profile.id) || []
+        organizers: (organizers || []).filter(org => org.user_id === profile.id),
+        team_memberships: (teamMembers || []).filter(tm => tm.user_id === profile.id)
     })) || []
 
     return (

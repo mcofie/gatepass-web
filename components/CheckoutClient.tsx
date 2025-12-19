@@ -85,7 +85,7 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
     // const platformFeePercent = reservation.events?.platform_fee_percent || 0 // Deprecated in favor of global constant
 
     const subtotal = price * quantity
-    const { clientFees, customerTotal } = calculateFees(subtotal, feeBearer)
+    const { clientFees, platformFee, processorFee, customerTotal } = calculateFees(subtotal, feeBearer)
 
     // Legacy mapping: calculatedFee = clientFees (Total fees shown to customer)
     const calculatedFee = clientFees
@@ -267,17 +267,16 @@ export function CheckoutClient({ reservation }: CheckoutClientProps) {
                                 <span className="text-gray-400">Subtotal</span>
                                 <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal, currency)}</span>
                             </div>
-                            {/* Platform Fee: Always Customer */}
+
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-400">Platform Fee (4%)</span>
-                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal * 0.04, currency)}</span>
+                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(platformFee, currency)}</span>
                             </div>
 
-                            {/* Processing Fee: Only if Customer */}
                             {feeBearer === 'customer' && (
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">Processing Fee (1.95%)</span>
-                                    <span className="font-medium tabular-nums text-gray-200">{formatCurrency(subtotal * 0.0195, currency)}</span>
+                                    <span className="font-medium tabular-nums text-gray-200">{formatCurrency(processorFee, currency)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-end pt-4">

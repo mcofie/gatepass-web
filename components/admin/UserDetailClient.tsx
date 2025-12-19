@@ -9,9 +9,10 @@ import { format } from 'date-fns'
 interface UserDetailProps {
     profile: Profile
     organizer: Organizer | null
+    teamMemberships?: any[]
 }
 
-export function UserDetailClient({ profile, organizer }: UserDetailProps) {
+export function UserDetailClient({ profile, organizer, teamMemberships = [] }: UserDetailProps) {
     const router = useRouter()
 
     return (
@@ -40,6 +41,11 @@ export function UserDetailClient({ profile, organizer }: UserDetailProps) {
                                 <Building2 className="w-3 h-3" /> Organizer
                             </span>
                         )}
+                        {teamMemberships.map((tm) => (
+                            <span key={tm.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                                <Shield className="w-3 h-3" /> {tm.role === 'Admin' ? 'Team Admin' : 'Staff'}
+                            </span>
+                        ))}
                     </div>
                 </div>
                 <div className="ml-auto flex gap-2">
@@ -108,6 +114,33 @@ export function UserDetailClient({ profile, organizer }: UserDetailProps) {
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Slug</label>
                                     <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-white/5">{organizer.slug}</p>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+                    {/* Team Memberships Card */}
+                    {teamMemberships.length > 0 && (
+                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                                <Shield className="w-5 h-5 text-purple-500" />
+                                Team Access
+                            </h3>
+                            <div className="space-y-4">
+                                {teamMemberships.map((tm) => (
+                                    <div key={tm.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">{tm.role}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-purple-600 dark:bg-purple-500 text-white flex items-center justify-center font-bold text-xs shadow-lg shadow-purple-600/20">
+                                                {tm.organizers?.name?.[0]?.toUpperCase() || 'O'}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900 dark:text-white leading-tight">{tm.organizers?.name}</p>
+                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono mt-0.5 uppercase tracking-wide">Org ID: {tm.organization_id.split('-')[0]}...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

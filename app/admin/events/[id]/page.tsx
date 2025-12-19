@@ -65,6 +65,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
             event={event as Event}
             initialTiers={(tiers as TicketTier[]) || []}
             initialTotalRevenue={totalRevenue}
+            userRole="Administrator"
         />
     )
 }

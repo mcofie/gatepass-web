@@ -24,7 +24,40 @@ export default async function SettingsPage() {
         .eq('user_id', user?.id)
         .single()
 
+    const { data: profile } = await supabase
+        .schema('gatepass')
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single()
+
+    // Determine user role and team context
+    let role = organizer ? 'Owner' : 'Member'
+    let teamInfo = null
+    let effectiveOrganizer = organizer
+
+    if (!organizer) {
+        const { data: teamMember } = await supabase
+            .schema('gatepass')
+            .from('organization_team')
+            .select('role, organizers(*)')
+            .eq('user_id', user?.id)
+            .single()
+
+        if (teamMember) {
+            role = teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)
+            teamInfo = teamMember
+            effectiveOrganizer = teamMember.organizers as any
+        }
+    }
+
     return (
-        <SettingsClient initialSettings={settings} initialOrganizer={organizer} />
+        <SettingsClient
+            initialSettings={settings}
+            initialOrganizer={effectiveOrganizer}
+            initialProfile={profile}
+            userRole={role}
+            teamInfo={teamInfo}
+        />
     )
 }

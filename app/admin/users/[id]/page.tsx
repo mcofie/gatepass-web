@@ -27,7 +27,18 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
 
     const organizer = organizers?.[0] || null
 
+    const { data: teamMemberships } = await supabase
+        .schema('gatepass')
+        .from('organization_team')
+        .select(`
+            id,
+            role,
+            organization_id,
+            organizers:organization_id (id, name)
+        `)
+        .eq('user_id', id)
+
     return (
-        <UserDetailClient profile={profile} organizer={organizer} />
+        <UserDetailClient profile={profile} organizer={organizer} teamMemberships={teamMemberships as any || []} />
     )
 }

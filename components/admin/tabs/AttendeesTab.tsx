@@ -8,9 +8,10 @@ import { Event } from '@/types/gatepass'
 
 interface AttendeesTabProps {
     event: Event
+    isStaff?: boolean
 }
 
-export function AttendeesTab({ event }: AttendeesTabProps) {
+export function AttendeesTab({ event, isStaff = false }: AttendeesTabProps) {
     const [tickets, setTickets] = useState<any[]>([])
     const [loadingTickets, setLoadingTickets] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
@@ -84,16 +85,18 @@ export function AttendeesTab({ event }: AttendeesTabProps) {
                             className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-lg text-sm focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 focus:border-black dark:focus:border-white transition-all text-gray-900 dark:text-white"
                         />
                     </div>
-                    <button
-                        onClick={() => {
-                            const csv = generateCSV(tickets)
-                            downloadCSV(csv, `${event.slug}-guests.csv`)
-                        }}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
-                    >
-                        <Download className="w-4 h-4" />
-                        Export
-                    </button>
+                    {!isStaff && (
+                        <button
+                            onClick={() => {
+                                const csv = generateCSV(tickets)
+                                downloadCSV(csv, `${event.slug}-guests.csv`)
+                            }}
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
+                        >
+                            <Download className="w-4 h-4" />
+                            Export
+                        </button>
+                    )}
                     <button
                         onClick={() => setIsCheckInMode(!isCheckInMode)}
                         className={clsx("flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all border", {

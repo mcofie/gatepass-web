@@ -33,9 +33,17 @@ interface EventManageClientProps {
     event: Event
     initialTiers: TicketTier[]
     initialTotalRevenue?: number
+    userRole: string
 }
 
-export function EventManageClient({ event: initialEvent, initialTiers, initialTotalRevenue = 0 }: EventManageClientProps) {
+export function EventManageClient({
+    event: initialEvent,
+    initialTiers,
+    initialTotalRevenue = 0,
+    userRole
+}: EventManageClientProps) {
+    const isStaff = userRole === 'Staff'
+    const isAdmin = userRole === 'Owner' || userRole === 'Admin'
     const [event, setEvent] = useState(initialEvent)
     const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team'>('tickets')
     const [loading, setLoading] = useState(false)
@@ -67,8 +75,6 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
 
     const [copiedId, setCopiedId] = useState<string | null>(null)
 
-    const [isAdmin, setIsAdmin] = useState(false)
-
     const copyCode = (code: string, id: string) => {
         navigator.clipboard.writeText(code)
         setCopiedId(id)
@@ -78,41 +84,6 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
 
     const supabase = createClient()
     const router = useRouter()
-
-    // Check Admin Status
-    useEffect(() => {
-        const checkAdmin = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            // 1. Check if Super Admin
-            const { data: profile } = await supabase.schema('gatepass').from('profiles').select('is_super_admin').eq('id', user.id).single()
-            if (profile?.is_super_admin) {
-                setIsAdmin(true)
-                return
-            }
-
-            // 2. Check if Owner
-            if (!event.organization_id) return
-            const { data: org } = await supabase.schema('gatepass').from('organizers').select('user_id').eq('id', event.organization_id).single()
-            if (org && org.user_id === user.id) {
-                setIsAdmin(true)
-                return
-            }
-
-            // 3. Check if Team Admin
-            const { data: teamMember } = await supabase.schema('gatepass').from('organization_team')
-                .select('role')
-                .eq('organization_id', event.organization_id)
-                .eq('user_id', user.id)
-                .single()
-
-            if (teamMember && teamMember.role === 'admin') {
-                setIsAdmin(true)
-            }
-        }
-        checkAdmin()
-    }, [event.organization_id])
 
     // Stats Calculation
     const stats = React.useMemo(() => {
@@ -420,10 +391,10 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                 </div>
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
-                        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 mb-2">{event.title}</h1>
-                        <div className="flex items-center gap-2 text-gray-500 font-medium">
+                        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">{event.title}</h1>
+                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-medium">
                             <span>{event.venue_name}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300" />
+                            <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-zinc-700" />
                             <span suppressHydrationWarning>{new Date(event.starts_at).toLocaleDateString()}</span>
                         </div>
                     </div>
@@ -438,12 +409,14 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex justify-start mb-10">
+            <div className="flex justify-start mb-10 overflow-x-auto pb-4 sm:pb-0 scrollbar-hide">
                 <div className="inline-flex bg-gray-100/50 dark:bg-white/5 p-1.5 rounded-full border border-gray-200/50 dark:border-white/5 relative">
                     <button onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
                     <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
                     <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
-                    <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
+                    {isAdmin && (
+                        <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
+                    )}
                     <button onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
                     {isAdmin && (
                         <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
@@ -686,7 +659,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gross Revenue</p>
-                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{initialTiers?.[0]?.currency || 'GHS'} {stats.totalRevenue.toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}</p>
                                 </div>
                             </div>
                             <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
@@ -739,9 +712,10 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Title</label>
                                             <input
+                                                disabled={isStaff}
                                                 value={event.title}
                                                 onChange={e => setEvent({ ...event, title: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3.5 text-lg font-bold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none text-gray-900 dark:text-white"
+                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3.5 text-lg font-bold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none text-gray-900 dark:text-white disabled:opacity-70"
                                                 placeholder="E.g. Summer Music Festival"
                                             />
                                         </div>
@@ -751,6 +725,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                                 value={event.description}
                                                 onChange={(value) => setEvent({ ...event, description: value })}
                                                 placeholder="Describe your event to attract attendees..."
+                                                readOnly={isStaff}
                                             />
                                         </div>
                                     </div>
@@ -770,6 +745,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                             path={`${event.organization_id}/${event.id}`}
                                             value={event.poster_url || ''}
                                             onChange={(url) => setEvent({ ...event, poster_url: url })}
+                                            disabled={isStaff}
                                         />
                                         <p className="text-xs text-gray-500 text-center px-4">
                                             Recommended: 1080x1350px (4:5) or 1080x1920px (9:16). Max 5MB.
@@ -796,6 +772,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                                     onChange={(url) => setEvent({ ...event, logo_url: url })}
                                                     className="!rounded-full"
                                                     aspectRatio="square"
+                                                    disabled={isStaff}
                                                 />
                                             </div>
                                         </div>
@@ -840,21 +817,23 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                     <div className="grid grid-cols-1 gap-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
-                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Venue Name</label>
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Venue Name</label>
                                                 <input
-                                                    value={event.venue_name}
+                                                    disabled={isStaff}
+                                                    value={event.venue_name || ''}
                                                     onChange={e => setEvent({ ...event, venue_name: e.target.value })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none font-medium text-gray-900 dark:text-white"
-                                                    placeholder="e.g. The National Theatre"
+                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
+                                                    placeholder="Venue Name"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Address</label>
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Venue Address</label>
                                                 <input
-                                                    value={event.venue_address}
+                                                    disabled={isStaff}
+                                                    value={event.venue_address || ''}
                                                     onChange={e => setEvent({ ...event, venue_address: e.target.value })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none font-medium text-gray-900 dark:text-white"
-                                                    placeholder="e.g. Accra, Ghana"
+                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
+                                                    placeholder="Physical Address"
                                                 />
                                             </div>
                                         </div>
@@ -1028,6 +1007,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                         <DateTimePicker
                                             date={event.starts_at ? new Date(event.starts_at) : undefined}
                                             setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
+                                            disabled={isStaff}
                                         />
                                     </div>
                                     <div>
@@ -1035,6 +1015,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                         <DateTimePicker
                                             date={event.ends_at ? new Date(event.ends_at) : undefined}
                                             setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
+                                            disabled={isStaff}
                                         />
                                     </div>
                                 </div>
@@ -1051,9 +1032,10 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                         <div className="flex flex-col">
                                             <span className="text-xs text-gray-400 mb-1">gatepass.com/events/</span>
                                             <input
+                                                disabled={isStaff}
                                                 value={event.slug}
                                                 onChange={e => setEvent({ ...event, slug: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white"
+                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
                                                 placeholder="my-event"
                                             />
                                         </div>
@@ -1071,8 +1053,9 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                     <div>
                                         <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Fee Bearer</label>
                                         <select
+                                            disabled={isStaff}
                                             onChange={e => setEvent({ ...event, fee_bearer: e.target.value as 'customer' | 'organizer' })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white"
+                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
                                         >
                                             <option value="customer">Customer Pays Fees</option>
                                             <option value="organizer">Absorb Fees</option>
@@ -1093,21 +1076,24 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                     </div>
                                     <div className="grid gap-3">
                                         <input
+                                            disabled={isStaff}
                                             value={event.social_website || ''}
                                             onChange={e => setEvent({ ...event, social_website: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white"
+                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
                                             placeholder="Website URL"
                                         />
                                         <input
+                                            disabled={isStaff}
                                             value={event.social_instagram || ''}
                                             onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white"
+                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
                                             placeholder="Instagram Username"
                                         />
                                         <input
+                                            disabled={isStaff}
                                             value={event.social_twitter || ''}
                                             onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white"
+                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
                                             placeholder="X (Twitter)"
                                         />
                                     </div>
@@ -1115,29 +1101,42 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
 
                                 {/* Save Action - Sticky at bottom of column */}
                                 <div className="sticky bottom-6 pt-4">
-                                    <button
-                                        type="submit"
-                                        className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all disabled:opacity-50 shadow-xl shadow-black/10 dark:shadow-white/5 hover:shadow-2xl hover:-translate-y-1 text-lg"
-                                        disabled={loading}
-                                    >
-                                        {loading ? 'Saving Update...' : 'Save Changes'}
-                                    </button>
-                                    <div className="mt-8 pt-8 border-t border-gray-100">
-                                        <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/20 shadow-sm">
-                                            <h3 className="text-red-900 dark:text-red-200 font-bold mb-2">Danger Zone</h3>
-                                            <p className="text-red-700 dark:text-red-400 text-xs mb-4 leading-relaxed">
-                                                Deleting this event will permanently remove all associated data, including ticket sales and guest lists.
-                                            </p>
+                                    {!isStaff ? (
+                                        <>
                                             <button
-                                                type="button"
-                                                onClick={() => setIsDeleteModalOpen(true)}
-                                                className="w-full bg-white dark:bg-white/5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 font-bold py-3 rounded-xl hover:bg-red-600 dark:hover:bg-red-600 hover:text-white dark:hover:text-white hover:border-transparent transition-all shadow-sm"
+                                                type="submit"
+                                                className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all disabled:opacity-50 shadow-xl shadow-black/10 dark:shadow-white/5 hover:shadow-2xl hover:-translate-y-1 text-lg"
+                                                disabled={loading}
                                             >
-                                                Delete Event
+                                                {loading ? 'Saving Update...' : 'Save Changes'}
                                             </button>
+                                            <div className="mt-8 pt-8 border-t border-gray-100 dark:border-white/10">
+                                                <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/20 shadow-sm">
+                                                    <h3 className="text-red-900 dark:text-red-200 font-bold mb-2">Danger Zone</h3>
+                                                    <p className="text-red-700 dark:text-red-400 text-xs mb-4 leading-relaxed">
+                                                        Deleting this event will permanently remove all associated data, including ticket sales and guest lists.
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsDeleteModalOpen(true)}
+                                                        className="w-full bg-white dark:bg-white/5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 font-bold py-3 rounded-xl hover:bg-red-600 dark:hover:bg-red-600 hover:text-white dark:hover:text-white hover:border-transparent transition-all shadow-sm"
+                                                    >
+                                                        Delete Event
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="bg-blue-50 dark:bg-blue-500/10 p-6 rounded-3xl border border-blue-100 dark:border-blue-500/20 shadow-sm">
+                                            <h3 className="text-blue-900 dark:text-blue-200 font-bold mb-1 flex items-center gap-2">
+                                                <ShieldCheck className="w-4 h-4" />
+                                                View Only Mode
+                                            </h3>
+                                            <p className="text-blue-700 dark:text-blue-400 text-xs leading-relaxed font-medium">
+                                                You are viewing this event as a Staff member. Only Owners and Admins can modify event details or delete events.
+                                            </p>
                                         </div>
-                                    </div>
-
+                                    )}
                                     <DeleteEventModal
                                         isOpen={isDeleteModalOpen}
                                         onClose={() => setIsDeleteModalOpen(false)}
@@ -1165,7 +1164,6 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
             }
 
             {/* TICKETS TAB */}
-            {/* TICKETS TAB */}
             {
                 activeTab === 'tickets' && (
                     <TicketsTab event={event} tiers={tiers} onTiersUpdate={setTiers} />
@@ -1175,7 +1173,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
             {/* ATTENDEES TAB */}
             {
                 activeTab === 'attendees' && (
-                    <AttendeesTab event={event} />
+                    <AttendeesTab event={event} isStaff={isStaff} />
                 )
             }
 
@@ -1295,7 +1293,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
                                                 </button>
                                             </div>
                                             <p className="text-sm font-medium text-gray-500 mt-1">
-                                                {discount.type === 'percentage' ? `${discount.value}% OFF` : `-$${discount.value}`}
+                                                {discount.type === 'percentage' ? `${discount.value}% OFF` : `-${formatCurrency(discount.value, event.currency || 'GHS')}`}
                                                 <span className="mx-2 text-gray-300">|</span>
                                                 Used: {discount.used_count || 0} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
                                                 <span className="mx-2 text-gray-300">|</span>
@@ -1339,7 +1337,7 @@ export function EventManageClient({ event: initialEvent, initialTiers, initialTo
             {/* TEAM TAB */}
             {
                 activeTab === 'team' && (
-                    <StaffTab eventId={event.id} />
+                    <StaffTab eventId={event.id} isStaff={isStaff} />
                 )
             }
         </div >

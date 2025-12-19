@@ -7,22 +7,47 @@ export const revalidate = 0
 export default async function MasterEventsPage() {
     const supabase = await createClient()
 
+    // 1. Fetch Events
     const { data: events } = await supabase
         .schema('gatepass')
         .from('events')
         .select(`
             *,
             organizers(*),
-            ticket_tiers(*),
-            reservations(
-                id,
-                transactions(
-                    amount,
-                    status
-                )
-            )
+            ticket_tiers(*)
         `)
         .order('created_at', { ascending: false })
+
+    if (!events) return <div>No events found.</div>
+
+    // 2. Fetch ALL successful transactions for these events
+    // This bypasses the nested join limit issues
+    const eventIds = events.map(e => e.id)
+    const { data: transactions } = await supabase
+        .schema('gatepass')
+        .from('transactions')
+        .select(`
+            amount,
+            reservations!inner(event_id)
+        `)
+        .eq('status', 'success')
+        .in('reservations.event_id', eventIds)
+
+    // 3. Map transactions back to events for the table to consume
+    const eventsWithFinancials = events.map(event => {
+        const eventTransactions = transactions
+            ?.filter(tx => (tx.reservations as any)?.event_id === event.id)
+            ?.map(tx => ({
+                amount: tx.amount,
+                status: 'success'
+            })) || []
+
+        return {
+            ...event,
+            // We mock the nested structure expected by MasterEventsTable but with ALL transactions
+            reservations: eventTransactions.length > 0 ? [{ transactions: eventTransactions }] : []
+        }
+    })
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -32,11 +57,11 @@ export default async function MasterEventsPage() {
                     <p className="text-gray-500 dark:text-gray-400">View and manage all events across the platform.</p>
                 </div>
                 <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2 rounded-lg text-sm font-mono text-gray-500 dark:text-gray-400">
-                    {events?.length || 0} Total Events
+                    {events.length} Total Events
                 </div>
             </div>
 
-            <MasterEventsTable events={events as any || []} />
+            <MasterEventsTable events={eventsWithFinancials as any} />
         </div>
     )
 }

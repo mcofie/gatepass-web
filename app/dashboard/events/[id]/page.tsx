@@ -33,6 +33,38 @@ amount,
         .eq('status', 'success')
         .eq('reservations.event_id', id)
 
+    // Determine User Role
+    const { data: { user } } = await supabase.auth.getUser()
+    let role = 'Member'
+
+    if (user && event) {
+        // 1. Check if Owner
+        const { data: org } = await supabase
+            .schema('gatepass')
+            .from('organizers')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('id', event.organization_id)
+            .single()
+
+        if (org) {
+            role = 'Owner'
+        } else {
+            // 2. Check if Team member
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('role')
+                .eq('user_id', user.id)
+                .eq('organization_id', event.organization_id)
+                .single()
+
+            if (teamMember) {
+                role = teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)
+            }
+        }
+    }
+
     let totalRevenue = 0
     if (transactions) {
         totalRevenue = transactions.reduce((acc, tx) => {
@@ -66,6 +98,7 @@ amount,
             event={event as Event}
             initialTiers={(tiers as TicketTier[]) || []}
             initialTotalRevenue={totalRevenue}
+            userRole={role}
         />
     )
 }

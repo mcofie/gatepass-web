@@ -6,7 +6,8 @@ import { Profile, Organizer } from '@/types/gatepass'
 import { Search, Shield, User as UserIcon, Building2 } from 'lucide-react'
 
 interface ExtendedProfile extends Profile {
-    organizers?: Organizer | Organizer[] // Could be array if one-to-many, usually single
+    organizers?: Organizer | Organizer[]
+    team_memberships?: any[]
 }
 
 interface UserDirectoryTableProps {
@@ -33,7 +34,15 @@ export function UserDirectoryTable({ users: initialUsers }: UserDirectoryTablePr
                 }
             }
 
-            return emailMatch || nameMatch || orgMatch
+            let teamMatch = false
+            if (u.team_memberships) {
+                teamMatch = u.team_memberships.some(tm =>
+                    tm.role?.toLowerCase().includes(match) ||
+                    tm.organizers?.name?.toLowerCase().includes(match)
+                )
+            }
+
+            return emailMatch || nameMatch || orgMatch || teamMatch
         })
     }
 
@@ -100,6 +109,10 @@ export function UserDirectoryTable({ users: initialUsers }: UserDirectoryTablePr
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                                     <Building2 className="w-3 h-3" /> Organizer
                                                 </span>
+                                            ) : user.team_memberships?.[0] ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                                                    <Shield className="w-3 h-3" /> {user.team_memberships[0].role === 'Admin' ? 'Team Admin' : 'Staff'}
+                                                </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500/10 text-gray-600 dark:text-gray-400 border border-gray-500/20">
                                                     <UserIcon className="w-3 h-3" /> User
@@ -114,6 +127,13 @@ export function UserDirectoryTable({ users: initialUsers }: UserDirectoryTablePr
                                                     {org.name[0].toUpperCase()}
                                                 </div>
                                                 <span className="text-gray-900 dark:text-white font-medium">{org.name}</span>
+                                            </div>
+                                        ) : user.team_memberships?.[0]?.organizers ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded bg-purple-600 dark:bg-purple-500 text-white flex items-center justify-center text-[10px] font-bold">
+                                                    {user.team_memberships[0].organizers.name[0].toUpperCase()}
+                                                </div>
+                                                <span className="text-gray-900 dark:text-white font-medium">{user.team_memberships[0].organizers.name}</span>
                                             </div>
                                         ) : (
                                             <span className="text-gray-400 dark:text-gray-600">-</span>

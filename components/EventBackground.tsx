@@ -2,14 +2,16 @@
 
 import React, { useState, useRef } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 interface EventBackgroundProps {
     videoUrl: string | null
     posterUrl: string | null
     forcePause?: boolean
+    layoutId?: string
 }
 
-export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgroundProps) {
+export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: EventBackgroundProps) {
     const [isMuted, setIsMuted] = useState(true)
     const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -44,7 +46,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgr
     }
 
     return (
-        <div className="absolute inset-0 z-0">
+        <motion.div className="absolute inset-0 z-0" layoutId={layoutId}>
             <video
                 ref={videoRef}
                 src={videoUrl}
@@ -67,6 +69,6 @@ export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgr
                     <Volume2 className="w-4 h-4" />
                 )}
             </button>
-        </div>
+        </motion.div>
     )
 }

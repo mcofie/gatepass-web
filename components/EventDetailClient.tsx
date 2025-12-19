@@ -21,11 +21,13 @@ import { toast } from 'sonner'
 import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
+import { motion } from 'framer-motion'
 
 interface EventDetailClientProps {
     event: Event
     tiers: TicketTier[]
     isFeedItem?: boolean
+    layoutId?: string
 }
 
 // Simple Timer Hook
@@ -60,7 +62,7 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
     return timeLeft
 }
 
-export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDetailClientProps) {
+export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId }: EventDetailClientProps) {
     const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
 
     // Track View Count
@@ -434,7 +436,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
             )}
 
             {/* Floating Card / Modal Container */}
-            <div
+            <motion.div
+                layoutId={layoutId}
                 onClick={() => {
                     if (isFeedItem) {
                         router.push(`/events/${event.slug || event.id}`)
@@ -537,7 +540,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false }: EventDet
                         />
                     </div>
                 )}
-            </div>
+            </motion.div>
         </>
     )
 }

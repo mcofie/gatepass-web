@@ -11,9 +11,10 @@ interface DateTimePickerProps {
     setDate: (date: Date | undefined) => void
     label?: string
     required?: boolean
+    disabled?: boolean
 }
 
-export function DateTimePicker({ date, setDate, label, required }: DateTimePickerProps) {
+export function DateTimePicker({ date, setDate, label, required, disabled = false }: DateTimePickerProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [timeValue, setTimeValue] = useState<string>(date ? format(date, 'HH:mm') : '12:00')
 
@@ -64,10 +65,11 @@ export function DateTimePicker({ date, setDate, label, required }: DateTimePicke
     return (
         <div className="relative" ref={containerRef}>
             <div
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => !disabled && setIsOpen(!isOpen)}
                 className={`
-                    w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border rounded-xl flex items-center justify-between cursor-pointer transition-all
-                    ${isOpen ? 'ring-2 ring-black dark:ring-white border-transparent bg-white dark:bg-[#111]' : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'}
+                    w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border rounded-xl flex items-center justify-between transition-all
+                    ${disabled ? 'cursor-not-allowed opacity-70 border-gray-100 dark:border-white/5' : 'cursor-pointer border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'}
+                    ${isOpen && !disabled ? 'ring-2 ring-black dark:ring-white border-transparent bg-white dark:bg-[#111]' : ''}
                 `}
             >
                 <div className="flex items-center gap-3 text-gray-900 dark:text-white">

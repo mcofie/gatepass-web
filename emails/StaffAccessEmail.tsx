@@ -103,7 +103,7 @@ export const StaffAccessEmail = ({
 
                         <Section>
                             <Link
-                                href="https://gatepass.xyz/staff" // Placeholder link or app store link
+                                href="https://gatepass.so/staff" // Placeholder link or app store link
                                 className="bg-black text-white text-[14px] font-bold no-underline text-center block w-full py-3 rounded-lg"
                             >
                                 Download Check-in App
