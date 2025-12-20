@@ -27,7 +27,7 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     const feeBearer = eventFeeBearer
 
     // Based on utils/fees.ts:
-    // If Customer: pays Platform (4%) + Processor (1.95%) -> Rate = 0.0595
+    // If Customer: pays Platform (4%) + Processor (1.98%) -> Rate = 0.0598
     // If Organizer: Customer pays Platform (4%) -> Rate = 0.04
     // (Note: This assumes fees.ts logic where platform fee is always added)
     const effectiveFeeRate = feeBearer === 'customer'

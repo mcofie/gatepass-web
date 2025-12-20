@@ -1,12 +1,13 @@
-import React, {useState} from 'react'
-import {createClient} from '@/utils/supabase/client'
-import {Input} from '@/components/ui/Input'
-import {Button} from '@/components/ui/Button'
-import {toast} from 'sonner'
-import {Loader2, Building, CreditCard, CheckCircle2} from 'lucide-react'
-import {createPaystackSubaccount, getPaystackBanks, verifyPaystackAccount} from '@/app/actions/paystack'
+import React, { useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { toast } from 'sonner'
+import { Loader2, Building, CreditCard, CheckCircle2 } from 'lucide-react'
+import { createPaystackSubaccount, getPaystackBanks, verifyPaystackAccount } from '@/app/actions/paystack'
+import { PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
-export function SettlementSettings({organizer}: { organizer: any }) {
+export function SettlementSettings({ organizer }: { organizer: any }) {
     const [loading, setLoading] = useState(false)
     const [banks, setBanks] = useState<{ name: string, code: string }[]>([])
     const [verifying, setVerifying] = useState(false)
@@ -78,7 +79,7 @@ export function SettlementSettings({organizer}: { organizer: any }) {
                 business_name: businessName,
                 settlement_bank: selectedBankCode,
                 account_number: accountNumber,
-                percentage_charge: 4 // Default split percentage
+                percentage_charge: PLATFORM_FEE_PERCENT * 100 // Default split percentage
             }, organizer.id)
 
             if (result.success) {
@@ -99,7 +100,7 @@ export function SettlementSettings({organizer}: { organizer: any }) {
             <div className="flex items-center gap-3 mb-6">
                 <div
                     className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-500">
-                    <Building className="w-5 h-5"/>
+                    <Building className="w-5 h-5" />
                 </div>
                 <div>
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white">Settlement Account</h3>
@@ -112,7 +113,7 @@ export function SettlementSettings({organizer}: { organizer: any }) {
                     className="bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 rounded-xl p-4 flex items-center gap-3 mb-8">
                     <div
                         className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-500/20 flex items-center justify-center text-green-600 dark:text-green-400">
-                        <CheckCircle2 className="w-4 h-4"/>
+                        <CheckCircle2 className="w-4 h-4" />
                     </div>
                     <div>
                         <p className="text-sm font-bold text-green-800 dark:text-green-400">Account Connected</p>
@@ -169,7 +170,7 @@ export function SettlementSettings({organizer}: { organizer: any }) {
                         />
                         {verifying && (
                             <div className="absolute right-4 top-3.5">
-                                <Loader2 className="w-5 h-5 animate-spin text-gray-400"/>
+                                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                             </div>
                         )}
                     </div>
@@ -186,7 +187,7 @@ export function SettlementSettings({organizer}: { organizer: any }) {
                         disabled={loading || !isVerified || verifying}
                         className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
                     >
-                        {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin"/>}
+                        {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         {paystackCode ? 'Update Details' : 'Connect Account'}
                     </Button>
                 </div>

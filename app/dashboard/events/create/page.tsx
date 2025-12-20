@@ -14,6 +14,7 @@ import { PreviewModal } from '@/components/common/PreviewModal'
 import { logActivity } from '@/app/actions/logger'
 import { toast } from 'sonner'
 import clsx from 'clsx'
+import { PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
 const STEPS = [
     { id: 'basics', title: 'Basics', description: 'Name & Details' },
@@ -45,7 +46,7 @@ export default function CreateEventPage() {
         longitude: null as number | null,
         slug: '',
         fee_bearer: 'customer' as 'customer' | 'organizer',
-        platform_fee_percent: 4.0,
+        platform_fee_percent: PLATFORM_FEE_PERCENT * 100,
         organization_id: '',
         primary_color: '#000000',
         tiers: [] as Partial<TicketTier>[]
