@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { PLATFORM_FEE_PERCENT, PROCESSOR_FEE_PERCENT } from '@/utils/fees'
 
 export async function POST(req: Request) {
     try {
@@ -23,9 +24,15 @@ export async function POST(req: Request) {
             .schema('gatepass')
             .from('reservations')
             .select(`
+                quantity,
+                ticket_tiers ( price ),
+                discounts ( type, value ),
                 events (
+                    fee_bearer,
+                    platform_fee_percent,
                     organizers (
-                        paystack_subaccount_code
+                        paystack_subaccount_code,
+                        platform_fee_percent
                     )
                 )
             `)
@@ -33,12 +40,86 @@ export async function POST(req: Request) {
             .single()
 
         let subaccountCode = null
+        let transactionCharge = 0
+
         if (reservation) {
             const event = Array.isArray((reservation as any).events) ? (reservation as any).events[0] : (reservation as any).events
             const organizer = event ? (Array.isArray(event.organizers) ? event.organizers[0] : event.organizers) : null
 
             if (organizer) {
                 subaccountCode = organizer.paystack_subaccount_code
+            }
+
+            // Calculate Split
+            if (subaccountCode) {
+                const ticketTier = Array.isArray((reservation as any).ticket_tiers) ? (reservation as any).ticket_tiers[0] : (reservation as any).ticket_tiers
+                let price = Number(ticketTier?.price) || 0
+
+                // Platform Fee Rate
+                let platformRate = PLATFORM_FEE_PERCENT // Default 0.04
+
+                // Determine Rate
+                let rawPercent = (event?.platform_fee_percent as number)
+                    ?? (organizer?.platform_fee_percent as number)
+                    ?? 0;
+
+                if (rawPercent > 0) {
+                    // Check if stored as decimal (e.g. 0.04 for 4%) instead of integer (4 for 4%)
+                    // If less than 1, assume it's decimal representation and convert to percent integer
+                    if (rawPercent < 1.0) {
+                        rawPercent = rawPercent * 100
+                    }
+                    platformRate = rawPercent / 100
+                }
+
+                // Fallback if price missing (critical for calculations)
+                if (price === 0) {
+                    console.warn('Paystack Initialize: Price not found in DB, using transaction amount as fallback base')
+                    // Amount is in kobo/pesewas. Price is in GHS.
+                    // Assume Amount ~= Price + Fees. 
+                    // Amount = Price + (Price * PlatformRate) + (Price * ProcessorRate) [Roughly]
+                    // Price = (Amount/100) / (1 + PlatformRate + ProcessorRate)
+                    price = (amount / 100) / (1 + platformRate + PROCESSOR_FEE_PERCENT)
+                }
+
+                const quantity = reservation.quantity || 1
+
+                // Discount
+                let discountAmount = 0
+                const discount = Array.isArray(reservation.discounts) ? reservation.discounts[0] : reservation.discounts
+                if (discount) {
+                    if (discount.type === 'percentage') {
+                        discountAmount = (price * quantity) * (discount.value / 100)
+                    } else {
+                        discountAmount = discount.value
+                    }
+                }
+
+                // Effective Base for Platform Fee
+                // We calculate fee on the REVENUE (Price * Qty - Discount), not including the extra customer fees
+                const subtotal = Math.max(0, (price * quantity) - discountAmount)
+
+                // Calculate Fee
+                const platformFee = subtotal * platformRate
+
+                // Convert to Kobo/Pesewas
+                transactionCharge = Math.round(platformFee * 100)
+
+                // Sanity Check: Ensure we don't take more than the total amount?
+                if (transactionCharge > amount) {
+                    transactionCharge = Math.round(amount * 0.1) // Cap at 10% if crazy calc?
+                }
+
+                console.log('Paystack Split Logic:', {
+                    reservationId,
+                    dbPrice: ticketTier?.price,
+                    usedPrice: price,
+                    quantity,
+                    subtotal,
+                    platformRate,
+                    transactionCharge, // in kobo
+                    amount // in kobo
+                })
             }
         }
 
@@ -63,9 +144,8 @@ export async function POST(req: Request) {
         // Add subaccount if available
         if (subaccountCode) {
             payload.subaccount = subaccountCode
-            // payload.transaction_charge // Optional: Flat fee to platform?
-            // payload.bearer = 'subaccount' // Who pays fees? Default is usually subaccount or both shared.
-            // For now, simple split.
+            payload.transaction_charge = transactionCharge
+            payload.bearer = 'subaccount'
         }
 
         // Initialize transaction with Paystack
