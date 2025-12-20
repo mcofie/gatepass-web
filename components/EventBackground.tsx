@@ -47,28 +47,41 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
 
     return (
         <motion.div className="absolute inset-0 z-0" layoutId={layoutId}>
-            <video
-                ref={videoRef}
-                src={videoUrl}
-                className="w-full h-full object-cover opacity-90 transition-opacity duration-1000"
-                loop
-                muted={isMuted}
-                playsInline
-                poster={posterUrl || undefined}
+            {/* Poster Image (Always visible as base/fallback) */}
+            <img
+                src={posterUrl || ''}
+                alt="Event Background"
+                className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-1000"
             />
 
-            {/* Audio Toggle */}
-            <button
-                onClick={toggleAudio}
-                className="absolute top-6 right-6 z-20 w-10 h-10 bg-black/30 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white/90 hover:bg-black/50 hover:scale-105 transition-all active:scale-95 group"
-                aria-label={isMuted ? "Unmute video" : "Mute video"}
-            >
-                {isMuted ? (
-                    <VolumeX className="w-4 h-4" />
-                ) : (
-                    <Volume2 className="w-4 h-4" />
-                )}
-            </button>
+            {/* Video (Only render when active) */}
+            {!forcePause && videoUrl && (
+                <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    className="absolute inset-0 w-full h-full object-cover opacity-100 transition-opacity duration-1000 animate-fade-in"
+                    loop
+                    muted={isMuted}
+                    playsInline
+                    autoPlay
+                    poster={posterUrl || undefined}
+                />
+            )}
+
+            {/* Audio Toggle (Only show if active) */}
+            {!forcePause && videoUrl && (
+                <button
+                    onClick={toggleAudio}
+                    className="absolute top-6 right-6 z-20 w-10 h-10 bg-black/30 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white/90 hover:bg-black/50 hover:scale-105 transition-all active:scale-95 group"
+                    aria-label={isMuted ? "Unmute video" : "Mute video"}
+                >
+                    {isMuted ? (
+                        <VolumeX className="w-4 h-4" />
+                    ) : (
+                        <Volume2 className="w-4 h-4" />
+                    )}
+                </button>
+            )}
         </motion.div>
     )
 }
