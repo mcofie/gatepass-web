@@ -46,19 +46,30 @@ export const EventFeed = ({ events }: EventFeedProps) => {
             ref={containerRef}
             className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory bg-black no-scrollbar"
         >
-            {events.map((event, index) => (
-                <div
-                    key={event.id}
-                    data-index={index}
-                    className="event-feed-item h-[100dvh] w-full snap-start relative"
-                >
-                    <EventFeedItem
-                        event={event}
-                        tiers={event.ticket_tiers || []}
-                        isActive={activeIndex === index}
-                    />
-                </div>
-            ))}
+            {events.map((event, index) => {
+                // Lazy Rendering: Only render the current item and its immediate neighbors (+/- 1)
+                // This keeps 3 items in the DOM at most (Active, Prev, Next)
+                const shouldRender = Math.abs(activeIndex - index) <= 1
+
+                return (
+                    <div
+                        key={event.id}
+                        data-index={index}
+                        className="event-feed-item h-[100dvh] w-full snap-start relative"
+                    >
+                        {shouldRender ? (
+                            <EventFeedItem
+                                event={event}
+                                tiers={event.ticket_tiers || []}
+                                isActive={activeIndex === index}
+                            />
+                        ) : (
+                            // Lightweight placeholder to maintain scroll height/snap
+                            <div className="w-full h-full bg-black" />
+                        )}
+                    </div>
+                )
+            })}
         </div>
     )
 }

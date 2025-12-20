@@ -3,7 +3,8 @@
 import React, { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { toast } from 'sonner'
-import { ArrowRight, Loader2, Check } from 'lucide-react'
+import { ArrowRight, Loader2, Check, ChevronLeft } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function LoginContent() {
     const [email, setEmail] = useState('')
@@ -49,7 +50,7 @@ export function LoginContent() {
             toast.error('Please enter a valid 6-digit code')
             return
         }
-        if (!email) {
+        if (!email && view === 'MANUAL') {
             toast.error('Please enter your email')
             return
         }
@@ -75,177 +76,210 @@ export function LoginContent() {
         }
     }
 
-    if (view === 'SENT') {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-black font-sans px-6 animate-in fade-in duration-700">
-                <div className="w-16 h-16 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center mb-8 shadow-2xl">
-                    <Check className="w-6 h-6" />
-                </div>
-                <h2 className="text-3xl font-medium tracking-tight text-gray-900 dark:text-white mb-4 text-center">Check your email</h2>
-                <div className="text-lg text-gray-400 font-normal text-center max-w-sm mb-8">
-                    We sent a login link and code to <br />
-                    <span className="text-gray-900 dark:text-white border-b border-gray-200 dark:border-white/20 pb-0.5">{email}</span>
-                </div>
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFDFD] dark:bg-[#050505] font-sans px-6 relative overflow-hidden">
+            {/* Subtle Textured Background */}
+            <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-100 dark:brightness-100" />
+            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
 
-                <div className="w-full max-w-[360px] space-y-6">
-                    <div className="relative flex items-center gap-4">
-                        <div className="h-px bg-gray-200 dark:bg-white/10 flex-1" />
-                        <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">Or enter code</span>
-                        <div className="h-px bg-gray-200 dark:bg-white/10 flex-1" />
-                    </div>
-
-                    <form onSubmit={handleVerifyOtp} className="space-y-4">
-                        <input
-                            value={otp}
-                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="000 000"
-                            className="w-full h-14 bg-gray-50 dark:bg-white/5 border border-transparent focus:border-black dark:focus:border-white rounded-xl text-center text-2xl font-mono tracking-[0.5em] text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none transition-all"
-                        />
-                        <button
-                            type="submit"
-                            disabled={verifying || otp.length < 6}
-                            className="w-full h-12 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[15px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-black/5 dark:shadow-white/5 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
-                        >
-                            {verifying ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                'Verify Code'
-                            )}
-                        </button>
-                    </form>
-                </div>
-
-                <button
-                    onClick={() => {
-                        setView('LOGIN')
-                        setOtp('')
-                    }}
-                    className="mt-8 text-sm font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+            <div className="w-full max-w-[380px] z-10">
+                {/* Logo Area */}
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex justify-center mb-12"
                 >
-                    Back to login
-                </button>
-            </div>
-        )
-    }
-
-    if (view === 'MANUAL') {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-black font-sans px-6 animate-in fade-in duration-700">
-                <div className="w-full max-w-[360px] space-y-8">
-                    <div className="text-center">
-                        <h2 className="text-3xl font-medium tracking-tight text-gray-900 dark:text-white mb-2">Enter Login Code</h2>
-                        <p className="text-gray-400">Enter the 6-digit code sent to your email.</p>
+                    <div className="w-12 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center shadow-xl shadow-black/5 dark:shadow-white/5">
+                        <span className="font-bold text-white dark:text-black text-lg tracking-tighter">GP</span>
                     </div>
+                </motion.div>
 
-                    <form onSubmit={handleVerifyOtp} className="space-y-4">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-widest mb-2 ml-1">Email</label>
-                                <input
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    type="email"
-                                    required
-                                    placeholder="name@work.com"
-                                    className="w-full h-12 bg-gray-50 dark:bg-white/5 border border-transparent focus:border-black dark:focus:border-white rounded-xl px-4 text-base font-medium text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none transition-all"
-                                />
+                <AnimatePresence mode="wait">
+                    {view === 'LOGIN' && (
+                        <motion.div
+                            key="login"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
+                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                        >
+                            <div className="text-center mb-10">
+                                <h1 className="text-3xl font-semibold text-black dark:text-white tracking-tight mb-3">Sign in</h1>
+                                <p className="text-gray-500 dark:text-gray-400 text-[15px]">Welcome back to GatePass.</p>
                             </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-widest mb-2 ml-1">Code</label>
+
+                            <form onSubmit={handleAuth} className="space-y-6">
+                                <div className="space-y-2">
+                                    <input
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        type="email"
+                                        required
+                                        placeholder="name@work.com"
+                                        className="w-full h-14 bg-gray-50 dark:bg-zinc-900/50 border-none rounded-2xl px-5 text-lg font-medium text-center text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 transition-all outline-none"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[16px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-black/10 dark:shadow-white/10 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
+                                >
+                                    {loading ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            Continue <ArrowRight className="w-4 h-4 opacity-50" />
+                                        </>
+                                    )}
+                                </button>
+
+                                <div className="pt-4 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (email) setExpectedEmail(email) // Optional: pass state logic eventually
+                                            setView('MANUAL')
+                                        }}
+                                        className="text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                    >
+                                        I have a code
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    )}
+
+                    {view === 'SENT' && (
+                        <motion.div
+                            key="sent"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
+                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                            className="flex flex-col items-center"
+                        >
+                            <div className="w-20 h-20 rounded-full bg-gray-50 dark:bg-zinc-900 flex items-center justify-center mb-8 border border-gray-100 dark:border-zinc-800">
+                                <Check className="w-8 h-8 text-black dark:text-white" />
+                            </div>
+                            <h2 className="text-2xl font-semibold tracking-tight text-black dark:text-white mb-4 text-center">Check your email</h2>
+                            <div className="text-[15px] text-gray-500 dark:text-gray-400 text-center max-w-xs mb-10 leading-relaxed">
+                                We sent a login link and code to <br />
+                                <span className="text-black dark:text-white font-medium">{email}</span>
+                            </div>
+
+                            <form onSubmit={handleVerifyOtp} className="w-full space-y-6">
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-gray-100 dark:border-zinc-800"></div>
+                                    </div>
+                                    <div className="relative flex justify-center text-xs uppercase">
+                                        <span className="bg-[#FDFDFD] dark:bg-[#050505] px-4 text-gray-400 tracking-widest font-medium">Or enter code</span>
+                                    </div>
+                                </div>
+
                                 <input
                                     value={otp}
                                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                     type="text"
                                     inputMode="numeric"
                                     placeholder="000 000"
-                                    className="w-full h-14 bg-gray-50 dark:bg-white/5 border border-transparent focus:border-black dark:focus:border-white rounded-xl text-center text-2xl font-mono tracking-[0.5em] text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none transition-all"
+                                    className="w-full h-16 bg-transparent border-b-2 border-gray-100 dark:border-zinc-800 focus:border-black dark:focus:border-white rounded-none text-center text-3xl font-mono tracking-[0.5em] text-black dark:text-white placeholder:text-gray-200 dark:placeholder:text-zinc-800 outline-none transition-all"
+                                    autoFocus
                                 />
+                                <button
+                                    type="submit"
+                                    disabled={verifying || otp.length < 6}
+                                    className="w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[16px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-black/10 dark:shadow-white/10 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
+                                >
+                                    {verifying ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        'Verify Code'
+                                    )}
+                                </button>
+                            </form>
+
+                            <button
+                                onClick={() => {
+                                    setView('LOGIN')
+                                    setOtp('')
+                                }}
+                                className="mt-8 flex items-center gap-2 text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                                Back to login
+                            </button>
+                        </motion.div>
+                    )}
+
+                    {view === 'MANUAL' && (
+                        <motion.div
+                            key="manual"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
+                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                        >
+                            <div className="text-center mb-10">
+                                <h1 className="text-2xl font-semibold text-black dark:text-white tracking-tight mb-3">Login Code</h1>
+                                <p className="text-gray-500 dark:text-gray-400 text-[15px]">Enter the 6-digit code sent to your email.</p>
                             </div>
-                        </div>
 
-                        <button
-                            type="submit"
-                            disabled={verifying || otp.length < 6 || !email}
-                            className="w-full h-12 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[15px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-black/5 dark:shadow-white/5 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
-                        >
-                            {verifying ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                'Verify Code'
-                            )}
-                        </button>
-                    </form>
+                            <form onSubmit={handleVerifyOtp} className="space-y-6">
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Email</label>
+                                        <input
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            type="email"
+                                            required
+                                            placeholder="name@work.com"
+                                            className="w-full h-12 bg-gray-50 dark:bg-zinc-900/50 border-none rounded-xl px-4 text-base font-medium text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-1 focus:ring-black dark:focus:ring-white transition-all outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Code</label>
+                                        <input
+                                            value={otp}
+                                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            type="text"
+                                            inputMode="numeric"
+                                            placeholder="000 000"
+                                            className="w-full h-14 bg-gray-50 dark:bg-zinc-900/50 border-none rounded-xl text-center text-xl font-mono tracking-[0.5em] text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-1 focus:ring-black dark:focus:ring-white transition-all outline-none"
+                                        />
+                                    </div>
+                                </div>
 
-                    <div className="text-center">
-                        <button
-                            onClick={() => setView('LOGIN')}
-                            className="text-sm font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                        >
-                            Back to login
-                        </button>
-                    </div>
-                </div>
+                                <button
+                                    type="submit"
+                                    disabled={verifying || otp.length < 6 || !email}
+                                    className="w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[16px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-black/10 dark:shadow-white/10 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
+                                >
+                                    {verifying ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        'Verify Code'
+                                    )}
+                                </button>
+                            </form>
+
+                            <div className="text-center mt-8">
+                                <button
+                                    onClick={() => setView('LOGIN')}
+                                    className="flex items-center justify-center gap-2 text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors w-full"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Back to login
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-        )
-    }
-
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-black font-sans px-6">
-
-            <div className="w-full max-w-[360px] animate-in fade-in slide-in-from-bottom-4 duration-700">
-                {/* Logo Area */}
-                <div className="flex justify-center mb-16">
-                    <div className="w-10 h-10 bg-black dark:bg-white rounded-lg flex items-center justify-center shadow-lg">
-                        <span className="font-bold text-white dark:text-black text-sm tracking-tighter">GP</span>
-                    </div>
-                </div>
-
-                <div className="mb-12 text-center">
-                    <h1 className="text-2xl font-medium text-gray-900 dark:text-white tracking-tight mb-2">Sign in to GatePass</h1>
-                    <p className="text-gray-400 text-[15px]">Welcome back, creator.</p>
-                </div>
-
-                <form onSubmit={handleAuth} className="space-y-4">
-                    <div className="group relative">
-                        <input
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            type="email"
-                            required
-                            placeholder="name@work.com"
-                            className="w-full h-12 bg-transparent border-b border-gray-200 dark:border-white/10 text-lg font-medium text-center text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700 focus:outline-none focus:border-black dark:focus:border-white transition-colors rounded-none"
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full h-12 mt-8 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[15px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-black/5 dark:shadow-white/5 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
-                    >
-                        {loading ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <>
-                                Continue <ArrowRight className="w-4 h-4 opacity-50" />
-                            </>
-                        )}
-                    </button>
-
-                    <div className="pt-4 text-center">
-                        <button
-                            type="button"
-                            onClick={() => setView('MANUAL')}
-                            className="text-xs font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                        >
-                            I have a code
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-
         </div>
     )
 }
