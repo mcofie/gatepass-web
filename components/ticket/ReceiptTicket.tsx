@@ -198,8 +198,9 @@ export const ReceiptTicket = ({ id, event, ticket, logoUrl, tierName, forceExpan
 
                 {/* Collapsed Hint */}
                 {!showContent && (
-                    <div className="text-center pt-2 pb-1 animate-pulse collapsed-hint">
-                        <div className="w-8 h-1 rounded-full mx-auto" style={{ backgroundColor: gray200 }} />
+                    <div className="flex flex-col items-center justify-center pt-3 pb-2 animate-pulse collapsed-hint space-y-1 opacity-60">
+                        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: gray500 }}>Tap to view</span>
+                        <svg className="w-3 h-3" fill="none" stroke={gray500} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                     </div>
                 )}
             </div>

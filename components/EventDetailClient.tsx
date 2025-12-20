@@ -119,7 +119,17 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     // Handle Payment Callback (Redirect Flow)
     useEffect(() => {
         const reference = searchParams.get('reference') || searchParams.get('trxref')
+        // Scope verification to THIS event instance
+        const callbackEventId = searchParams.get('event_id')
+
         if (reference) {
+            // If callback has event_id, ONLY verify if it matches this component's event.
+            // If it doesn't have event_id (legacy/direct), we might optionally fallback or skip.
+            // For now, let's enforce matching if present.
+            if (callbackEventId && callbackEventId !== event.id) {
+                return
+            }
+
             const verifyPayment = async () => {
                 setVerifying(true)
                 try {
@@ -148,7 +158,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             }
             verifyPayment()
         }
-    }, [searchParams])
+    }, [searchParams, event.id])
 
     useEffect(() => {
         const checkUser = async () => {
@@ -362,7 +372,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     amount: Math.round(totalDue * 100),
                     currency: selectedTier?.currency || 'GHS',
                     reservationId: reservation.id,
-                    callbackUrl: window.location.href // Return to this page
+                    callbackUrl: `${window.location.protocol}//${window.location.host}${window.location.pathname}?event_id=${event.id}` // Append Event ID to scope callback
                 })
             })
 
@@ -442,18 +452,15 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             <motion.div
                 layoutId={layoutId}
                 onClick={() => {
-                    if (isFeedItem) {
-                        router.push(`/events/${event.slug || event.id}`)
-                    } else {
-                        toggleExpand()
-                    }
+                    // Always toggle expand, never navigate away
+                    toggleExpand()
                 }}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={`
-                ${isFeedItem ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} z-50 bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
+                ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
-                rounded-2xl flex flex-col ${(view === 'details' && !isExpanded) ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
+                rounded-2xl flex flex-col ${(view === 'details' && !isExpanded) || view === 'summary' ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
                 ${cardHeightClass}
                 md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0 md:max-h-[85vh]
                 md:bottom-12 md:right-12 p-4
@@ -503,7 +510,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     </div>
                 )}
                 {view === 'summary' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <div className={direction === 'back' ? 'animate-slide-in-left flex-1 min-h-0 flex flex-col' : 'animate-slide-in-right flex-1 min-h-0 flex flex-col'}>
                         <SummaryView
                             event={event}
                             tiers={tiers}
@@ -593,13 +600,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
 
                     {/* Title & Host Toggle */}
                     <div>
-                        {isFeedItem ? (
-                            <Link href={`/events/${event.slug || event.id}`} className="hover:underline decoration-white/50 underline-offset-2">
-                                <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
-                            </Link>
-                        ) : (
-                            <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
-                        )}
+                        <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
 
                         {/* Interactive Host Name */}
                         <button
@@ -720,22 +721,12 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                 </div>
             </div>
 
-            {isFeedItem ? (
-                <Link href={`/events/${event.slug || event.id}`}
-                    prefetch={true}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
-                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'} group-hover:brightness-110`}>
-                    Reserve
-                </Link>
-            ) : (
-                <button
-                    onClick={onGetTickets}
-                    style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
-                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
-                    Get Tickets
-                </button>
-            )}
+            <button
+                onClick={onGetTickets}
+                style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
+                className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                Get Tickets
+            </button>
             <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
                 <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
             </div>
@@ -1010,123 +1001,126 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
     }
 
     return (
-        <div className="flex flex-col h-auto animate-fade-in relative">
-            {/* Immersive Timer */}
-            <div className="flex justify-center mb-4 sticky top-4 z-20 pointer-events-none">
-                <div className={`${timerColor} py-2 px-4 rounded-full text-[12px] font-medium shadow-xl flex items-center gap-2 border animate-fade-in-down transition-colors duration-500`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${timeLeft.label === 'EXPIRED' ? 'bg-red-500' : dotColor}`} />
-                    <span>Reservation expires in <span className="font-mono tracking-wider font-bold">{timeLeft.label}</span></span>
-                </div>
-            </div>
-
-            <div className="px-1 mt-0 mb-2">
-                <button onClick={onBack} className="flex items-center gap-1 text-gray-400 hover:text-black dark:hover:text-white transition-colors -ml-1 py-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                    <span className="text-[13px] font-bold">Back</span>
-                </button>
-                <h2 className="text-[18px] font-bold tracking-tight mt-1 text-black dark:text-white">Order Summary</h2>
-            </div>
-
-            {/* Receipt Card */}
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-0 border border-gray-100 dark:border-zinc-800 overflow-hidden shadow-sm relative mx-1">
-                {/* Visual Header */}
-                <div className="bg-gray-50 dark:bg-zinc-800/50 p-6 border-b border-gray-100 dark:border-zinc-800">
-                    <h3 className="text-[16px] font-bold leading-tight text-black dark:text-white">{event.title}</h3>
+        <div className="flex flex-col h-full flex-1 min-h-0 animate-fade-in relative">
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto no-scrollbar -mx-4 px-4 pb-4">
+                {/* Immersive Timer */}
+                <div className="flex justify-center mb-4 sticky top-4 z-20 pointer-events-none">
+                    <div className={`${timerColor} py-2 px-4 rounded-full text-[12px] font-medium shadow-xl flex items-center gap-2 border animate-fade-in-down transition-colors duration-500`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${timeLeft.label === 'EXPIRED' ? 'bg-red-500' : dotColor}`} />
+                        <span>Reservation expires in <span className="font-mono tracking-wider font-bold">{timeLeft.label}</span></span>
+                    </div>
                 </div>
 
-                <div className="p-6 space-y-4">
-                    {/* Ticket Breakdown */}
-                    <div className="space-y-3">
-                        {tiers.map(tier => {
-                            const qty = selectedTickets[tier.id] || 0
-                            if (qty === 0) return null
-                            return <SummaryTicketItem key={tier.id} tier={tier} qty={qty} />
-                        })}
+                <div className="px-1 mt-0 mb-2">
+                    <button onClick={onBack} className="flex items-center gap-1 text-gray-400 hover:text-black dark:hover:text-white transition-colors -ml-1 py-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                        <span className="text-[13px] font-bold">Back</span>
+                    </button>
+                    <h2 className="text-[18px] font-bold tracking-tight mt-1 text-black dark:text-white">Order Summary</h2>
+                </div>
+
+                {/* Receipt Card */}
+                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-0 border border-gray-100 dark:border-zinc-800 overflow-hidden shadow-sm relative mx-1">
+                    {/* Visual Header */}
+                    <div className="bg-gray-50 dark:bg-zinc-800/50 p-6 border-b border-gray-100 dark:border-zinc-800">
+                        <h3 className="text-[16px] font-bold leading-tight text-black dark:text-white">{event.title}</h3>
                     </div>
 
-                    <div className="h-px bg-gray-100 dark:bg-zinc-800 w-full" />
-
-                    {/* Fees & Subtotal */}
-                    <div className="space-y-2 text-[13px]">
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
-                            <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 dark:text-gray-400">Fees</span>
-                            <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(fees, tiers[0]?.currency)}</span>
+                    <div className="p-6 space-y-4">
+                        {/* Ticket Breakdown */}
+                        <div className="space-y-3">
+                            {tiers.map(tier => {
+                                const qty = selectedTickets[tier.id] || 0
+                                if (qty === 0) return null
+                                return <SummaryTicketItem key={tier.id} tier={tier} qty={qty} />
+                            })}
                         </div>
 
-                        {/* Discount Row */}
-                        {discount && (
-                            <div className="flex justify-between items-center text-green-600 animate-fade-in">
-                                <span className="flex items-center gap-1.5">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-                                    Promo ({discount.code})
-                                </span>
-                                <span className="font-bold">
-                                    - {formatCurrency(discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100), tiers[0]?.currency)}
-                                </span>
+                        <div className="h-px bg-gray-100 dark:bg-zinc-800 w-full" />
+
+                        {/* Fees & Subtotal */}
+                        <div className="space-y-2 text-[13px]">
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
                             </div>
-                        )}
-                    </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-500 dark:text-gray-400">Fees</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(fees, tiers[0]?.currency)}</span>
+                            </div>
 
-                    {/* Promo Input */}
-                    {!discount && (
-                        <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-lg p-3">
-                            {!showPromo ? (
-                                <button
-                                    onClick={() => setShowPromo(true)}
-                                    className="text-[12px] text-gray-500 dark:text-gray-400 font-bold hover:text-black dark:hover:text-white transition-colors flex items-center gap-1 w-full"
-                                >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                                    ADD PROMO CODE
-                                </button>
-                            ) : (
-                                <div className="animate-fade-in">
-                                    <div className="flex gap-2">
-                                        <input
-                                            value={promoCode}
-                                            onChange={(e) => setPromoCode(e.target.value)}
-                                            placeholder="CODE"
-                                            className="flex-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-md text-[13px] px-3 py-1.5 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-all text-black dark:text-white"
-                                            autoFocus
-                                        />
-                                        <button
-                                            onClick={onApplyDiscount}
-                                            disabled={!promoCode || applyingDiscount}
-                                            className="bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 transition-colors"
-                                        >
-                                            Apply
-                                        </button>
-                                    </div>
-                                    {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1">{discountError}</p>}
+                            {/* Discount Row */}
+                            {discount && (
+                                <div className="flex justify-between items-center text-green-600 animate-fade-in">
+                                    <span className="flex items-center gap-1.5">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                                        Promo ({discount.code})
+                                    </span>
+                                    <span className="font-bold">
+                                        - {formatCurrency(discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100), tiers[0]?.currency)}
+                                    </span>
                                 </div>
                             )}
                         </div>
-                    )}
 
-                    <div className="border-t border-dashed border-gray-200 dark:border-zinc-800 pt-2" />
+                        {/* Promo Input */}
+                        {!discount && (
+                            <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-lg p-3">
+                                {!showPromo ? (
+                                    <button
+                                        onClick={() => setShowPromo(true)}
+                                        className="text-[12px] text-gray-500 dark:text-gray-400 font-bold hover:text-black dark:hover:text-white transition-colors flex items-center gap-1 w-full"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                                        ADD PROMO CODE
+                                    </button>
+                                ) : (
+                                    <div className="animate-fade-in">
+                                        <div className="flex gap-2">
+                                            <input
+                                                value={promoCode}
+                                                onChange={(e) => setPromoCode(e.target.value)}
+                                                placeholder="CODE"
+                                                className="flex-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-md text-[13px] px-3 py-1.5 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-all text-black dark:text-white"
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={onApplyDiscount}
+                                                disabled={!promoCode || applyingDiscount}
+                                                className="bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                                            >
+                                                Apply
+                                            </button>
+                                        </div>
+                                        {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1">{discountError}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                    <div className="flex justify-between items-end">
-                        <span className="text-[15px] font-bold text-gray-900 dark:text-white">Total Due</span>
-                        <div className="text-right">
-                            <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
-                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
+                        <div className="border-t border-dashed border-gray-200 dark:border-zinc-800 pt-2" />
+
+                        <div className="flex justify-between items-end">
+                            <span className="text-[15px] font-bold text-gray-900 dark:text-white">Total Due</span>
+                            <div className="text-right">
+                                <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
+                                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
+                            </div>
+
                         </div>
-
                     </div>
                 </div>
+
+                {/* Terms */}
+                <p className="text-center text-[10px] text-gray-400 mt-4 px-8 leading-relaxed mb-4">
+                    By purchasing, you agree to the <a href="#" className="underline hover:text-gray-500">Terms of Service</a> and <a href="#" className="underline hover:text-gray-500">Privacy Policy</a>.
+                    All sales are final.
+                </p>
             </div>
 
-            {/* Terms */}
-            <p className="text-center text-[10px] text-gray-400 mt-4 px-8 leading-relaxed">
-                By purchasing, you agree to the <a href="#" className="underline hover:text-gray-500">Terms of Service</a> and <a href="#" className="underline hover:text-gray-500">Privacy Policy</a>.
-                All sales are final.
-            </p>
-
-            {/* Sticky Footer */}
-            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
+            {/* Static Footer (Flex Item) */}
+            <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 p-4 -mx-4 -mb-4 z-30 flex-shrink-0">
                 <div className="max-w-md mx-auto md:max-w-none">
                     <button
                         onClick={onPay}
