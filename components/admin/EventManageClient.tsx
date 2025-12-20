@@ -15,6 +15,7 @@ import dynamic from 'next/dynamic'
 import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
 import { logActivity } from '@/app/actions/logger'
 import { updateEventFee, updateEventFeeBearer } from '@/app/actions/fees'
+import { requestPayout } from '@/app/actions/payouts'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
@@ -76,6 +77,7 @@ export function EventManageClient({
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
     const [payoutPage, setPayoutPage] = useState(0)
     const [payoutCount, setPayoutCount] = useState(0)
+    const [activePayout, setActivePayout] = useState<any>(null)
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -114,6 +116,37 @@ export function EventManageClient({
         setCopiedId(id)
         toast.success('Code copied!')
         setTimeout(() => setCopiedId(null), 2000)
+    }
+
+    const [requestingPayout, setRequestingPayout] = useState(false)
+
+    const handleRequestPayout = async () => {
+        if (requestingPayout) return
+
+        if (payoutStats.organizerNet <= 0) {
+            toast.error('No balance available to checkout.')
+            return
+        }
+
+        setRequestingPayout(true)
+        try {
+            const result = await requestPayout(
+                event.id,
+                payoutStats.organizerNet,
+                initialTiers?.[0]?.currency || 'GHS'
+            )
+
+            if (result.success) {
+                toast.success('Payout request submitted successfully.')
+                fetchPayouts()
+            } else {
+                toast.error(result.message || 'Failed to request payout')
+            }
+        } catch (e) {
+            toast.error('An error occurred')
+        } finally {
+            setRequestingPayout(false)
+        }
     }
 
     const supabase = createClient()
@@ -313,13 +346,26 @@ export function EventManageClient({
                 .order('created_at', { ascending: false })
                 .range(from, to)
 
-            const [statsRes, listRes] = await Promise.all([statsQuery, listQuery])
+            // 3. Fetch Active Payout Request
+            const activePayoutQuery = supabase
+                .schema('gatepass')
+                .from('payouts')
+                .select('*')
+                .eq('event_id', event.id)
+                .in('status', ['pending', 'processing'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+            const [statsRes, listRes, activePayoutRes] = await Promise.all([statsQuery, listQuery, activePayoutQuery])
 
             if (statsRes.error) throw statsRes.error
             if (listRes.error) throw listRes.error
+            if (activePayoutRes.error) throw activePayoutRes.error
 
             setTransactions(listRes.data || [])
             setPayoutCount(listRes.count || 0)
+            setActivePayout(activePayoutRes.data)
 
             // Calculate exact payout stats from the FULL statsRes dataset
             let totalVolume = 0
@@ -490,10 +536,31 @@ export function EventManageClient({
                                         {formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
                                     </h2>
                                 </div>
-                                <div className="p-4 rounded-xl bg-white/10 border border-white/5 backdrop-blur-sm">
-                                    <p className="text-sm text-gray-300 leading-relaxed font-medium">
-                                        This is your net payout after fees. {event.fee_bearer === 'organizer' ? 'Fees are deducted from your earnings.' : 'Fees are paid by the customer.'}
-                                    </p>
+                                <div className="space-y-4">
+                                    <div className="p-4 rounded-xl bg-white/10 border border-white/5 backdrop-blur-sm">
+                                        <p className="text-sm text-gray-300 leading-relaxed font-medium">
+                                            This is your net payout after fees. {event.fee_bearer === 'organizer' ? 'Fees are deducted from your earnings.' : 'Fees are paid by the customer.'}
+                                        </p>
+                                    </div>
+                                    {activePayout ? (
+                                        <div className="w-full bg-white/10 text-white py-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-white/10 cursor-not-allowed">
+                                            <div className="flex items-center gap-2 text-yellow-500">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                <span>Processing Payout</span>
+                                            </div>
+                                            <span className="text-xs font-normal text-gray-400">
+                                                {formatCurrency(activePayout.amount, activePayout.currency)} requested on {new Date(activePayout.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={handleRequestPayout}
+                                            disabled={requestingPayout || payoutStats.organizerNet <= 0}
+                                            className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all active:scale-[0.98] shadow-lg shadow-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {requestingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Request Payout'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -684,7 +751,8 @@ export function EventManageClient({
                         )}
                     </div>
                 </div>
-            )}
+            )
+            }
 
             <TransactionDetailModal
                 transaction={selectedTransaction}

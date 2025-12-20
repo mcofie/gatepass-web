@@ -8,11 +8,21 @@ import { Toaster } from 'sonner'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://gatepass.so'),
     title: {
         template: '%s | GatePass',
         default: 'GatePass | Experience Curated Events',
     },
     description: 'The premium platform for modern experiences and exclusive event reservations.',
+    openGraph: {
+        siteName: 'GatePass',
+        type: 'website',
+        locale: 'en_US',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'GatePass',
+    },
 }
 
 export default function RootLayout({

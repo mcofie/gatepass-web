@@ -3,9 +3,10 @@
 import React, { useState, useMemo } from 'react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, getEffectiveFeeRates, FeeRates } from '@/utils/fees'
-import { Search, Download, DollarSign, ChevronRight, X, Clock, CreditCard, History } from 'lucide-react'
+import { Search, Download, DollarSign, ChevronRight, X, Clock, CreditCard, History, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { exportToCSV } from '@/utils/export'
 import { toast } from 'sonner'
+import { approvePayout, rejectPayout } from '@/app/actions/admin/payouts'
 
 interface PayoutsTableProps {
     events: any[]
@@ -58,16 +59,55 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
 
             // Payouts Logic
             const eventPayouts = payouts.filter(p => p.event_id === event.id)
-            const amountPaid = eventPayouts.filter(p => p.status === 'paid' || p.status === 'processing').reduce((sum, p) => sum + p.amount, 0)
+            const amountPaid = eventPayouts.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
             const remainingDue = stats.netPayout - amountPaid
+
+            // Identify Active Request
+            const activeRequest = eventPayouts.find(p => p.status === 'pending' || p.status === 'processing')
 
             return {
                 ...event,
                 stats: { ...stats, amountPaid, remainingDue },
-                payouts: eventPayouts
+                payouts: eventPayouts,
+                activeRequest
             }
-        }).sort((a, b) => b.stats.netPayout - a.stats.netPayout)
+        }).sort((a, b) => (b.activeRequest ? 1 : 0) - (a.activeRequest ? 1 : 0) || b.stats.netPayout - a.stats.netPayout)
     }, [events, transactions, payouts, feeSettings])
+
+    const [processingId, setProcessingId] = useState<string | null>(null)
+
+    const handleApprove = async (payoutId: string) => {
+        if (!confirm('Mark this payout as PAID? This does not transfer funds automatically, purely for record keeping.')) return
+        setProcessingId(payoutId)
+        try {
+            const res = await approvePayout(payoutId)
+            if (res.success) {
+                toast.success('Payout marked as paid')
+                setSelectedEvent(null)
+            } else {
+                toast.error(res.message)
+            }
+        } finally {
+            setProcessingId(null)
+        }
+    }
+
+    const handleReject = async (payoutId: string) => {
+        const reason = prompt('Reason for rejection:')
+        if (!reason) return
+        setProcessingId(payoutId)
+        try {
+            const res = await rejectPayout(payoutId, reason)
+            if (res.success) {
+                toast.success('Payout rejected')
+                setSelectedEvent(null)
+            } else {
+                toast.error(res.message)
+            }
+        } finally {
+            setProcessingId(null)
+        }
+    }
 
     const filteredEvents = eventStats.filter(e =>
         e.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -117,8 +157,15 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                             {filteredEvents.map(event => (
                                 <tr key={event.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                     <td className="px-6 py-4">
-                                        <p className="font-bold text-gray-900 dark:text-white">{event.title}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">{event.stats.count} txns</p>
+                                        <div className="flex flex-col">
+                                            <p className="font-bold text-gray-900 dark:text-white">{event.title}</p>
+                                            {event.activeRequest && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-yellow-600 bg-yellow-100 dark:bg-yellow-500/10 px-2 py-0.5 rounded-full w-fit mt-1">
+                                                    <Clock className="w-3 h-3" /> Request Pending
+                                                </span>
+                                            )}
+                                            {!event.activeRequest && <p className="text-xs text-gray-500 mt-0.5">{event.stats.count} txns</p>}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
@@ -176,6 +223,44 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                         </div>
 
                         <div className="space-y-6">
+                            {selectedEvent.activeRequest && (
+                                <div className="p-6 bg-yellow-50 dark:bg-yellow-500/10 rounded-2xl border border-yellow-100 dark:border-yellow-500/20 animate-pulse-subtle">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Clock className="w-5 h-5 text-yellow-600" />
+                                        <h3 className="font-bold text-yellow-800 dark:text-yellow-500">Payout Requested</h3>
+                                    </div>
+                                    <p className="text-3xl font-black text-gray-900 dark:text-white mb-2">
+                                        {formatCurrency(selectedEvent.activeRequest.amount, selectedEvent.activeRequest.currency)}
+                                    </p>
+                                    <p className="text-sm text-gray-500 mb-6">
+                                        Requested on {new Date(selectedEvent.activeRequest.created_at).toLocaleDateString()}
+                                    </p>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => handleReject(selectedEvent.activeRequest.id)}
+                                            disabled={!!processingId}
+                                            className="py-3 px-4 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            <XCircle className="w-4 h-4" /> Reject
+                                        </button>
+                                        <button
+                                            onClick={() => handleApprove(selectedEvent.activeRequest.id)}
+                                            disabled={!!processingId}
+                                            className="py-3 px-4 bg-black dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            {processingId === selectedEvent.activeRequest.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <CheckCircle className="w-4 h-4" /> Mark Paid
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="p-6 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10">
                                 <p className="text-sm text-gray-500 mb-1">Remaining for Payout</p>
                                 <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">{formatCurrency(selectedEvent.stats.remainingDue)}</p>

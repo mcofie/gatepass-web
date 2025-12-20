@@ -31,6 +31,7 @@ create table if not exists gatepass.payouts (
 alter table gatepass.payouts enable row level security;
 
 -- 5. Policies
+drop policy if exists "Super Admins can manage payouts" on gatepass.payouts;
 create policy "Super Admins can manage payouts"
   on gatepass.payouts
   for all
@@ -38,9 +39,17 @@ create policy "Super Admins can manage payouts"
     exists (select 1 from gatepass.profiles where id = auth.uid() and is_super_admin = true)
   );
 
+drop policy if exists "Organizers can view their own payouts" on gatepass.payouts;
 create policy "Organizers can view their own payouts"
   on gatepass.payouts
   for select
   using (
+    organizer_id in (select id from gatepass.organizers where user_id = auth.uid())
+  );
+
+create policy "Organizers can request payouts"
+  on gatepass.payouts
+  for insert
+  with check (
     organizer_id in (select id from gatepass.organizers where user_id = auth.uid())
   );
