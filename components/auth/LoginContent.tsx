@@ -140,7 +140,7 @@ export function LoginContent() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            if (email) setExpectedEmail(email) // Optional: pass state logic eventually
+                                            // if (email) setExpectedEmail(email) // Optional: pass state logic eventually
                                             setView('MANUAL')
                                         }}
                                         className="text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
