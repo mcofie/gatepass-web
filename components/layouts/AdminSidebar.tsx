@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { switchOrganization } from '@/app/actions/switch-org'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -22,8 +23,10 @@ import {
 import { createClient } from '@/utils/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import { Skeleton } from '@/components/ui/skeleton'
+import { OrgSwitchOverlay } from '@/components/ui/OrgSwitchOverlay'
+import { AnimatePresence } from 'framer-motion'
 
-export function AdminSidebar() {
+export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
     const pathname = usePathname()
     const router = useRouter()
     const supabase = createClient()
@@ -36,6 +39,9 @@ export function AdminSidebar() {
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [orgMenuOpen, setOrgMenuOpen] = useState(false)
     const [mobileOpen, setMobileOpen] = useState(false)
+    const [allOrgs, setAllOrgs] = useState<{ id: string, name: string, role: string }[]>([])
+    const [isSwitching, setIsSwitching] = useState(false)
+    const [targetOrgName, setTargetOrgName] = useState<string>('')
 
     useEffect(() => {
         let mounted = true
@@ -67,38 +73,101 @@ export function AdminSidebar() {
                 return
             }
 
-            // Owner?
-            const { data: ownerData } = await supabase
+            // 1. Fetch ALL owned orgs
+            const { data: ownedOrgs } = await supabase
                 .schema('gatepass')
                 .from('organizers')
                 .select('id, name')
                 .eq('user_id', authedUser.id)
-                .maybeSingle()
+                .order('created_at', { ascending: false })
 
-            if (!mounted) return
+            // 2. Fetch ALL team memberships
+            const { data: teamOrgs } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('role, organization:organization_id(id, name)')
+                .eq('user_id', authedUser.id)
 
-            if (ownerData) {
-                setIsOwner(true)
-                setRole('Owner')
-                setOrgDetails({ name: ownerData.name })
-            } else {
-                setIsOwner(false)
+            const combined: { id: string, name: string, role: string }[] = []
 
-                // Staff?
-                const { data: teamData } = await supabase
+            if (ownedOrgs) {
+                ownedOrgs.forEach(o => combined.push({ id: o.id, name: o.name, role: 'Owner' }))
+            }
+            if (teamOrgs) {
+                teamOrgs.forEach((t: any) => {
+                    if (t.organization) {
+                        combined.push({ id: t.organization.id, name: t.organization.name, role: t.role })
+                    }
+                })
+            }
+            if (mounted) setAllOrgs(combined)
+
+            let isFoundViaActiveId = false
+
+            // 3. Try Active Org ID (from cookie prop)
+            if (activeOrgId) {
+                // Check if owned
+                const matchedOwned = ownedOrgs?.find(o => o.id === activeOrgId)
+                if (matchedOwned) {
+                    if (mounted) {
+                        setIsOwner(true)
+                        setRole('Owner')
+                        setOrgDetails({ name: matchedOwned.name })
+                        isFoundViaActiveId = true
+                    }
+                } else {
+                    // Check if team
+                    const matchedTeam = teamOrgs?.find((t: any) => t.organization?.id === activeOrgId)
+                    if (matchedTeam) {
+                        if (mounted) {
+                            setIsOwner(false)
+                            const rawRole = matchedTeam.role || 'Staff'
+                            setRole(rawRole.charAt(0).toUpperCase() + rawRole.slice(1))
+                            setOrgDetails({ name: (matchedTeam.organization as any).name })
+                            isFoundViaActiveId = true
+                        }
+                    }
+                }
+            }
+
+            // 4. Fallback if no active ID or not found
+            if (!isFoundViaActiveId) {
+                // Determine Current Context (Default: Latest Owner -> Latest Team)
+                const { data: ownerData } = await supabase
                     .schema('gatepass')
-                    .from('organization_team')
-                    .select('role, organization:organization_id(name)')
+                    .from('organizers')
+                    .select('id, name')
                     .eq('user_id', authedUser.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
                     .maybeSingle()
 
                 if (!mounted) return
 
-                const orgName = (teamData as any)?.organization?.name ?? null
-                const rawRole = (teamData as any)?.role ?? 'Staff'
-                setRole(rawRole.charAt(0).toUpperCase() + rawRole.slice(1))
+                if (ownerData) {
+                    setIsOwner(true)
+                    setRole('Owner')
+                    setOrgDetails({ name: ownerData.name })
+                } else {
+                    setIsOwner(false)
 
-                setOrgDetails(orgName ? { name: orgName } : null)
+                    // Staff?
+                    const { data: teamData } = await supabase
+                        .schema('gatepass')
+                        .from('organization_team')
+                        .select('role, organization:organization_id(name)')
+                        .eq('user_id', authedUser.id)
+                        .limit(1)
+                        .maybeSingle()
+
+                    if (!mounted) return
+
+                    const orgName = (teamData as any)?.organization?.name ?? null
+                    const rawRole = (teamData as any)?.role ?? 'Staff'
+                    setRole(rawRole.charAt(0).toUpperCase() + rawRole.slice(1))
+
+                    setOrgDetails(orgName ? { name: orgName } : null)
+                }
             }
 
             // Super Admin?
@@ -115,6 +184,7 @@ export function AdminSidebar() {
             setIsSuperAdmin(!!profile?.is_super_admin)
 
             setLoading(false)
+            setIsSwitching(false)
         }
 
         run()
@@ -122,7 +192,28 @@ export function AdminSidebar() {
         return () => {
             mounted = false
         }
-    }, [supabase])
+    }, [supabase, activeOrgId])
+
+    const handleSwitchOrg = async (orgId: string, orgName: string) => {
+        setIsSwitching(true)
+        setTargetOrgName(orgName)
+        setOrgMenuOpen(false)
+
+        try {
+            // Smart Redirect: Stay on current page if it's a general section, otherwise go to dashboard
+            const safeCurrentPath = ['/dashboard/settings', '/dashboard/events', '/dashboard/customers', '/dashboard/scan', '/dashboard/monitor', '/dashboard/activity', '/dashboard']
+            const redirectTo = safeCurrentPath.includes(pathname) ? pathname : '/dashboard'
+
+            // Small artificial delay to let the animation start nicely
+            await new Promise(resolve => setTimeout(resolve, 800))
+            await switchOrganization(orgId, redirectTo)
+        } catch (err) {
+            // If it's a redirect error, ignore it as Next.js handles it
+            // If it's a real error, we should stop the loading
+            console.error('Switch failed:', err)
+            setIsSwitching(false)
+        }
+    }
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
@@ -155,6 +246,10 @@ export function AdminSidebar() {
 
     return (
         <>
+            <AnimatePresence>
+                {isSwitching && <OrgSwitchOverlay orgName={targetOrgName} />}
+            </AnimatePresence>
+
             {/* Mobile Header Trigger */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a0a0a] z-40 flex items-center justify-between px-6 border-b border-[#1a1a1a]">
                 <div className="flex items-center gap-2">
@@ -237,23 +332,30 @@ export function AdminSidebar() {
                                         <div className="absolute top-full right-0 mt-2 w-56 bg-[#111] border border-[#222] rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
                                             <div className="p-2">
                                                 <p className="px-3 py-2 text-[10px] uppercase tracking-widest text-gray-500 font-bold">Switch Organization</p>
-                                                <button className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg bg-[#1a1a1a] text-white">
-                                                    <div className="w-6 h-6 rounded bg-white text-black flex items-center justify-center text-xs font-bold">
-                                                        {orgDetails?.name?.charAt(0) || 'G'}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold truncate">{orgDetails?.name || 'GatePass'}</p>
-                                                        <p className="text-[10px] text-gray-400">Current</p>
-                                                    </div>
-                                                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                                                </button>
 
-                                                <button className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors mt-1">
+                                                {allOrgs.map((org) => (
+                                                    <button
+                                                        key={org.id}
+                                                        onClick={() => handleSwitchOrg(org.id, org.name)}
+                                                        className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-white transition-colors mb-0.5"
+                                                    >
+                                                        <div className="w-6 h-6 rounded bg-white/10 text-white flex items-center justify-center text-xs font-bold">
+                                                            {org.name.charAt(0)}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-bold truncate">{org.name}</p>
+                                                            <p className="text-[10px] text-gray-500 capitalize">{org.role}</p>
+                                                        </div>
+                                                        {org.name === orgDetails?.name && <div className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+                                                    </button>
+                                                ))}
+
+                                                <Link href="/onboarding" className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors mt-2 border-t border-white/5 pt-2">
                                                     <div className="w-6 h-6 rounded border border-[#333] flex items-center justify-center">
                                                         <Plus className="w-3 h-3" />
                                                     </div>
                                                     <span className="text-xs font-medium">Create Organization</span>
-                                                </button>
+                                                </Link>
                                             </div>
                                         </div>
                                     </>

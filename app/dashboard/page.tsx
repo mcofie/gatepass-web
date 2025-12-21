@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 
 import { formatCurrency } from '@/utils/format'
 import { Calendar, Ticket, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react'
@@ -14,28 +15,92 @@ export default async function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null // handled by middleware usually
 
+    const cookieStore = await cookies()
+    const activeOrgId = cookieStore.get('gatepass-org-id')?.value
+
+    let resolvedOrgId = activeOrgId
+    let resolvedOrg = null
+
     // 1. Determine Organization Context
-    // Check if owner
-    let { data: org } = await supabase
-        .schema('gatepass')
-        .from('organizers')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-
-    // If not owner, check if team member
-    if (!org) {
-        const { data: teamMember } = await supabase
+    if (activeOrgId) {
+        // Try finding as owner first
+        const { data: explicitOrg } = await supabase
             .schema('gatepass')
-            .from('organization_team')
-            .select('organization_id, organizers(*)')
-            .eq('user_id', user.id)
-            .single()
+            .from('organizers')
+            .select('*')
+            .eq('id', activeOrgId)
+            .maybeSingle()
 
-        if (teamMember) {
-            org = teamMember.organizers as any
+        if (explicitOrg) {
+            resolvedOrgId = explicitOrg.id
+            if (explicitOrg.user_id === user.id) {
+                resolvedOrg = explicitOrg
+            } else {
+                // Check team participation for this specific org
+                const { data: teamMember } = await supabase
+                    .schema('gatepass')
+                    .from('organization_team')
+                    .select('organization_id, organizers(*)')
+                    .eq('organization_id', activeOrgId)
+                    .eq('user_id', user.id)
+                    .maybeSingle()
+
+                if (teamMember && teamMember.organizers) {
+                    resolvedOrg = teamMember.organizers as any
+                }
+            }
+        } else {
+            // Check if user is part of this org team
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('organization_id, organizers(*)')
+                .eq('organization_id', activeOrgId)
+                .eq('user_id', user.id)
+                .maybeSingle()
+
+            if (teamMember && teamMember.organizers) {
+                resolvedOrgId = teamMember.organization_id
+                resolvedOrg = teamMember.organizers as any
+            } else {
+                resolvedOrgId = undefined
+            }
         }
     }
+
+    // Fallback: Default logic (Latest Owner -> Latest Team)
+    if (!resolvedOrg) {
+        // Latest Owned
+        const { data: latestOrg } = await supabase
+            .schema('gatepass')
+            .from('organizers')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        if (latestOrg) {
+            resolvedOrgId = latestOrg.id
+            resolvedOrg = latestOrg
+        } else {
+            // Latest Team
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('organization_id, organizers(*)')
+                .eq('user_id', user.id)
+                .limit(1)
+                .maybeSingle()
+
+            if (teamMember && teamMember.organizers) {
+                resolvedOrgId = teamMember.organization_id
+                resolvedOrg = teamMember.organizers as any
+            }
+        }
+    }
+
+    const org = resolvedOrg
 
     // Fetch user profile to check for personal completeness
     const { data: profile } = await supabase
@@ -63,6 +128,9 @@ export default async function DashboardPage() {
     const missingOrg = !org.logo_url || !org.description || !org.paystack_subaccount_code
     const missingProfile = !profile?.full_name || !profile?.username || !profile?.phone_number
     const needsSetup = missingOrg || missingProfile
+
+    // Check for settlement status
+    const needsSettlement = org ? !org.paystack_subaccount_code : false
 
     const orgId = org.id
 
@@ -159,12 +227,9 @@ export default async function DashboardPage() {
             const { organizerPayout } = calculateFees(subtotal, feeBearer)
 
             // Robust Snapshot Logic
-            const finalPlatformFee = tx.platform_fee ?? organizerPayout // If snapshot exists, trust it? No, calculateFees returns payout, not fee?
-            // Wait, calculateFees returns { organizerPayout, platformFee, ... }
+            const finalPlatformFee = tx.platform_fee ?? organizerPayout
 
-            // Recalculate robustly
-            const calculated = calculateFees(subtotal, feeBearer) // We don't have event-specific rates here easily without fetching more. 
-            // Assuming standard rates for fallback is safer than crashing.
+            const calculated = calculateFees(subtotal, feeBearer)
 
             const pFee = tx.platform_fee ?? calculated.platformFee
             const procFee = tx.applied_processor_fee ?? calculated.processorFee
@@ -182,33 +247,6 @@ export default async function DashboardPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-fade-in pb-20">
-            {/* Setup Progress Nudge */}
-            {needsSetup && (
-                <div className="relative group overflow-hidden bg-white dark:bg-[#111] border border-orange-200 dark:border-orange-500/20 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-500">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl -mr-10 -mt-10" />
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                        <div className="flex items-start md:items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-400">
-                                <AlertTriangle className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h4 className="text-lg font-bold text-gray-900 dark:text-white">Complete your account setup</h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                                    {missingOrg && missingProfile
-                                        ? "Your organization profile and personal details are incomplete."
-                                        : missingOrg
-                                            ? "Your organization is missing key details (bio, logo, or settlement info)."
-                                            : "Your personal profile is missing some details (full name or username)."}
-                                </p>
-                            </div>
-                        </div>
-                        <Link href="/dashboard/settings" className="flex items-center gap-2 px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-black/10">
-                            Finish Setup
-                            <ArrowRight className="w-4 h-4" />
-                        </Link>
-                    </div>
-                </div>
-            )}
 
             {/* Header */}
             <div className="flex flex-col gap-1">

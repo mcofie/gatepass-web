@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef } from 'react'
+import Image from 'next/image'
 import { Volume2, VolumeX } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -36,11 +37,15 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
     if (!videoUrl) {
         return (
             <div className="absolute inset-0 z-0">
-                <img
-                    src={posterUrl || ''}
-                    alt="Event Background"
-                    className="w-full h-full object-cover opacity-90"
-                />
+                {posterUrl && (
+                    <Image
+                        src={posterUrl}
+                        alt="Event Background"
+                        fill
+                        className="object-cover opacity-90"
+                        priority={!forcePause} // Prioritize if this is the active/first item
+                    />
+                )}
             </div>
         )
     }
@@ -48,11 +53,15 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
     return (
         <motion.div className="absolute inset-0 z-0" layoutId={layoutId}>
             {/* Poster Image (Always visible as base/fallback) */}
-            <img
-                src={posterUrl || ''}
-                alt="Event Background"
-                className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-1000"
-            />
+            {posterUrl && (
+                <Image
+                    src={posterUrl}
+                    alt="Event Background"
+                    fill
+                    className="object-cover opacity-90 transition-opacity duration-1000"
+                    priority={!forcePause}
+                />
+            )}
 
             {/* Video (Only render when active) */}
             {!forcePause && videoUrl && (

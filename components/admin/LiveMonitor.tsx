@@ -21,7 +21,7 @@ type CheckInLog = {
     ticket_type: string
 }
 
-export function LiveMonitor() {
+export function LiveMonitor({ organizationId }: { organizationId: string }) {
     const supabase = createClient()
     const [events, setEvents] = useState<EventSummary[]>([])
     const [loading, setLoading] = useState(true)
@@ -41,75 +41,39 @@ export function LiveMonitor() {
                     return
                 }
 
-                let orgId = null
+                let orgId = organizationId
 
-                // 1. Check if Owner
+                // Determine user role for this specific org
+                // Check if Owner
                 const { data: ownerData } = await supabase
                     .schema('gatepass')
                     .from('organizers')
                     .select('id')
+                    .eq('id', orgId)
                     .eq('user_id', user.id)
                     .maybeSingle()
 
                 if (ownerData) {
-                    orgId = ownerData.id
                     setUserRole('owner')
                 } else {
-                    // 2. Check if Team member (Staff/Admin)
+                    // Check if Team member
                     const { data: teamData } = await supabase
                         .schema('gatepass')
                         .from('organization_team')
-                        .select('role, organization_id')
+                        .select('role')
+                        .eq('organization_id', orgId)
                         .eq('user_id', user.id)
                         .maybeSingle()
 
                     if (teamData) {
-                        orgId = teamData.organization_id
                         const role = (teamData as any).role?.toLowerCase()
                         setUserRole(role)
-
-                        if (role === 'staff') {
-                            setLoading(false)
-                            return
-                        }
                     }
-                }
-
-                // 3. Fallback for Super Admin (Try to find any organization if they are super admin)
-                if (!orgId) {
-                    const { data: profile } = await supabase
-                        .schema('gatepass')
-                        .from('profiles')
-                        .select('is_super_admin')
-                        .eq('id', user.id)
-                        .maybeSingle()
-
-                    if (profile?.is_super_admin) {
-                        // For super admin, just pick the first available organization for now
-                        // or allow them to see all? Monitor is usually org-specific.
-                        const { data: allOrgs } = await supabase
-                            .schema('gatepass')
-                            .from('organizers')
-                            .select('id')
-                            .limit(1)
-                        if (allOrgs && allOrgs.length > 0) {
-                            orgId = allOrgs[0].id
-                        }
-                    }
-                }
-
-                if (!orgId) {
-                    setLoading(false)
-                    return
                 }
 
                 const yesterday = new Date()
                 yesterday.setHours(yesterday.getHours() - 24)
 
-                // Fetch events using a more flexible filter
-                // We want events that either:
-                // a) Have an ends_at in the future (or very recent past)
-                // b) Have NO ends_at but a starts_at in the future (or very recent past)
                 const { data } = await supabase
                     .schema('gatepass')
                     .from('events')
@@ -129,7 +93,7 @@ export function LiveMonitor() {
             }
         }
         fetchEvents()
-    }, [])
+    }, [organizationId])
 
     // Initial Stats Fetch
     useEffect(() => {

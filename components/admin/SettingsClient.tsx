@@ -22,7 +22,7 @@ export function SettingsClient({
 }) {
     const [activeTab, setActiveTab] = useState<'details' | 'profile' | 'team' | 'settlement'>('profile')
 
-    const canManageTeam = userRole === 'Owner' || userRole === 'Admin'
+    const canManageTeam = (userRole || '').trim().toLowerCase() === 'owner' || (userRole || '').trim().toLowerCase() === 'admin'
 
     return (
         <div className="max-w-5xl mx-auto">

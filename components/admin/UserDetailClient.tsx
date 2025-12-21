@@ -1,39 +1,153 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, Organizer } from '@/types/gatepass'
-import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, MoreHorizontal, Ban, Trash2, User, Loader2, Save } from 'lucide-react'
+import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, Save } from 'lucide-react'
 import { format } from 'date-fns'
-import { useState } from 'react'
 import { updateOrganizerFee } from '@/app/actions/fees'
+import { suspendUser, unsuspendUser, deleteUser, toggleSuperAdmin } from '@/app/actions/admin'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
-import { getEffectiveFeeRates, PLATFORM_FEE_PERCENT } from '@/utils/fees'
+import { PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
 interface UserDetailProps {
     profile: Profile
-    organizer: Organizer | null
+    organizers: Organizer[]
     teamMemberships?: any[]
+    authUser?: { id: string, email?: string, banned_until?: string }
 }
 
-export function UserDetailClient({ profile, organizer, teamMemberships = [] }: UserDetailProps) {
-    const router = useRouter()
+function OrganizerCard({ organizer }: { organizer: Organizer }) {
     const [feeSaving, setFeeSaving] = useState(false)
-    const [feeInput, setFeeInput] = useState<string>(organizer?.platform_fee_percent ? (organizer.platform_fee_percent * 100).toString() : '')
+    const [feeInput, setFeeInput] = useState<string>(organizer.platform_fee_percent ? (organizer.platform_fee_percent * 100).toString() : '')
 
     const handleSaveFee = async () => {
-        if (!organizer) return
         setFeeSaving(true)
         try {
             const val = feeInput ? parseFloat(feeInput) / 100 : null
             await updateOrganizerFee(organizer.id, val)
-            toast.success('Organizer fee updated')
+            toast.success(`Fee updated for ${organizer.name}`)
         } catch (e: any) {
             toast.error(e.message)
         } finally {
             setFeeSaving(false)
+        }
+    }
+
+    return (
+        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Building2 className="w-24 h-24 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-blue-500" />
+                Organization
+            </h3>
+
+            <div className="space-y-4 relative z-10">
+                <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Name</label>
+                    <p className="text-gray-900 dark:text-white font-medium">{organizer.name}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Bank</label>
+                        <p className="text-gray-900 dark:text-white font-medium">{organizer.bank_name || '-'}</p>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Account</label>
+                        <p className="text-gray-900 dark:text-white font-medium font-mono text-sm">{organizer.account_number ? `****${organizer.account_number.slice(-4)}` : '-'}</p>
+                    </div>
+                </div>
+                <div>
+                    <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-white/5">{organizer.slug}</p>
+                </div>
+                <div className="pt-4 border-t border-gray-100 dark:border-white/5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-2">Platform Fee Override (%)</label>
+                    <div className="flex gap-2">
+                        <Input
+                            value={feeInput}
+                            onChange={(e) => setFeeInput(e.target.value)}
+                            placeholder="Default (4%)"
+                            className="h-9 text-sm"
+                            type="number"
+                        />
+                        <Button
+                            size="sm"
+                            onClick={handleSaveFee}
+                            disabled={feeSaving}
+                            className="h-9 px-3 bg-black dark:bg-white text-white dark:text-black hover:opacity-90"
+                        >
+                            {feeSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        </Button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+                        Effective Rate: <span className="font-bold text-gray-900 dark:text-white">
+                            {((organizer.platform_fee_percent && organizer.platform_fee_percent > 0)
+                                ? organizer.platform_fee_percent * 100
+                                : PLATFORM_FEE_PERCENT * 100).toFixed(2)}%
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export function UserDetailClient({ profile, organizers, teamMemberships = [], authUser }: UserDetailProps) {
+    const router = useRouter()
+
+    // Action States
+    const [isSuspending, setIsSuspending] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [isPromoting, setIsPromoting] = useState(false)
+
+    // Derived State
+    const isBanned = authUser?.banned_until && new Date(authUser.banned_until) > new Date()
+
+    const handleSuspendToggle = async () => {
+        setIsSuspending(true)
+        try {
+            const action = isBanned ? unsuspendUser : suspendUser
+            const res = await action(profile.id)
+            if (res.error) throw new Error(res.error)
+            toast.success(isBanned ? 'User unsuspended' : 'User suspended')
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setIsSuspending(false)
+        }
+    }
+
+    const handleDelete = async () => {
+        const confirm = window.confirm('Are you sure you want to PERMANENTLY delete this user? This cannot be undone.')
+        if (!confirm) return
+
+        setIsDeleting(true)
+        try {
+            const res = await deleteUser(profile.id)
+            if (res.error) throw new Error(res.error)
+            toast.success('User deleted')
+            router.push('/admin/users')
+        } catch (e: any) {
+            toast.error(e.message)
+            setIsDeleting(false)
+        }
+    }
+
+    const handleSuperAdminToggle = async () => {
+        setIsPromoting(true)
+        try {
+            const newValue = !profile.is_super_admin
+            const res = await toggleSuperAdmin(profile.id, newValue)
+            if (res.error) throw new Error(res.error)
+            toast.success(newValue ? 'Promoted to Super Admin' : 'Revoked Super Admin')
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setIsPromoting(false)
         }
     }
 
@@ -58,25 +172,48 @@ export function UserDetailClient({ profile, organizer, teamMemberships = [] }: U
                                 <Shield className="w-3 h-3" /> Admin
                             </span>
                         )}
-                        {organizer && (
+                        {organizers.length > 0 && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                                <Building2 className="w-3 h-3" /> Organizer
+                                <Building2 className="w-3 h-3" /> {organizers.length > 1 ? `${organizers.length} Orgs` : 'Organizer'}
                             </span>
                         )}
                         {teamMemberships.map((tm) => (
                             <span key={tm.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                                <Shield className="w-3 h-3" /> {tm.role === 'Admin' ? 'Team Admin' : 'Staff'}
+                                <Shield className="w-3 h-3" /> Staff
                             </span>
                         ))}
+                        {isBanned && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
+                                <Ban className="w-3 h-3" /> Suspended
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div className="ml-auto flex gap-2">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <Ban className="w-4 h-4" />
-                        Suspend
+                    <button
+                        onClick={handleSuperAdminToggle}
+                        disabled={isPromoting}
+                        className={`flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold transition-colors ${profile.is_super_admin ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 bg-white dark:bg-[#111]'}`}
+                    >
+                        {isPromoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                        {profile.is_super_admin ? 'Revoke Admin' : 'Make Super Admin'}
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-red-600/20">
-                        <Trash2 className="w-4 h-4" />
+
+                    <button
+                        onClick={handleSuspendToggle}
+                        disabled={isSuspending}
+                        className={`flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium transition-colors ${isBanned ? 'bg-orange-50 text-orange-600' : 'bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                    >
+                        {isSuspending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                        {isBanned ? 'Unsuspend' : 'Suspend'}
+                    </button>
+
+                    <button
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-red-600/20 disabled:opacity-50"
+                    >
+                        {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                         Delete User
                     </button>
                 </div>
@@ -106,68 +243,11 @@ export function UserDetailClient({ profile, organizer, teamMemberships = [] }: U
                         </div>
                     </div>
 
-                    {/* Organizer Card (Conditional) */}
-                    {organizer && (
-                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <Building2 className="w-24 h-24 text-blue-500" />
-                            </div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                <Building2 className="w-5 h-5 text-blue-500" />
-                                Organization
-                            </h3>
+                    {/* Owned Organizations */}
+                    {organizers.map((org) => (
+                        <OrganizerCard key={org.id} organizer={org} />
+                    ))}
 
-                            <div className="space-y-4 relative z-10">
-                                <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Name</label>
-                                    <p className="text-gray-900 dark:text-white font-medium">{organizer.name}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Bank</label>
-                                        <p className="text-gray-900 dark:text-white font-medium">{organizer.bank_name || '-'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Account</label>
-                                        <p className="text-gray-900 dark:text-white font-medium font-mono text-sm">{organizer.account_number ? `****${organizer.account_number.slice(-4)}` : '-'}</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-white/5">{organizer.slug}</p>
-                                </div>
-                                <div className="pt-4 border-t border-gray-100 dark:border-white/5">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-2">Platform Fee Override (%)</label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            value={feeInput}
-                                            onChange={(e) => setFeeInput(e.target.value)}
-                                            placeholder="Default (4%)"
-                                            className="h-9 text-sm"
-                                            type="number"
-                                        />
-                                        <Button
-                                            size="sm"
-                                            onClick={handleSaveFee}
-                                            disabled={feeSaving}
-                                            className="h-9 px-3 bg-black dark:bg-white text-white dark:text-black hover:opacity-90"
-                                        >
-                                            {feeSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                                        </Button>
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
-                                        Effective Rate: <span className="font-bold text-gray-900 dark:text-white">
-                                            {((organizer.platform_fee_percent && organizer.platform_fee_percent > 0)
-                                                ? organizer.platform_fee_percent * 100
-                                                : PLATFORM_FEE_PERCENT * 100).toFixed(2)}%
-                                        </span>
-                                    </p>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
-                                        Set a specific fee for this organizer. Leave empty to use system default.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                     {/* Team Memberships Card */}
                     {teamMemberships.length > 0 && (
                         <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">

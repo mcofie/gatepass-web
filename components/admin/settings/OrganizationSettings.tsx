@@ -10,6 +10,8 @@ import { Loader2 } from 'lucide-react'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 
 export function OrganizationSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
+    if (!organizer) return null
+
     const [loading, setLoading] = React.useState(false)
     const canEdit = userRole === 'Owner' || userRole === 'Admin'
     const [name, setName] = React.useState(organizer?.name || '')

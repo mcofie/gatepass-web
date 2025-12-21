@@ -457,7 +457,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 }}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={`
-                ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] font-sans select-none
+                ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl ${(view === 'details' || view === 'success') ? 'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]' : ''} font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
                 rounded-2xl flex flex-col ${(view === 'details' && !isExpanded) || view === 'summary' ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
@@ -469,7 +469,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 ${(view === 'details' && !isExpanded) ? 'cursor-pointer active:scale-[0.98]' : ''}
             `}>
                 {view === 'details' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <div className="animate-fade-in h-full">
                         <DetailsView
                             event={event}
                             cheapestTier={cheapestTier}
@@ -483,7 +483,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     </div>
                 )}
                 {view === 'tickets' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <div className="animate-fade-in h-full">
                         <TicketsView
                             tiers={tiers}
                             selectedTickets={selectedTickets}
@@ -497,7 +497,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     </div>
                 )}
                 {view === 'checkout' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left' : 'animate-slide-in-right'}>
+                    <div className="animate-fade-in h-full">
                         <CheckoutFormView
                             guestName={guestName} setGuestName={setGuestName}
                             guestEmail={guestEmail} setGuestEmail={setGuestEmail}
@@ -510,7 +510,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     </div>
                 )}
                 {view === 'summary' && (
-                    <div className={direction === 'back' ? 'animate-slide-in-left flex-1 min-h-0 flex flex-col' : 'animate-slide-in-right flex-1 min-h-0 flex flex-col'}>
+                    <div className="animate-fade-in flex-1 min-h-0 flex flex-col h-full">
                         <SummaryView
                             event={event}
                             tiers={tiers}
@@ -951,13 +951,13 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     onClick={onContinue}
                     disabled={loading || !guestName || !guestEmail}
                     style={{
-                        backgroundColor: (guestName && guestEmail) ? (primaryColor || undefined) : undefined,
-                        color: (guestName && guestEmail && primaryColor) ? getContrastColor(primaryColor) : '#ffffff'
+                        backgroundColor: (!loading && guestName && guestEmail) ? (primaryColor || undefined) : undefined,
+                        color: (!loading && guestName && guestEmail && primaryColor) ? getContrastColor(primaryColor) : undefined
                     }}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-100 disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                     {loading ? 'Processing...' : 'Continue to Payment'}
-                    {!loading && <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>}
+                    {!loading && <svg className="w-4 h-4 text-gray-400 dark:text-zinc-600 group-disabled:text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>}
                 </button>
             </div>
         </div>

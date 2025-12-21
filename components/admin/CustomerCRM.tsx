@@ -17,7 +17,7 @@ type Customer = {
     last_seen: string
 }
 
-export function CustomerCRM() {
+export function CustomerCRM({ organizationId }: { organizationId: string }) {
     const supabase = createClient()
     const [customers, setCustomers] = useState<Customer[]>([])
     const [loading, setLoading] = useState(true)
@@ -32,28 +32,16 @@ export function CustomerCRM() {
         const fetchCustomers = async () => {
             setLoading(true)
             try {
-                // Determine Organization Context (Similar to Dashboard)
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user) throw new Error('No user')
 
-                let { data: org } = await supabase.schema('gatepass').from('organizers').select('id').eq('user_id', user.id).single()
-                if (!org) {
-                    const { data: teamMember } = await supabase.schema('gatepass').from('organization_team').select('organization_id').eq('user_id', user.id).single()
-                    if (teamMember) org = { id: teamMember.organization_id }
-                }
-
-                if (!org) {
-                    setCustomers([])
-                    setHasMore(false)
-                    setLoading(false)
-                    return
-                }
+                let orgId = organizationId
 
                 let query = supabase
                     .schema('gatepass')
                     .from('customer_stats')
                     .select('*')
-                    .eq('organization_id', org.id) // Filter by Org
+                    .eq('organization_id', orgId) // Filter by Org
                     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
                 if (searchQuery) {
@@ -109,7 +97,7 @@ export function CustomerCRM() {
     }
 
     return (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
             <div className="flex justify-between items-end">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Customer Database</h1>

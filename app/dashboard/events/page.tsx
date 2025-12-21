@@ -1,55 +1,107 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { EventsClient } from '@/components/admin/EventsClient'
-
 
 export const revalidate = 0
 
 export default async function AdminEventsPage() {
     const supabase = await createClient()
 
-    // Fetch all events (Admin view)
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) redirect('/login')
 
-    if (!user) {
-        return <div>Please log in to view events.</div>
-    }
+    // 1. Determine Organization Context
+    const cookieStore = await cookies()
+    const activeOrgId = cookieStore.get('gatepass-org-id')?.value
 
-    // 1. Determine Organization Context and Role
-    let { data: org } = await supabase
-        .schema('gatepass')
-        .from('organizers')
-        .select('id')
-        .eq('user_id', user.id)
-        .single()
+    let resolvedOrgId = activeOrgId
+    let role = 'Staff'
 
-    let role = org ? 'Owner' : null
-    let orgId = org?.id
-
-    // If not owner, check if team member
-    if (!org) {
-        const { data: teamMember } = await supabase
+    // A. Explicit Switch Check
+    if (activeOrgId) {
+        // Try finding as owner first
+        const { data: explicitOrg } = await supabase
             .schema('gatepass')
-            .from('organization_team')
-            .select('organization_id, role')
-            .eq('user_id', user.id)
-            .single()
+            .from('organizers')
+            .select('id, user_id')
+            .eq('id', activeOrgId)
+            // .eq('user_id', user.id) // check later for role
+            .maybeSingle()
 
-        if (teamMember) {
-            orgId = teamMember.organization_id
-            role = teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)
+        if (explicitOrg) {
+            resolvedOrgId = explicitOrg.id
+            if (explicitOrg.user_id === user.id) {
+                role = 'Owner'
+            } else {
+                // Check team role for this specific org
+                const { data: teamRole } = await supabase
+                    .schema('gatepass')
+                    .from('organization_team')
+                    .select('role')
+                    .eq('organization_id', activeOrgId)
+                    .eq('user_id', user.id)
+                    .maybeSingle()
+                if (teamRole) role = teamRole.role.charAt(0).toUpperCase() + teamRole.role.slice(1)
+            }
+        } else {
+            // Check if user is part of this org team
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('organization_id, role')
+                .eq('organization_id', activeOrgId)
+                .eq('user_id', user.id)
+                .maybeSingle()
+
+            if (teamMember) {
+                resolvedOrgId = teamMember.organization_id
+                role = teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)
+            } else {
+                // Cookie invalid or user no longer part of org, reset resolvedOrgId to trigger fallback
+                resolvedOrgId = undefined
+            }
         }
     }
 
-    if (!orgId) {
-        return (
-            <div className="max-w-7xl mx-auto py-12 text-center">
-                <h2 className="text-2xl font-bold">No Organization Found</h2>
-                <p className="mb-4 text-gray-500">You need to be part of an organization to manage events.</p>
-                <Link href="/onboarding" className="text-blue-600 hover:underline">Go to Onboarding</Link>
-            </div>
-        )
+    // B. Fallback (Default) if no valid org resolved yet
+    if (!resolvedOrgId) {
+        // Latest Owned
+        const { data: latestOrg } = await supabase
+            .schema('gatepass')
+            .from('organizers')
+            .select('id')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        if (latestOrg) {
+            resolvedOrgId = latestOrg.id
+            role = 'Owner'
+        } else {
+            // Latest Team
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('organization_id, role')
+                .eq('user_id', user.id)
+                .limit(1)
+                .maybeSingle()
+
+            if (teamMember) {
+                resolvedOrgId = teamMember.organization_id
+                role = teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)
+            }
+        }
     }
+
+    if (!resolvedOrgId) {
+        return redirect('/onboarding')
+    }
+
+    const orgId = resolvedOrgId
 
     try {
         const { createClient: createAdminClient } = await import('@supabase/supabase-js')

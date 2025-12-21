@@ -37,8 +37,14 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
             organizers:organization_id (id, name)
         `)
         .eq('user_id', id)
+    const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(id)
 
     return (
-        <UserDetailClient profile={profile} organizer={organizer} teamMemberships={teamMemberships as any || []} />
+        <UserDetailClient
+            profile={profile}
+            organizers={organizers || []}
+            teamMemberships={teamMemberships as any || []}
+            authUser={user as any}
+        />
     )
 }

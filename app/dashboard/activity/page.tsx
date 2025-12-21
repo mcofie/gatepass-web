@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { ActivityFeed } from '@/components/admin/ActivityFeed'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { History } from 'lucide-react'
 
 export default async function ActivityPage() {
@@ -9,51 +10,88 @@ export default async function ActivityPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
 
-    // 1. Determine Organization Context & Ownership
-    // Check if owner
-    let { data: org } = await supabase
-        .schema('gatepass')
-        .from('organizers')
-        .select('id, user_id')
-        .eq('user_id', user.id)
-        .single()
+    // 1. Determine Organization Context
+    const cookieStore = await cookies()
+    const activeOrgId = cookieStore.get('gatepass-org-id')?.value
 
-    // Strict Owner Check: If user is not the owner (user_id matches), deny access.
-    // The user request said "only visible to org owner". 
-    // If org is null here, they might be a team member.
+    let org = null
 
-    if (!org) {
-        // Check if they are a team member to gracefully handle "No Org" vs "Not Owner"
-        // But for strict "Owner Only" requirement:
-        // If they don't have an org where they are the owner, they can't see this.
-        // We might want to check team members just to be sure we don't block them if the requirement was loose, 
-        // but "org owner" usually means the creator.
-        // Let's stick to strict owner check for now as requested.
-
-        // However, if they are an ADMIN-level team member, maybe they should see it?
-        // User said "org owner". I will restrict to `org.user_id === user.id`.
-
-        const { data: teamMember } = await supabase
+    // A. Explicit Switch
+    if (activeOrgId) {
+        // Try finding as owner first
+        const { data: explicitOrg } = await supabase
             .schema('gatepass')
-            .from('organization_team')
-            .select('organization_id')
-            .eq('user_id', user.id)
-            .single()
+            .from('organizers')
+            .select('id, user_id')
+            .eq('id', activeOrgId)
+            // .eq('user_id', user.id) // Don't filter by user yet, we want to know if it exists even if not owner
+            .maybeSingle()
 
-        if (teamMember) {
-            // They are a team member, but not owner.
-            return (
-                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-                    <div className="w-16 h-16 bg-gray-100 dark:bg-white/10 rounded-full flex items-center justify-center mb-6">
-                        <History className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Restricted</h1>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-md">The Activity Log is only available to the organization owner.</p>
-                </div>
-            )
+        if (explicitOrg) {
+            org = explicitOrg
+        } else {
+            // Try finding via team
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('organization_id, organizers(id, user_id)')
+                .eq('organization_id', activeOrgId)
+                .eq('user_id', user.id)
+                .maybeSingle()
+
+            if (teamMember && teamMember.organizers) {
+                org = teamMember.organizers as any
+            }
         }
+    }
 
+    // B. Fallback (Default)
+    if (!org) {
+        // Latest Owned
+        const { data: latestOrg } = await supabase
+            .schema('gatepass')
+            .from('organizers')
+            .select('id, user_id')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        if (latestOrg) {
+            org = latestOrg
+        } else {
+            // Latest Team
+            const { data: teamMember } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('organization_id, organizers(id, user_id)')
+                .eq('user_id', user.id)
+                .limit(1)
+                .maybeSingle()
+
+            if (teamMember && teamMember.organizers) {
+                org = teamMember.organizers as any
+            }
+        }
+    }
+
+    // 2. Access Control
+    if (!org) {
         return redirect('/onboarding')
+    }
+
+    const isOwner = org.user_id === user.id
+
+    if (!isOwner) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-white/10 rounded-full flex items-center justify-center mb-6">
+                    <History className="w-8 h-8 text-gray-400" />
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Restricted</h1>
+                <p className="text-gray-500 dark:text-gray-400 max-w-md">The Activity Log is only available to the organization owner.</p>
+            </div>
+        )
     }
 
     return (

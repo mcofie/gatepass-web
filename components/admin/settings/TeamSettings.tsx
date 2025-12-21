@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { Loader2, Trash2, Mail, Shield, UserPlus } from 'lucide-react'
-import { inviteTeamMember } from '@/app/actions/team'
+import { inviteTeamMember, updateTeamMemberRole } from '@/app/actions/team'
 
 type TeamMember = {
     id: string
@@ -49,6 +49,20 @@ export function TeamSettings({ organizer }: { organizer: any }) {
             setMembers(data as any[])
         } catch (error: any) {
             console.error('Error fetching team:', error.message || error)
+        }
+    }
+
+    const handleRoleChange = async (memberId: string, newRole: 'admin' | 'staff') => {
+        // Optimistic update
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
+
+        try {
+            const result = await updateTeamMemberRole(memberId, newRole, organizer.id)
+            if (result.error) throw new Error(result.error)
+            toast.success(`Role updated to ${newRole}`)
+        } catch (error: any) {
+            toast.error(error.message)
+            fetchTeam() // Revert on error
         }
     }
 
@@ -196,11 +210,25 @@ export function TeamSettings({ organizer }: { organizer: any }) {
                                         <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
                                             {member.profiles?.full_name ? member.email : ''}
                                         </p>
-                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold bg-white dark:bg-white/5 px-2 py-0.5 rounded border border-gray-100 dark:border-white/10">
-                                            {member.role}
-                                        </p>
+
+                                        {/* Editable Role Badge */}
+                                        <div className="relative">
+                                            <select
+                                                value={member.role}
+                                                onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'staff')}
+                                                disabled={!member.user_id} // Disable for pending invites
+                                                className="appearance-none text-[10px] uppercase tracking-wider font-bold bg-white dark:bg-white/5 pl-2 pr-6 py-0.5 rounded border border-gray-100 dark:border-white/10 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
+                                            >
+                                                <option value="staff">Staff</option>
+                                                <option value="admin">Admin</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-400">
+                                                <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                                            </div>
+                                        </div>
+
                                         {!member.user_id && (
-                                            <span className="text-[10px] bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-2 py-0.5 rounded-full font-bold">Pending Invite</span>
+                                            <span className="text-[10px] bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-2 py-0.5 rounded-full font-bold">Pending</span>
                                         )}
                                     </div>
                                 </div>

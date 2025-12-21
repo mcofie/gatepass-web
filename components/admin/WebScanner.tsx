@@ -6,7 +6,7 @@ import { ScanLine, CheckCircle2, XCircle, Search, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
 
-export function WebScanner() {
+export function WebScanner({ organizationId }: { organizationId: string }) {
     const supabase = createClient()
     const [ticketId, setTicketId] = useState('')
     const [loading, setLoading] = useState(false)
@@ -28,7 +28,7 @@ export function WebScanner() {
         setLastScan(null)
 
         try {
-            // 1. Fetch Ticket
+            // 1. Fetch Ticket & Validate Org - Restricted by organizationId
             const { data: ticket, error: fetchError } = await supabase
                 .schema('gatepass')
                 .from('tickets')
@@ -38,11 +38,12 @@ export function WebScanner() {
                     price,
                     currency,
                     ticket_tiers (name),
-                    events (title),
+                    events (title, organization_id),
                     profiles (full_name, email),
                     reservations (guest_name)
                 `)
                 .eq('id', ticketId.trim())
+                .eq('events.organization_id', organizationId) // SECURITY: Only allow scanning tickets for THIS org
                 .single()
 
             if (fetchError || !ticket) {

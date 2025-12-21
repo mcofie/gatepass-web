@@ -69,3 +69,30 @@ export async function inviteTeamMember(organizationId: string, email: string, ro
 
     return { success: true }
 }
+
+export async function updateTeamMemberRole(teamMemberId: string, newRole: 'admin' | 'staff', organizationId: string) {
+    const supabase = await createClient()
+
+    // 1. Verify Auth
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return { error: 'Not authenticated' }
+    }
+
+    // 2. Insert into Database (RLS will verify permission)
+    const { error: dbError } = await supabase
+        .schema('gatepass')
+        .from('organization_team')
+        .update({ role: newRole })
+        .eq('id', teamMemberId)
+        .eq('organization_id', organizationId) // Extra safety
+
+    if (dbError) {
+        return { error: dbError.message }
+    }
+
+    // Log Activity
+    await logActivity(organizationId, 'update_role', 'staff', undefined, { teamMemberId, newRole })
+
+    return { success: true }
+}
