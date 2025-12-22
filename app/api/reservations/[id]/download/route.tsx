@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { NextResponse } from 'next/server'
 import { renderToStream } from '@react-pdf/renderer'
 import { TicketPdf } from '@/components/pdf/TicketPdf'
@@ -13,12 +14,13 @@ export async function GET(
         const { id: reservationId } = await params
 
         const supabase = await createClient()
+        const adminSupabase = createAdminClient()
 
         // Get current user for ownership check
         const { data: { user } } = await supabase.auth.getUser()
 
-        // 1. Fetch Reservation to check ownership
-        const { data: reservation, error: resError } = await supabase
+        // 1. Fetch Reservation to check ownership (use admin to bypass RLS)
+        const { data: reservation, error: resError } = await adminSupabase
             .schema('gatepass')
             .from('reservations')
             .select('user_id, guest_email')
@@ -29,9 +31,8 @@ export async function GET(
             return NextResponse.json({ error: 'Reservation not found' }, { status: 404 })
         }
 
-        // Ownership check: user must own reservation OR be authenticated as the guest
-        // For guest purchases, we allow access if they have the link (UUID is unguessable)
-        // For authenticated users, verify they own the reservation
+        // Ownership check: user must own reservation OR be admin OR be a guest (no user)
+        // For guest purchases, allow access if they have the link (UUID is unguessable)
         if (user && reservation.user_id && reservation.user_id !== user.id) {
             // Check if user is admin (bypass)
             const { data: profile } = await supabase
@@ -46,8 +47,8 @@ export async function GET(
             }
         }
 
-        // 2. Fetch Tickets
-        const { data: tickets, error } = await supabase
+        // 2. Fetch Tickets (use admin client to bypass RLS)
+        const { data: tickets, error } = await adminSupabase
             .schema('gatepass')
             .from('tickets')
             .select(`

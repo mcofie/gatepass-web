@@ -295,8 +295,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             await notifyAdminOfSale({
                 eventName: reservation.events?.title,
                 customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                amount: reservation.total_amount || 0,
-                currency: reservation.ticket_tiers?.currency || 'GHS',
+                amount: rawAmount, // Use transaction amount, not reservation.total_amount
+                currency: tx.currency || reservation.ticket_tiers?.currency || 'GHS',
                 quantity: reservation.quantity || 1,
                 ticketType: reservation.ticket_tiers?.name || 'Ticket'
             })
