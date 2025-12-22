@@ -1171,55 +1171,19 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
     const activeTicket = tickets[0] // Primary ticket for QR (or handle multiple via swipe if needed, for now sticking to order summary style with first QR)
 
     const handleDownloadPDF = async () => {
-        setDownloading(true)
-        try {
-            // Target the hidden container with all tickets
-            const element = document.getElementById('ticket-print-container')
-            if (!element) return
-
-            // Dynamically load heavy libraries
-            const html2canvas = (await import('html2canvas')).default
-            const jsPDF = (await import('jspdf')).default
-
-            // Capture at 2x scale (3x is too heavy for large lists)
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: null,
-            })
-
-            const imgData = canvas.toDataURL('image/png')
-            const pdf = new jsPDF('p', 'mm', 'a5') // A5 is good for mobile tickets
-            const pdfPageWidth = pdf.internal.pageSize.getWidth()
-            const pdfPageHeight = pdf.internal.pageSize.getHeight()
-            const margin = 10 // 10mm margin
-
-            const availableWidth = pdfPageWidth - (margin * 2)
-            const availableHeight = pdfPageHeight - (margin * 2)
-
-            const imgRatio = canvas.width / canvas.height
-
-            // Calculate dimensions to FIT within the available area (contain)
-            let finalPdfWidth = availableWidth
-            let finalPdfHeight = finalPdfWidth / imgRatio
-
-            if (finalPdfHeight > availableHeight) {
-                finalPdfHeight = availableHeight
-                finalPdfWidth = finalPdfHeight * imgRatio
-            }
-
-            // Center the image
-            const x = margin + (availableWidth - finalPdfWidth) / 2
-            const y = margin
-
-            pdf.addImage(imgData, 'PNG', x, y, finalPdfWidth, finalPdfHeight)
-            pdf.save(`${event.title.replace(/[^a-z0-9]/gi, '_')}_Tickets.pdf`)
-        } catch (err) {
-            console.error('PDF Generation Error:', err)
-            toast.error('Failed to generate PDF')
-        } finally {
-            setDownloading(false)
+        if (!tickets || tickets.length === 0) return
+        const reservationId = tickets[0].reservation_id
+        if (!reservationId) {
+            toast.error('Reservation ID missing')
+            return
         }
+
+        setDownloading(true)
+        // Redirect to API
+        window.location.href = `/api/reservations/${reservationId}/download`
+
+        // Reset loading state
+        setTimeout(() => setDownloading(false), 2000)
     }
 
     // Confetti Effect
@@ -1444,29 +1408,24 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                     <div className="flex items-center gap-1.5 opacity-50">
                         <span className="text-[10px] text-black dark:text-white font-medium">Powered by GatePass</span>
                     </div>
-                    <a href="mailto:support@gatepass.com" className="text-[10px] text-gray-400 hover:text-black dark:hover:text-white transition-colors underline decoration-dotted">
-                        Need help?
-                    </a>
+                    <div className="flex gap-3 text-[10px] text-gray-400">
+                        <a
+                            href={`/api/reservations/${tickets[0]?.reservation_id}/receipt`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-black dark:hover:text-white transition-colors underline decoration-dotted"
+                        >
+                            Get Receipt
+                        </a>
+                        <span>•</span>
+                        <a href="mailto:support@gatepass.com" className="hover:text-black dark:hover:text-white transition-colors underline decoration-dotted">
+                            Need help?
+                        </a>
+                    </div>
                 </div>
             </div>
 
-            {/* Hidden Ticket for PDF Generation (Keep existing logic) */}
-            <div className="absolute top-0 left-[-9999px]" id="ticket-print-container">
-                <div className="space-y-4 p-0 bg-white">
-                    {tickets.map((ticket, index) => (
-                        <div key={ticket.id} className="break-inside-avoid">
-                            <ReceiptTicket
-                                id={`ticket-card-hidden-${index}`}
-                                event={event}
-                                ticket={ticket}
-                                tierName={ticket.ticket_tiers?.name || tierName}
-                                forceExpanded={true}
-                                isPrint={true}
-                            />
-                        </div>
-                    ))}
-                </div>
-            </div>
+
         </div>
     )
 }

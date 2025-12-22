@@ -39,12 +39,25 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         .eq('user_id', id)
     const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(id)
 
+    const { data: reservations } = await supabase
+        .schema('gatepass')
+        .from('reservations')
+        .select(`
+            *,
+            events ( title, starts_at ),
+            ticket_tiers ( name, price, currency )
+        `)
+        .eq('user_id', id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
     return (
         <UserDetailClient
             profile={profile}
             organizers={organizers || []}
             teamMemberships={teamMemberships as any || []}
             authUser={user as any}
+            reservations={reservations as any || []}
         />
     )
 }

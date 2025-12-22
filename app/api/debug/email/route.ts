@@ -1,8 +1,35 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import TicketEmail from '@/emails/TicketEmail'
+import { createClient } from '@/utils/supabase/server'
 
 export async function GET(request: Request) {
+    // Block in production
+    if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // Require admin authentication even in development
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+        .schema('gatepass')
+        .from('profiles')
+        .select('is_super_admin')
+        .eq('id', user.id)
+        .single()
+
+    const isHardcodedAdmin = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '')
+
+    if (!profile?.is_super_admin && !isHardcodedAdmin) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     try {
         const { sendTicketEmail } = await import('@/utils/email')
 

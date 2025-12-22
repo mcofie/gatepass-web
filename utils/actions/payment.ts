@@ -288,6 +288,22 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             console.error('Email Send Exception:', emailError)
             // Proceed since ticket is created
         }
+
+        // 7. Notify Admin of Sale
+        try {
+            const { notifyAdminOfSale } = await import('@/utils/notifications')
+            await notifyAdminOfSale({
+                eventName: reservation.events?.title,
+                customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
+                amount: reservation.total_amount || 0,
+                currency: reservation.ticket_tiers?.currency || 'GHS',
+                quantity: reservation.quantity || 1,
+                ticketType: reservation.ticket_tiers?.name || 'Ticket'
+            })
+        } catch (notifyError: any) {
+            console.error('Admin Notification Error:', notifyError)
+            // Non-critical, just log it
+        }
     }
 
     return { success: true, tickets: ticketsToProcess }

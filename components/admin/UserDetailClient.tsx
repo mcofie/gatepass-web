@@ -3,10 +3,11 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, Organizer } from '@/types/gatepass'
-import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, Save } from 'lucide-react'
+import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, Save, RefreshCw, Ticket } from 'lucide-react'
 import { format } from 'date-fns'
 import { updateOrganizerFee } from '@/app/actions/fees'
 import { suspendUser, unsuspendUser, deleteUser, toggleSuperAdmin } from '@/app/actions/admin'
+import { resendTicketEmail } from '@/utils/actions/ticket'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
@@ -17,6 +18,7 @@ interface UserDetailProps {
     organizers: Organizer[]
     teamMemberships?: any[]
     authUser?: { id: string, email?: string, banned_until?: string }
+    reservations?: any[]
 }
 
 function OrganizerCard({ organizer }: { organizer: Organizer }) {
@@ -96,13 +98,14 @@ function OrganizerCard({ organizer }: { organizer: Organizer }) {
     )
 }
 
-export function UserDetailClient({ profile, organizers, teamMemberships = [], authUser }: UserDetailProps) {
+export function UserDetailClient({ profile, organizers, teamMemberships = [], authUser, reservations = [] }: UserDetailProps) {
     const router = useRouter()
 
     // Action States
     const [isSuspending, setIsSuspending] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isPromoting, setIsPromoting] = useState(false)
+    const [resendingId, setResendingId] = useState<string | null>(null)
 
     // Derived State
     const isBanned = authUser?.banned_until && new Date(authUser.banned_until) > new Date()
@@ -148,6 +151,19 @@ export function UserDetailClient({ profile, organizers, teamMemberships = [], au
             toast.error(e.message)
         } finally {
             setIsPromoting(false)
+        }
+    }
+
+    const handleResendTicket = async (reservationId: string) => {
+        setResendingId(reservationId)
+        try {
+            const res = await resendTicketEmail(reservationId)
+            if (!res.success) throw new Error(res.error)
+            toast.success('Ticket email resent successfully')
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setResendingId(null)
         }
     }
 
@@ -281,21 +297,61 @@ export function UserDetailClient({ profile, organizers, teamMemberships = [], au
                 <div className="lg:col-span-2 space-y-6">
                     {/* Stats Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <StatCard label="Total Orders" value="0" icon={CreditCard} />
-                        <StatCard label="Tickets Bought" value="0" icon={Calendar} />
+                        <StatCard label="Total Orders" value={reservations.length.toString()} icon={CreditCard} />
+                        <StatCard label="Tickets Bought" value={reservations.reduce((acc: number, r: any) => acc + (r.quantity || 1), 0).toString()} icon={Calendar} />
                         <StatCard label="Last Active" value="Just now" icon={User} />
                     </div>
 
                     {/* Empty State for Activity */}
-                    <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-12 text-center shadow-sm min-h-[400px] flex flex-col items-center justify-center">
-                        <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-                            <CreditCard className="w-8 h-8 text-gray-400 dark:text-gray-600" />
+                    {/* Recent Config */}
+                    {reservations.length > 0 ? (
+                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                                <Ticket className="w-5 h-5 text-gray-500" />
+                                Recent Orders
+                            </h3>
+                            <div className="space-y-4">
+                                {reservations.map((res: any) => (
+                                    <div key={res.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <p className="font-bold text-gray-900 dark:text-white">{res.events?.title || 'Unknown Event'}</p>
+                                            <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                                <span>{format(new Date(res.created_at), 'MMM d, yyyy HH:mm')}</span>
+                                                <span>•</span>
+                                                <span className="uppercase">{res.reference}</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-black border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300">
+                                                {res.quantity || 1} x {res.ticket_tiers?.name || 'Ticket'}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded ${res.status === 'confirmed' ? 'bg-green-500/10 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                {res.status}
+                                            </span>
+                                            <button
+                                                onClick={() => handleResendTicket(res.id)}
+                                                disabled={resendingId === res.id}
+                                                className="p-2 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/20 transition-colors text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white disabled:opacity-50"
+                                                title="Resend Ticket Email"
+                                            >
+                                                {resendingId === res.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">No activity recorded</h3>
-                        <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mt-2">
-                            This user hasn't made any transactions or attended any events yet (mock data for now).
-                        </p>
-                    </div>
+                    ) : (
+                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-12 text-center shadow-sm min-h-[400px] flex flex-col items-center justify-center">
+                            <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-4">
+                                <CreditCard className="w-8 h-8 text-gray-400 dark:text-gray-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">No activity recorded</h3>
+                            <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mt-2">
+                                This user hasn't made any transactions or attended any events yet.
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
