@@ -34,6 +34,7 @@ interface TicketEmailProps {
     tickets?: TicketItem[];
     customerName?: string;
     posterUrl?: string;
+    reservationId?: string;
 }
 
 export const TicketEmail = ({
@@ -46,6 +47,7 @@ export const TicketEmail = ({
     ticketId = "GP-123456",
     tickets = [],
     posterUrl,
+    reservationId,
 }: TicketEmailProps) => {
     const previewText = `Your ${tickets.length > 1 ? 'tickets' : 'ticket'} for ${eventName}`;
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName)}`;
@@ -153,6 +155,17 @@ export const TicketEmail = ({
                                     >
                                         Access Ticket
                                     </Button>
+
+                                    {reservationId && (
+                                        <Section className="mt-4 text-center">
+                                            <Link
+                                                href={`https://gatepass.so/api/reservations/${reservationId}/receipt`}
+                                                className="text-sm font-bold text-gray-400 underline decoration-gray-200 underline-offset-4 hover:text-black transition-colors"
+                                            >
+                                                Download Purchase Receipt
+                                            </Link>
+                                        </Section>
+                                    )}
                                 </Section>
                             </Section>
                         ))}

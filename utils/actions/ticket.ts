@@ -63,6 +63,7 @@ export async function resendTicketEmail(reservationId: string) {
             qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${tickets[0].qr_code_hash}`,
             ticketId: tickets[0].id,
             posterUrl: reservation.events?.poster_url,
+            reservationId: reservation.id,
             tickets: tickets.map((t) => ({
                 id: t.id,
                 qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,

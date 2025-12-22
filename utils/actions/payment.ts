@@ -270,6 +270,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     venueName: reservation.events?.venue_name,
                     ticketType: reservation.ticket_tiers?.name,
                     customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
+                    reservationId: reservation.id,
                     // Keep legacy single props for safety/fallback
                     qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketsToProcess[0].qr_code_hash}`,
                     ticketId: ticketsToProcess[0].id,

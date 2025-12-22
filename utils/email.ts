@@ -17,6 +17,7 @@ interface SendTicketEmailProps {
         qrCodeUrl: string
         type: string
     }[]
+    reservationId?: string
 }
 
 export const sendTicketEmail = async (props: SendTicketEmailProps) => {
