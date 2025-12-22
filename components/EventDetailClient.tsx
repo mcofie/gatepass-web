@@ -1066,14 +1066,16 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
 
                         {/* Promo Input */}
                         {!discount && (
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-lg p-3">
+                            <div className="pt-1">
                                 {!showPromo ? (
                                     <button
                                         onClick={() => setShowPromo(true)}
-                                        className="text-[12px] text-gray-500 dark:text-gray-400 font-bold hover:text-black dark:hover:text-white transition-colors flex items-center gap-1 w-full"
+                                        className="text-[13px] text-gray-500 dark:text-gray-400 font-medium hover:text-black dark:hover:text-white transition-colors flex items-center gap-2 group"
                                     >
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                                        ADD PROMO CODE
+                                        <div className="w-5 h-5 rounded-full border border-dashed border-gray-300 dark:border-zinc-700 flex items-center justify-center group-hover:border-gray-400 dark:group-hover:border-zinc-500 transition-colors">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                                        </div>
+                                        Add promo code
                                     </button>
                                 ) : (
                                     <div className="animate-fade-in">
@@ -1081,19 +1083,34 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                                             <input
                                                 value={promoCode}
                                                 onChange={(e) => setPromoCode(e.target.value)}
-                                                placeholder="CODE"
-                                                className="flex-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-md text-[13px] px-3 py-1.5 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-all text-black dark:text-white"
+                                                placeholder="Enter promo code"
+                                                className="flex-1 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-lg text-[13px] px-3 py-2 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-all text-black dark:text-white"
                                                 autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        onApplyDiscount()
+                                                    }
+                                                    if (e.key === 'Escape') {
+                                                        setShowPromo(false)
+                                                    }
+                                                }}
                                             />
                                             <button
                                                 onClick={onApplyDiscount}
                                                 disabled={!promoCode || applyingDiscount}
-                                                className="bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                                                className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 disabled:opacity-50 transition-all shadow-sm"
                                             >
-                                                Apply
+                                                {applyingDiscount ? '...' : 'Apply'}
+                                            </button>
+                                            <button
+                                                onClick={() => setShowPromo(false)}
+                                                className="p-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                             </button>
                                         </div>
-                                        {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1">{discountError}</p>}
+                                        {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1 flex items-center gap-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>{discountError}</p>}
                                     </div>
                                 )}
                             </div>
@@ -1488,7 +1505,6 @@ const EventCardSkeleton = () => (
             <div className="h-4 w-32 bg-gray-200 dark:bg-zinc-800 rounded" />
         </div>
 
-        {/* Button Skeleton */}
         {/* Button Skeleton */}
         <div className="h-10 w-full bg-gray-200 dark:bg-zinc-800 rounded-lg" />
     </div>

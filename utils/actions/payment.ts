@@ -252,42 +252,42 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 }
             }
         }
-    }
 
-    // 6. Send Email
-    try {
-        const { sendTicketEmail } = await import('@/utils/email')
+        // 6. Send Email (Moved inside here to prevent double-sending on re-runs)
+        try {
+            const { sendTicketEmail } = await import('@/utils/email')
 
-        const targetEmail = reservation.profiles?.email || reservation.guest_email
-        if (!targetEmail) {
-            console.warn('Email Warning: No profile or guest email found for reservation:', reservation.id)
-        } else {
-            console.log('Sending ticket email to:', targetEmail)
+            const targetEmail = reservation.profiles?.email || reservation.guest_email
+            if (!targetEmail) {
+                console.warn('Email Warning: No profile or guest email found for reservation:', reservation.id)
+            } else {
+                console.log('Sending ticket email to:', targetEmail)
 
-            const emailInfo = await sendTicketEmail({
-                to: targetEmail,
-                eventName: reservation.events?.title,
-                eventDate: new Date(reservation.events?.starts_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }),
-                venueName: reservation.events?.venue_name,
-                ticketType: reservation.ticket_tiers?.name,
-                customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                // Keep legacy single props for safety/fallback
-                qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketsToProcess[0].qr_code_hash}`,
-                ticketId: ticketsToProcess[0].id,
-                posterUrl: reservation.events?.poster_url,
-                // Pass consolidated tickets list
-                tickets: ticketsToProcess.map((t) => ({
-                    id: t.id,
-                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
-                    type: reservation.ticket_tiers?.name || 'Ticket'
-                }))
-            })
+                const emailInfo = await sendTicketEmail({
+                    to: targetEmail,
+                    eventName: reservation.events?.title,
+                    eventDate: new Date(reservation.events?.starts_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }),
+                    venueName: reservation.events?.venue_name,
+                    ticketType: reservation.ticket_tiers?.name,
+                    customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
+                    // Keep legacy single props for safety/fallback
+                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketsToProcess[0].qr_code_hash}`,
+                    ticketId: ticketsToProcess[0].id,
+                    posterUrl: reservation.events?.poster_url,
+                    // Pass consolidated tickets list
+                    tickets: ticketsToProcess.map((t) => ({
+                        id: t.id,
+                        qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
+                        type: reservation.ticket_tiers?.name || 'Ticket'
+                    }))
+                })
 
-            console.log('Email successfully sent. Message ID:', emailInfo.messageId)
+                console.log('Email successfully sent. Message ID:', emailInfo.messageId)
+            }
+        } catch (emailError: any) {
+            console.error('Email Send Exception:', emailError)
+            // Proceed since ticket is created
         }
-    } catch (emailError: any) {
-        console.error('Email Send Exception:', emailError)
-        // Proceed since ticket is created
     }
 
     return { success: true, tickets: ticketsToProcess }
