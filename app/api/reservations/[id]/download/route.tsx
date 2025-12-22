@@ -48,7 +48,7 @@ export async function GET(
         }
 
         // 2. Fetch Tickets (use admin client to bypass RLS)
-        const { data: tickets, error } = await adminSupabase
+        const { data: tickets, error: ticketError } = await adminSupabase
             .schema('gatepass')
             .from('tickets')
             .select(`
@@ -58,14 +58,14 @@ export async function GET(
                     title,
                     starts_at,
                     venue_name,
-                    address,
+                    venue_address,
                     poster_url
                 ),
                 profiles ( full_name )
             `)
             .eq('reservation_id', reservationId)
 
-        if (error || !tickets || tickets.length === 0) {
+        if (ticketError || !tickets || tickets.length === 0) {
             return NextResponse.json({ error: 'No tickets found for this reservation' }, { status: 404 })
         }
 

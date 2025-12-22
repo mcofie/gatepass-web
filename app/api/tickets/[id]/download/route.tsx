@@ -25,7 +25,7 @@ export async function GET(
                     title,
                     starts_at,
                     venue_name,
-                    address,
+                    venue_address,
                     poster_url
                 ),
                 profiles ( full_name )
