@@ -1,93 +1,120 @@
 import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer'
 import { format } from 'date-fns'
 
-// Register Fonts (Optional: Use standard fonts for simplicity first, or register custom if needed)
-// Font.register({ family: 'Inter', src: '...' })
+// Register Fonts
+// Note: Inter works better for modern tech aesthetic
+// For now sticking to Helvetica (Standard) but optimizing layout
 
 const styles = StyleSheet.create({
     page: {
-        flexDirection: 'column',
-        backgroundColor: '#FFFFFF', // White background
+        backgroundColor: '#FFFFFF',
         fontFamily: 'Helvetica',
+        padding: 0,
     },
+    // Ticket Container
     container: {
-        padding: 40,
         height: '100%',
+        width: '100%',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between'
     },
-    header: {
+    // Hero Poster Section
+    posterSection: {
+        width: '100%',
+        height: 180,
+        position: 'relative',
+        backgroundColor: '#18181b', // zinc-900
+    },
+    posterImage: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+    },
+    posterOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 60,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: '15 20',
+    },
+    eventTitle: {
+        fontSize: 18,
+        fontWeight: 'extrabold',
+        color: '#FFFFFF',
+        textTransform: 'uppercase',
+    },
+    // Content Section
+    content: {
+        padding: 30,
+        flex: 1,
+    },
+    // Info Grid
+    infoRow: {
+        flexDirection: 'row',
         marginBottom: 20,
     },
-    brand: {
-        fontSize: 10,
-        color: '#666',
-        letterSpacing: 2,
-        marginBottom: 40,
-        textTransform: 'uppercase'
-    },
-    eventName: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 10,
-        color: '#000'
-    },
-    eventDetail: {
-        fontSize: 12,
-        color: '#444',
-        marginBottom: 4,
-    },
-    divider: {
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEE',
-        marginVertical: 20,
-    },
-    ticketInfo: {
-        marginBottom: 20
+    infoBlock: {
+        flex: 1,
     },
     label: {
-        fontSize: 9,
-        color: '#888',
+        fontSize: 8,
+        color: '#71717a', // zinc-500
         textTransform: 'uppercase',
+        letterSpacing: 1.5,
         marginBottom: 4,
-        letterSpacing: 1
     },
     value: {
-        fontSize: 14,
-        color: '#000',
-        marginBottom: 15,
-        fontWeight: 'bold'
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#000000',
     },
-    qrContainer: {
+    // Multi-line values (address)
+    subValue: {
+        fontSize: 10,
+        color: '#71717a',
+        marginTop: 2,
+    },
+    // QR Code Section
+    qrWrapper: {
         alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 20,
-        padding: 20,
-        backgroundColor: '#f9fafb', // Zinc-50 equivalent
-        borderRadius: 12,
-    },
-    qrImage: {
-        width: 200,
-        height: 200,
+        paddingVertical: 20,
+        backgroundColor: '#f4f4f5', // zinc-100
+        borderRadius: 20,
+        marginVertical: 10,
     },
     qrCode: {
+        width: 140,
+        height: 140,
+    },
+    qrText: {
         marginTop: 10,
-        fontSize: 10,
-        color: '#666',
+        fontSize: 8,
+        color: '#a1a1aa', // zinc-400
+        fontFamily: 'Courier',
         letterSpacing: 2,
     },
+    // Border Divider
+    divider: {
+        height: 1,
+        backgroundColor: '#e4e4e7', // zinc-200
+        marginVertical: 15,
+    },
+    // Footer
     footer: {
-        marginTop: 'auto',
+        padding: '20 30',
         borderTopWidth: 1,
-        borderTopColor: '#EEE',
-        paddingTop: 20,
+        borderTopColor: '#f4f4f5',
         flexDirection: 'row',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     footerText: {
-        fontSize: 8,
-        color: '#999'
+        fontSize: 7,
+        color: '#a1a1aa',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     }
 })
 
@@ -97,61 +124,69 @@ interface TicketPageProps {
 }
 
 const TicketPage = ({ event, ticket }: TicketPageProps) => {
-    // Generate QR URL (Using server API)
-    const qrData = ticket.qr_code_hash
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${qrData}`
+    const qrData = ticket.qr_code_hash || ticket.id
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${qrData}&color=000000`
 
-    const holderName = ticket.profiles?.full_name || ticket.guest_name || 'Guest'
+    const attendeeName = ticket.profiles?.full_name || ticket.guest_name || 'Valued Guest'
     const eventDate = new Date(event.starts_at)
+    const tierName = ticket.ticket_tiers?.name || 'Entry Pass'
 
     return (
         <Page size="A6" style={styles.page}>
-            {/* A6 is good for mobile tickets, or use A4/Letter if preferred. A6 feels like a ticket. */}
             <View style={styles.container}>
-                <View>
-                    <Text style={styles.brand}>GATEPASS</Text>
+                {/* Hero Header */}
+                <View style={styles.posterSection}>
+                    {event.poster_url && (
+                        <Image src={event.poster_url} style={styles.posterImage} />
+                    )}
+                    <View style={styles.posterOverlay}>
+                        <Text style={styles.eventTitle}>{event.title}</Text>
+                    </View>
+                </View>
 
-                    <View style={styles.header}>
-                        <Text style={styles.eventName}>{event.title}</Text>
-                        {event.starts_at && (
-                            <>
-                                <Text style={styles.eventDetail}>{format(eventDate, 'EEEE, MMM d, yyyy')}</Text>
-                                <Text style={styles.eventDetail}>{format(eventDate, 'h:mm a')}</Text>
-                            </>
-                        )}
-                        <Text style={styles.eventDetail}>{event.venue_name}</Text>
-                        {event.venue_address && <Text style={styles.eventDetail}>{event.venue_address}</Text>}
+                {/* Body Content */}
+                <View style={styles.content}>
+                    {/* Time & Venue Row */}
+                    <View style={styles.infoRow}>
+                        <View style={styles.infoBlock}>
+                            <Text style={styles.label}>Date & Time</Text>
+                            <Text style={styles.value}>{format(eventDate, 'EEEE, MMM d')}</Text>
+                            <Text style={styles.subValue}>{format(eventDate, 'h:mm a')}</Text>
+                        </View>
+                        <View style={styles.infoBlock}>
+                            <Text style={styles.label}>Venue</Text>
+                            <Text style={styles.value}>{event.venue_name}</Text>
+                            {event.venue_address && (
+                                <Text style={styles.subValue}>{event.venue_address}</Text>
+                            )}
+                        </View>
                     </View>
 
                     <View style={styles.divider} />
 
-                    <View style={styles.ticketInfo}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <View>
-                                <Text style={styles.label}>TICKET TYPE</Text>
-                                <Text style={styles.value}>{ticket.ticket_tiers.name}</Text>
-                            </View>
-                            <View>
-                                <Text style={styles.label}>ADMIT</Text>
-                                <Text style={styles.value}>1</Text>
-                            </View>
+                    {/* Attendee Row */}
+                    <View style={styles.infoRow}>
+                        <View style={styles.infoBlock}>
+                            <Text style={styles.label}>Attendee</Text>
+                            <Text style={styles.value}>{attendeeName}</Text>
                         </View>
+                        <View style={styles.infoBlock}>
+                            <Text style={styles.label}>Tier</Text>
+                            <Text style={styles.value}>{tierName}</Text>
+                        </View>
+                    </View>
 
-                        <View>
-                            <Text style={styles.label}>TICKET HOLDER</Text>
-                            <Text style={styles.value}>{holderName}</Text>
-                        </View>
+                    {/* QR Code Section */}
+                    <View style={styles.qrWrapper}>
+                        <Image src={qrUrl} style={styles.qrCode} />
+                        <Text style={styles.qrText}>#{qrData.substring(0, 16).toUpperCase()}</Text>
                     </View>
                 </View>
 
-                <View style={styles.qrContainer}>
-                    <Image src={qrUrl} style={styles.qrImage} />
-                    <Text style={styles.qrCode}>{ticket.qr_code_hash}</Text>
-                </View>
-
+                {/* Footer */}
                 <View style={styles.footer}>
-                    <Text style={styles.footerText}>ID: {ticket.id.split('-')[0]}</Text>
-                    <Text style={styles.footerText}>Scan at entry</Text>
+                    <Text style={styles.footerText}>GatePass Digital Ticket</Text>
+                    <Text style={styles.footerText}>Secure Entry</Text>
                 </View>
             </View>
         </Page>
@@ -164,11 +199,10 @@ interface TicketPdfProps {
 }
 
 export const TicketPdf = ({ event, tickets }: TicketPdfProps) => {
-    // Normalize tickets to array if passed as object (defensive)
     const ticketList = Array.isArray(tickets) ? tickets : [tickets]
 
     return (
-        <Document>
+        <Document title={`Tickets for ${event.title}`}>
             {ticketList.map((ticket) => (
                 <TicketPage key={ticket.id} event={event} ticket={ticket} />
             ))}

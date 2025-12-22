@@ -73,6 +73,14 @@ export async function GET(
         // Event data is same for all tickets
         const event = Array.isArray(tickets[0].events) ? tickets[0].events[0] : tickets[0].events
 
+        // Resolve poster URL if it's a storage path
+        if (event?.poster_url && !event.poster_url.startsWith('http')) {
+            const { data: { publicUrl } } = adminSupabase.storage
+                .from('posters')
+                .getPublicUrl(event.poster_url)
+            event.poster_url = publicUrl
+        }
+
         // Normalize nested data for each ticket
         const processedTickets = tickets.map(t => ({
             ...t,

@@ -1380,48 +1380,60 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
             </div>
 
             {/* Sticky Actions Footer */}
-            <div className="p-5 pt-0 bg-white dark:bg-zinc-900 pb-6">
-                <div className="flex gap-3">
+            <div className="p-6 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-white/5">
+                <div className="flex flex-col gap-3">
                     <button
                         onClick={handleDownloadPDF}
                         disabled={downloading}
-                        className="flex-1 bg-black dark:bg-white text-white dark:text-black h-11 rounded-xl text-[13px] font-bold tracking-wide hover:opacity-90 transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2"
+                        className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-[20px] text-[15px] font-bold tracking-tight hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-3"
                     >
                         {downloading ? (
-                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white dark:border-black/30 dark:border-t-black rounded-full animate-spin" />
                         ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4 4m4 4V4"></path></svg>
+                            <div className="w-8 h-8 rounded-full bg-white/20 dark:bg-black/10 flex items-center justify-center">
+                                <Download className="w-4 h-4" />
+                            </div>
                         )}
-                        {downloading ? 'Saving...' : 'Downloads'}
+                        {downloading ? 'Preparing Tickets...' : 'Download PDF Tickets'}
                     </button>
 
-                    <button
-                        onClick={handleShare}
-                        className="flex-1 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white h-11 rounded-xl text-[13px] font-bold tracking-wide hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                        Share
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleShare}
+                            className="flex-1 h-12 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white rounded-2xl text-[13px] font-bold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Share2 className="w-4 h-4" />
+                            Share
+                        </button>
+                        <a
+                            href={getGoogleCalendarUrl()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 h-12 bg-zinc-50 dark:bg-zinc-800/50 text-black dark:text-white border border-gray-200 dark:border-zinc-700 rounded-2xl text-[13px] font-bold hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Calendar className="w-4 h-4" />
+                            Calendar
+                        </a>
+                    </div>
                 </div>
 
-                <div className="flex flex-col items-center justify-center mt-4 space-y-2">
-                    <div className="flex items-center gap-1.5 opacity-50">
-                        <span className="text-[10px] text-black dark:text-white font-medium">Powered by GatePass</span>
-                    </div>
-                    <div className="flex gap-3 text-[10px] text-gray-400">
+                {/* Footer Links */}
+                <div className="flex flex-col items-center justify-center mt-6 space-y-3">
+                    <div className="flex items-center gap-3 text-[11px] text-gray-400">
                         <a
                             href={`/api/reservations/${tickets[0]?.reservation_id}/receipt`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-black dark:hover:text-white transition-colors underline decoration-dotted"
+                            className="hover:text-black dark:hover:text-white transition-colors underline decoration-zinc-200 underline-offset-4"
                         >
-                            Get Receipt
+                            View Receipt
                         </a>
-                        <span>•</span>
-                        <a href="mailto:support@gatepass.com" className="hover:text-black dark:hover:text-white transition-colors underline decoration-dotted">
-                            Need help?
+                        <span className="w-1 h-1 bg-gray-200 rounded-full" />
+                        <a href="mailto:support@gatepass.so" className="hover:text-black dark:hover:text-white transition-colors underline decoration-zinc-200 underline-offset-4">
+                            Support
                         </a>
                     </div>
+                    <p className="text-[9px] font-bold text-gray-300 dark:text-zinc-600 uppercase tracking-[0.2em]">GatePass Digital Protection</p>
                 </div>
             </div>
 
