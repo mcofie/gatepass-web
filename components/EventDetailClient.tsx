@@ -916,7 +916,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     value={guestName}
                     onChange={e => setGuestName(e.target.value)}
                     placeholder="Jane Smith"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[13px] placeholder:text-gray-400 font-medium"
+                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
                 />
             </div>
 
@@ -927,7 +927,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     value={guestEmail}
                     onChange={e => setGuestEmail(e.target.value)}
                     placeholder="jane@example.com"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[13px] placeholder:text-gray-400 font-medium"
+                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
                 />
                 <p className="text-[11px] text-gray-400 px-1">We'll send your tickets here.</p>
             </div>
@@ -939,7 +939,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     value={guestPhone}
                     onChange={e => setGuestPhone(e.target.value)}
                     placeholder="+233"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[13px] placeholder:text-gray-400 font-medium"
+                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
                 />
             </div>
         </div>

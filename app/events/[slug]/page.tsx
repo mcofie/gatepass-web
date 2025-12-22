@@ -206,12 +206,21 @@ export default async function EventPage({ params }: PageProps) {
             </div>
 
             {/* Floating Details Card */}
-            <EventDetailClient
-                event={event as Event}
-                tiers={(tiers as TicketTier[]) || []}
-                layoutId={`event-card-${event.id}`}
-                feeRates={feeSettings}
-            />
+            <React.Suspense fallback={
+                <div className="fixed bottom-4 left-4 right-4 md:bottom-12 md:right-12 md:left-auto md:w-[360px] bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl p-4 animate-pulse">
+                    <div className="flex justify-between items-center">
+                        <div className="w-10 h-10 bg-gray-200 dark:bg-zinc-800 rounded-full" />
+                        <div className="h-6 w-24 bg-gray-200 dark:bg-zinc-800 rounded" />
+                    </div>
+                </div>
+            }>
+                <EventDetailClient
+                    event={event as Event}
+                    tiers={(tiers as TicketTier[]) || []}
+                    layoutId={`event-card-${event.id}`}
+                    feeRates={feeSettings}
+                />
+            </React.Suspense>
         </div >
     )
 }
