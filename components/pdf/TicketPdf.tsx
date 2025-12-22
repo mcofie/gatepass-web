@@ -113,8 +113,12 @@ const TicketPage = ({ event, ticket }: TicketPageProps) => {
 
                     <View style={styles.header}>
                         <Text style={styles.eventName}>{event.title}</Text>
-                        <Text style={styles.eventDetail}>{format(eventDate, 'EEEE, MMM d, yyyy')}</Text>
-                        <Text style={styles.eventDetail}>{format(eventDate, 'h:mm a')}</Text>
+                        {event.starts_at && (
+                            <>
+                                <Text style={styles.eventDetail}>{format(eventDate, 'EEEE, MMM d, yyyy')}</Text>
+                                <Text style={styles.eventDetail}>{format(eventDate, 'h:mm a')}</Text>
+                            </>
+                        )}
                         <Text style={styles.eventDetail}>{event.venue_name}</Text>
                         {event.venue_address && <Text style={styles.eventDetail}>{event.venue_address}</Text>}
                     </View>

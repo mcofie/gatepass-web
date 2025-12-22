@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { MapPin, Calendar, Ticket, ArrowLeft } from 'lucide-react'
 import { PublicTicketActions } from '@/components/ticket/PublicTicketActions'
-import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
+import { TicketPass } from '@/components/ticket/TicketPass'
+import { ImmersiveBackground } from '@/components/ticket/ImmersiveBackground'
 // Actually, for a public page, a react component is better/cleaner if installed.
 // The email used: https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=...
 // I'll stick to the API for consistency and zero-dep for now, or just use an img tag.
@@ -96,38 +97,19 @@ export default async function PublicTicketPage({ params }: Props) {
     return (
         <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden" style={{ backgroundColor: '#171717' }}>
 
-            {/* Immersive Background */}
-            <div className="absolute inset-0 z-0">
-                {event.poster_url && (
-                    <Image
-                        src={event.poster_url}
-                        alt=""
-                        fill
-                        className="object-cover opacity-30 blur-3xl scale-110"
-                        priority
-                    />
-                )}
-                <div className="absolute inset-0" style={{ backgroundColor: 'rgba(23, 23, 23, 0.6)' }} />
-                <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, #171717, transparent, #171717)' }} />
-            </div>
+            {/* Immersive Mesh Gradient Background */}
+            <ImmersiveBackground posterUrl={event.poster_url} />
 
-            {/* Brand Header */}
-            <div className="absolute top-0 w-full p-8 flex justify-center z-10">
-                <div className="flex items-center gap-2 opacity-50">
-                    <div className="w-2 h-2 rounded-full animate-pulse z-20" style={{ backgroundColor: '#ffffff' }} />
-                    <span className="text-xs font-bold tracking-[0.2em] uppercase z-20" style={{ color: '#ffffff' }}>GatePass Verified</span>
-                </div>
-            </div>
 
             {/* Ticket Container */}
             <div className="w-full max-w-sm relative z-10 animate-fade-in-up flex flex-col items-center">
 
-                {/* 1. Visible Ticket (Interactive) */}
-                <ReceiptTicket
-                    id="ticket-card"
+                {/* 1. Visible Ticket */}
+                <TicketPass
+                    id="ticket-pass-card"
                     event={{
                         ...event,
-                        venue_address: event.venue_address || '' // Ensure string
+                        venue_address: event.venue_address || ''
                     }}
                     ticket={{
                         ...ticket,
@@ -137,14 +119,13 @@ export default async function PublicTicketPage({ params }: Props) {
                     }}
                     tierName={tier.name}
                     logoUrl={event.organizers?.logo_url}
-                    forceExpanded={true} // Always expanded for public view
                     isPrint={false}
                 />
 
-                {/* 2. Hidden Ticket for Print (Exact Receipt Style) */}
+                {/* 2. Hidden Ticket for Print */}
                 <div className="absolute top-0 left-[-9999px]">
                     <div id="ticket-print-target">
-                        <ReceiptTicket
+                        <TicketPass
                             event={{
                                 ...event,
                                 venue_address: event.venue_address || ''
@@ -157,7 +138,6 @@ export default async function PublicTicketPage({ params }: Props) {
                             }}
                             tierName={tier.name}
                             logoUrl={event.organizers?.logo_url}
-                            forceExpanded={true}
                             isPrint={true}
                         />
                     </div>

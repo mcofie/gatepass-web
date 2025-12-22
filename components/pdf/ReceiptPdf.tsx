@@ -149,7 +149,9 @@ export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: R
                     <Text style={styles.label}>EVENT</Text>
                     <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{event.title}</Text>
                     <Text style={styles.value}>{event.venue_name}</Text>
-                    <Text style={styles.value}>{format(new Date(event.starts_at), 'PPP p')}</Text>
+                    {event.starts_at && (
+                        <Text style={styles.value}>{format(new Date(event.starts_at), 'PPP p')}</Text>
+                    )}
                 </View>
 
                 <View style={styles.lineItems}>
