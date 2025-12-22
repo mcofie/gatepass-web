@@ -1151,8 +1151,7 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
 
 const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[], tierName: string | undefined }) => {
     const [downloading, setDownloading] = useState(false)
-    const [activeTabIndex, setActiveTabIndex] = useState(0)
-    const activeTicket = tickets[activeTabIndex]
+    const activeTicket = tickets[0] // Primary ticket for QR (or handle multiple via swipe if needed, for now sticking to order summary style with first QR)
 
     const handleDownloadPDF = async () => {
         setDownloading(true)
@@ -1237,35 +1236,6 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
         runConfetti()
     }, [])
 
-    const handleAddToCalendar = (type: 'google' | 'ics') => {
-        const start = new Date(event.starts_at)
-        const end = new Date(start.getTime() + 2 * 60 * 60 * 1000) // Assume 2 hours if not set
-
-        if (type === 'google') {
-            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}/${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}&details=${encodeURIComponent('Ticket Ref: ' + activeTicket.id)}&location=${encodeURIComponent(event.venue_name)}&sf=true&output=xml`
-            window.open(url, '_blank')
-        } else {
-            const icsContent = `BEGIN:VCALENDAR
-            VERSION:2.0
-            BEGIN:VEVENT
-            URL:${window.location.href}
-            DTSTART:${start.toISOString().replace(/-|:|\.\d\d\d/g, '')}
-            DTEND:${end.toISOString().replace(/-|:|\.\d\d\d/g, '')}
-            SUMMARY:${event.title}
-            DESCRIPTION:Ticket Ref: ${activeTicket.id}
-            LOCATION:${event.venue_name}
-            END:VEVENT
-            END:VCALENDAR`
-            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
-            const link = document.createElement('a')
-            link.href = window.URL.createObjectURL(blob)
-            link.setAttribute('download', `${event.title}.ics`)
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-        }
-    }
-
     const handleShare = async () => {
         const shareData = {
             title: `I'm going to ${event.title}!`,
@@ -1289,103 +1259,181 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
         }
     }
 
+    // Enhanced Utilities
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue_name} ${event.venue_address}`)}`
+
+    // Generate Google Calendar Link
+    const getGoogleCalendarUrl = () => {
+        const start = new Date(event.starts_at)
+        // Assume 2 hour duration if no end time (fixme: real end time if available)
+        const end = new Date(start.getTime() + (2 * 60 * 60 * 1000))
+
+        const formatTime = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "")
+
+        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${formatTime(start)}/${formatTime(end)}&details=${encodeURIComponent(`Tickets: ${window.location.href}`)}&location=${encodeURIComponent(event.venue_name)}`
+    }
+
+    // Countdown Logic
+    const getCountdown = () => {
+        const diff = new Date(event.starts_at).getTime() - Date.now()
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+
+        if (days < 0) return null // Event started/past
+        if (days === 0) return "Starts Today!"
+        if (days === 1) return "Starts Tomorrow!"
+        return `Starts in ${days} Days`
+    }
+
+    const countdownText = getCountdown()
+
+    // Aggregate Ticket Counts
+    const ticketCounts = tickets.reduce((acc, ticket) => {
+        // Access nested tier name properly if available, or use the passed tierName prop as fallback
+        const name = ticket.ticket_tiers?.name || tierName || 'General Admission'
+        acc[name] = (acc[name] || 0) + 1
+        return acc
+    }, {} as Record<string, number>)
+
     return (
-        <div className="flex flex-col h-full overflow-hidden animate-fade-in relative">
-            <div className="flex-shrink-0 flex justify-between items-center mb-4">
-                <h2 className="text-[17px] font-bold tracking-tight text-black dark:text-white">Your Tickets ({tickets.length})</h2>
-                <button onClick={() => window.location.reload()} className="p-2 -mr-2 text-gray-500 hover:text-black dark:hover:text-white">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        <div className="flex flex-col h-full bg-white dark:bg-zinc-900 rounded-[24px] overflow-hidden relative animate-fade-in">
+            {/* Header / Dismiss */}
+            <div className="flex-shrink-0 px-5 pt-5 pb-2 flex justify-between items-start">
+                <div className="space-y-1">
+                    <h2 className="text-[18px] leading-tight font-extrabold tracking-tight text-black dark:text-white max-w-[200px]">
+                        See you at {event.title}!🎉
+                    </h2>
+                    {countdownText && (
+                        <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold tracking-wide">
+                            {countdownText}
+                        </div>
+                    )}
+                </div>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="p-1.5 -mr-1.5 -mt-1.5 text-black dark:text-white hover:opacity-70 transition-opacity"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                 </button>
             </div>
 
-            {/* Tabs for Multiple Tickets */}
-            {tickets.length > 1 && (
-                <div className="flex-shrink-0 mb-4 overflow-x-auto no-scrollbar -mx-4 px-4">
-                    <div className="flex gap-2">
-                        {tickets.map((_, index) => (
-                            <button
-                                key={index}
-                                onClick={() => setActiveTabIndex(index)}
-                                className={`
-                                    flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all
-                                    ${activeTabIndex === index
-                                        ? 'bg-black text-white dark:bg-white dark:text-black shadow-md transform scale-105'
-                                        : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-zinc-700'
-                                    }
-                                `}
-                            >
-                                Ticket {index + 1}
-                            </button>
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-5">
+
+                {/* QR Code */}
+                <div className="flex flex-col items-center my-6">
+                    <div className="bg-white p-2 rounded-xl border border-gray-100 dark:border-zinc-800 shadow-sm mb-3">
+                        <Image
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${activeTicket.qr_code_hash}&color=000000`}
+                            alt="QR Code"
+                            width={160}
+                            height={160}
+                            className="w-32 h-32 object-contain mix-blend-multiply"
+                            unoptimized
+                        />
+                    </div>
+                    <span className="text-[10px] uppercase font-mono tracking-widest text-gray-400 dark:text-gray-500 select-all">
+                        {activeTicket.qr_code_hash}
+                    </span>
+                </div>
+
+                {/* Ticket Details Card */}
+                <div className="bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 rounded-[20px] p-3 space-y-3">
+                    {/* Event Title in Card */}
+                    <div>
+                        <h3 className="text-[16px] font-bold text-black dark:text-white leading-tight mb-0.5">{event.title}</h3>
+                    </div>
+
+                    {/* Ticket List */}
+                    <div className="space-y-2.5">
+                        {Object.entries(ticketCounts).map(([name, count]) => (
+                            <div key={name} className="flex justify-between items-center text-[13px]">
+                                <span className="font-medium text-black dark:text-white">{name}</span>
+                                <span className="font-bold text-gray-500 dark:text-gray-400">x{count as number}</span>
+                            </div>
                         ))}
                     </div>
-                </div>
-            )}
 
-            {/* Active Ticket Display */}
-            <div className="flex-1 overflow-y-auto min-h-0 md:max-h-none -mx-4 px-4 pb-4 no-scrollbar">
-                <div key={activeTicket.id} className="flex justify-center animate-fade-in">
-                    <ReceiptTicket
-                        id={`ticket-card-${activeTabIndex}`}
-                        event={event}
-                        ticket={activeTicket}
-                        tierName={tierName}
-                    />
+                    <div className="h-px w-full bg-gray-200 dark:bg-white/10" />
+
+                    {/* Metadata Grid */}
+                    <div className="space-y-3 text-[13px]">
+                        <div className="flex justify-between items-start">
+                            <span className="text-gray-500 dark:text-gray-400 font-medium">Location</span>
+                            <a
+                                href={googleMapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-bold text-black dark:text-white text-right max-w-[60%] leading-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center justify-end gap-1"
+                            >
+                                {event.venue_name}
+                                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            </a>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400 font-medium">Date</span>
+                            <div className="text-right flex items-center gap-2">
+                                <a
+                                    href={getGoogleCalendarUrl()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 -mr-1 text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                    title="Add to Google Calendar"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                </a>
+                                <span className="font-bold text-black dark:text-white">
+                                    {new Date(event.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400 font-medium">Quantity</span>
+                            <span className="font-bold text-black dark:text-white text-right">
+                                {tickets.length} {tickets.length === 1 ? 'Ticket' : 'Tickets'}
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Bottom Actions - Compact */}
-            <div className="flex-shrink-0 pt-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 mt-2 space-y-3">
-                {/* Primary Action - Apple Wallet (Current Ticket) */}
-                <button
-                    onClick={() => window.open(`/api/wallet/apple?ticketId=${activeTicket.id}`, '_blank')}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black h-12 rounded-xl text-[15px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-black/10"
-                >
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                        <path d="M12.02 0C19.2 0 24 4.54 24 11.2V24H0V11.2C0 4.54 4.8 0 11.98 0H12.02ZM6.34 21.06C6.34 21.6 6.76 22.02 7.3 22.02H16.7C17.24 22.02 17.66 21.6 17.66 21.06V11.4C17.66 8.3 15.34 6 12.02 6C8.7 6 6.34 8.3 6.34 11.4V21.06ZM12 7.82C13.68 7.82 15.06 9.2 15.06 10.88V13.5H16.5V11.4C16.5 8.92 14.48 6.9 12 6.9C9.52 6.9 7.5 8.92 7.5 11.4V13.5H8.94V10.88C8.94 9.2 10.32 7.82 12 7.82Z" />
-                    </svg>
-                    Add to Apple Wallet
-                </button>
+            {/* Sticky Actions Footer */}
+            <div className="p-5 pt-0 bg-white dark:bg-zinc-900 pb-6">
+                <div className="flex gap-3">
+                    <button
+                        onClick={handleDownloadPDF}
+                        disabled={downloading}
+                        className="flex-1 bg-black dark:bg-white text-white dark:text-black h-11 rounded-xl text-[13px] font-bold tracking-wide hover:opacity-90 transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2"
+                    >
+                        {downloading ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4 4m4 4V4"></path></svg>
+                        )}
+                        {downloading ? 'Saving...' : 'Downloads'}
+                    </button>
 
-                {/* Secondary Actions Grid */}
-                <div className="grid grid-cols-3 gap-2">
                     <button
                         onClick={handleShare}
-                        className="h-10 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-colors flex flex-col items-center justify-center gap-1"
+                        className="flex-1 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white h-11 rounded-xl text-[13px] font-bold tracking-wide hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                         Share
                     </button>
-                    <button
-                        onClick={handleDownloadPDF}
-                        disabled={downloading}
-                        className="h-10 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-colors flex flex-col items-center justify-center gap-1"
-                    >
-                        {downloading ? (
-                            <div className="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin" />
-                        ) : (
-                            <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4 4m4 4V4"></path></svg>
-                                Save PDF
-                            </>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => handleAddToCalendar('google')}
-                        className="h-10 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 border border-transparent rounded-lg text-[12px] font-medium text-gray-700 dark:text-gray-300 transition-colors flex flex-col items-center justify-center gap-1"
-                    >
-                        <Calendar className="w-4 h-4" />
-                        Calendar
-                    </button>
                 </div>
 
-                <div className="flex justify-center mt-2">
+                <div className="flex flex-col items-center justify-center mt-4 space-y-2">
                     <div className="flex items-center gap-1.5 opacity-50">
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
+                        <span className="text-[10px] text-black dark:text-white font-medium">Powered by GatePass</span>
                     </div>
+                    <a href="mailto:support@gatepass.com" className="text-[10px] text-gray-400 hover:text-black dark:hover:text-white transition-colors underline decoration-dotted">
+                        Need help?
+                    </a>
                 </div>
             </div>
 
-            {/* Hidden Ticket for PDF Generation (Target) */}
+            {/* Hidden Ticket for PDF Generation (Keep existing logic) */}
             <div className="absolute top-0 left-[-9999px]" id="ticket-print-container">
                 <div className="space-y-4 p-0 bg-white">
                     {tickets.map((ticket, index) => (
@@ -1394,7 +1442,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                 id={`ticket-card-hidden-${index}`}
                                 event={event}
                                 ticket={ticket}
-                                tierName={tierName}
+                                tierName={ticket.ticket_tiers?.name || tierName}
                                 forceExpanded={true}
                                 isPrint={true}
                             />
@@ -1405,9 +1453,6 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
         </div>
     )
 }
-
-
-
 const EventCardSkeleton = () => (
     <div className={`
         fixed z-50 bg-white dark:bg-zinc-900 shadow-2xl font-sans
