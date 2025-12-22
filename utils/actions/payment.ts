@@ -71,11 +71,14 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     }
 
     // Step 3: Manual Organizer Fetch (Robustness)
-    if (reservation.events?.organizer_id) {
-        const { data: org } = await supabase.schema('gatepass').from('organizers').select('platform_fee_percent').eq('id', reservation.events.organizer_id).single()
+    const event = Array.isArray(reservation.events) ? reservation.events[0] : reservation.events
+    const ticketTier = Array.isArray(reservation.ticket_tiers) ? reservation.ticket_tiers[0] : reservation.ticket_tiers
+
+    if (event?.organizer_id) {
+        const { data: org } = await supabase.schema('gatepass').from('organizers').select('platform_fee_percent').eq('id', event.organizer_id).single()
         if (org) {
             // Attach it back to event object as expected by downstream logic
-            reservation.events.organizers = org
+            event.organizers = org
         }
     }
 
@@ -90,35 +93,17 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
 
 
-    // 2b. Calculate Fees Snapshot
-    // We must snapshot the fees at the moment of transaction to ensure historical accuracy
     const globalSettings = await getFeeSettings()
-    const event = reservation.events
     const organizer = event?.organizers
     const effectiveRates = getEffectiveFeeRates(globalSettings, event, organizer)
 
     const rawAmount = tx.amount ? tx.amount / 100 : 0
     const feeBearer = event?.fee_bearer || 'customer'
 
-    // We calculate based on the raw amount paid. 
-    // WARN: Logic depends on who paid fees. 
-    // If Customer Bearer: rawAmount = (Price + Fees). So we need to reverse calc if we want "ticket price".
-    // But calculateFees expects "subtotal" (ticket price). 
-    // However, for snapshotting "platform_fee", we just need the rate application.
-    // Let's assume the standard flow: validation happened before payment.
-
     // Simplest approach: Use the Reservation Price * Quantity as the subtotal source of truth.
-    const price = reservation.ticket_tiers.price || 0
+    const price = ticketTier?.price || 0
     const qty = reservation.quantity || 1
 
-    // Discount Logic (Duplicate from EventManage but good for safety)
-    let discountAmount = 0
-    // DB might return array or obj depending on join. Assume single discount_id means single discount.
-    // Note: We didn't join discounts above. Let's rely on the fact that if we care about net exactness we needed it.
-    // For now, let's use the effective rate * Subtotal (approx) or just Rate.
-    // Better: Store the RATE. platform_fee = derived.
-
-    // Let's just fetch discount to be precise
     let subtotal = price * qty
     if (reservation.discount_id) {
         const { data: disc } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
@@ -131,7 +116,6 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     const { platformFee, processorFee } = calculateFees(subtotal, feeBearer, effectiveRates)
 
     // 3. Log Transaction (Create History)
-    // We do this before ticket creation so we have a record of the payment attempt
     const { error: txError } = await supabase.schema('gatepass').from('transactions').insert({
         reservation_id: reservation.id,
         reference,
@@ -179,9 +163,9 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 .insert({
                     user_id: reservation.user_id,
                     event_id: reservation.event_id,
-                    tier_id: reservation.ticket_tiers.id,
+                    tier_id: ticketTier.id,
                     reservation_id: reservation.id,
-                    qr_code_hash: Math.random().toString(36).substring(7) + Math.random().toString(36).substring(7), // Longer unique hash
+                    qr_code_hash: Math.random().toString(36).substring(2, 12).toUpperCase(), // Better random hash
                     order_reference: reference,
                     status: 'valid'
                 })
@@ -192,7 +176,6 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 console.error(`Ticket Creation Error (Index ${i}):`, JSON.stringify(ticketError, null, 2))
                 lastError = ticketError
             } else if (ticket) {
-                // Attach reservation data so frontend can show guest_name/profiles immediately
                 ticketsToProcess.push({ ...(ticket as Ticket), reservations: reservation })
             }
         }
@@ -209,7 +192,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             .schema('gatepass')
             .from('ticket_tiers')
             .select('quantity_sold')
-            .eq('id', reservation.ticket_tiers.id)
+            .eq('id', ticketTier.id)
             .single()
 
         if (currentTier) {
@@ -217,7 +200,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 .schema('gatepass')
                 .from('ticket_tiers')
                 .update({ quantity_sold: (currentTier.quantity_sold || 0) + (reservation.quantity || 1) })
-                .eq('id', reservation.ticket_tiers.id)
+                .eq('id', ticketTier.id)
 
             if (updateError) {
                 console.error('Inventory Update Error (Direct):', updateError)
@@ -253,57 +236,62 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             }
         }
 
-        // 6. Send Email (Moved inside here to prevent double-sending on re-runs)
+        // 7. Notify Admin of Sale
+        try {
+            const { notifyAdminOfSale } = await import('@/utils/notifications')
+            await notifyAdminOfSale({
+                eventName: event?.title,
+                customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
+                amount: rawAmount, // Use transaction amount, not reservation.total_amount
+                currency: tx.currency || ticketTier?.currency || 'GHS',
+                quantity: reservation.quantity || 1,
+                ticketType: ticketTier?.name || 'Ticket'
+            })
+        } catch (notifyError: any) {
+            console.error('Admin Notification Error:', notifyError)
+        }
+    }
+
+    // 8. Robust Idempotent Email Logic (Always attempt if tickets exist)
+    if (ticketsToProcess.length > 0) {
         try {
             const { sendTicketEmail } = await import('@/utils/email')
 
             const targetEmail = reservation.profiles?.email || reservation.guest_email
             if (!targetEmail) {
-                console.warn('Email Warning: No profile or guest email found for reservation:', reservation.id)
+                console.warn('[Payment Action] Email Warning: No target email for reservation:', reservation.id)
             } else {
-                console.log('Sending ticket email to:', targetEmail)
+                console.log(`[Payment Action] Attempting email send to: ${targetEmail} for Reservation ${reservation.id}`)
+
+                // Resolve Public URL for Poster
+                let posterUrl = event?.poster_url
+                if (posterUrl && !posterUrl.startsWith('http')) {
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('posters')
+                        .getPublicUrl(posterUrl)
+                    posterUrl = publicUrl
+                }
 
                 const emailInfo = await sendTicketEmail({
                     to: targetEmail,
-                    eventName: reservation.events?.title,
-                    eventDate: new Date(reservation.events?.starts_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }),
-                    venueName: reservation.events?.venue_name,
-                    ticketType: reservation.ticket_tiers?.name,
+                    eventName: event?.title,
+                    eventDate: new Date(event?.starts_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }),
+                    venueName: event?.venue_name,
+                    ticketType: ticketTier?.name,
                     customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
                     reservationId: reservation.id,
-                    // Keep legacy single props for safety/fallback
-                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketsToProcess[0].qr_code_hash}`,
-                    ticketId: ticketsToProcess[0].id,
-                    posterUrl: reservation.events?.poster_url,
-                    // Pass consolidated tickets list
+                    posterUrl: posterUrl,
                     tickets: ticketsToProcess.map((t) => ({
                         id: t.id,
                         qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
-                        type: reservation.ticket_tiers?.name || 'Ticket'
+                        type: ticketTier?.name || 'Ticket'
                     }))
                 })
 
-                console.log('Email successfully sent. Message ID:', emailInfo.messageId)
+                console.log(`[Payment Action] Email Success. messageId: ${emailInfo.messageId}`)
             }
         } catch (emailError: any) {
-            console.error('Email Send Exception:', emailError)
-            // Proceed since ticket is created
-        }
-
-        // 7. Notify Admin of Sale
-        try {
-            const { notifyAdminOfSale } = await import('@/utils/notifications')
-            await notifyAdminOfSale({
-                eventName: reservation.events?.title,
-                customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                amount: rawAmount, // Use transaction amount, not reservation.total_amount
-                currency: tx.currency || reservation.ticket_tiers?.currency || 'GHS',
-                quantity: reservation.quantity || 1,
-                ticketType: reservation.ticket_tiers?.name || 'Ticket'
-            })
-        } catch (notifyError: any) {
-            console.error('Admin Notification Error:', notifyError)
-            // Non-critical, just log it
+            console.error('[Payment Action] Email Send Exception:', emailError)
         }
     }
 

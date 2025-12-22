@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { EventFeedItem } from '@/components/EventFeedItem'
 import { Event, TicketTier } from '@/types/gatepass'
 
@@ -11,6 +12,28 @@ interface EventFeedProps {
 export const EventFeed = ({ events }: EventFeedProps) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const [activeIndex, setActiveIndex] = useState(0)
+    const searchParams = useSearchParams()
+    const eventId = searchParams.get('event_id')
+
+    // Handle Callback Auto-scroll
+    useEffect(() => {
+        if (eventId && events.length > 0) {
+            const index = events.findIndex(e => e.id === eventId)
+            if (index !== -1) {
+                console.log(`[EventFeed] Auto-scrolling to event ${eventId} at index ${index}`)
+                setActiveIndex(index)
+
+                // Jump to the item immediately
+                setTimeout(() => {
+                    const container = containerRef.current
+                    const target = container?.querySelector(`[data-index="${index}"]`)
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'auto', block: 'start' })
+                    }
+                }, 100) // Small delay to ensure DOM is ready
+            }
+        }
+    }, [eventId, events])
 
     useEffect(() => {
         const container = containerRef.current
