@@ -29,6 +29,7 @@ interface EventDetailClientProps {
     isFeedItem?: boolean
     layoutId?: string
     feeRates?: FeeRates
+    availableAddons?: any[] // Using any[] for now or safe EventAddon[]
 }
 
 // Simple Timer Hook
@@ -63,8 +64,8 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
     return timeLeft
 }
 
-export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates }: EventDetailClientProps) {
-    const [view, setView] = useState<'details' | 'tickets' | 'checkout' | 'summary' | 'success'>('details')
+export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [] }: EventDetailClientProps) {
+    const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>('details')
 
     // Track View Count
     useEffect(() => {
@@ -83,14 +84,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
+    const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
     const [reservation, setReservation] = useState<any>(null)
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
 
     // Mobile Expansion State
     const [isExpanded, setIsExpanded] = useState(false)
-    // On mount, check if mobile? Actually, defaulting to false is fine; desktop naturally ignores it via MD styles.
-    // However, on Desktop we always want it "expanded" effectively.
-    // We'll use CSS to force expansion on desktop, so state only controls mobile.
 
     // Navigation Helper
     const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
@@ -123,9 +122,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         const callbackEventId = searchParams.get('event_id')
 
         if (reference) {
-            // If callback has event_id, ONLY verify if it matches this component's event.
-            // If it doesn't have event_id (legacy/direct), we might optionally fallback or skip.
-            // For now, let's enforce matching if present.
             if (callbackEventId && callbackEventId !== event.id) {
                 return
             }
@@ -133,7 +129,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             const verifyPayment = async () => {
                 setVerifying(true)
                 try {
-                    // Use reference as reservationId fallback since we link them
                     const response = await fetch('/api/paystack/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -141,14 +136,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     })
                     const result = await response.json()
 
-                    // Clear params to avoid re-verification loop (optional, but good UX)
                     window.history.replaceState({}, '', window.location.pathname)
 
                     if (!result.success) throw new Error(result.error || 'Verification failed')
 
                     setPurchasedTickets(result.tickets || [])
                     navigate('success', 'forward')
-                    // addToast('Payment valid! Your ticket is ready.', 'success') // Confetti handles delight
                 } catch (error: any) {
                     console.error('Verification Error:', error)
                     toast.error(error.message || 'Payment verification failed')
@@ -164,8 +157,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (user && !user.is_anonymous) {
-                // Pre-fill or skip form? Let's pre-fill for now so they can verify phone
-                // Fetch profile
                 const { data: profile } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', user.id).single()
                 if (profile) {
                     setGuestName(profile.full_name || '')
@@ -183,13 +174,11 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             const intent = current + delta
             if (intent < 0) return prev
 
-            // Max Per Order Check
             const tier = tiers.find(t => t.id === tierId)
             if (tier?.max_per_order && intent > tier.max_per_order) {
                 toast.error(`Limit of ${tier.max_per_order} tickets per order`)
                 return prev
             }
-            // Stock Check (Optional here, since we disable button, but good for safety)
             if (tier && (tier.quantity_sold + intent) > tier.total_quantity) {
                 toast.error('Not enough tickets available')
                 return prev
@@ -199,10 +188,31 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         })
     }
 
-    const calculatedTotal = Object.entries(selectedTickets).reduce((acc, [tierId, qty]) => {
-        const tier = tiers.find(t => t.id === tierId)
-        return acc + (tier ? tier.price * qty : 0)
-    }, 0)
+    const handleAddonQuantityChange = (addonId: string, delta: number) => {
+        setSelectedAddons(prev => {
+            const current = prev[addonId] || 0
+            const intent = current + delta
+            if (intent < 0) return prev
+            return { ...prev, [addonId]: intent }
+        })
+    }
+
+    const calculatedTotal = React.useMemo(() => {
+        let total = 0
+        // Tickets
+        Object.entries(selectedTickets).forEach(([tierId, qty]) => {
+            const tier = tiers.find(t => t.id === tierId)
+            if (tier) total += tier.price * qty
+        })
+        // Addons
+        if (availableAddons) {
+            Object.entries(selectedAddons).forEach(([addonId, qty]) => {
+                const addon = availableAddons.find(a => a.id === addonId)
+                if (addon) total += addon.price * qty
+            })
+        }
+        return total
+    }, [selectedTickets, tiers, selectedAddons, availableAddons])
 
     // Discount Calculation
     // Discount Calculation
@@ -296,7 +306,11 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     }
 
     const handleContinueToCheckout = () => {
-        navigate('checkout', 'forward')
+        if (availableAddons && availableAddons.length > 0) {
+            navigate('addons', 'forward')
+        } else {
+            navigate('checkout', 'forward')
+        }
     }
 
     // Step 1: Create Reservation (Invoked on "Continue to Payment")
@@ -325,7 +339,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 email: guestEmail,
                 name: guestName,
                 phone: guestPhone
-            }, discount?.id)
+            }, discount?.id, selectedAddons)
             if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
 
             setReservation(newReservation)
@@ -496,13 +510,31 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         />
                     </div>
                 )}
+                {view === 'addons' && (
+                    <div className="animate-fade-in h-full">
+                        <AddonsView
+                            availableAddons={availableAddons}
+                            selectedAddons={selectedAddons}
+                            onAddonChange={handleAddonQuantityChange}
+                            onContinue={() => navigate('checkout', 'forward')}
+                            onBack={() => navigate('tickets', 'back')}
+                            primaryColor={event.primary_color}
+                        />
+                    </div>
+                )}
                 {view === 'checkout' && (
                     <div className="animate-fade-in h-full">
                         <CheckoutFormView
                             guestName={guestName} setGuestName={setGuestName}
                             guestEmail={guestEmail} setGuestEmail={setGuestEmail}
                             guestPhone={guestPhone} setGuestPhone={setGuestPhone}
-                            onBack={() => navigate('tickets', 'back')}
+                            onBack={() => {
+                                if (availableAddons && availableAddons.length > 0) {
+                                    navigate('addons', 'back')
+                                } else {
+                                    navigate('tickets', 'back')
+                                }
+                            }}
                             onContinue={handleCreateReservation}
                             loading={loading}
                             primaryColor={event.primary_color}
@@ -529,6 +561,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             discountError={discountError}
                             applyingDiscount={applyingDiscount}
                             primaryColor={event.primary_color}
+                            availableAddons={availableAddons}
+                            selectedAddons={selectedAddons}
                         />
                     </div>
                 )}
@@ -1046,7 +1080,138 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     </div>
 )
 
-const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor }: {
+const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue, onBack, primaryColor }: {
+    availableAddons: any[],
+    selectedAddons: Record<string, number>,
+    onAddonChange: (addonId: string, delta: number) => void,
+    onContinue: () => void,
+    onBack: () => void,
+    primaryColor?: string
+}) => {
+    const hasSelection = Object.values(selectedAddons).some(qty => qty > 0)
+
+    return (
+        <div className="flex flex-col h-full animate-fade-in relative bg-gray-50/50 dark:bg-black/20">
+            <div className="flex justify-between items-center mb-4 px-1 flex-shrink-0 pt-1">
+                <div className="space-y-0.5">
+                    <h2 className="text-[20px] font-bold tracking-tight text-black dark:text-white">Enhance your experience</h2>
+                    <p className="text-[13px] text-gray-500 font-medium">Add extras to your order</p>
+                </div>
+                <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 rounded-full border border-gray-100 dark:border-white/10 shadow-sm">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto no-scrollbar -mx-4 px-4 pb-20">
+                <div className="space-y-4">
+                    {availableAddons.map((addon) => {
+                        const qty = selectedAddons[addon.id] || 0
+                        const isSelected = qty > 0
+
+                        return (
+                            <div
+                                key={addon.id}
+                                className={cn(
+                                    "group relative overflow-hidden rounded-[20px] border bg-white dark:bg-zinc-900 transition-all duration-300",
+                                    isSelected
+                                        ? "border-black dark:border-white shadow-lg shadow-black/5 dark:shadow-white/5 ring-1 ring-black dark:ring-white"
+                                        : "border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 shadow-sm"
+                                )}
+                            >
+                                <div className="flex p-4 gap-4">
+                                    {/* Image */}
+                                    <div className="w-24 h-24 bg-gray-100 dark:bg-zinc-800 rounded-xl overflow-hidden flex-shrink-0 relative border border-black/5 dark:border-white/5">
+                                        {addon.image_url ? (
+                                            <Image src={addon.image_url} alt={addon.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-800">
+                                                <BadgeCheck className="w-8 h-8 text-gray-300 dark:text-zinc-600" />
+                                            </div>
+                                        )}
+                                        {isSelected && (
+                                            <div className="absolute inset-0 bg-black/10 dark:bg-white/10 z-10" />
+                                        )}
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
+                                        <div>
+                                            <div className="flex justify-between items-start gap-2 mb-1">
+                                                <h4 className="text-[16px] font-bold text-black dark:text-white leading-tight">{addon.name}</h4>
+                                                <span className="font-bold text-[15px] tabular-nums whitespace-nowrap bg-gray-50 dark:bg-zinc-800 px-2 py-1 rounded-md text-black dark:text-white">
+                                                    {formatCurrency(addon.price, addon.currency)}
+                                                </span>
+                                            </div>
+                                            {addon.description && (
+                                                <p className="text-[13px] text-gray-500 line-clamp-2 leading-relaxed">{addon.description}</p>
+                                            )}
+                                        </div>
+
+                                        {/* Controls */}
+                                        <div className="flex items-end justify-between mt-3">
+                                            <div className="text-[11px] font-medium text-gray-400">
+                                                {qty > 0 ? (
+                                                    <span className="text-black dark:text-white flex items-center gap-1">
+                                                        <Check className="w-3 h-3" /> Added
+                                                    </span>
+                                                ) : (
+                                                    <span>Optional</span>
+                                                )}
+                                            </div>
+
+                                            <div className={cn(
+                                                "flex items-center gap-3 p-1 rounded-xl transition-colors",
+                                                isSelected ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-zinc-800 text-black dark:text-white"
+                                            )}>
+                                                <button
+                                                    onClick={() => onAddonChange(addon.id, -1)}
+                                                    disabled={qty === 0}
+                                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all font-bold"
+                                                >
+                                                    -
+                                                </button>
+                                                <span className="text-[14px] font-bold tabular-nums w-5 text-center">{qty}</span>
+                                                <button
+                                                    onClick={() => onAddonChange(addon.id, 1)}
+                                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all font-bold"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className={`
+                sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10
+                md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-4 md:mx-0 md:mb-0
+            `}>
+                <div className="max-w-md mx-auto md:max-w-none">
+                    <button
+                        onClick={onContinue}
+                        style={{ backgroundColor: hasSelection ? (primaryColor || undefined) : undefined }}
+                        className={cn(
+                            "w-full h-12 rounded-xl text-[14px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2 border",
+                            hasSelection
+                                ? "bg-black dark:bg-white text-white dark:text-black hover:opacity-90 border-transparent"
+                                : "bg-white dark:bg-zinc-900 text-black dark:text-white border-gray-200 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800"
+                        )}
+                    >
+                        {hasSelection ? 'Continue with Add-ons' : 'No Thanks, Continue'}
+                        <ChevronRight className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor, availableAddons = [], selectedAddons = {} }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number,
@@ -1063,7 +1228,9 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
     applyingDiscount: boolean,
     selectedTickets: Record<string, number>,
     timeLeft: { label: string, seconds: number },
-    primaryColor?: string
+    primaryColor?: string,
+    availableAddons?: any[],
+    selectedAddons?: Record<string, number>
 }) => {
     const [showPromo, setShowPromo] = useState(false)
 
@@ -1115,8 +1282,30 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                             {tiers.map(tier => {
                                 const qty = selectedTickets[tier.id] || 0
                                 if (qty === 0) return null
-                                return <SummaryTicketItem key={tier.id} tier={tier} qty={qty} />
+                                return (
+                                    <div key={tier.id} className="flex justify-between items-center text-[13px] text-gray-500 dark:text-gray-400">
+                                        <span>{tier.name} <span className="text-[11px] ml-1">x{qty}</span></span>
+                                        <span className="font-medium text-black dark:text-white">{formatCurrency(tier.price * qty, tier.currency)}</span>
+                                    </div>
+                                )
                             })}
+
+                            {/* Addons Breakdown */}
+                            {selectedAddons && Object.keys(selectedAddons).length > 0 && availableAddons && (
+                                <div className="pt-2 mt-2 border-t border-dashed border-gray-100 dark:border-zinc-800 space-y-2">
+                                    {Object.entries(selectedAddons).map(([addonId, qty]) => {
+                                        if (qty === 0) return null
+                                        const addon = availableAddons.find(a => a.id === addonId)
+                                        if (!addon) return null
+                                        return (
+                                            <div key={addonId} className="flex justify-between items-center text-[13px] text-gray-500 dark:text-gray-400">
+                                                <span>{addon.name} <span className="text-[11px] ml-1">x{qty}</span></span>
+                                                <span className="font-medium text-black dark:text-white">{formatCurrency(addon.price * qty, addon.currency)}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                         <div className="h-px bg-gray-100 dark:bg-zinc-800 w-full" />

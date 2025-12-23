@@ -154,7 +154,15 @@ export default async function EventPage({ params }: PageProps) {
         .from('ticket_tiers')
         .select('*')
         .eq('event_id', event.id)
+        .order('price', { ascending: true })
+
+    // Fetch Addons
+    const { data: addons } = await supabase
+        .schema('gatepass')
+        .from('event_addons')
+        .select('*')
         .eq('event_id', event.id)
+        .eq('is_active', true)
         .order('price', { ascending: true })
 
     const feeSettings = await getFeeSettings()
@@ -219,6 +227,7 @@ export default async function EventPage({ params }: PageProps) {
                     tiers={(tiers as TicketTier[]) || []}
                     layoutId={`event-card-${event.id}`}
                     feeRates={feeSettings}
+                    availableAddons={addons || []}
                 />
             </React.Suspense>
         </div >

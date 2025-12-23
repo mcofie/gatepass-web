@@ -1394,7 +1394,8 @@ export function EventManageClient({
                                     {!isStaff ? (
                                         <>
                                             <button
-                                                type="submit"
+                                                type="button"
+                                                onClick={() => updateEvent()}
                                                 className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all disabled:opacity-50 shadow-xl shadow-black/10 dark:shadow-white/5 hover:shadow-2xl hover:-translate-y-1 text-lg"
                                                 disabled={loading}
                                             >

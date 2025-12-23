@@ -16,7 +16,7 @@
     "@react-email/tailwind": "^2.0.1",
     "@react-pdf/renderer": "^4.3.1",
     "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.87.1",
+    "@supabase/supabase-js": "^2.89.0",
     "@tiptap/extension-placeholder": "^3.13.0",
     "@tiptap/react": "^3.13.0",
     "@tiptap/starter-kit": "^3.13.0",

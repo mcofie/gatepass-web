@@ -25,6 +25,8 @@ export async function POST(req: Request) {
             .from('reservations')
             .select(`
                 quantity,
+                addons,
+                event_id,
                 ticket_tiers ( price ),
                 discounts ( type, value ),
                 events (
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
 
         let subaccountCode = null
         let transactionCharge = 0
+        let addonRevenue = 0
 
         if (reservation) {
             const event = Array.isArray((reservation as any).events) ? (reservation as any).events[0] : (reservation as any).events
@@ -49,6 +52,27 @@ export async function POST(req: Request) {
             if (organizer) {
                 subaccountCode = organizer.paystack_subaccount_code
             }
+
+            // Calculate Addons Revenue (to be separated/kept by platform or routed via flat fee)
+            const addons = (reservation as any).addons
+            if (addons && Object.keys(addons).length > 0) {
+                const { data: addonDetails } = await supabase
+                    .schema('gatepass')
+                    .from('event_addons')
+                    .select('id, price')
+                    .eq('event_id', reservation.event_id)
+                    .in('id', Object.keys(addons))
+
+                if (addonDetails) {
+                    addonRevenue = addonDetails.reduce((sum, item) => {
+                        const qty = addons[item.id] || 0
+                        return sum + (item.price * qty)
+                    }, 0)
+                }
+            }
+
+            // Convert Addon Revenue to Kobo/Pesewas immediately
+            const addonRevenueSubunits = Math.round(addonRevenue * 100)
 
             // Calculate Split
             if (subaccountCode) {
@@ -96,18 +120,24 @@ export async function POST(req: Request) {
                 }
 
                 // Effective Base for Platform Fee
-                // We calculate fee on the REVENUE (Price * Qty - Discount), not including the extra customer fees
-                const subtotal = Math.max(0, (price * quantity) - discountAmount)
+                // We calculate fee on the TOTAL REVENUE (Tickets + Addons), not including the extra customer fees
+                // Total Revenue = (Ticket Price * Qty - Discount) + Addon Revenue
+                const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+                const totalRevenue = ticketRevenue + addonRevenue
 
-                // Calculate Fee
-                const platformFee = subtotal * platformRate
+                // Calculate Fee on the total revenue
+                const platformFee = totalRevenue * platformRate
 
                 // Convert to Kobo/Pesewas
+                // Transaction Charge is just the Platform Fee. 
+                // The rest (Ticket + Addon - PlatformFee) goes to Subaccount.
                 transactionCharge = Math.round(platformFee * 100)
 
                 // Sanity Check: Ensure we don't take more than the total amount?
                 if (transactionCharge > amount) {
-                    transactionCharge = Math.round(amount * 0.1) // Cap at 10% if crazy calc?
+                    // Should not happen if logic is correct, unless fees exceed everything.
+                    console.error('Transaction charge exceeds total amount!', { transactionCharge, amount })
+                    transactionCharge = Math.round(amount * 0.1) // Fallback Cap
                 }
 
                 console.log('Paystack Split Logic:', {
@@ -115,8 +145,10 @@ export async function POST(req: Request) {
                     dbPrice: ticketTier?.price,
                     usedPrice: price,
                     quantity,
-                    subtotal,
+                    totalRevenue,
+                    ticketRevenue,
                     platformRate,
+                    addonRevenue,
                     transactionCharge, // in kobo
                     amount // in kobo
                 })

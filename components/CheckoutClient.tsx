@@ -256,10 +256,16 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
 
 
                     {/* STEPS PROGRESS */}
-                    <div className="flex justify-center gap-2 mb-8">
-                        {['details', 'addons', 'summary'].map((s, i) => (
-                            <div key={s} className={cn("h-1 rounded-full transition-all duration-300", step === s ? "w-8 bg-amber-500" : (['details', 'addons', 'summary'].indexOf(step) > i ? "w-8 bg-amber-500/50" : "w-2 bg-white/10"))} />
-                        ))}
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="flex justify-center gap-2 mb-2">
+                            {['details', 'addons', 'summary'].map((s, i) => (
+                                <div key={s} className={cn("h-1 rounded-full transition-all duration-300", step === s ? "w-8 bg-amber-500" : (['details', 'addons', 'summary'].indexOf(step) > i ? "w-8 bg-amber-500/50" : "w-2 bg-white/10"))} />
+                            ))}
+                        </div>
+                        {/* Debug Indicator - REMOVE BEFORE PROD */}
+                        <div className="text-[10px] text-gray-600 bg-white/10 px-2 py-1 rounded mt-2">
+                            Addons Available: {availableAddons.length} | ID: {reservation.event_id}
+                        </div>
                     </div>
 
                     {/* === STEP 1: DETAILS === */}
