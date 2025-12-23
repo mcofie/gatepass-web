@@ -27,6 +27,7 @@ export interface Event {
     currency?: string
     primary_color?: string
     logo_url?: string
+    lineup?: LineupItem[]
 }
 
 export interface Organizer {
@@ -45,6 +46,13 @@ export interface Organizer {
     account_number?: string
     account_name?: string
     platform_fee_percent?: number
+}
+
+export interface LineupItem {
+    name: string
+    role: string
+    image_url?: string
+    time?: string
 }
 
 export interface TicketTier {
@@ -103,6 +111,7 @@ export interface Reservation {
     profiles?: Profile
     guest_name?: string
     guest_email?: string
+    addons?: Record<string, number> // Map of AddonID -> Quantity
 }
 
 export interface Discount {
@@ -129,4 +138,18 @@ export interface EventStaff {
     last_active_at?: string
     // Extended properties
     check_in_count?: number
+}
+
+export interface EventAddon {
+    id: string
+    created_at: string
+    event_id: string
+    name: string
+    description?: string
+    price: number
+    currency: string
+    image_url?: string
+    total_quantity?: number | null
+    quantity_sold: number
+    is_active: boolean
 }

@@ -31,6 +31,8 @@ import { RichTextEditor } from '@/components/common/RichTextEditor'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 import { TransactionDetailModal } from '@/components/admin/TransactionDetailModal'
 import { DeleteEventModal } from '@/components/admin/DeleteEventModal'
+import { LineupTab } from '@/components/admin/tabs/LineupTab'
+import { AddonsTab } from '@/components/admin/tabs/AddonsTab'
 
 
 interface EventManageClientProps {
@@ -55,8 +57,9 @@ export function EventManageClient({
     const isStaff = userRole === 'Staff'
     const isAdmin = userRole === 'Owner' || userRole === 'Admin'
     const [event, setEvent] = useState(initialEvent)
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team'>('tickets')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons'>('tickets')
     const [loading, setLoading] = useState(false)
+    const [addons, setAddons] = useState<any[]>([])
 
     // Tickets State
     const [tiers, setTiers] = useState<TicketTier[]>(initialTiers) // Kept initialTiers from props
@@ -92,6 +95,36 @@ export function EventManageClient({
         if (event.organizers?.platform_fee_percent && event.organizers.platform_fee_percent > 0) return 'Organizer Default'
         return 'System Default'
     }, [event])
+
+    // Fetch data on load
+    useEffect(() => {
+        const fetchDeepData = async () => {
+            const supabase = createClient()
+
+            // Fetch Addons
+            const { data: addonsData } = await supabase
+                .schema('gatepass')
+                .from('event_addons')
+                .select('*')
+                .eq('event_id', event.id)
+                .order('price', { ascending: true })
+
+            if (addonsData) setAddons(addonsData)
+        }
+        fetchDeepData()
+    }, [event.id])
+
+    // Callback to refresh addons
+    const refreshAddons = async () => {
+        const supabase = createClient()
+        const { data: addonsData } = await supabase
+            .schema('gatepass')
+            .from('event_addons')
+            .select('*')
+            .eq('event_id', event.id)
+            .order('price', { ascending: true })
+        if (addonsData) setAddons(addonsData)
+    }
 
     const handleSaveFee = async () => {
         setFeeSaving(true)
@@ -165,8 +198,8 @@ export function EventManageClient({
     }, [tiers, initialTotalRevenue])
 
     // ---------------- DETAILS LOGIC ----------------
-    const updateEvent = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const updateEvent = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
         setLoading(true)
         try {
             if (event.is_published && tiers.length === 0) {
@@ -193,7 +226,8 @@ export function EventManageClient({
                 is_published: event.is_published,
                 fee_bearer: event.fee_bearer,
                 platform_fee_percent: event.platform_fee_percent,
-                primary_color: event.primary_color
+                primary_color: event.primary_color,
+                lineup: event.lineup
             }).eq('id', event.id)
 
             if (error) throw error
@@ -494,6 +528,14 @@ export function EventManageClient({
                                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live Page
                             </button>
                         </Link>
+                        <button
+                            onClick={() => updateEvent()}
+                            disabled={loading}
+                            className="h-10 px-6 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+                        >
+                            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -508,6 +550,7 @@ export function EventManageClient({
                         <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
                     )}
                     <button onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
+                    <button onClick={() => setActiveTab('addons')} className={tabClass('addons')}>Add-ons</button>
                     {isAdmin && (
                         <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
                     )}
@@ -754,6 +797,9 @@ export function EventManageClient({
             )
             }
 
+            {/* LINEUP TAB */}
+            {/* LINEUP TAB REMOVED - NOW EMBEDDED */}
+
             <TransactionDetailModal
                 transaction={selectedTransaction}
                 isOpen={!!selectedTransaction}
@@ -822,7 +868,7 @@ export function EventManageClient({
                             <AnalyticsCharts tickets={analyticsTickets} />
                         )}
 
-                        <form onSubmit={updateEvent} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                             {/* LEFT COLUMN (8 cols) */}
                             <div className="lg:col-span-8 space-y-8">
 
@@ -853,6 +899,72 @@ export function EventManageClient({
                                                 placeholder="Describe your event to attract attendees..."
                                                 readOnly={isStaff}
                                             />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Lineup Editor (Embedded) */}
+                                <div className="p-8 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
+                                    <div className="flex items-center gap-3 border-b pb-4 border-gray-100 dark:border-white/10">
+                                        <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl">
+                                            <Users className="w-5 h-5 text-gray-900 dark:text-white" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Event Lineup</h3>
+                                    </div>
+                                    <LineupTab
+                                        lineup={event.lineup || []}
+                                        onChange={(newLineup) => setEvent({ ...event, lineup: newLineup })}
+                                        organizationId={event.organization_id || ''}
+                                    />
+                                </div>
+
+                                {/* Timing & URL (Moved from Right) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Date & Time */}
+                                    <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
+                                        <div className="flex items-center gap-3 pb-2">
+                                            <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
+                                                <Calendar className="w-4 h-4 text-gray-900 dark:text-white" />
+                                            </div>
+                                            <h3 className="font-bold text-gray-900 dark:text-white">Timing</h3>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Starts</label>
+                                            <DateTimePicker
+                                                date={event.starts_at ? new Date(event.starts_at) : undefined}
+                                                setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
+                                                disabled={isStaff}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Ends</label>
+                                            <DateTimePicker
+                                                date={event.ends_at ? new Date(event.ends_at) : undefined}
+                                                setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
+                                                disabled={isStaff}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* URL Slug */}
+                                    <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
+                                        <div className="flex items-center gap-3 pb-2">
+                                            <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
+                                                <Globe className="w-4 h-4 text-gray-900 dark:text-white" />
+                                            </div>
+                                            <h3 className="font-bold text-gray-900 dark:text-white">Custom URL</h3>
+                                        </div>
+                                        <div>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs text-gray-400 mb-1">gatepass.com/events/</span>
+                                                <input
+                                                    disabled={isStaff}
+                                                    value={event.slug}
+                                                    onChange={e => setEvent({ ...event, slug: e.target.value })}
+                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
+                                                    placeholder="my-event"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1077,7 +1189,43 @@ export function EventManageClient({
                                     </div>
                                 </div>
 
-                                {/* Branding */}
+
+
+                            </div>
+
+                            {/* RIGHT COLUMN (4 cols) - Settings */}
+                            <div className="lg:col-span-4 space-y-8">
+
+                                {/* Publish Status - High Priority */}
+                                <div className="p-6 rounded-3xl bg-black text-white shadow-xl shadow-black/10">
+                                    <h3 className="font-bold text-lg mb-4 text-white">Visibility</h3>
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-medium text-gray-300">Publish Event</span>
+                                        <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
+                                            <input
+                                                type="checkbox"
+                                                name="toggle"
+                                                id="pub"
+                                                checked={event.is_published}
+                                                onChange={e => {
+                                                    if (e.target.checked && tiers.length === 0) {
+                                                        toast.error('You must create at least one ticket tier before publishing.')
+                                                        return
+                                                    }
+                                                    setEvent({ ...event, is_published: e.target.checked })
+                                                }}
+                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
+                                                style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
+                                            />
+                                            <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-green-500' : 'bg-gray-600'}`}></label>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+                                        When published, your event will be visible to the public and tickets will be available for purchase.
+                                    </p>
+                                </div>
+
+                                {/* Branding (Moved from Left) */}
                                 <div className="p-8 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-8">
                                     <div className="flex items-center gap-3 border-b pb-4 border-gray-100 dark:border-white/10">
                                         <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl">
@@ -1172,88 +1320,6 @@ export function EventManageClient({
                                     </div>
                                 </div>
 
-
-                            </div>
-
-                            {/* RIGHT COLUMN (4 cols) - Settings */}
-                            <div className="lg:col-span-4 space-y-8">
-
-                                {/* Publish Status - High Priority */}
-                                <div className="p-6 rounded-3xl bg-black text-white shadow-xl shadow-black/10">
-                                    <h3 className="font-bold text-lg mb-4 text-white">Visibility</h3>
-                                    <div className="flex items-center justify-between">
-                                        <span className="font-medium text-gray-300">Publish Event</span>
-                                        <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
-                                            <input
-                                                type="checkbox"
-                                                name="toggle"
-                                                id="pub"
-                                                checked={event.is_published}
-                                                onChange={e => {
-                                                    if (e.target.checked && tiers.length === 0) {
-                                                        toast.error('You must create at least one ticket tier before publishing.')
-                                                        return
-                                                    }
-                                                    setEvent({ ...event, is_published: e.target.checked })
-                                                }}
-                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
-                                                style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
-                                            />
-                                            <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-green-500' : 'bg-gray-600'}`}></label>
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-                                        When published, your event will be visible to the public and tickets will be available for purchase.
-                                    </p>
-                                </div>
-
-                                {/* Date & Time */}
-                                <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
-                                    <div className="flex items-center gap-3 pb-2">
-                                        <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-                                            <Calendar className="w-4 h-4 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white">Timing</h3>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Starts</label>
-                                        <DateTimePicker
-                                            date={event.starts_at ? new Date(event.starts_at) : undefined}
-                                            setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
-                                            disabled={isStaff}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Ends</label>
-                                        <DateTimePicker
-                                            date={event.ends_at ? new Date(event.ends_at) : undefined}
-                                            setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
-                                            disabled={isStaff}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* URL Slug */}
-                                <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
-                                    <div className="flex items-center gap-3 pb-2">
-                                        <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-                                            <Globe className="w-4 h-4 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white">Custom URL</h3>
-                                    </div>
-                                    <div>
-                                        <div className="flex flex-col">
-                                            <span className="text-xs text-gray-400 mb-1">gatepass.com/events/</span>
-                                            <input
-                                                disabled={isStaff}
-                                                value={event.slug}
-                                                onChange={e => setEvent({ ...event, slug: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
-                                                placeholder="my-event"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
 
                                 {/* Financials */}
                                 <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
@@ -1382,7 +1448,7 @@ export function EventManageClient({
                                 </div>
 
                             </div>
-                        </form>
+                        </div>
                     </div >
                 )
             }
@@ -1393,6 +1459,17 @@ export function EventManageClient({
                     <TicketsTab event={event} tiers={tiers} onTiersUpdate={setTiers} />
                 )
             }
+
+            {/* ADD-ONS TAB */}
+            {activeTab === 'addons' && (
+                <AddonsTab
+                    addons={addons}
+                    eventId={event.id}
+                    organizationId={event.organization_id || ''}
+                    onUpdate={refreshAddons}
+                />
+            )}
+
 
             {/* ATTENDEES TAB */}
             {

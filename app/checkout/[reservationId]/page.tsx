@@ -22,6 +22,22 @@ export default async function CheckoutPage({ params }: PageProps) {
         .eq('id', reservationId)
         .single()
 
+    // Fetch Addons
+    const { data: addons, error: addonsError } = await supabase
+        .schema('gatepass')
+        .from('event_addons')
+        .select('*')
+        .eq('event_id', reservation?.event_id)
+        .eq('is_active', true)
+        .order('price', { ascending: true })
+
+    if (addonsError) {
+        console.error('[CheckoutPage] Addons Fetch Error:', addonsError)
+    }
+
+    console.log(`[CheckoutPage] Reservation: ${reservationId}, Event: ${reservation?.event_id}`)
+    console.log(`[CheckoutPage] Addons Found: ${addons?.length}`, addons)
+
     let discount = null
     if (reservation?.discount_id) {
         const { data: d } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
@@ -40,7 +56,7 @@ export default async function CheckoutPage({ params }: PageProps) {
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-black text-white selection:bg-amber-500/30 selection:text-amber-200">
-            <CheckoutClient reservation={reservation} feeRates={feeSettings} discount={discount} />
+            <CheckoutClient reservation={reservation} feeRates={feeSettings} discount={discount} availableAddons={addons || []} />
         </div>
     )
 }

@@ -3,13 +3,13 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { ArrowLeft, Check, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, X, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { RichTextEditor } from '@/components/common/RichTextEditor'
 import { DateTimePicker } from '@/components/common/DateTimePicker'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 import { TicketManager } from '@/components/common/TicketManager'
-import { TicketTier } from '@/types/gatepass'
+import { TicketTier, LineupItem } from '@/types/gatepass'
 import { PreviewModal } from '@/components/common/PreviewModal'
 import { logActivity } from '@/app/actions/logger'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ const STEPS = [
     { id: 'basics', title: 'Basics', description: 'Name & Details' },
     { id: 'location', title: 'Time & Place', description: 'Vehicle & Date' },
     { id: 'media', title: 'Media', description: 'Photos & Videos' },
+    { id: 'lineup', title: 'Lineup', description: 'Speakers & Artists' },
     { id: 'tickets', title: 'Tickets', description: 'Admission & Pricing' },
     { id: 'review', title: 'Review', description: 'Finalize' }
 ]
@@ -49,7 +50,8 @@ export default function CreateEventPage() {
         platform_fee_percent: PLATFORM_FEE_PERCENT * 100,
         organization_id: '',
         primary_color: '#000000',
-        tiers: [] as Partial<TicketTier>[]
+        tiers: [] as Partial<TicketTier>[],
+        lineup: [] as LineupItem[]
     })
 
     // Fetch or Create Organizer on Mount
@@ -139,6 +141,27 @@ export default function CreateEventPage() {
         setFormData(prev => ({ ...prev, [name]: value }))
     }
 
+    // Lineup Management
+    const [newLineupItem, setNewLineupItem] = useState<LineupItem>({ name: '', role: '', image_url: '' })
+    const [isAddingLineup, setIsAddingLineup] = useState(false)
+
+    const addLineupItem = () => {
+        if (!newLineupItem.name || !newLineupItem.role) {
+            toast.error('Name and Role are required')
+            return
+        }
+        setFormData(prev => ({ ...prev, lineup: [...(prev.lineup || []), newLineupItem] }))
+        setNewLineupItem({ name: '', role: '', image_url: '' })
+        setIsAddingLineup(false)
+    }
+
+    const removeLineupItem = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            lineup: (prev.lineup || []).filter((_, i) => i !== index)
+        }))
+    }
+
     const validateStep = (step: number) => {
         switch (step) {
             case 0: // Basics
@@ -154,6 +177,8 @@ export default function CreateEventPage() {
             case 2: // Media
                 if (!formData.poster_url) { toast.error('Event poster is required'); return false }
                 if (!formData.video_url) { toast.error('Event trailer/teaser is required'); return false }
+                return true
+            case 3: // Lineup (Optional)
                 return true
             default:
                 return true
@@ -492,8 +517,112 @@ export default function CreateEventPage() {
                             </div>
                         )}
 
-                        {/* STEP 4: TICKETS */}
+                        {/* STEP 4: LINEUP */}
                         {currentStep === 3 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                <div className="flex items-start gap-8">
+                                    {/* List */}
+                                    <div className="flex-1 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="text-sm font-semibold text-gray-900 dark:text-white">Current Lineup</div>
+                                            <button
+                                                onClick={() => setIsAddingLineup(true)}
+                                                className="text-xs font-bold text-black dark:text-white hover:underline flex items-center gap-1"
+                                            >
+                                                <Plus className="w-3 h-3" /> Add Artist
+                                            </button>
+                                        </div>
+
+                                        {(formData.lineup || []).length === 0 ? (
+                                            <div className="p-8 border border-dashed border-gray-200 dark:border-white/10 rounded-xl text-center">
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">No artists added yet.</p>
+                                                <button onClick={() => setIsAddingLineup(true)} className="mt-2 text-sm font-bold text-black dark:text-white hover:underline">Add One</button>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {(formData.lineup || []).map((item, index) => (
+                                                    <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 group">
+                                                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden shrink-0">
+                                                            {item.image_url ? (
+                                                                <img src={item.image_url} className="w-full h-full object-cover" alt={item.name} />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">
+                                                                    {item.name.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="font-bold text-sm text-gray-900 dark:text-white">{item.name}</div>
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400">{item.role}</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => removeLineupItem(index)}
+                                                            className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 transition-all"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Add Form */}
+                                    {isAddingLineup && (
+                                        <div className="w-80 p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl space-y-4">
+                                            <h4 className="font-bold text-sm text-gray-900 dark:text-white">Add Performer</h4>
+                                            <div>
+                                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Name</label>
+                                                <input
+                                                    value={newLineupItem.name}
+                                                    onChange={e => setNewLineupItem(p => ({ ...p, name: e.target.value }))}
+                                                    className="w-full mt-1 px-3 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg text-sm"
+                                                    placeholder="Artist Name"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Role</label>
+                                                <input
+                                                    value={newLineupItem.role}
+                                                    onChange={e => setNewLineupItem(p => ({ ...p, role: e.target.value }))}
+                                                    className="w-full mt-1 px-3 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg text-sm"
+                                                    placeholder="DJ, Host, etc."
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Photo</label>
+                                                <div className="mt-1">
+                                                    <MediaUploader
+                                                        type="image"
+                                                        path={`${formData.organization_id}/lineup/${Math.random().toString(36).substring(7)}`}
+                                                        value={newLineupItem.image_url || ''}
+                                                        onChange={url => setNewLineupItem(p => ({ ...p, image_url: url }))}
+                                                        className="!h-32"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 pt-2">
+                                                <button
+                                                    onClick={() => setIsAddingLineup(false)}
+                                                    className="flex-1 py-2 text-xs font-bold text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={addLineupItem}
+                                                    className="flex-1 py-2 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded-lg"
+                                                >
+                                                    Add
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STEP 5: TICKETS */}
+                        {currentStep === 4 && (
                             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                                 <TicketManager
                                     tiers={formData.tiers}
@@ -502,8 +631,8 @@ export default function CreateEventPage() {
                             </div>
                         )}
 
-                        {/* STEP 5: REVIEW */}
-                        {currentStep === 4 && (
+                        {/* STEP 6: REVIEW */}
+                        {currentStep === 5 && (
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-100 dark:border-white/10 space-y-4">
                                     <h4 className="font-bold text-gray-900 dark:text-white">Event Summary</h4>
@@ -523,6 +652,10 @@ export default function CreateEventPage() {
                                         <div>
                                             <p className="text-gray-500 dark:text-gray-400">Ticket Tiers</p>
                                             <p className="font-medium text-gray-900 dark:text-white">{formData.tiers.length}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500 dark:text-gray-400">Lineup</p>
+                                            <p className="font-medium text-gray-900 dark:text-white">{(formData.lineup || []).length} artists</p>
                                         </div>
                                     </div>
                                 </div>
@@ -568,7 +701,7 @@ export default function CreateEventPage() {
                         )}
 
                         <div className="flex gap-4">
-                            {currentStep === 4 && (
+                            {currentStep === 5 && (
                                 <button
                                     type="button"
                                     onClick={() => setShowPreview(true)}
@@ -578,7 +711,7 @@ export default function CreateEventPage() {
                                 </button>
                             )}
 
-                            {currentStep < 4 ? (
+                            {currentStep < 5 ? (
                                 <button
                                     onClick={nextStep}
                                     className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-lg shadow-black/20 dark:shadow-none flex items-center gap-2"

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Script from 'next/script'
+import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Database } from '@/types/supabase' // Assuming types are global or accessible, but sticking to 'any' if generic
@@ -35,7 +36,7 @@ const useTimer = (expiresAt: string | undefined) => {
     return timeLeft
 }
 
-import { Reservation, Event, TicketTier } from '@/types/gatepass'
+import { Reservation, Event, TicketTier, EventAddon } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatCurrency } from '@/utils/format'
@@ -46,9 +47,10 @@ interface CheckoutClientProps {
     reservation: Reservation
     feeRates?: FeeRates
     discount?: any
+    availableAddons?: EventAddon[]
 }
 
-export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClientProps) {
+export function CheckoutClient({ reservation, feeRates, discount, availableAddons = [] }: CheckoutClientProps) {
     const router = useRouter()
     const supabase = createClient()
     const [paying, setPaying] = useState(false)
@@ -57,6 +59,11 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
 
     const [guestForm, setGuestForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
     const [isGuest, setIsGuest] = useState(false)
+    const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
+    const [step, setStep] = useState<'details' | 'addons' | 'summary'>('details')
+
+    // Auto-advance if no guest details needed? No, let's keep it explicit "Continue" for consistency unless directed otherwise.
+    // actually if not guest, "Details" step might be empty/boring. Let's make it show "Ticket Holder: [Name]" at least.
 
     useEffect(() => {
         supabase.auth.getUser().then(({ data }) => {
@@ -87,8 +94,19 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
     // const platformFeePercent = reservation.events?.platform_fee_percent || 0 // Deprecated in favor of global constant
 
 
+
     // Calculate Base Subtotal
     let subtotal = price * quantity
+    let addonsTotal = 0
+
+    // Add Add-ons cost
+    availableAddons.forEach(addon => {
+        if (selectedAddons[addon.id]) {
+            addonsTotal += addon.price * selectedAddons[addon.id]
+        }
+    })
+
+    subtotal += addonsTotal
     let discountAmount = 0
 
     // Apply Discount
@@ -160,7 +178,8 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             reference: transaction.reference,
-                            reservationId: reservation.id
+                            reservationId: reservation.id,
+                            addons: selectedAddons
                         })
                     })
 
@@ -234,12 +253,24 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
                         </div>
                     </div>
 
-                    {/* Guest Form Section */}
-                    {isGuest && (
-                        <div className="space-y-6 mb-8 pt-6 border-t border-white/5">
+                </div>
+            </div>
+
+            {/* STEPS PROGRESS */}
+            <div className="flex justify-center gap-2 mb-8">
+                {['details', 'addons', 'summary'].map((s, i) => (
+                    <div key={s} className={cn("h-1 rounded-full transition-all duration-300", step === s ? "w-8 bg-amber-500" : (['details', 'addons', 'summary'].indexOf(step) > i ? "w-8 bg-amber-500/50" : "w-2 bg-white/10"))} />
+                ))}
+            </div>
+
+            {/* === STEP 1: DETAILS === */}
+            {step === 'details' && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    {isGuest ? (
+                        <div className="space-y-6">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
-                                <h3 className="font-bold text-sm uppercase tracking-wider text-gray-500">Guest Details</h3>
+                                <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Guest Details</h3>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <Input
@@ -270,14 +301,122 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
                                 />
                             </div>
                         </div>
+                    ) : (
+                        <div className="text-center py-10 space-y-4">
+                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+                                {/* Avatar or Icon */}
+                                {user?.user_metadata?.avatar_url ? (
+                                    <img src={user.user_metadata.avatar_url} className="w-full h-full rounded-full object-cover" alt="User" />
+                                ) : (
+                                    <div className="font-bold text-2xl text-amber-500">{user?.email?.[0].toUpperCase()}</div>
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="text-white font-bold text-lg">Logged in as {user?.email}</h3>
+                                <p className="text-gray-500 text-sm">Your tickets will be sent to this email.</p>
+                            </div>
+                        </div>
                     )}
 
-                    {/* Ticket Summary */}
-                    <div className="space-y-6 pt-6 border-t border-dashed border-white/10 relative">
-                        {/* Cutout circles for 'ticket' effect */}
-                        <div className="absolute -left-12 top-[-1px] w-6 h-6 bg-black rounded-full"></div>
-                        <div className="absolute -right-12 top-[-1px] w-6 h-6 bg-black rounded-full"></div>
+                    <div className="mt-8">
+                        <Button
+                            onClick={() => {
+                                if (isGuest && (!guestForm.firstName || !guestForm.email)) {
+                                    toast.error('Please fill in your details')
+                                    return
+                                }
+                                // Skip Addons if none
+                                if (availableAddons.length === 0) setStep('summary')
+                                else setStep('addons')
+                            }}
+                            className="w-full h-12 bg-white text-black hover:bg-gray-200 font-bold rounded-xl"
+                        >
+                            Continue
+                        </Button>
+                    </div>
+                </div>
+            )}
 
+            {/* === STEP 2: ADD-ONS === */}
+            {step === 'addons' && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="space-y-4 mb-8">
+                        <div className="text-center mb-6">
+                            <h2 className="text-xl font-bold text-white">Enhance Your Experience</h2>
+                            <p className="text-gray-400 text-sm">Select extras to add to your order</p>
+                        </div>
+
+                        <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            {availableAddons.map(addon => {
+                                const qty = selectedAddons[addon.id] || 0
+                                return (
+                                    <div key={addon.id} className={cn("p-4 rounded-xl border transition-all flex items-center gap-4 bg-white/5", qty > 0 ? "border-amber-500/50 bg-amber-500/5" : "border-white/5")}>
+                                        <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0">
+                                            {addon.image_url && <img src={addon.image_url} alt={addon.name} className="w-full h-full object-cover" />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-white text-sm">{addon.name}</h4>
+                                            <div className="flex flex-col gap-1 mt-1">
+                                                <span className="text-amber-500 font-bold text-xs">{formatCurrency(addon.price, addon.currency)}</span>
+                                                {addon.description && <span className="text-xs text-gray-500 line-clamp-2">{addon.description}</span>}
+                                            </div>
+                                        </div>
+                                        {/* Stepper */}
+                                        <div className="flex flex-col items-center gap-1 bg-black/50 p-1 rounded-lg border border-white/5">
+                                            <button
+                                                onClick={() => setSelectedAddons(prev => ({ ...prev, [addon.id]: (prev[addon.id] || 0) + 1 }))}
+                                                className="w-8 h-8 flex items-center justify-center rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
+                                            >
+                                                +
+                                            </button>
+                                            <span className="text-sm font-bold tabular-nums w-4 text-center py-1">{qty}</span>
+                                            <button
+                                                onClick={() => setSelectedAddons(prev => {
+                                                    const newQty = Math.max(0, (prev[addon.id] || 0) - 1)
+                                                    const next = { ...prev }
+                                                    if (newQty === 0) delete next[addon.id]
+                                                    else next[addon.id] = newQty
+                                                    return next
+                                                })}
+                                                className="w-8 h-8 flex items-center justify-center rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
+                                            >
+                                                -
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 mt-8">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setStep('details')}
+                            className="flex-1 h-12 text-gray-400 hover:text-white"
+                        >
+                            Back
+                        </Button>
+                        <Button
+                            onClick={() => setStep('summary')}
+                            className="flex-[2] h-12 bg-white text-black hover:bg-gray-200 font-bold rounded-xl"
+                        >
+                            Continue to Payment
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* === STEP 3: SUMMARY === */}
+            {step === 'summary' && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    {/* Small Back Button */}
+                    <button onClick={() => setStep(availableAddons.length > 0 ? 'addons' : 'details')} className="flex items-center gap-1 text-xs text-gray-500 hover:text-white mb-4 transition-colors">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                        Back
+                    </button>
+
+                    <div className="space-y-6 pt-0 border-t-0 border-dashed border-white/10 relative">
                         <div className="flex justify-between items-start">
                             <span className="text-gray-400 text-sm">Event</span>
                             <span className="font-bold text-right max-w-[200px] text-white">{reservation.events?.title}</span>
@@ -287,10 +426,28 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
                             <span className="font-medium text-white">{reservation.ticket_tiers?.name} <span className="text-gray-500">x {reservation.quantity}</span></span>
                         </div>
 
+                        {/* Addon Summary Line */}
+                        {Object.keys(selectedAddons).length > 0 && (
+                            <div className="flex justify-between items-start text-sm pt-2">
+                                <span className="text-gray-400">Extras</span>
+                                <div className="text-right">
+                                    {Object.entries(selectedAddons).map(([id, qty]) => {
+                                        const addon = availableAddons.find(a => a.id === id)
+                                        if (!addon) return null
+                                        return (
+                                            <div key={id} className="text-white">
+                                                {qty}x {addon.name}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-3 pt-6 border-t border-white/5">
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-400">Subtotal</span>
-                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(price * quantity, currency)}</span>
+                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(price * quantity + addonsTotal, currency)}</span>
                             </div>
 
                             {discount && (
@@ -333,7 +490,10 @@ export function CheckoutClient({ reservation, feeRates, discount }: CheckoutClie
                         Secured by Paystack
                     </div>
                 </div>
-            </div>
+            )}
+
+        </div>
+        </div>
         </>
     )
 }

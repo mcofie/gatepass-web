@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { verifyPaystackTransaction } from '@/lib/paystack'
 import { NextResponse } from 'next/server'
+import { processSuccessfulPayment } from '@/utils/actions/payment'
 
 export async function POST(request: Request) {
     try {
-        const { reference, reservationId } = await request.json()
+        const { reference, reservationId, addons } = await request.json()
 
 
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -34,8 +35,7 @@ export async function POST(request: Request) {
         }
 
         // 3. Process Payment (Shared Logic)
-        const { processSuccessfulPayment } = await import('@/utils/actions/payment')
-        const result = await processSuccessfulPayment(reference, reservationId, transaction)
+        const result = await processSuccessfulPayment(reference, reservationId, transaction, addons)
 
         if (!result.success) {
             return NextResponse.json({ error: result.error || 'Processing failed' }, { status: 500 })

@@ -18,7 +18,7 @@ import { createReservation } from '@/utils/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
-import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download } from 'lucide-react'
+import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { motion } from 'framer-motion'
@@ -558,15 +558,19 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 // Sub-components
 
 const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean, isFeedItem?: boolean }) => {
-    const [showHostInfo, setShowHostInfo] = useState(false)
+    const [activeSlide, setActiveSlide] = useState<'description' | 'host' | 'lineup'>('description')
     const [contentHeight, setContentHeight] = useState<number | 'auto'>('auto')
     const descriptionRef = React.useRef<HTMLDivElement>(null)
     const hostInfoRef = React.useRef<HTMLDivElement>(null)
+    const lineupRef = React.useRef<HTMLDivElement>(null)
 
     // Dynamic Height Calculation
     useEffect(() => {
         const updateHeight = () => {
-            const target = showHostInfo ? hostInfoRef.current : descriptionRef.current
+            let target = descriptionRef.current
+            if (activeSlide === 'host') target = hostInfoRef.current
+            if (activeSlide === 'lineup') target = lineupRef.current
+
             if (target) {
                 // Use scrollHeight to capture full content including potential overflow/clamping
                 // Add a small buffer (4px) to prevent sub-pixel cutting
@@ -580,9 +584,10 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
         const observer = new ResizeObserver(updateHeight)
         if (descriptionRef.current) observer.observe(descriptionRef.current)
         if (hostInfoRef.current) observer.observe(hostInfoRef.current)
+        if (lineupRef.current) observer.observe(lineupRef.current)
 
         return () => observer.disconnect()
-    }, [showHostInfo, event.description, isExpanded])
+    }, [activeSlide, event.description, isExpanded])
 
     return (
         <div className="animate-fade-in flex flex-col h-full">
@@ -604,14 +609,17 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
 
                         {/* Interactive Host Name */}
                         <button
-                            onClick={(e) => { e.stopPropagation(); setShowHostInfo(!showHostInfo); }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveSlide(activeSlide === 'host' ? 'description' : 'host');
+                            }}
                             className="flex items-center gap-0.5 group outline-none"
                         >
                             <p className="text-[12px] text-gray-500 dark:text-gray-400 font-medium group-hover:text-black dark:group-hover:text-white transition-colors">
                                 {event.organizers?.name || 'GatePass Event'}
                             </p>
                             <ChevronRight
-                                className={`w-3 h-3 text-gray-400 group-hover:text-black dark:group-hover:text-white transition-transform duration-300 ${showHostInfo ? 'rotate-90' : ''}`}
+                                className={`w-3 h-3 text-gray-400 group-hover:text-black dark:group-hover:text-white transition-transform duration-300 ${activeSlide === 'host' ? 'rotate-90' : ''}`}
                             />
                         </button>
                     </div>
@@ -634,48 +642,122 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                     {/* The Rail: Width 200% to hold both views side-by-side */}
                     <div
                         className="flex transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform w-[200%] items-start"
-                        style={{ transform: showHostInfo ? 'translateX(-50%)' : 'translateX(0)' }}
+                        style={{ transform: activeSlide !== 'description' ? 'translateX(-50%)' : 'translateX(0)' }}
                     >
                         {/* Slide 1: Event Description */}
                         <div className="w-1/2 pr-4" ref={descriptionRef}>
                             <div
-                                className={`text-[13px] font-normal text-black dark:text-gray-300 leading-relaxed mb-4 mt-2 prose prose-sm dark:prose-invert max-w-none ${!isExpanded ? 'line-clamp-1 md:line-clamp-none' : ''}`}
+                                className={`text-[13px] font-normal text-black dark:text-gray-300 leading-relaxed mb-4 mt-2 prose prose-sm dark:prose-invert max-w-none ${!isExpanded ? 'overflow-hidden text-ellipsis line-clamp-3' : ''}`}
+                                style={!isExpanded ? {
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 3,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden'
+                                } : {}}
                                 dangerouslySetInnerHTML={{ __html: event.description || '' }}
                             />
-                            {!isExpanded && !showHostInfo && (
+
+                            {/* Lineup Toggle Button */}
+                            {event.lineup && event.lineup.length > 0 && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveSlide('lineup');
+                                    }}
+                                    className="mt-5 mb-2 flex items-center gap-3 group outline-none transition-all active:scale-[0.98]"
+                                >
+                                    <div className="flex -space-x-2 overflow-hidden py-1">
+                                        {event.lineup.slice(0, 3).map((item, i) => (
+                                            <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gray-100 dark:bg-zinc-800 overflow-hidden relative z-[1]">
+                                                {item.image_url ? (
+                                                    <Image src={item.image_url} alt={item.name} fill className="object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-gray-400">
+                                                        {item.name.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {event.lineup.length > 3 && (
+                                            <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gray-50 dark:bg-zinc-800 flex items-center justify-center relative z-0">
+                                                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400">+{event.lineup.length - 3}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span className="text-[13px] font-medium text-black dark:text-white group-hover:underline decoration-gray-300 underline-offset-4 decoration-2">
+                                        Lineup
+                                    </span>
+                                </button>
+                            )}
+
+                            {!isExpanded && activeSlide === 'description' && (
                                 <span className="text-[11px] font-bold text-gray-400 block -mt-3 mb-2 md:hidden">Read more...</span>
                             )}
                         </div>
 
-                        {/* Slide 2: Host Info */}
-                        <div className="w-1/2 pl-1 pr-4" ref={hostInfoRef}>
-                            <div className="mt-2 mb-4 animate-fade-in">
-                                <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
-                                <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
-                                    {event.organizers?.description || 'No bio available.'}
-                                </p>
+                        {/* Slide 2: Dynamic Content (Host OR Lineup) */}
+                        <div className="w-1/2 pl-1 pr-4">
+                            {activeSlide === 'host' && (
+                                <div ref={hostInfoRef} className="mt-2 mb-4 animate-fade-in">
+                                    <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
+                                    <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                                        {event.organizers?.description || 'No bio available.'}
+                                    </p>
 
-                                {/* Organizer Socials */}
-                                {event.organizers && (
-                                    <div className="flex items-center gap-3">
-                                        {event.organizers.website && (
-                                            <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                <Globe className="w-3.5 h-3.5" />
-                                            </a>
-                                        )}
-                                        {event.organizers.instagram && (
-                                            <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
-                                            </a>
-                                        )}
-                                        {event.organizers.twitter && (
-                                            <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
-                                            </a>
-                                        )}
+                                    {/* Organizer Socials */}
+                                    {event.organizers && (
+                                        <div className="flex items-center gap-3">
+                                            {event.organizers.website && (
+                                                <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                                    <Globe className="w-3.5 h-3.5" />
+                                                </a>
+                                            )}
+                                            {event.organizers.instagram && (
+                                                <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
+                                                </a>
+                                            )}
+                                            {event.organizers.twitter && (
+                                                <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeSlide === 'lineup' && (
+                                <div ref={lineupRef} className="mt-2 mb-4 animate-fade-in">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest">Lineup</h3>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setActiveSlide('description') }}
+                                            className="text-[10px] font-bold text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-1"
+                                        >
+                                            <ArrowLeft className="w-3 h-3" /> Back
+                                        </button>
                                     </div>
-                                )}
-                            </div>
+
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {(event.lineup || []).map((item, i) => (
+                                            <div key={i} className="flex flex-col items-center text-center">
+                                                <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-gray-100 dark:bg-white/10 overflow-hidden mb-2 relative">
+                                                    {item.image_url ? (
+                                                        <Image src={item.image_url} alt={item.name} fill className="object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-400">
+                                                            {item.name.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="text-[11px] font-bold leading-tight text-black dark:text-white w-full break-words">{item.name}</div>
+                                                <div className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">{item.role}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

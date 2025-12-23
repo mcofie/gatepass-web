@@ -11,7 +11,7 @@ export type PaymentResult = {
     error?: string
 }
 
-export async function processSuccessfulPayment(reference: string, reservationId?: string, transactionData?: any): Promise<PaymentResult> {
+export async function processSuccessfulPayment(reference: string, reservationId?: string, transactionData?: any, addons?: Record<string, number>): Promise<PaymentResult> {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!serviceRoleKey) {
         console.error('CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing.')
@@ -184,8 +184,15 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             return { success: false, error: `Failed to generate any tickets. DB Error: ${JSON.stringify(lastError?.message || lastError)}` }
         }
 
-        // 5. Update Reservation Status
-        await supabase.schema('gatepass').from('reservations').update({ status: 'confirmed' }).eq('id', reservation.id)
+        // 5. Update Reservation Status & Add-ons
+        await supabase
+            .schema('gatepass')
+            .from('reservations')
+            .update({
+                status: 'confirmed',
+                addons: addons || null
+            })
+            .eq('id', reservation.id)
 
         // 5b. Inventory Update: Increment quantity_sold
         const { data: currentTier } = await supabase
@@ -204,6 +211,22 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
             if (updateError) {
                 console.error('Inventory Update Error (Direct):', updateError)
+            }
+        }
+
+        // 5b-2. Add-ons Inventory Update
+        if (addons) {
+            for (const [addonId, qty] of Object.entries(addons)) {
+                if (qty > 0) {
+                    const { data: addonData } = await supabase.schema('gatepass').from('event_addons').select('quantity_sold').eq('id', addonId).single()
+                    if (addonData) {
+                        await supabase
+                            .schema('gatepass')
+                            .from('event_addons')
+                            .update({ quantity_sold: (addonData.quantity_sold || 0) + Number(qty) })
+                            .eq('id', addonId)
+                    }
+                }
             }
         }
 
