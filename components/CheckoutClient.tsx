@@ -253,247 +253,245 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                         </div>
                     </div>
 
-                </div>
-            </div>
 
-            {/* STEPS PROGRESS */}
-            <div className="flex justify-center gap-2 mb-8">
-                {['details', 'addons', 'summary'].map((s, i) => (
-                    <div key={s} className={cn("h-1 rounded-full transition-all duration-300", step === s ? "w-8 bg-amber-500" : (['details', 'addons', 'summary'].indexOf(step) > i ? "w-8 bg-amber-500/50" : "w-2 bg-white/10"))} />
-                ))}
-            </div>
 
-            {/* === STEP 1: DETAILS === */}
-            {step === 'details' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                    {isGuest ? (
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
-                                <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Guest Details</h3>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <Input
-                                    placeholder="First Name"
-                                    value={guestForm.firstName}
-                                    onChange={e => setGuestForm({ ...guestForm, firstName: e.target.value })}
-                                    className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
-                                />
-                                <Input
-                                    placeholder="Last Name"
-                                    value={guestForm.lastName}
-                                    onChange={e => setGuestForm({ ...guestForm, lastName: e.target.value })}
-                                    className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
-                                />
-                                <Input
-                                    placeholder="Email"
-                                    type="email"
-                                    value={guestForm.email}
-                                    onChange={e => setGuestForm({ ...guestForm, email: e.target.value })}
-                                    className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
-                                />
-                                <Input
-                                    placeholder="Phone Number"
-                                    type="tel"
-                                    value={guestForm.phone}
-                                    onChange={e => setGuestForm({ ...guestForm, phone: e.target.value })}
-                                    className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="text-center py-10 space-y-4">
-                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
-                                {/* Avatar or Icon */}
-                                {user?.user_metadata?.avatar_url ? (
-                                    <img src={user.user_metadata.avatar_url} className="w-full h-full rounded-full object-cover" alt="User" />
-                                ) : (
-                                    <div className="font-bold text-2xl text-amber-500">{user?.email?.[0].toUpperCase()}</div>
-                                )}
-                            </div>
-                            <div>
-                                <h3 className="text-white font-bold text-lg">Logged in as {user?.email}</h3>
-                                <p className="text-gray-500 text-sm">Your tickets will be sent to this email.</p>
+                    {/* STEPS PROGRESS */}
+                    <div className="flex justify-center gap-2 mb-8">
+                        {['details', 'addons', 'summary'].map((s, i) => (
+                            <div key={s} className={cn("h-1 rounded-full transition-all duration-300", step === s ? "w-8 bg-amber-500" : (['details', 'addons', 'summary'].indexOf(step) > i ? "w-8 bg-amber-500/50" : "w-2 bg-white/10"))} />
+                        ))}
+                    </div>
+
+                    {/* === STEP 1: DETAILS === */}
+                    {step === 'details' && (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                            {isGuest ? (
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>
+                                        <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Guest Details</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Input
+                                            placeholder="First Name"
+                                            value={guestForm.firstName}
+                                            onChange={e => setGuestForm({ ...guestForm, firstName: e.target.value })}
+                                            className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
+                                        />
+                                        <Input
+                                            placeholder="Last Name"
+                                            value={guestForm.lastName}
+                                            onChange={e => setGuestForm({ ...guestForm, lastName: e.target.value })}
+                                            className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
+                                        />
+                                        <Input
+                                            placeholder="Email"
+                                            type="email"
+                                            value={guestForm.email}
+                                            onChange={e => setGuestForm({ ...guestForm, email: e.target.value })}
+                                            className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
+                                        />
+                                        <Input
+                                            placeholder="Phone Number"
+                                            type="tel"
+                                            value={guestForm.phone}
+                                            onChange={e => setGuestForm({ ...guestForm, phone: e.target.value })}
+                                            className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 space-y-4">
+                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+                                        {/* Avatar or Icon */}
+                                        {user?.user_metadata?.avatar_url ? (
+                                            <img src={user.user_metadata.avatar_url} className="w-full h-full rounded-full object-cover" alt="User" />
+                                        ) : (
+                                            <div className="font-bold text-2xl text-amber-500">{user?.email?.[0].toUpperCase()}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-white font-bold text-lg">Logged in as {user?.email}</h3>
+                                        <p className="text-gray-500 text-sm">Your tickets will be sent to this email.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-8">
+                                <Button
+                                    onClick={() => {
+                                        if (isGuest && (!guestForm.firstName || !guestForm.email)) {
+                                            toast.error('Please fill in your details')
+                                            return
+                                        }
+                                        // Skip Addons if none
+                                        if (availableAddons.length === 0) setStep('summary')
+                                        else setStep('addons')
+                                    }}
+                                    className="w-full h-12 bg-white text-black hover:bg-gray-200 font-bold rounded-xl"
+                                >
+                                    Continue
+                                </Button>
                             </div>
                         </div>
                     )}
 
-                    <div className="mt-8">
-                        <Button
-                            onClick={() => {
-                                if (isGuest && (!guestForm.firstName || !guestForm.email)) {
-                                    toast.error('Please fill in your details')
-                                    return
-                                }
-                                // Skip Addons if none
-                                if (availableAddons.length === 0) setStep('summary')
-                                else setStep('addons')
-                            }}
-                            className="w-full h-12 bg-white text-black hover:bg-gray-200 font-bold rounded-xl"
-                        >
-                            Continue
-                        </Button>
-                    </div>
-                </div>
-            )}
+                    {/* === STEP 2: ADD-ONS === */}
+                    {step === 'addons' && (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div className="space-y-4 mb-8">
+                                <div className="text-center mb-6">
+                                    <h2 className="text-xl font-bold text-white">Enhance Your Experience</h2>
+                                    <p className="text-gray-400 text-sm">Select extras to add to your order</p>
+                                </div>
 
-            {/* === STEP 2: ADD-ONS === */}
-            {step === 'addons' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="space-y-4 mb-8">
-                        <div className="text-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Enhance Your Experience</h2>
-                            <p className="text-gray-400 text-sm">Select extras to add to your order</p>
-                        </div>
-
-                        <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                            {availableAddons.map(addon => {
-                                const qty = selectedAddons[addon.id] || 0
-                                return (
-                                    <div key={addon.id} className={cn("p-4 rounded-xl border transition-all flex items-center gap-4 bg-white/5", qty > 0 ? "border-amber-500/50 bg-amber-500/5" : "border-white/5")}>
-                                        <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0">
-                                            {addon.image_url && <img src={addon.image_url} alt={addon.name} className="w-full h-full object-cover" />}
-                                        </div>
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-white text-sm">{addon.name}</h4>
-                                            <div className="flex flex-col gap-1 mt-1">
-                                                <span className="text-amber-500 font-bold text-xs">{formatCurrency(addon.price, addon.currency)}</span>
-                                                {addon.description && <span className="text-xs text-gray-500 line-clamp-2">{addon.description}</span>}
-                                            </div>
-                                        </div>
-                                        {/* Stepper */}
-                                        <div className="flex flex-col items-center gap-1 bg-black/50 p-1 rounded-lg border border-white/5">
-                                            <button
-                                                onClick={() => setSelectedAddons(prev => ({ ...prev, [addon.id]: (prev[addon.id] || 0) + 1 }))}
-                                                className="w-8 h-8 flex items-center justify-center rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
-                                            >
-                                                +
-                                            </button>
-                                            <span className="text-sm font-bold tabular-nums w-4 text-center py-1">{qty}</span>
-                                            <button
-                                                onClick={() => setSelectedAddons(prev => {
-                                                    const newQty = Math.max(0, (prev[addon.id] || 0) - 1)
-                                                    const next = { ...prev }
-                                                    if (newQty === 0) delete next[addon.id]
-                                                    else next[addon.id] = newQty
-                                                    return next
-                                                })}
-                                                className="w-8 h-8 flex items-center justify-center rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
-                                            >
-                                                -
-                                            </button>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-
-                    <div className="flex gap-4 mt-8">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setStep('details')}
-                            className="flex-1 h-12 text-gray-400 hover:text-white"
-                        >
-                            Back
-                        </Button>
-                        <Button
-                            onClick={() => setStep('summary')}
-                            className="flex-[2] h-12 bg-white text-black hover:bg-gray-200 font-bold rounded-xl"
-                        >
-                            Continue to Payment
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* === STEP 3: SUMMARY === */}
-            {step === 'summary' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                    {/* Small Back Button */}
-                    <button onClick={() => setStep(availableAddons.length > 0 ? 'addons' : 'details')} className="flex items-center gap-1 text-xs text-gray-500 hover:text-white mb-4 transition-colors">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                        Back
-                    </button>
-
-                    <div className="space-y-6 pt-0 border-t-0 border-dashed border-white/10 relative">
-                        <div className="flex justify-between items-start">
-                            <span className="text-gray-400 text-sm">Event</span>
-                            <span className="font-bold text-right max-w-[200px] text-white">{reservation.events?.title}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-400">Details</span>
-                            <span className="font-medium text-white">{reservation.ticket_tiers?.name} <span className="text-gray-500">x {reservation.quantity}</span></span>
-                        </div>
-
-                        {/* Addon Summary Line */}
-                        {Object.keys(selectedAddons).length > 0 && (
-                            <div className="flex justify-between items-start text-sm pt-2">
-                                <span className="text-gray-400">Extras</span>
-                                <div className="text-right">
-                                    {Object.entries(selectedAddons).map(([id, qty]) => {
-                                        const addon = availableAddons.find(a => a.id === id)
-                                        if (!addon) return null
+                                <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {availableAddons.map(addon => {
+                                        const qty = selectedAddons[addon.id] || 0
                                         return (
-                                            <div key={id} className="text-white">
-                                                {qty}x {addon.name}
+                                            <div key={addon.id} className={cn("p-4 rounded-xl border transition-all flex items-center gap-4 bg-white/5", qty > 0 ? "border-amber-500/50 bg-amber-500/5" : "border-white/5")}>
+                                                <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0">
+                                                    {addon.image_url && <img src={addon.image_url} alt={addon.name} className="w-full h-full object-cover" />}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-white text-sm">{addon.name}</h4>
+                                                    <div className="flex flex-col gap-1 mt-1">
+                                                        <span className="text-amber-500 font-bold text-xs">{formatCurrency(addon.price, addon.currency)}</span>
+                                                        {addon.description && <span className="text-xs text-gray-500 line-clamp-2">{addon.description}</span>}
+                                                    </div>
+                                                </div>
+                                                {/* Stepper */}
+                                                <div className="flex flex-col items-center gap-1 bg-black/50 p-1 rounded-lg border border-white/5">
+                                                    <button
+                                                        onClick={() => setSelectedAddons(prev => ({ ...prev, [addon.id]: (prev[addon.id] || 0) + 1 }))}
+                                                        className="w-8 h-8 flex items-center justify-center rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
+                                                    >
+                                                        +
+                                                    </button>
+                                                    <span className="text-sm font-bold tabular-nums w-4 text-center py-1">{qty}</span>
+                                                    <button
+                                                        onClick={() => setSelectedAddons(prev => {
+                                                            const newQty = Math.max(0, (prev[addon.id] || 0) - 1)
+                                                            const next = { ...prev }
+                                                            if (newQty === 0) delete next[addon.id]
+                                                            else next[addon.id] = newQty
+                                                            return next
+                                                        })}
+                                                        className="w-8 h-8 flex items-center justify-center rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
+                                                    >
+                                                        -
+                                                    </button>
+                                                </div>
                                             </div>
                                         )
                                     })}
                                 </div>
                             </div>
-                        )}
 
-                        <div className="space-y-3 pt-6 border-t border-white/5">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Subtotal</span>
-                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(price * quantity + addonsTotal, currency)}</span>
-                            </div>
-
-                            {discount && (
-                                <div className="flex justify-between text-sm text-green-500">
-                                    <span className="">Discount ({discount.code})</span>
-                                    <span className="font-medium tabular-nums">-{formatCurrency(discountAmount, currency)}</span>
-                                </div>
-                            )}
-
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Platform Fee ({platformPct}%)</span>
-                                <span className="font-medium tabular-nums text-gray-200">{formatCurrency(platformFee, currency)}</span>
-                            </div>
-
-                            {feeBearer === 'customer' && (
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Processing Fee ({processorPct}%)</span>
-                                    <span className="font-medium tabular-nums text-gray-200">{formatCurrency(processorFee, currency)}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between items-end pt-4">
-                                <span className="text-sm font-medium text-gray-400">Total Due</span>
-                                <span className="text-3xl font-bold tracking-tight text-amber-500 tabular-nums">{formatCurrency(paymentTotal, currency)}</span>
+                            <div className="flex gap-4 mt-8">
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => setStep('details')}
+                                    className="flex-1 h-12 text-gray-400 hover:text-white"
+                                >
+                                    Back
+                                </Button>
+                                <Button
+                                    onClick={() => setStep('summary')}
+                                    className="flex-[2] h-12 bg-white text-black hover:bg-gray-200 font-bold rounded-xl"
+                                >
+                                    Continue to Payment
+                                </Button>
                             </div>
                         </div>
-                    </div>
+                    )}
 
-                    <div className="mt-8">
-                        <Button
-                            onClick={handlePaystack}
-                            disabled={paying}
-                            className="w-full h-14 text-lg bg-white text-black hover:bg-gray-200 font-bold shadow-xl shadow-white/10 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                            {paying ? 'Processing Securely...' : 'Pay Now'}
-                        </Button>
-                    </div>
+                    {/* === STEP 3: SUMMARY === */}
+                    {step === 'summary' && (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                            {/* Small Back Button */}
+                            <button onClick={() => setStep(availableAddons.length > 0 ? 'addons' : 'details')} className="flex items-center gap-1 text-xs text-gray-500 hover:text-white mb-4 transition-colors">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                                Back
+                            </button>
 
-                    <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest font-medium mt-6">
-                        <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
-                        Secured by Paystack
-                    </div>
+                            <div className="space-y-6 pt-0 border-t-0 border-dashed border-white/10 relative">
+                                <div className="flex justify-between items-start">
+                                    <span className="text-gray-400 text-sm">Event</span>
+                                    <span className="font-bold text-right max-w-[200px] text-white">{reservation.events?.title}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-400">Details</span>
+                                    <span className="font-medium text-white">{reservation.ticket_tiers?.name} <span className="text-gray-500">x {reservation.quantity}</span></span>
+                                </div>
+
+                                {/* Addon Summary Line */}
+                                {Object.keys(selectedAddons).length > 0 && (
+                                    <div className="flex justify-between items-start text-sm pt-2">
+                                        <span className="text-gray-400">Extras</span>
+                                        <div className="text-right">
+                                            {Object.entries(selectedAddons).map(([id, qty]) => {
+                                                const addon = availableAddons.find(a => a.id === id)
+                                                if (!addon) return null
+                                                return (
+                                                    <div key={id} className="text-white">
+                                                        {qty}x {addon.name}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-3 pt-6 border-t border-white/5">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-400">Subtotal</span>
+                                        <span className="font-medium tabular-nums text-gray-200">{formatCurrency(price * quantity + addonsTotal, currency)}</span>
+                                    </div>
+
+                                    {discount && (
+                                        <div className="flex justify-between text-sm text-green-500">
+                                            <span className="">Discount ({discount.code})</span>
+                                            <span className="font-medium tabular-nums">-{formatCurrency(discountAmount, currency)}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-400">Platform Fee ({platformPct}%)</span>
+                                        <span className="font-medium tabular-nums text-gray-200">{formatCurrency(platformFee, currency)}</span>
+                                    </div>
+
+                                    {feeBearer === 'customer' && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-400">Processing Fee ({processorPct}%)</span>
+                                            <span className="font-medium tabular-nums text-gray-200">{formatCurrency(processorFee, currency)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-end pt-4">
+                                        <span className="text-sm font-medium text-gray-400">Total Due</span>
+                                        <span className="text-3xl font-bold tracking-tight text-amber-500 tabular-nums">{formatCurrency(paymentTotal, currency)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-8">
+                                <Button
+                                    onClick={handlePaystack}
+                                    disabled={paying}
+                                    className="w-full h-14 text-lg bg-white text-black hover:bg-gray-200 font-bold shadow-xl shadow-white/10 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    {paying ? 'Processing Securely...' : 'Pay Now'}
+                                </Button>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest font-medium mt-6">
+                                <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
+                                Secured by Paystack
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
-
-        </div>
-        </div>
+            </div>
         </>
     )
 }
