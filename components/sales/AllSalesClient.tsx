@@ -19,6 +19,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
     const [sales, setSales] = useState<any[]>([])
     const [page, setPage] = useState(0)
     const [count, setCount] = useState(0)
+    const [addonMap, setAddonMap] = useState<Record<string, string>>({}) // ID -> Name
 
     useEffect(() => {
         fetchSales()
@@ -48,7 +49,8 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                         profiles ( full_name, email ),
                         ticket_tiers ( name, price ),
                         events!inner ( title, organization_id, fee_bearer ),
-                        discounts ( type, value, code )
+                        discounts ( type, value, code ),
+                        addons
                     )
                 `, { count: 'exact' })
                 .eq('status', 'success')
@@ -60,6 +62,32 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
             setSales(data || [])
             setCount(totalCount || 0)
+
+            // Valid Sales with Addons
+            const addonIds = new Set<string>()
+            data?.forEach((sale: any) => {
+                const addons = sale.reservations?.addons
+                if (addons) {
+                    Object.keys(addons).forEach(id => addonIds.add(id))
+                }
+            })
+
+            if (addonIds.size > 0) {
+                const { data: addonsData } = await supabase
+                    .schema('gatepass')
+                    .from('event_addons')
+                    .select('id, name')
+                    .in('id', Array.from(addonIds))
+
+                if (addonsData) {
+                    const map: Record<string, string> = {}
+                    addonsData.forEach((a: any) => {
+                        map[a.id] = a.name
+                    })
+                    setAddonMap(map)
+                }
+            }
+
         } catch (error) {
             console.error('Error fetching sales:', error)
             toast.error('Failed to load sales history')
@@ -78,7 +106,6 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                     <p className="text-gray-500 mt-2 dark:text-gray-400">View and manage all your ticket sales.</p>
                 </div>
                 <div className="hidden">
-                    {/* Placeholder for future export button if needed */}
                     <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
                         <Download className="w-4 h-4" />
                         Export
@@ -94,6 +121,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                 <th className="px-6 py-4">Date</th>
                                 <th className="px-6 py-4">Guest</th>
                                 <th className="px-6 py-4">Event & Ticket</th>
+                                <th className="px-6 py-4">Add-ons</th>
                                 <th className="px-6 py-4 text-center">Qty</th>
                                 <th className="px-6 py-4 text-right">Net Earnings</th>
                             </tr>
@@ -101,7 +129,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                         <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                             {loading && sales.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-24 text-center">
+                                    <td colSpan={6} className="px-6 py-24 text-center">
                                         <div className="flex justify-center">
                                             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                                         </div>
@@ -139,6 +167,9 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
                                     const organizerPayout = sale.amount - finalPlatformFee - finalProcessorFee
 
+                                    const purchasedAddons = r.addons || {}
+                                    const hasAddons = Object.keys(purchasedAddons).length > 0
+
                                     return (
                                         <tr key={sale.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                             <td className="px-6 py-4 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
@@ -159,6 +190,20 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                                 <p className="font-medium text-gray-900 dark:text-white">{event?.title}</p>
                                                 <p className="text-gray-500 dark:text-gray-400 text-xs">{tier?.name}</p>
                                             </td>
+                                            <td className="px-6 py-4">
+                                                {hasAddons ? (
+                                                    <div className="space-y-1">
+                                                        {Object.entries(purchasedAddons).map(([id, qty]) => (
+                                                            <div key={id} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                                                                <span className="font-medium bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{qty as number}x</span>
+                                                                <span>{addonMap[id] || 'Add-on'}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs">-</span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 font-medium">
                                                 {quantity}
                                             </td>
@@ -172,7 +217,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-24 text-center text-gray-400">
+                                    <td colSpan={6} className="px-6 py-24 text-center text-gray-400">
                                         No sales found.
                                     </td>
                                 </tr>

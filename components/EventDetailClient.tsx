@@ -191,8 +191,19 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const handleAddonQuantityChange = (addonId: string, delta: number) => {
         setSelectedAddons(prev => {
             const current = prev[addonId] || 0
+            const addon = availableAddons.find(a => a.id === addonId)
+
+            if (!addon) return prev
+
             const intent = current + delta
             if (intent < 0) return prev
+
+            // Check inventory limit
+            if (addon.total_quantity !== null && addon.total_quantity !== undefined) {
+                const remaining = Math.max(0, addon.total_quantity - addon.quantity_sold)
+                if (intent > remaining) return prev
+            }
+
             return { ...prev, [addonId]: intent }
         })
     }
@@ -1108,14 +1119,23 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                         const qty = selectedAddons[addon.id] || 0
                         const isSelected = qty > 0
 
+                        // Calculate remaining inventory
+                        const remaining = (addon.total_quantity !== null && addon.total_quantity !== undefined)
+                            ? Math.max(0, addon.total_quantity - addon.quantity_sold)
+                            : Infinity
+
+                        const isSoldOut = remaining <= 0
+                        const isMaxed = qty >= remaining
+
                         return (
                             <div
                                 key={addon.id}
                                 className={cn(
-                                    "group relative overflow-hidden rounded-[20px] border bg-white dark:bg-zinc-900 transition-all duration-300",
-                                    isSelected
-                                        ? "border-black dark:border-white shadow-lg shadow-black/5 dark:shadow-white/5 ring-1 ring-black dark:ring-white"
-                                        : "border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 shadow-sm"
+                                    "group relative overflow-hidden rounded-[20px] border transition-all duration-300",
+                                    isSoldOut ? "bg-gray-50 dark:bg-zinc-900 border-gray-100 dark:border-white/5 opacity-60 grayscale" :
+                                        isSelected
+                                            ? "bg-white dark:bg-zinc-900 border-black dark:border-white shadow-lg shadow-black/5 dark:shadow-white/5 ring-1 ring-black dark:ring-white"
+                                            : "bg-white dark:bg-zinc-900 border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 shadow-sm"
                                 )}
                             >
                                 <div className="flex p-4 gap-4">
@@ -1130,6 +1150,11 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                         )}
                                         {isSelected && (
                                             <div className="absolute inset-0 bg-black/10 dark:bg-white/10 z-10" />
+                                        )}
+                                        {isSoldOut && (
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+                                                <span className="text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-black/50 rounded-full backdrop-blur-md">Sold Out</span>
+                                            </div>
                                         )}
                                     </div>
 
@@ -1150,7 +1175,9 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                         {/* Controls */}
                                         <div className="flex items-end justify-between mt-3">
                                             <div className="text-[11px] font-medium text-gray-400">
-                                                {qty > 0 ? (
+                                                {isSoldOut ? (
+                                                    <span className="text-red-500 font-semibold">Unavailable</span>
+                                                ) : qty > 0 ? (
                                                     <span className="text-black dark:text-white flex items-center gap-1">
                                                         <Check className="w-3 h-3" /> Added
                                                     </span>
@@ -1159,25 +1186,28 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                                 )}
                                             </div>
 
-                                            <div className={cn(
-                                                "flex items-center gap-3 p-1 rounded-xl transition-colors",
-                                                isSelected ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-zinc-800 text-black dark:text-white"
-                                            )}>
-                                                <button
-                                                    onClick={() => onAddonChange(addon.id, -1)}
-                                                    disabled={qty === 0}
-                                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all font-bold"
-                                                >
-                                                    -
-                                                </button>
-                                                <span className="text-[14px] font-bold tabular-nums w-5 text-center">{qty}</span>
-                                                <button
-                                                    onClick={() => onAddonChange(addon.id, 1)}
-                                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all font-bold"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
+                                            {!isSoldOut && (
+                                                <div className={cn(
+                                                    "flex items-center gap-3 p-1 rounded-xl transition-colors",
+                                                    isSelected ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-zinc-800 text-black dark:text-white"
+                                                )}>
+                                                    <button
+                                                        onClick={() => onAddonChange(addon.id, -1)}
+                                                        disabled={qty === 0}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all font-bold"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <span className="text-[14px] font-bold tabular-nums w-5 text-center">{qty}</span>
+                                                    <button
+                                                        onClick={() => onAddonChange(addon.id, 1)}
+                                                        disabled={isMaxed}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all font-bold"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

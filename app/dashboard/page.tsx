@@ -171,7 +171,8 @@ export default async function DashboardPage() {
                     profiles ( full_name, email ),
                     ticket_tiers ( name, price ),
                     events!inner ( title, organization_id, fee_bearer ),
-                    discounts ( type, value )
+                    discounts ( type, value ),
+                    addons
                 )
             `)
             .eq('status', 'success')
@@ -197,6 +198,32 @@ export default async function DashboardPage() {
             .eq('status', 'success')
             .eq('reservations.events.organization_id', orgId)
     ])
+
+    // Fetch Addon Names for Recent Sales
+    const addonMap: Record<string, string> = {}
+    if (recentSalesRes.data && recentSalesRes.data.length > 0) {
+        const addonIds = new Set<string>()
+        recentSalesRes.data.forEach((sale: any) => {
+            const addons = sale.reservations?.addons
+            if (addons) {
+                Object.keys(addons).forEach(id => addonIds.add(id))
+            }
+        })
+
+        if (addonIds.size > 0) {
+            const { data: addonsData } = await supabase
+                .schema('gatepass')
+                .from('event_addons')
+                .select('id, name')
+                .in('id', Array.from(addonIds))
+
+            if (addonsData) {
+                addonsData.forEach((a: any) => {
+                    addonMap[a.id] = a.name
+                })
+            }
+        }
+    }
 
     // Calculate Revenue
     let totalRevenue = 0
@@ -333,6 +360,15 @@ export default async function DashboardPage() {
                                                         <p className="text-[13px] text-gray-500 dark:text-gray-400">
                                                             purchased <span className="font-medium text-gray-700 dark:text-gray-300">{sale.reservations?.ticket_tiers?.name}</span> • {sale.reservations?.events?.title}
                                                         </p>
+                                                        {sale.reservations?.addons && Object.keys(sale.reservations.addons).length > 0 && (
+                                                            <div className="mt-1 flex flex-col gap-0.5">
+                                                                {Object.entries(sale.reservations.addons).map(([id, qty]) => (
+                                                                    <p key={id} className="text-[11px] text-gray-500 font-medium flex items-center gap-1.5">
+                                                                        <span className="bg-gray-100 dark:bg-white/10 px-1.5 rounded text-[10px]">{qty as number}x</span> {addonMap[id] || 'Add-on'}
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
