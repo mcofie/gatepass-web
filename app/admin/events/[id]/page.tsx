@@ -55,7 +55,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
             }
 
             const subtotal = Math.max(0, (price * quantity) - discountAmount)
-            const { organizerPayout } = calculateFees(subtotal, feeBearer, feeSettings)
+            const { organizerPayout } = calculateFees(subtotal, 0, feeBearer, feeSettings)
 
             return acc + organizerPayout
         }, 0)

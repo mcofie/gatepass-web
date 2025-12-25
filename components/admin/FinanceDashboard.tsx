@@ -122,7 +122,7 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
 
                 const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
-                const calculated = calculateFees(subtotal, bearer, effectiveRates)
+                const calculated = calculateFees(subtotal, 0, bearer, effectiveRates)
 
                 // Robust Payout: Amount - Fees
                 // Prefer stored snapshots, fallback to calculation

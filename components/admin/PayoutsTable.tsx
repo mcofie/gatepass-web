@@ -40,7 +40,7 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                 const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
                 const effectiveRates = getEffectiveFeeRates(feeSettings, event)
-                const calculated = calculateFees(subtotal, event.fee_bearer || 'customer', effectiveRates)
+                const calculated = calculateFees(subtotal, 0, event.fee_bearer || 'customer', effectiveRates)
 
                 // Use Snapshot if available
                 const platFee = tx.platform_fee ?? calculated.platformFee

@@ -121,7 +121,7 @@ export default function MasterEventsTable({ events: initialEvents, feeRates }: M
                                     const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
                                     const effectiveRates = getEffectiveFeeRates(feeRates, event)
-                                    const { platformFee, processorFee, organizerPayout } = calculateFees(subtotal, bearer, effectiveRates)
+                                    const { platformFee, processorFee, organizerPayout } = calculateFees(subtotal, 0, bearer, effectiveRates)
 
                                     acc.gross += tx.amount
                                     acc.platformProfits += platformFee

@@ -782,7 +782,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                             )}
 
                             {activeSlide === 'lineup' && (
-                                <div ref={lineupRef} className="mt-2 mb-4 animate-fade-in">
+                                <div ref={lineupRef} className="mt-2 mb-4 pb-8 animate-fade-in">
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest">Lineup</h3>
                                         <button
@@ -978,14 +978,17 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
     primaryColor?: string
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
-        <div className="flex justify-between items-center mb-6 px-1">
+        <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
             <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Select Tickets</h2>
-            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            <button
+                onClick={onBack}
+                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
+            >
+                <ArrowLeft className="w-5 h-5" />
             </button>
         </div>
 
-        <div className="-mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-8 no-scrollbar snap-x snap-mandatory">
+        <div className="-mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-4 no-scrollbar snap-x snap-mandatory">
             {tiers.map((tier) => (
                 <TicketCard
                     key={tier.id}
@@ -1037,10 +1040,13 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     primaryColor?: string
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
-        <div className="flex justify-between items-center mb-8 px-1">
+        <div className="flex justify-between items-center mb-8 px-1 flex-shrink-0 pt-2">
             <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Your Details</h2>
-            <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            <button
+                onClick={onBack}
+                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
+            >
+                <ArrowLeft className="w-5 h-5" />
             </button>
         </div>
 
@@ -1111,24 +1117,28 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
     const hasSelection = Object.values(selectedAddons).some(qty => qty > 0)
 
     return (
-        <div className="flex flex-col h-full animate-fade-in relative bg-gray-50/50 dark:bg-black/20">
-            <div className="flex justify-between items-center mb-4 px-1 flex-shrink-0 pt-1">
+        <div className="flex flex-col h-full animate-fade-in relative bg-white dark:bg-zinc-900">
+            {/* Cleaner Header */}
+            <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
                 <div className="space-y-0.5">
-                    <h2 className="text-[20px] font-bold tracking-tight text-black dark:text-white">Enhance your experience</h2>
-                    <p className="text-[13px] text-gray-500 font-medium">Add extras to your order</p>
+                    <h2 className="text-[22px] font-bold tracking-tight text-black dark:text-white leading-tight">Enhance Experience</h2>
+                    <p className="text-[13px] text-gray-400 dark:text-gray-500 font-medium tracking-tight">Select optional extras for your order</p>
                 </div>
-                <button onClick={onBack} className="p-2 -mr-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors bg-white dark:bg-zinc-800 rounded-full border border-gray-100 dark:border-white/10 shadow-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                <button
+                    onClick={onBack}
+                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
+                >
+                    <ArrowLeft className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar -mx-4 px-4 pb-20">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto no-scrollbar -mx-2 px-2 pb-24">
                 <div className="space-y-4">
                     {availableAddons.map((addon) => {
                         const qty = selectedAddons[addon.id] || 0
                         const isSelected = qty > 0
 
-                        // Calculate remaining inventory
                         const remaining = (addon.total_quantity !== null && addon.total_quantity !== undefined)
                             ? Math.max(0, addon.total_quantity - addon.quantity_sold)
                             : Infinity
@@ -1140,78 +1150,88 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                             <div
                                 key={addon.id}
                                 className={cn(
-                                    "group relative overflow-hidden rounded-[20px] border transition-all duration-300",
-                                    isSoldOut ? "bg-gray-50 dark:bg-zinc-900 border-gray-100 dark:border-white/5 opacity-60 grayscale" :
+                                    "group relative overflow-hidden rounded-[24px] border transition-all duration-500",
+                                    isSoldOut ? "bg-gray-50/50 dark:bg-white/5 border-gray-100 dark:border-white/5 opacity-60" :
                                         isSelected
-                                            ? "bg-white dark:bg-zinc-900 border-black dark:border-white shadow-lg shadow-black/5 dark:shadow-white/5 ring-1 ring-black dark:ring-white"
-                                            : "bg-white dark:bg-zinc-900 border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 shadow-sm"
+                                            ? "bg-black text-white dark:bg-white dark:text-black border-transparent shadow-2xl shadow-black/20 dark:shadow-white/10 scale-[1.01]"
+                                            : "bg-gray-50/50 dark:bg-white/5 border-transparent hover:bg-gray-100 dark:hover:bg-white/10 shadow-sm"
                                 )}
                             >
                                 <div className="flex p-4 gap-4">
-                                    {/* Image */}
-                                    <div className="w-24 h-24 bg-gray-100 dark:bg-zinc-800 rounded-xl overflow-hidden flex-shrink-0 relative border border-black/5 dark:border-white/5">
+                                    {/* Elevated Image Container */}
+                                    <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 relative bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5">
                                         {addon.image_url ? (
-                                            <Image src={addon.image_url} alt={addon.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
+                                            <Image src={addon.image_url} alt={addon.name} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-zinc-800">
-                                                <BadgeCheck className="w-8 h-8 text-gray-300 dark:text-zinc-600" />
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-zinc-800">
+                                                <BadgeCheck className="w-8 h-8 text-gray-400 dark:text-zinc-500" />
                                             </div>
                                         )}
-                                        {isSelected && (
-                                            <div className="absolute inset-0 bg-black/10 dark:bg-white/10 z-10" />
-                                        )}
                                         {isSoldOut && (
-                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
-                                                <span className="text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-black/50 rounded-full backdrop-blur-md">Sold Out</span>
+                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-[2px]">
+                                                <span className="text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 border border-white/20 rounded-full">Sold Out</span>
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Content */}
-                                    <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
+                                    {/* Content Area */}
+                                    <div className="flex-1 flex flex-col justify-between py-0.5">
                                         <div>
-                                            <div className="flex justify-between items-start gap-2 mb-1">
-                                                <h4 className="text-[16px] font-bold text-black dark:text-white leading-tight">{addon.name}</h4>
-                                                <span className="font-bold text-[15px] tabular-nums whitespace-nowrap bg-gray-50 dark:bg-zinc-800 px-2 py-1 rounded-md text-black dark:text-white">
+                                            <div className="flex justify-between items-start mb-0.5">
+                                                <h4 className={cn(
+                                                    "text-[15px] font-extrabold leading-tight line-clamp-1 tracking-tight",
+                                                    isSelected ? "text-white dark:text-black" : "text-black dark:text-white"
+                                                )}>{addon.name}</h4>
+                                                <span className={cn(
+                                                    "font-bold text-[14px] tabular-nums",
+                                                    isSelected ? "text-white/80 dark:text-black/80" : "text-gray-400 dark:text-gray-500"
+                                                )}>
                                                     {formatCurrency(addon.price, addon.currency)}
                                                 </span>
                                             </div>
                                             {addon.description && (
-                                                <p className="text-[13px] text-gray-500 line-clamp-2 leading-relaxed">{addon.description}</p>
+                                                <p className={cn(
+                                                    "text-[12px] line-clamp-2 leading-snug font-medium",
+                                                    isSelected ? "text-white/60 dark:text-black/60" : "text-gray-500 dark:text-gray-400"
+                                                )}>{addon.description}</p>
                                             )}
                                         </div>
 
-                                        {/* Controls */}
-                                        <div className="flex items-end justify-between mt-3">
-                                            <div className="text-[11px] font-medium text-gray-400">
-                                                {isSoldOut ? (
-                                                    <span className="text-red-500 font-semibold">Unavailable</span>
-                                                ) : qty > 0 ? (
-                                                    <span className="text-black dark:text-white flex items-center gap-1">
-                                                        <Check className="w-3 h-3" /> Added
-                                                    </span>
-                                                ) : (
-                                                    <span>Optional</span>
-                                                )}
+                                        {/* Interaction Bar */}
+                                        <div className="flex items-center justify-between mt-3">
+                                            <div className={cn(
+                                                "text-[9px] font-black uppercase tracking-[0.15em]",
+                                                isSelected ? "text-white/40 dark:text-black/40" : "text-gray-400 dark:text-gray-500"
+                                            )}>
+                                                {isSoldOut ? "Unavailable" : isSelected ? "In Cart" : "Optional"}
                                             </div>
 
                                             {!isSoldOut && (
                                                 <div className={cn(
-                                                    "flex items-center gap-3 p-1 rounded-xl transition-colors",
-                                                    isSelected ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-zinc-800 text-black dark:text-white"
+                                                    "flex items-center gap-1.5 p-1 rounded-full",
+                                                    isSelected ? "bg-white/10 dark:bg-black/10" : "bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5"
                                                 )}>
                                                     <button
-                                                        onClick={() => onAddonChange(addon.id, -1)}
+                                                        onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, -1); }}
                                                         disabled={qty === 0}
-                                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all font-bold"
+                                                        className={cn(
+                                                            "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
+                                                            isSelected ? "hover:bg-white/10 text-white dark:text-black" : "hover:bg-gray-100 text-black dark:text-white"
+                                                        )}
                                                     >
                                                         -
                                                     </button>
-                                                    <span className="text-[14px] font-bold tabular-nums w-5 text-center">{qty}</span>
+                                                    <span className={cn(
+                                                        "text-[14px] font-extrabold tabular-nums w-4 text-center",
+                                                        isSelected ? "text-white dark:text-black" : "text-black dark:text-white"
+                                                    )}>{qty}</span>
                                                     <button
-                                                        onClick={() => onAddonChange(addon.id, 1)}
+                                                        onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, 1); }}
                                                         disabled={isMaxed}
-                                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all font-bold"
+                                                        className={cn(
+                                                            "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
+                                                            isSelected ? "hover:bg-white/10 text-white dark:text-black" : "hover:bg-gray-100 text-black dark:text-white"
+                                                        )}
                                                     >
                                                         +
                                                     </button>
@@ -1226,23 +1246,15 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                 </div>
             </div>
 
-            {/* Sticky Footer */}
-            <div className={`
-                sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10
-                md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-4 md:mx-0 md:mb-0
-            `}>
+            {/* Standard Sticky Footer */}
+            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-4 md:mx-0 md:mb-0">
                 <div className="max-w-md mx-auto md:max-w-none">
                     <button
                         onClick={onContinue}
-                        style={{ backgroundColor: hasSelection ? (primaryColor || undefined) : undefined }}
-                        className={cn(
-                            "w-full h-12 rounded-xl text-[14px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2 border",
-                            hasSelection
-                                ? "bg-black dark:bg-white text-white dark:text-black hover:opacity-90 border-transparent"
-                                : "bg-white dark:bg-zinc-900 text-black dark:text-white border-gray-200 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800"
-                        )}
+                        style={{ backgroundColor: primaryColor || '#000000', color: '#ffffff' }}
+                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
                     >
-                        {hasSelection ? 'Continue with Add-ons' : 'No Thanks, Continue'}
+                        <span>{hasSelection ? 'Continue with Add-ons' : 'No Thanks, Continue'}</span>
                         <ChevronRight className="w-4 h-4" />
                     </button>
                 </div>
@@ -1301,12 +1313,14 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                     </div>
                 </div>
 
-                <div className="px-1 mt-0 mb-2">
-                    <button onClick={onBack} className="flex items-center gap-1 text-gray-400 hover:text-black dark:hover:text-white transition-colors -ml-1 py-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                        <span className="text-[13px] font-bold">Back</span>
+                <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
+                    <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Order Summary</h2>
+                    <button
+                        onClick={onBack}
+                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <h2 className="text-[18px] font-bold tracking-tight mt-1 text-black dark:text-white">Order Summary</h2>
                 </div>
 
                 {/* Receipt Card */}

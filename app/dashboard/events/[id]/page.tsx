@@ -86,7 +86,7 @@ amount,
             }
 
             const subtotal = Math.max(0, (price * quantity) - discountAmount)
-            const { organizerPayout } = calculateFees(subtotal, feeBearer)
+            const { organizerPayout } = calculateFees(subtotal, 0, feeBearer)
 
             return acc + organizerPayout // Summing net payouts
         }, 0)

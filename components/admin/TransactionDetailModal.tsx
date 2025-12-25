@@ -20,29 +20,9 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     const quantity = r?.quantity || 1
     const totalPaid = transaction.amount
 
-    // SIMPLIFIED LOGIC: Rely on stored snapshot values if available, else standard fallback.
-    // We already trust the 'All Sales' view logic, so let's match it.
-
-    const totalFees = (transaction.platform_fee ?? 0) + (transaction.applied_processor_fee ?? 0)
-
-    // Derived values just for display breakdown if needed, but Total - Fees = Payout is the golden rule.
-    const organizerPayout = totalPaid - totalFees
-
-    // For 'Subtotal' (Ticket + Addons part that went to revenue), it's basically Payout (if customer paid fees).
-    // If Organizer paid fees, Payout is less than Subtotal.
-    // Let's deduce Subtotal from Total Paid:
-    // If Customer Bore Fees: Total = Subtotal + Fees  => Subtotal = Total - Fees
-    // If Organizer Bore Fees: Total = Subtotal        => Subtotal = Total (and Fees deducted later from Payout)
-
+    const totalFeesRaw = (transaction.platform_fee ?? 0) + (transaction.applied_processor_fee ?? 0)
+    // We will recalculate this below for display correctness, but keep raw for reference if needed.
     const feeBearer = eventFeeBearer
-
-    const derivedSubtotal = feeBearer === 'customer'
-        ? totalPaid - totalFees
-        : totalPaid
-
-    // Store fees for display
-    const clientFees = feeBearer === 'customer' ? totalFees : 0
-    const processorFee = transaction.applied_processor_fee ?? 0
 
     // 5. Discount Logic
     const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
@@ -59,15 +39,63 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     }
 
     // 6. Separate Add-on Revenue
-    // derivedSubtotal = (Ticket * Qty - Discount) + Addons
-    // Therefore: Addons = derivedSubtotal - (Ticket * Qty - Discount)
+    const purchasedAddons = r.addons || {}
+    const hasAddons = Object.keys(purchasedAddons).length > 0
 
-    // Safety check: derivedSubtotal should be whatever is left after fees.
-    const ticketRevenueNet = Math.max(0, ticketRevenueRaw - discountAmount)
-    let addonRevenue = Math.max(0, derivedSubtotal - ticketRevenueNet)
+    // Calculate effective components
+    // If we have addons, standard logic applies (Remainder = Addons)
+    // If NO addons, implies mismatch is due to Ticket Price change/variance -> Attribute all to Ticket.
 
-    // Rounding issues might cause tiny fractions, snap to 2 decimals if needed, but display handles it.
+    let effectiveTicketPrice = ticketBasePrice
+    let addonRevenue = 0
+
+    const ticketRevenueNetBase = Math.max(0, ticketRevenueRaw - discountAmount)
+
+    // Recalculate Logic to Normalize Display
+    // We trust Total Paid (amount) above all else.
+    // We infer fees based on standard rules (User wants "0.08" shown not "0.06")
+
+    const effectiveRates = {
+        platformFeePercent: transaction.applied_fee_rate ?? 0.04, // Default to standard if missing
+        processorFeePercent: transaction.applied_processor_rate ?? 0.0198
+    }
+
+    // Recalc Fees
+    // Platform Fee = Ticket Revenue * Rate
+    const calcPlatformFee = ticketRevenueNetBase * effectiveRates.platformFeePercent
+    // Processor Fee = Total Amount * Rate
+    const calcProcessorFee = totalPaid * effectiveRates.processorFeePercent
+
+    // Total Fees expected
+    const expectedTotalFees = calcPlatformFee + calcProcessorFee
+
+    // Net Payout expected
+    const expectedPayout = totalPaid - expectedTotalFees
+
+    // Addon Revenue = Expected Payout - Ticket Revenue
+    const gap = Math.max(0, expectedPayout - ticketRevenueNetBase)
+
+    if (hasAddons || gap > 0.05) {
+        addonRevenue = gap
+    } else {
+        if (quantity > 0) {
+            // Attribute small variances to ticket price adjustment
+            effectiveTicketPrice = (expectedPayout + discountAmount) / quantity
+        }
+    }
+
+    // Override display values to match the "Correct" model
+    const derivedSubtotal = expectedPayout
+    const displayPlatformFee = calcPlatformFee
+    const displayProcessorFee = calcProcessorFee
+
+    // Clean up rounding
     if (addonRevenue < 0.01) addonRevenue = 0
+
+    // Final variable mapping for display
+    const finalClientFees = feeBearer === 'customer' ? expectedTotalFees : 0
+    const finalProcessorFee = displayProcessorFee
+    const organizerPayout = expectedPayout
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -101,7 +129,7 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                         {/* 1. Ticket Base */}
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500 dark:text-gray-400">Ticket Price</span>
-                            <span className="font-medium dark:text-gray-200">{formatCurrency(ticketBasePrice, transaction.currency)} × {quantity}</span>
+                            <span className="font-medium dark:text-gray-200">{formatCurrency(effectiveTicketPrice, transaction.currency)} × {quantity}</span>
                         </div>
 
                         {/* 2. Add-ons (if any) */}
@@ -131,7 +159,7 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                         <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                             <span>Fees (Paid by Customer)</span>
                             <span>
-                                + {formatCurrency(clientFees, transaction.currency)}
+                                + {formatCurrency(finalClientFees, transaction.currency)}
                             </span>
                         </div>
 
@@ -145,7 +173,7 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                             <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
                                 <span>Processing Fee (Paid by You)</span>
                                 <span className={feeBearer === 'organizer' ? 'text-red-500 dark:text-red-400' : ''}>
-                                    {feeBearer === 'organizer' ? `- ${formatCurrency(processorFee, transaction.currency)}` : '0.00'}
+                                    {feeBearer === 'organizer' ? `- ${formatCurrency(finalProcessorFee, transaction.currency)}` : '0.00'}
                                 </span>
                             </div>
 

@@ -35,6 +35,7 @@ export default function GlobalTransactionTable() {
                     amount,
                     currency,
                     status,
+                    platform_fee,
                     reservations!inner (
                         quantity,
                         guest_name,
@@ -47,7 +48,8 @@ export default function GlobalTransactionTable() {
                             fee_bearer,
                             organizers ( name )
                         ),
-                        discounts ( type, value )
+                        discounts ( type, value ),
+                        addons
                     )
                 `, { count: 'exact' })
                 .eq('status', 'success')
@@ -112,12 +114,23 @@ export default function GlobalTransactionTable() {
                                     }
                                 }
 
-                                // 2. Subtotal
-                                const subtotal = Math.max(0, (price * quantity) - discountAmount)
+                                // 2. Subtotal (Tickets Only)
+                                const ticketSubtotal = Math.max(0, (price * quantity) - discountAmount)
 
                                 // 3. Fee Logic
-                                const feeBearer = event?.fee_bearer || 'customer'
-                                const { customerTotal: totalPaid, platformFee } = calculateFees(subtotal, feeBearer)
+                                // Prefer DB values for accuracy
+                                let platformFee = sale.platform_fee
+                                let totalPaid = sale.amount
+
+                                // Fallback Calculation (Approximate as we don't have addon prices here easily)
+                                if (platformFee === null || platformFee === undefined) {
+                                    const feeBearer = event?.fee_bearer || 'customer'
+                                    // Note: We are passing 0 for addons here as we don't have prices loaded. 
+                                    // This is a limitation but DB value should exist for all valid transactions.
+                                    const calculated = calculateFees(ticketSubtotal, 0, feeBearer)
+                                    platformFee = calculated.platformFee
+                                    // Only override totalPaid if it was missing/zero? Unlikely.
+                                }
 
                                 return (
                                     <tr key={sale.id} className="hover:bg-white/5 transition-colors group">
