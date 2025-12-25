@@ -120,25 +120,33 @@ export async function POST(req: Request) {
                 }
 
                 // Effective Base for Platform Fee
-                // We calculate fee on the TOTAL REVENUE (Tickets + Addons), not including the extra customer fees
-                // Total Revenue = (Ticket Price * Qty - Discount) + Addon Revenue
+                // We calculate PLATFORM fee on the TICKET REVENUE ONLY.
+                // We calculate PROCESSOR fee on the TOTAL REVENUE (Tickets + Addons).
+
                 const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
-                const totalRevenue = ticketRevenue + addonRevenue
 
-                // Calculate Fee on the total revenue
-                const platformFee = totalRevenue * platformRate
+                // Platform Fee = Ticket Revenue * Rate
+                // (Add-ons are exempt from Platform Fee)
+                const platformFee = ticketRevenue * platformRate
 
-                // Convert to Kobo/Pesewas
-                // Transaction Charge is just the Platform Fee. 
-                // The rest (Ticket + Addon - PlatformFee) goes to Subaccount.
+                // Convert to Kobo/Pesewas for Subaccount Split
+                // Transaction Charge = Platform Fee.
+                // Paystack takes their fee (Processor Fee) from the total amount automatically.
+                // The Bearer = 'subaccount' means the Subaccount (Organizer) pays the Paystack fee from their share, 
+                // UNLESS we adjust the total price to include it (which we do if feeBearer=customer).
+                // But specifically here, `transaction_charge` dictates what overrides the default split.
+                // If we set transaction_charge, Paystack gives (Amount - PaystackFee - TransactionCharge) to Subaccount.
+                // And (TransactionCharge) to Main Account.
+
                 transactionCharge = Math.round(platformFee * 100)
 
                 // Sanity Check: Ensure we don't take more than the total amount?
                 if (transactionCharge > amount) {
-                    // Should not happen if logic is correct, unless fees exceed everything.
                     console.error('Transaction charge exceeds total amount!', { transactionCharge, amount })
-                    transactionCharge = Math.round(amount * 0.1) // Fallback Cap
+                    transactionCharge = 0 // Safety fallback
                 }
+
+                const totalRevenue = ticketRevenue + addonRevenue
 
                 console.log('Paystack Split Logic:', {
                     reservationId,

@@ -7,6 +7,8 @@ import { calculateFees } from '@/utils/fees'
 import { ChevronLeft, ChevronRight, Loader2, Download } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { TransactionDetailModal } from '@/components/admin/TransactionDetailModal'
+
 interface AllSalesClientProps {
     orgId: string
 }
@@ -21,9 +23,16 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
     const [count, setCount] = useState(0)
     const [addonMap, setAddonMap] = useState<Record<string, string>>({}) // ID -> Name
 
+    // Modal State
+    const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
+    const [isDetailOpen, setIsDetailOpen] = useState(false)
+
     useEffect(() => {
         fetchSales()
     }, [page, orgId])
+
+
+
 
     const fetchSales = async () => {
         setLoading(true)
@@ -65,27 +74,32 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
             // Valid Sales with Addons
             const addonIds = new Set<string>()
-            data?.forEach((sale: any) => {
-                const addons = sale.reservations?.addons
-                if (addons) {
-                    Object.keys(addons).forEach(id => addonIds.add(id))
-                }
-            })
+            try {
+                data?.forEach((sale: any) => {
+                    const addons = sale.reservations?.addons
+                    if (addons && typeof addons === 'object') {
+                        Object.keys(addons).forEach(id => addonIds.add(id))
+                    }
+                })
 
-            if (addonIds.size > 0) {
-                const { data: addonsData } = await supabase
-                    .schema('gatepass')
-                    .from('event_addons')
-                    .select('id, name')
-                    .in('id', Array.from(addonIds))
+                if (addonIds.size > 0) {
+                    const { data: addonsData } = await supabase
+                        .schema('gatepass')
+                        .from('event_addons')
+                        .select('id, name')
+                        .in('id', Array.from(addonIds))
 
-                if (addonsData) {
-                    const map: Record<string, string> = {}
-                    addonsData.forEach((a: any) => {
-                        map[a.id] = a.name
-                    })
-                    setAddonMap(map)
+                    if (addonsData) {
+                        const map: Record<string, string> = {}
+                        addonsData.forEach((a: any) => {
+                            map[a.id] = a.name
+                        })
+                        setAddonMap(map)
+                    }
                 }
+            } catch (err) {
+                console.error('Failed to fetch addon details:', err)
+                // Do not fail the whole request, just show IDs or 'Add-on'
             }
 
         } catch (error) {
@@ -160,18 +174,43 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
                                     // 3. Fee Logic
                                     const feeBearer = event?.fee_bearer || 'customer'
-                                    const calculated = calculateFees(subtotal, feeBearer)
 
-                                    const finalPlatformFee = sale.platform_fee ?? calculated.platformFee
-                                    const finalProcessorFee = sale.applied_processor_fee ?? calculated.processorFee
+                                    // Need to calculate addon subtotal to be accurate if falling back to calculation
+                                    // But we don't have addon prices here easily unless we fetch them or store them in snapshot.
+                                    // Ideally `sale.platform_fee` and `sale.applied_processor_fee` are present.
 
-                                    const organizerPayout = sale.amount - finalPlatformFee - finalProcessorFee
+                                    const finalPlatformFee = sale.platform_fee ?? 0
+                                    const finalProcessorFee = sale.applied_processor_fee ?? 0
+                                    const totalFees = finalPlatformFee + finalProcessorFee
+
+                                    // For the screenshot logic: 
+                                    // Total Paid by User (sale.amount) = 2.08
+                                    // Fees = 0.08
+                                    // Payout = 2.00
+
+                                    // The screenshot shows: 2.08 (Total) | -0.06 (Fees??) | 2.02 (Payout)
+                                    // Wait, 0.06 fees?
+                                    // 4% of 1.00 = 0.04
+                                    // 1.98% of 2.00 = 0.0396 ~ 0.04
+                                    // Total Fees should be ~0.08.
+
+                                    // User says: "Fee is supposed to be 0.08 and payout 2"
+
+                                    // So `organizerPayout` should be `sale.amount - totalFees`
+                                    const organizerPayout = sale.amount - totalFees
 
                                     const purchasedAddons = r.addons || {}
                                     const hasAddons = Object.keys(purchasedAddons).length > 0
 
                                     return (
-                                        <tr key={sale.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
+                                        <tr
+                                            key={sale.id}
+                                            onClick={() => {
+                                                setSelectedTransaction(sale)
+                                                setIsDetailOpen(true)
+                                            }}
+                                            className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group cursor-pointer"
+                                        >
                                             <td className="px-6 py-4 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
                                                 {formatDateTime(sale.created_at)}
                                             </td>
@@ -187,8 +226,10 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <p className="font-medium text-gray-900 dark:text-white">{event?.title}</p>
-                                                <p className="text-gray-500 dark:text-gray-400 text-xs">{tier?.name}</p>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium text-gray-900 dark:text-white">{event?.title}</span>
+                                                    <span className="text-gray-500 dark:text-gray-400 text-xs">{tier?.name}</span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 {hasAddons ? (
@@ -251,6 +292,13 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                     </div>
                 )}
             </div>
+
+            <TransactionDetailModal
+                isOpen={isDetailOpen}
+                onClose={() => setIsDetailOpen(false)}
+                transaction={selectedTransaction}
+                eventFeeBearer={selectedTransaction?.reservations?.events?.fee_bearer}
+            />
         </div>
     )
 }

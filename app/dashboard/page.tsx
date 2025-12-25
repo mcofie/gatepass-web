@@ -201,28 +201,32 @@ export default async function DashboardPage() {
 
     // Fetch Addon Names for Recent Sales
     const addonMap: Record<string, string> = {}
-    if (recentSalesRes.data && recentSalesRes.data.length > 0) {
-        const addonIds = new Set<string>()
-        recentSalesRes.data.forEach((sale: any) => {
-            const addons = sale.reservations?.addons
-            if (addons) {
-                Object.keys(addons).forEach(id => addonIds.add(id))
-            }
-        })
+    try {
+        if (recentSalesRes.data && recentSalesRes.data.length > 0) {
+            const addonIds = new Set<string>()
+            recentSalesRes.data.forEach((sale: any) => {
+                const addons = sale.reservations?.addons
+                if (addons && typeof addons === 'object') {
+                    Object.keys(addons).forEach(id => addonIds.add(id))
+                }
+            })
 
-        if (addonIds.size > 0) {
-            const { data: addonsData } = await supabase
-                .schema('gatepass')
-                .from('event_addons')
-                .select('id, name')
-                .in('id', Array.from(addonIds))
+            if (addonIds.size > 0) {
+                const { data: addonsData } = await supabase
+                    .schema('gatepass')
+                    .from('event_addons')
+                    .select('id, name')
+                    .in('id', Array.from(addonIds))
 
-            if (addonsData) {
-                addonsData.forEach((a: any) => {
-                    addonMap[a.id] = a.name
-                })
+                if (addonsData) {
+                    addonsData.forEach((a: any) => {
+                        addonMap[a.id] = a.name
+                    })
+                }
             }
         }
+    } catch (e) {
+        console.error('Dashboard Addon Fetch Error:', e)
     }
 
     // Calculate Revenue
@@ -234,37 +238,15 @@ export default async function DashboardPage() {
         transRes.data.forEach((tx: any) => {
             if (tx.currency) currencySymbol = tx.currency
 
-            const r = tx.reservations as any
-            const price = r.ticket_tiers?.price || 0
-            const quantity = r.quantity || 1
-            const feeBearer = r.events?.fee_bearer || 'customer'
+            const finalPlatformFee = tx.platform_fee ?? 0
+            const finalProcessorFee = tx.applied_processor_fee ?? 0
 
-            // Discount
-            let discountAmount = 0
-            const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
-            if (discount) {
-                if (discount.type === 'percentage') {
-                    discountAmount = (price * quantity) * (discount.value / 100)
-                } else {
-                    discountAmount = discount.value
-                }
-            }
-
-            const subtotal = Math.max(0, (price * quantity) - discountAmount)
-            const { organizerPayout } = calculateFees(subtotal, feeBearer)
-
-            // Robust Snapshot Logic
-            const finalPlatformFee = tx.platform_fee ?? organizerPayout
-
-            const calculated = calculateFees(subtotal, feeBearer)
-
-            const pFee = tx.platform_fee ?? calculated.platformFee
-            const procFee = tx.applied_processor_fee ?? calculated.processorFee
-
-            const netPayout = tx.amount - pFee - procFee
+            // Total Payout = Amount - Fees
+            const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
             totalRevenue += netPayout
         })
     }
+
 
     const stats = [
         { label: 'Total Events', value: eventRes.count || 0, icon: Calendar },
@@ -314,36 +296,9 @@ export default async function DashboardPage() {
                                 <div className="divide-y divide-gray-50 dark:divide-white/5">
                                     {recentSalesRes.data.map((sale: any) => {
                                         // Calculations
-                                        const r = sale.reservations
-                                        const event = r?.events
-                                        const tier = r?.ticket_tiers
-                                        const discount = r?.discounts // Supabase returns object or array depending on relation, usually object for belongs_to/has_one
-                                        // But here filtering by inner might affect types if not careful, but runtime it's typically an object or null for 1:1 linked discount.
-
-                                        const price = tier?.price || 0
-                                        const quantity = r?.quantity || 1
-
-                                        // 1. Calculate Discount
-                                        let discountAmount = 0
-                                        const discountObj = Array.isArray(discount) ? discount[0] : discount
-                                        if (discountObj) { // Check if discount was applied
-                                            if (discountObj.type === 'percentage') {
-                                                discountAmount = (price * quantity) * (discountObj.value / 100)
-                                            } else {
-                                                discountAmount = discountObj.value
-                                            }
-                                        }
-
-                                        // 2. Subtotal
-                                        const subtotal = Math.max(0, (price * quantity) - discountAmount)
-
-                                        // 3. Fee Logic
-                                        // 3. Fee Logic
-                                        const feeBearer = event?.fee_bearer || 'customer'
-                                        const calculated = calculateFees(subtotal, feeBearer)
-
-                                        const pFee = sale.platform_fee ?? calculated.platformFee
-                                        const procFee = sale.applied_processor_fee ?? calculated.processorFee
+                                        // Simplified Logic: Rely on stored snapshot
+                                        const pFee = sale.platform_fee ?? 0
+                                        const procFee = sale.applied_processor_fee ?? 0
 
                                         const organizerPayout = sale.amount - pFee - procFee
 

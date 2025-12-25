@@ -20,58 +20,54 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     const quantity = r?.quantity || 1
     const totalPaid = transaction.amount
 
-    // REVERSE CALCULATE to ensure "True Representation" of what actually happened
-    // instead of hypothetical calculation based on current settings.
+    // SIMPLIFIED LOGIC: Rely on stored snapshot values if available, else standard fallback.
+    // We already trust the 'All Sales' view logic, so let's match it.
 
-    // 1. Determine effective fee rates based on who bore the fees
+    const totalFees = (transaction.platform_fee ?? 0) + (transaction.applied_processor_fee ?? 0)
+
+    // Derived values just for display breakdown if needed, but Total - Fees = Payout is the golden rule.
+    const organizerPayout = totalPaid - totalFees
+
+    // For 'Subtotal' (Ticket + Addons part that went to revenue), it's basically Payout (if customer paid fees).
+    // If Organizer paid fees, Payout is less than Subtotal.
+    // Let's deduce Subtotal from Total Paid:
+    // If Customer Bore Fees: Total = Subtotal + Fees  => Subtotal = Total - Fees
+    // If Organizer Bore Fees: Total = Subtotal        => Subtotal = Total (and Fees deducted later from Payout)
+
     const feeBearer = eventFeeBearer
 
-    // Based on utils/fees.ts:
-    // If Customer: pays Platform (4%) + Processor (1.98%) -> Rate = 0.0598
-    // If Organizer: Customer pays Platform (4%) -> Rate = 0.04
-    // (Note: This assumes fees.ts logic where platform fee is always added)
-    const effectiveFeeRate = feeBearer === 'customer'
-        ? (PLATFORM_FEE_PERCENT + PROCESSOR_FEE_PERCENT)
-        : PLATFORM_FEE_PERCENT
+    const derivedSubtotal = feeBearer === 'customer'
+        ? totalPaid - totalFees
+        : totalPaid
 
-    // 2. Derive Subtotal (The amount attributed to tickets after removing added fees)
-    // Total = Subtotal * (1 + Rate)
-    // Subtotal = Total / (1 + Rate)
-    const derivedSubtotal = totalPaid / (1 + effectiveFeeRate)
+    // Store fees for display
+    const clientFees = feeBearer === 'customer' ? totalFees : 0
+    const processorFee = transaction.applied_processor_fee ?? 0
 
-    // 3. Calculate the component fees based on this derived subtotal
-    const platformFee = derivedSubtotal * PLATFORM_FEE_PERCENT
-    const processorFee = derivedSubtotal * PROCESSOR_FEE_PERCENT
-    const clientFees = totalPaid - derivedSubtotal // exact difference
-
-    // 4. Calculate Payout
-    // If Organizer: Pays Processor Fee from Subtotal
-    // If Customer: Organizer gets full Subtotal
-    const organizerPayout = feeBearer === 'organizer'
-        ? derivedSubtotal - processorFee
-        : derivedSubtotal
-
-    // 5. Handle Discount for display (it's already factored into the Total/Subtotal)
-    // We just show it for context.
+    // 5. Discount Logic
     const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
     let discountAmount = 0
+    // We calculate Discount based on pure Ticket Price typically (logic from Checkout)
+    const ticketBasePrice = r.ticket_tiers?.price || 0
+    const ticketRevenueRaw = ticketBasePrice * quantity
+
     if (discount) {
-        // We can try to estimate the pre-discount price derivedSubtotal + discount
-        // But for display, we'll just show the discount value if fixed, or calc %
         if (discount.type === 'fixed') discountAmount = discount.value
-        // percentage is harder to show exact amount without original price, but we can try:
-        // derivedSubtotal = (Original * (1 - discount%))
-        // Original = derivedSubtotal / (1 - discount%)
         else if (discount.type === 'percentage') {
-            const originalParam = derivedSubtotal / (1 - (discount.value / 100))
-            discountAmount = originalParam - derivedSubtotal
+            discountAmount = ticketRevenueRaw * (discount.value / 100)
         }
     }
 
-    // Gross = what the tickets were worth before discount
-    const grossAmount = derivedSubtotal + discountAmount
-    const displayPrice = grossAmount / quantity
+    // 6. Separate Add-on Revenue
+    // derivedSubtotal = (Ticket * Qty - Discount) + Addons
+    // Therefore: Addons = derivedSubtotal - (Ticket * Qty - Discount)
 
+    // Safety check: derivedSubtotal should be whatever is left after fees.
+    const ticketRevenueNet = Math.max(0, ticketRevenueRaw - discountAmount)
+    let addonRevenue = Math.max(0, derivedSubtotal - ticketRevenueNet)
+
+    // Rounding issues might cause tiny fractions, snap to 2 decimals if needed, but display handles it.
+    if (addonRevenue < 0.01) addonRevenue = 0
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -102,21 +98,29 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
                     {/* Financial Breakdown (Receipt Style) */}
                     <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-6 space-y-3 border border-gray-100 dark:border-white/10">
+                        {/* 1. Ticket Base */}
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500 dark:text-gray-400">Ticket Price</span>
-                            <span className="font-medium dark:text-gray-200">{formatCurrency(displayPrice, transaction.currency)} × {quantity}</span>
-                        </div>
-                        <div className="flex justify-between text-sm font-medium text-gray-900 dark:text-white pb-3 border-b border-gray-200 dark:border-white/10 border-dashed">
-                            <span>Gross Amount</span>
-                            <span>{formatCurrency(grossAmount, transaction.currency)}</span>
+                            <span className="font-medium dark:text-gray-200">{formatCurrency(ticketBasePrice, transaction.currency)} × {quantity}</span>
                         </div>
 
+                        {/* 2. Add-ons (if any) */}
+                        {addonRevenue > 0 && (
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500 dark:text-gray-400">Add-ons (Total)</span>
+                                <span className="font-medium dark:text-gray-200">{formatCurrency(addonRevenue, transaction.currency)}</span>
+                            </div>
+                        )}
+
+                        {/* 3. Discount (if any) */}
                         {discountAmount > 0 && (
                             <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                                 <span className="flex items-center gap-1"><Receipt className="w-3 h-3" /> Discount ({discount?.code})</span>
                                 <span>- {formatCurrency(discountAmount, transaction.currency)}</span>
                             </div>
                         )}
+
+                        <div className="border-b border-gray-200 dark:border-white/10 border-dashed my-2"></div>
 
                         {/* Subtotal before fees */}
                         <div className="flex justify-between text-sm font-bold text-gray-900 dark:text-white">

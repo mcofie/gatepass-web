@@ -95,35 +95,41 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
 
 
 
-    // Calculate Base Subtotal
-    let subtotal = price * quantity
-    let addonsTotal = 0
+    // Calculate Subtotals
+    const ticketSubtotal = price * quantity
 
-    // Add Add-ons cost
+    let addonsTotal = 0
     availableAddons.forEach(addon => {
         if (selectedAddons[addon.id]) {
             addonsTotal += addon.price * selectedAddons[addon.id]
         }
     })
+    const addonSubtotal = addonsTotal
 
-    subtotal += addonsTotal
     let discountAmount = 0
-
-    // Apply Discount
+    // Apply Discount (Usually to Ticket Subtotal)
     if (discount) {
+        let targetAmount = ticketSubtotal
+
         if (discount.type === 'percentage') {
-            discountAmount = subtotal * (discount.value / 100)
+            discountAmount = targetAmount * (discount.value / 100)
         } else {
             discountAmount = discount.value
         }
-        // Ensure we don't go below zero
-        if (discountAmount > subtotal) discountAmount = subtotal
-
-        subtotal = subtotal - discountAmount
+        // Ensure discount doesn't exceed target
+        if (discountAmount > targetAmount) discountAmount = targetAmount
     }
 
+    const netTicketSubtotal = Math.max(0, ticketSubtotal - discountAmount)
     const effectiveRates = getEffectiveFeeRates(feeRates, reservation.events)
-    const { clientFees, platformFee, processorFee, customerTotal } = calculateFees(subtotal, feeBearer, effectiveRates)
+
+    // Updated Call: Pass netTicketSubtotal and addonSubtotal separately
+    const { clientFees, platformFee, processorFee, customerTotal } = calculateFees(
+        netTicketSubtotal,
+        addonSubtotal,
+        feeBearer,
+        effectiveRates
+    )
 
     // Defaults for display if fees not passed (should be rare)
     const platformPct = (effectiveRates.platformFeePercent) * 100
@@ -153,6 +159,20 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                 setPaying(false)
                 return
             }
+        }
+
+        // Persist Add-ons to Reservation (Pre-Payment Draft Save)
+        // This ensures the backend knows about the full order even if verify is called via webhook
+        const { error: addonError } = await supabase
+            .schema('gatepass')
+            .from('reservations')
+            .update({ addons: selectedAddons })
+            .eq('id', reservation.id)
+
+        if (addonError) {
+            console.error('Addon Save Error:', addonError)
+            toast.error('Failed to save order details. Please try again.')
+            return
         }
         // @ts-ignore
         const PaystackPop = window.PaystackPop

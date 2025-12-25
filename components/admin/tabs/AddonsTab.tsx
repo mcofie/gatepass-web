@@ -286,7 +286,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                                         </button>
                                         <div className="flex-1" />
                                         <span className="text-[10px] font-medium text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 rounded-lg">
-                                            {addon.quantity_sold} Sold
+                                            {addon.quantity_sold || 0} Sold
                                         </span>
                                     </div>
                                 </div>

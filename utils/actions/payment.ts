@@ -108,12 +108,29 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     if (reservation.discount_id) {
         const { data: disc } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
         if (disc) {
+            // Apply discount to ticket subtotal
             if (disc.type === 'percentage') subtotal = subtotal - (subtotal * (disc.value / 100))
             else subtotal = Math.max(0, subtotal - disc.value)
         }
     }
 
-    const { platformFee, processorFee } = calculateFees(subtotal, feeBearer, effectiveRates)
+    // Calculate Addon Subtotal
+    let addonSubtotal = 0
+    if (addons) {
+        // We need prices. We can fetch all relevant addons now to be safe.
+        const addonIds = Object.keys(addons)
+        if (addonIds.length > 0) {
+            const { data: addonData } = await supabase.schema('gatepass').from('event_addons').select('id, price').in('id', addonIds)
+            if (addonData) {
+                addonData.forEach(a => {
+                    const quantity = addons[a.id] || 0
+                    addonSubtotal += a.price * quantity
+                })
+            }
+        }
+    }
+
+    const { platformFee, processorFee } = calculateFees(subtotal, addonSubtotal, feeBearer, effectiveRates)
 
     // 3. Log Transaction (Create History)
     const { error: txError } = await supabase.schema('gatepass').from('transactions').insert({
@@ -139,6 +156,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
     // 4. Idempotency & Creation Logic
     let ticketsToProcess: Ticket[] = []
+    let ticketsCreated = false
 
     // Check if tickets already exist for this reference
     const { data: existingTickets } = await supabase
@@ -150,11 +168,13 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     if (existingTickets && existingTickets.length > 0) {
         console.log('Tickets already exist for reference:', reference)
         ticketsToProcess = existingTickets as Ticket[]
+        ticketsCreated = false
     } else {
         // Generate Tickets Loop
         const quantity = reservation.quantity || 1
         console.log(`Generating ${quantity} tickets for Reservation ${reservation.id}`)
         let lastError = null
+        ticketsCreated = true
 
         for (let i = 0; i < quantity; i++) {
             const { data: ticket, error: ticketError } = await supabase
@@ -185,12 +205,16 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         }
 
         // 5. Update Reservation Status & Add-ons
+        // IMPORTANT: If addons arg is missing (e.g. webhook), fallback to what's already in DB (pre-saved)
+        // This prevents overwriting valid add-ons with null.
+        const finalAddons = addons || reservation.addons
+
         await supabase
             .schema('gatepass')
             .from('reservations')
             .update({
                 status: 'confirmed',
-                addons: addons || null
+                addons: finalAddons
             })
             .eq('id', reservation.id)
 
@@ -215,8 +239,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         }
 
         // 5b-2. Add-ons Inventory Update
-        if (addons) {
-            for (const [addonId, qty] of Object.entries(addons)) {
+        if (finalAddons) {
+            for (const [addonId, qty] of Object.entries(finalAddons as Record<string, number>)) {
                 if (qty > 0) {
                     const { data: addonData } = await supabase.schema('gatepass').from('event_addons').select('quantity_sold').eq('id', addonId).single()
                     if (addonData) {
@@ -260,6 +284,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         }
 
         // 7. Notify Admin of Sale
+        // We only notify on fresh creation too to avoid spam
         try {
             const { notifyAdminOfSale } = await import('@/utils/notifications')
             await notifyAdminOfSale({
@@ -275,8 +300,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         }
     }
 
-    // 8. Robust Idempotent Email Logic (Always attempt if tickets exist)
-    if (ticketsToProcess.length > 0) {
+    // 8. Robust Idempotent Email Logic (Only send if tickets were just created)
+    if (ticketsToProcess.length > 0 && ticketsCreated) {
         try {
             const { sendTicketEmail } = await import('@/utils/email')
 

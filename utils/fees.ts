@@ -24,7 +24,9 @@ export const getEffectiveFeeRates = (
 
     // 2. Determine Processor Fee
     // Currently only global or default (no event-specific override supported yet)
-    let processorRate = globalRates?.processorFeePercent ?? PROCESSOR_FEE_PERCENT
+    const processorRate = (typeof globalRates?.processorFeePercent === 'number')
+        ? globalRates.processorFeePercent
+        : PROCESSOR_FEE_PERCENT
 
     return {
         platformFeePercent: platformRate,
@@ -47,35 +49,60 @@ export interface FeeRates {
 }
 
 export const calculateFees = (
-    subtotal: number,
+    ticketSubtotal: number,
+    addonSubtotal: number = 0,
     feeBearer: 'customer' | 'organizer' = 'customer',
     rates?: FeeRates
 ): FeeResult => {
     // defaults
-    const platformRate = rates?.platformFeePercent ?? PLATFORM_FEE_PERCENT
-    const processorRate = rates?.processorFeePercent ?? PROCESSOR_FEE_PERCENT
+    // defaults - Ensure we default if rates provided but contain undefined/null/NaN
+    const rawPlatform = rates?.platformFeePercent
+    const platformRate = (typeof rawPlatform === 'number' && !isNaN(rawPlatform))
+        ? rawPlatform
+        : PLATFORM_FEE_PERCENT
 
-    // 1. Platform Fee
-    const platformFee = subtotal * platformRate
+    const rawProcessor = rates?.processorFeePercent
+    const processorRate = (typeof rawProcessor === 'number' && !isNaN(rawProcessor))
+        ? rawProcessor
+        : PROCESSOR_FEE_PERCENT
 
-    // 2. Processor Fee
+    const combinedSubtotal = ticketSubtotal + addonSubtotal
+
+    // 1. Platform Fee (Applies ONLY to Ticket Revenue)
+    const platformFee = ticketSubtotal * platformRate
+
+    // 2. Processor Fee (Applies to TOTAL Revenue: Tickets + Addons)
     // If 'customer' bears fees -> Added to customer total.
     // If 'organizer' bears fees -> Deducted from organizer payout.
-    const processorFee = subtotal * processorRate
+    const processorFee = combinedSubtotal * processorRate
 
     // clientFees = What the customer sees added to the Ticket Price
     // Always includes Platform Fee. Includes Processor Fee only if Customer bears it.
     const clientFees = platformFee + (feeBearer === 'customer' ? processorFee : 0)
 
-    // customerTotal = Ticket + Client Fees
-    const customerTotal = subtotal + clientFees
+    // customerTotal = Ticket + Addons + Client Fees
+    const customerTotal = combinedSubtotal + clientFees
 
-    // organizerPayout = Ticket - Deductions
-    // If Organizer bears fees, Processor Fee is deducted. Platform Fee is never deducted (customer paid it).
-    const organizerPayout = subtotal - (feeBearer === 'organizer' ? processorFee : 0)
+    // organizerPayout = (Tickets + Addons) - Deductions
+    // If Organizer bears fees, Processor Fee is deducted. Platform Fee is never deducted (customer paid it effectively via markup, or it's separated at source).
+    // Actually, Platform Fee is "deducted" in the sense that the Organizer doesn't receive it.
+    // If Fee Bearer is Customer: Organizer gets (Ticket + Addon). (Platform Fee goes to Platform, Processor Fee goes to Processor).
+    // If Fee Bearer is Organizer: Organizer gets (Ticket + Addon) - Processor Fee - Platform Fee (if implicit).
+
+    // Let's stick to the Net Payout view:
+    // Net = Collected - PlatformFee - ProcessorFee
+    // If Customer Pays Fees: Collected = (Ticket+Addon) + PlatformFee + ProcessorFee. 
+    //      Net = ((T+A)+PF+PrF) - PF - PrF = T+A. Correct.
+    // If Organizer Pays Fees: Collected = (T+A).
+    //      Net = (T+A) - PF - PrF. Correct.
+
+    // However, our `organizerPayout` variable usually tracks "What amount is settled to the organizer".
+    // Since we use Split Payments/Transaction Charge for Platform Fee, that amount never hits the Organizer's balance if handled correctly.
+
+    const organizerPayout = combinedSubtotal - (feeBearer === 'organizer' ? processorFee : 0)
 
     return {
-        subtotal,
+        subtotal: combinedSubtotal,
         platformFee,
         processorFee,
         clientFees,

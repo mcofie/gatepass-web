@@ -74,7 +74,7 @@ export function EventManageClient({
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
 
     // Payouts State
-    const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0 })
+    const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0, totalAddons: 0 })
     const [transactions, setTransactions] = useState<any[]>([])
     const [loadingPayouts, setLoadingPayouts] = useState(false)
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
@@ -349,7 +349,8 @@ export function EventManageClient({
                     reservations!inner (
                         tier_id,
                         quantity,
-                        discounts ( type, value )
+                        discounts ( type, value ),
+                        addons
                     )
                 `)
                 .eq('status', 'success')
@@ -372,7 +373,8 @@ export function EventManageClient({
                         guest_name,
                         guest_email,
                         discounts ( type, value, code ),
-                        profiles ( full_name, email )
+                        profiles ( full_name, email ),
+                        addons
                     )
                 `, { count: 'exact' })
                 .eq('status', 'success')
@@ -405,6 +407,13 @@ export function EventManageClient({
             let totalVolume = 0
             let totalPlatformFees = 0
             let totalOrganizerNet = 0 // Using explicit independent counter
+            let totalAddonsRevenue = 0
+
+            // Helper to get addon price (uses 'addons' state which is fetched on mount)
+            const getAddonPrice = (id: string) => {
+                const found = addons.find(a => a.id === id)
+                return found?.price || 0
+            }
 
             statsRes.data.forEach((tx: any) => {
                 totalVolume += (tx.amount || 0)
@@ -414,29 +423,22 @@ export function EventManageClient({
                 const price = tier?.price || 0
                 const quantity = tx.reservations?.quantity || 1
 
-                // Calculate Discount
-                let discountAmount = 0
-                const discount = Array.isArray(tx.reservations?.discounts) ? tx.reservations?.discounts[0] : tx.reservations?.discounts
-                if (discount) {
-                    if (discount.type === 'percentage') {
-                        discountAmount = (price * quantity) * (discount.value / 100)
-                    } else {
-                        discountAmount = discount.value
-                    }
+                // Calculate Addon Revenue for this TX
+                const resAddons = tx.reservations?.addons
+                let txAddonRevenue = 0
+                if (resAddons && typeof resAddons === 'object') {
+                    Object.entries(resAddons).forEach(([addonId, qty]) => {
+                        const unitPrice = getAddonPrice(addonId)
+                        txAddonRevenue += unitPrice * (qty as number)
+                    })
                 }
+                totalAddonsRevenue += txAddonRevenue
 
-                // Effective Subtotal 
-                const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
                 // Calculate Fees & Payout
-                // Calculate Fees & Payout
-                const feeBearer = event.fee_bearer || 'customer'
-                const effectiveRates = getEffectiveFeeRates(feeRates, event)
-                const calculated = calculateFees(subtotal, feeBearer, effectiveRates)
-
-                // Use Snapshot if available (Historic Accuracy)
-                const finalPlatformFee = tx.platform_fee ?? calculated.platformFee
-                const finalProcessorFee = tx.applied_processor_fee ?? calculated.processorFee
+                // We trust the stored fees implicitly now for net payout
+                const finalPlatformFee = tx.platform_fee ?? 0
+                const finalProcessorFee = tx.applied_processor_fee ?? 0
 
                 const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
 
@@ -448,7 +450,8 @@ export function EventManageClient({
                 totalCollected: totalVolume,
                 platformFee: totalPlatformFees,
                 organizerNet: totalOrganizerNet,
-                transactionCount: statsRes.data.length
+                transactionCount: statsRes.data.length,
+                totalAddons: totalAddonsRevenue
             })
 
         } catch (e: any) {
@@ -707,9 +710,19 @@ export function EventManageClient({
 
                                             // Calc Payout (Re-calc for display row)
                                             const subtotal = Math.max(0, (price * quantity) - discountAmount)
+
+                                            // Calculate Addon Subtotal for this Row
+                                            let addonSubtotal = 0
+                                            if (r?.addons && typeof r.addons === 'object') {
+                                                Object.entries(r.addons).forEach(([addonId, qty]) => {
+                                                    const found = addons.find(a => a.id === addonId)
+                                                    if (found) addonSubtotal += found.price * (qty as number)
+                                                })
+                                            }
+
                                             const feeBearer = event.fee_bearer || 'customer'
                                             const effectiveRates = getEffectiveFeeRates(feeRates, event)
-                                            const calculated = calculateFees(subtotal, feeBearer, effectiveRates)
+                                            const calculated = calculateFees(subtotal, addonSubtotal, feeBearer, effectiveRates)
 
                                             // Confirmed Logic: Payout = Amount - Fees
                                             const finalPlatformFee = tx.platform_fee ?? calculated.platformFee

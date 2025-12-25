@@ -208,49 +208,57 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         })
     }
 
-    const calculatedTotal = React.useMemo(() => {
+    // 1. Calculate Ticket Only Subtotal
+    const ticketSubtotal = React.useMemo(() => {
         let total = 0
-        // Tickets
         Object.entries(selectedTickets).forEach(([tierId, qty]) => {
             const tier = tiers.find(t => t.id === tierId)
             if (tier) total += tier.price * qty
         })
-        // Addons
-        if (availableAddons) {
-            Object.entries(selectedAddons).forEach(([addonId, qty]) => {
-                const addon = availableAddons.find(a => a.id === addonId)
-                if (addon) total += addon.price * qty
-            })
-        }
         return total
-    }, [selectedTickets, tiers, selectedAddons, availableAddons])
+    }, [selectedTickets, tiers])
 
-    // Discount Calculation
-    // Discount Calculation
+    // 2. Calculate Addon Subtotal
+    const addonSubtotal = Object.entries(selectedAddons).reduce((sum, [id, qty]) => {
+        const addon = availableAddons.find(a => a.id === id)
+        return sum + ((addon?.price || 0) * qty)
+    }, 0)
+
+    // 3. Discount Calculation
     const discountAmount = React.useMemo(() => {
         if (!discount) return 0
 
-        let targetAmount = calculatedTotal // Default: All tickets
+        // Default target is Ticket Subtotal (not including addons usually)
+        let targetAmount = ticketSubtotal
 
         // If Tier Specific, filter only relevant amount
         if (discount.tier_id) {
             const qty = selectedTickets[discount.tier_id] || 0
             const tier = tiers.find(t => t.id === discount.tier_id)
-            if (!tier || qty === 0) return 0 // Apply nothing if target tier not selected
+            if (!tier || qty === 0) return 0
             targetAmount = tier.price * qty
         }
 
         return discount.type === 'fixed'
-            ? discount.value // Fixed usually applies once to order? Or per item? Legacy suggests once to order. Stick to that.
+            ? discount.value
             : (targetAmount * (discount.value / 100))
-    }, [discount, calculatedTotal, selectedTickets, tiers])
+    }, [discount, ticketSubtotal, selectedTickets, tiers])
 
-    const discountedSubtotal = Math.max(0, calculatedTotal - discountAmount)
+    const netTicketSubtotal = Math.max(0, ticketSubtotal - discountAmount)
+
     // Use effective rates for THIS event
     const effectiveRates = getEffectiveFeeRates(feeRates, event)
-    const { clientFees, customerTotal } = calculateFees(discountedSubtotal, event.fee_bearer as 'customer' | 'organizer', effectiveRates)
+    const { clientFees, customerTotal } = calculateFees(
+        netTicketSubtotal,
+        addonSubtotal,
+        event.fee_bearer as 'customer' | 'organizer',
+        effectiveRates
+    )
     const platformFees = clientFees
     const totalDue = customerTotal
+
+    // Helper for creating reservation payload (Total Amount validation)
+    const calculatedTotal = ticketSubtotal + addonSubtotal
 
     const applyPromoCode = async () => {
         if (!promoCode.trim()) return
@@ -416,7 +424,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     }
 
 
-    const hasSelection = calculatedTotal > 0
+    const hasSelection = Object.values(selectedTickets).some(q => q > 0) || Object.values(selectedAddons).some(q => q > 0)
     const cheapestTier = tiers.length > 0 ? tiers[0] : null
     const isModalExpanded = view !== 'details'
 
@@ -558,7 +566,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             event={event}
                             tiers={tiers}
                             selectedTickets={selectedTickets}
-                            subtotal={calculatedTotal}
+                            subtotal={ticketSubtotal}
                             fees={platformFees}
                             total={totalDue}
                             timeLeft={timeLeft}
@@ -574,6 +582,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             primaryColor={event.primary_color}
                             availableAddons={availableAddons}
                             selectedAddons={selectedAddons}
+                            addonSubtotal={addonSubtotal}
                         />
                     </div>
                 )}
@@ -1241,10 +1250,11 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
         </div>
     )
 }
-const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor, availableAddons = [], selectedAddons = {} }: {
+const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor, availableAddons = [], selectedAddons = {} }: {
     event: Event,
     tiers: TicketTier[],
-    subtotal: number,
+    subtotal: number, // Ticket Subtotal
+    addonSubtotal: number, // Addon Subtotal
     fees: number,
     total: number,
     loading: boolean,
@@ -1346,6 +1356,13 @@ const SummaryView = ({ event, tiers, subtotal, fees, total, timeLeft, loading, o
                                 <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
                                 <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
                             </div>
+
+                            {addonSubtotal > 0 && (
+                                <div className="flex justify-between items-center text-[13px] text-gray-500 dark:text-gray-400">
+                                    <span>Add-ons</span>
+                                    <span>{formatCurrency(addonSubtotal, tiers[0]?.currency)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center">
                                 <span className="text-gray-500 dark:text-gray-400">Fees</span>
                                 <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(fees, tiers[0]?.currency)}</span>
