@@ -78,9 +78,9 @@ export async function GET(request: Request) {
                     console.error('[Auth Callback] Missing SUPABASE_SERVICE_ROLE_KEY')
                 }
 
-                // 4. New User -> Onboarding
-                console.log('[Auth Callback] New User -> Onboarding')
-                return NextResponse.redirect(`${origin}/onboarding`)
+                // 4. Default: Regular User -> My Tickets
+                console.log('[Auth Callback] Regular User -> My Tickets')
+                return NextResponse.redirect(`${origin}/my-tickets`)
             }
 
             // Fallback

@@ -828,50 +828,77 @@ export function EventManageClient({
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
                         {/* 1. Stats Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center">
-                                    <DollarSign className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Gross Revenue</p>
-                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}</p>
-                                </div>
-                            </div>
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-white flex items-center justify-center">
-                                    <Ticket className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tickets Sold</p>
-                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.totalSold} / {stats.totalCapacity}</p>
+                        {/* 1. Stats Row */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                            {/* Gross Revenue - Highlighted */}
+                            <div className="col-span-2 md:col-span-1 xl:col-span-1 bg-black text-white dark:bg-white dark:text-black p-6 rounded-3xl shadow-xl shadow-black/5 flex flex-col justify-between relative overflow-hidden group min-h-[140px]">
+                                <div className="absolute top-0 right-0 p-16 bg-white/10 dark:bg-black/5 rounded-full translate-x-8 -translate-y-8 blur-2xl transition-transform group-hover:scale-110 duration-700" />
+                                <div className="relative z-10 flex flex-col justify-between h-full">
+                                    <div className="flex items-center gap-2 text-white/60 dark:text-black/60 mb-2">
+                                        <div className="p-1.5 bg-white/10 dark:bg-black/5 rounded-lg">
+                                            <DollarSign className="w-3.5 h-3.5" />
+                                        </div>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Gross Revenue</span>
+                                    </div>
+                                    <p className="text-2xl xl:text-3xl font-black tracking-tight mt-1">
+                                        {formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                                    <Eye className="w-6 h-6" />
+
+                            {/* Tickets Sold */}
+                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-colors">
+                                        <Ticket className="w-5 h-5" />
+                                    </div>
+                                    <span className={clsx("text-[10px] font-bold px-2 py-1 rounded-full",
+                                        stats.utilization >= 90 ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
+                                            stats.utilization >= 50 ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
+                                                "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400"
+                                    )}>
+                                        {stats.utilization.toFixed(0)}% Sold
+                                    </span>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Views</p>
-                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{event.view_count?.toLocaleString() || 0}</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Tickets Sold</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <p className="text-xl font-black text-gray-900 dark:text-white">{stats.totalSold}</p>
+                                        <span className="text-xs font-medium text-gray-400">/ {stats.totalCapacity}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center">
-                                    <BarChart3 className="w-6 h-6" />
+
+                            {/* Total Views */}
+                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
+                                <div className="mb-2 w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <Eye className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Utilization</p>
-                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.utilization.toFixed(1)}%</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Total Views</p>
+                                    <p className="text-xl font-black text-gray-900 dark:text-white">{event.view_count?.toLocaleString() || 0}</p>
                                 </div>
                             </div>
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
-                                    <Ticket className="w-6 h-6 rotate-45" />
+
+                            {/* Utilization/Capacity */}
+                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
+                                <div className="mb-2 w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                                    <BarChart3 className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Discounts</p>
-                                    <p className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Utilization</p>
+                                    <p className="text-xl font-black text-gray-900 dark:text-white">{stats.utilization.toFixed(1)}%</p>
+                                </div>
+                            </div>
+
+                            {/* Discounts */}
+                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
+                                <div className="mb-2 w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                                    <Ticket className="w-5 h-5 rotate-45" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Discounts</p>
+                                    <p className="text-xl font-black text-gray-900 dark:text-white">{formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}</p>
                                 </div>
                             </div>
                         </div>

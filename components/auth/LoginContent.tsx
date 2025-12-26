@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { toast } from 'sonner'
 import { ArrowRight, Loader2, Check, ChevronLeft } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 export function LoginContent() {
     const [email, setEmail] = useState('')
@@ -12,6 +13,9 @@ export function LoginContent() {
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
     const [view, setView] = useState<'LOGIN' | 'SENT' | 'MANUAL'>('LOGIN')
+    const searchParams = useSearchParams()
+    const nextPath = searchParams.get('next') || ''
+    const router = useRouter() // Though we use window.location for full reload often, consistency helps.
 
     const supabase = createClient()
 
@@ -24,7 +28,8 @@ export function LoginContent() {
                 email: email.trim(),
                 options: {
                     shouldCreateUser: true,
-                    emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    // Pass 'next' to the callback route
+                    emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
                 },
             })
 
@@ -66,8 +71,14 @@ export function LoginContent() {
             if (error) throw error
 
             toast.success('Logged in successfully!')
-            // Hard reload to refresh session state
-            window.location.href = '/dashboard'
+            toast.success('Logged in successfully!')
+            // Hard reload to refresh session state and go to next path
+            if (nextPath) {
+                window.location.href = nextPath
+            } else {
+                // If no next path, hit the callback to let server decide (dashboard vs my-tickets)
+                window.location.href = '/auth/callback'
+            }
         } catch (error: any) {
             console.error('OTP Verification Error:', error)
             toast.error(error.message || 'Invalid code')

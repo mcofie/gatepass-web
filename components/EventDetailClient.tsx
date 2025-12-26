@@ -97,6 +97,11 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         setView(newView)
         // Auto-expand on navigation to deeper views
         if (newView !== 'details') setIsExpanded(true)
+
+        // Auto-select first addon if none selected when moving to addons
+        if (newView === 'addons' && Object.keys(selectedAddons).length === 0 && availableAddons.length > 0) {
+            setSelectedAddons({ [availableAddons[0].id]: 1 })
+        }
     }
 
     // Form State
@@ -424,7 +429,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     }
 
 
-    const hasSelection = Object.values(selectedTickets).some(q => q > 0) || Object.values(selectedAddons).some(q => q > 0)
+    const hasTicketsSelected = Object.values(selectedTickets).some(q => q > 0)
     const cheapestTier = tiers.length > 0 ? tiers[0] : null
     const isModalExpanded = view !== 'details'
 
@@ -524,7 +529,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             onContinue={handleContinueToCheckout}
                             onBack={() => navigate('details', 'back')}
                             total={calculatedTotal}
-                            hasSelection={hasSelection}
+                            hasSelection={hasTicketsSelected}
                             primaryColor={event.primary_color}
                         />
                     </div>
@@ -557,6 +562,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             onContinue={handleCreateReservation}
                             loading={loading}
                             primaryColor={event.primary_color}
+                            hasTicketsSelected={hasTicketsSelected}
                         />
                     </div>
                 )}
@@ -1011,8 +1017,11 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                 <button
                     onClick={onContinue}
                     disabled={!hasSelection}
-                    style={{ backgroundColor: hasSelection ? (primaryColor || '#000000') : undefined, color: '#ffffff' }}
-                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-between px-4 shadow-lg bg-black dark:bg-zinc-800"
+                    style={{
+                        backgroundColor: hasSelection ? (primaryColor || '#000000') : undefined,
+                        color: hasSelection ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
+                    }}
+                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-between px-4"
 
                 >
                     <span>Checkout</span>
@@ -1030,14 +1039,15 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
 
 )
 
-const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading, primaryColor }: {
+const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading, primaryColor, hasTicketsSelected }: {
     guestName: string, setGuestName: (name: string) => void,
     guestEmail: string, setGuestEmail: (email: string) => void,
     guestPhone: string, setGuestPhone: (phone: string) => void,
     onBack: () => void,
     onContinue: () => void,
     loading: boolean,
-    primaryColor?: string
+    primaryColor?: string,
+    hasTicketsSelected: boolean
 }) => (
     <div className="flex flex-col h-auto animate-fade-in relative">
         <div className="flex justify-between items-center mb-8 px-1 flex-shrink-0 pt-2">
@@ -1091,15 +1101,15 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
             <div className="max-w-md mx-auto md:max-w-none">
                 <button
                     onClick={onContinue}
-                    disabled={loading || !guestName || !guestEmail}
+                    disabled={loading || !guestName || !guestEmail || !hasTicketsSelected}
                     style={{
-                        backgroundColor: (!loading && guestName && guestEmail) ? (primaryColor || undefined) : undefined,
-                        color: (!loading && guestName && guestEmail && primaryColor) ? getContrastColor(primaryColor) : undefined
+                        backgroundColor: (guestName && guestEmail) ? (primaryColor || '#000000') : undefined,
+                        color: (guestName && guestEmail && primaryColor) ? getContrastColor(primaryColor) : '#ffffff'
                     }}
-                    className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-100 disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 group"
                 >
                     {loading ? 'Processing...' : 'Continue to Payment'}
-                    {!loading && <svg className="w-4 h-4 text-gray-400 dark:text-zinc-600 group-disabled:text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>}
+                    {!loading && <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
                 </button>
             </div>
         </div>
@@ -1153,9 +1163,13 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                     "group relative overflow-hidden rounded-[24px] border transition-all duration-500",
                                     isSoldOut ? "bg-gray-50/50 dark:bg-white/5 border-gray-100 dark:border-white/5 opacity-60" :
                                         isSelected
-                                            ? "bg-black text-white dark:bg-white dark:text-black border-transparent shadow-2xl shadow-black/20 dark:shadow-white/10 scale-[1.01]"
+                                            ? "border-transparent shadow-2xl scale-[1.01]"
                                             : "bg-gray-50/50 dark:bg-white/5 border-transparent hover:bg-gray-100 dark:hover:bg-white/10 shadow-sm"
                                 )}
+                                style={isSelected && !isSoldOut ? {
+                                    backgroundColor: primaryColor || '#000000',
+                                    color: getContrastColor(primaryColor || '#000000'),
+                                } : {}}
                             >
                                 <div className="flex p-4 gap-4">
                                     {/* Elevated Image Container */}
@@ -1180,11 +1194,11 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                             <div className="flex justify-between items-start mb-0.5">
                                                 <h4 className={cn(
                                                     "text-[15px] font-extrabold leading-tight line-clamp-1 tracking-tight",
-                                                    isSelected ? "text-white dark:text-black" : "text-black dark:text-white"
+                                                    isSelected ? "text-current" : "text-black dark:text-white"
                                                 )}>{addon.name}</h4>
                                                 <span className={cn(
                                                     "font-bold text-[14px] tabular-nums",
-                                                    isSelected ? "text-white/80 dark:text-black/80" : "text-gray-400 dark:text-gray-500"
+                                                    isSelected ? "opacity-80" : "text-gray-400 dark:text-gray-500"
                                                 )}>
                                                     {formatCurrency(addon.price, addon.currency)}
                                                 </span>
@@ -1192,7 +1206,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                             {addon.description && (
                                                 <p className={cn(
                                                     "text-[12px] line-clamp-2 leading-snug font-medium",
-                                                    isSelected ? "text-white/60 dark:text-black/60" : "text-gray-500 dark:text-gray-400"
+                                                    isSelected ? "opacity-60" : "text-gray-500 dark:text-gray-400"
                                                 )}>{addon.description}</p>
                                             )}
                                         </div>
@@ -1201,40 +1215,61 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                         <div className="flex items-center justify-between mt-3">
                                             <div className={cn(
                                                 "text-[9px] font-black uppercase tracking-[0.15em]",
-                                                isSelected ? "text-white/40 dark:text-black/40" : "text-gray-400 dark:text-gray-500"
+                                                isSelected ? "opacity-40" : "text-gray-400 dark:text-gray-500"
                                             )}>
                                                 {isSoldOut ? "Unavailable" : isSelected ? "In Cart" : "Optional"}
                                             </div>
 
                                             {!isSoldOut && (
-                                                <div className={cn(
-                                                    "flex items-center gap-1.5 p-1 rounded-full",
-                                                    isSelected ? "bg-white/10 dark:bg-black/10" : "bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5"
-                                                )}>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, -1); }}
-                                                        disabled={qty === 0}
-                                                        className={cn(
-                                                            "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                            isSelected ? "hover:bg-white/10 text-white dark:text-black" : "hover:bg-gray-100 text-black dark:text-white"
-                                                        )}
-                                                    >
-                                                        -
-                                                    </button>
-                                                    <span className={cn(
-                                                        "text-[14px] font-extrabold tabular-nums w-4 text-center",
-                                                        isSelected ? "text-white dark:text-black" : "text-black dark:text-white"
-                                                    )}>{qty}</span>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, 1); }}
-                                                        disabled={isMaxed}
-                                                        className={cn(
-                                                            "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                            isSelected ? "hover:bg-white/10 text-white dark:text-black" : "hover:bg-gray-100 text-black dark:text-white"
-                                                        )}
-                                                    >
-                                                        +
-                                                    </button>
+                                                <div className="flex items-center gap-1.5 transition-all">
+                                                    {addon.selection_type === 'toggle' ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, isSelected ? -qty : 1); }}
+                                                            className={cn(
+                                                                "h-8 px-4 rounded-full transition-all text-[12px] font-bold flex items-center justify-center gap-1.5",
+                                                                isSelected
+                                                                    ? "bg-white/20 text-current hover:bg-white/30"
+                                                                    : "bg-black dark:bg-white text-white dark:text-black hover:opacity-90 shadow-sm"
+                                                            )}
+                                                        >
+                                                            {isSelected ? (
+                                                                <>
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                    Added
+                                                                </>
+                                                            ) : 'Add'}
+                                                        </button>
+                                                    ) : (
+                                                        <div className={cn(
+                                                            "flex items-center gap-1.5 p-1 rounded-full",
+                                                            isSelected ? "bg-white/10 dark:bg-black/10" : "bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5"
+                                                        )}>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, -1); }}
+                                                                disabled={qty === 0}
+                                                                className={cn(
+                                                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
+                                                                    isSelected ? "hover:bg-white/10 text-current" : "hover:bg-gray-100 text-black dark:text-white"
+                                                                )}
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <span className={cn(
+                                                                "text-[14px] font-extrabold tabular-nums w-4 text-center",
+                                                                isSelected ? "text-current" : "text-black dark:text-white"
+                                                            )}>{qty}</span>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, 1); }}
+                                                                disabled={isMaxed}
+                                                                className={cn(
+                                                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
+                                                                    isSelected ? "hover:bg-white/10 text-current" : "hover:bg-gray-100 text-black dark:text-white"
+                                                                )}
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -1251,11 +1286,14 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                 <div className="max-w-md mx-auto md:max-w-none">
                     <button
                         onClick={onContinue}
-                        style={{ backgroundColor: primaryColor || '#000000', color: '#ffffff' }}
-                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
+                        style={{
+                            backgroundColor: primaryColor || '#000000',
+                            color: primaryColor ? getContrastColor(primaryColor) : '#ffffff'
+                        }}
+                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 group"
                     >
                         <span>{hasSelection ? 'Continue with Add-ons' : 'No Thanks, Continue'}</span>
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                     </button>
                 </div>
             </div>
@@ -1478,7 +1516,7 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                             backgroundColor: primaryColor || undefined,
                             color: primaryColor ? getContrastColor(primaryColor) : '#ffffff'
                         }}
-                        className="w-full bg-black dark:bg-white text-white dark:text-black h-12 rounded-xl text-[14px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
+                        className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
                     >
                         {loading ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>

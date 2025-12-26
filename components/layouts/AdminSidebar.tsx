@@ -275,9 +275,9 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             )}
 
             <aside className={`
-                w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen overflow-y-auto border-r border-[#1a1a1a]
+                w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen overflow-hidden border-r border-[#1a1a1a]
                 fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-                lg:translate-x-0 lg:static lg:h-screen
+                lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen
                 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
                 <div className="lg:hidden absolute top-4 right-4 z-[60]">
@@ -287,7 +287,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                 </div>
 
                 {/* Brand */}
-                <div className="p-8 pb-12 relative z-50">
+                <div className="p-8 pb-8 flex-shrink-0 relative z-50">
                     {loading ? (
                         <div className="flex items-center gap-3">
                             <Skeleton className="w-10 h-10 rounded-xl bg-[#222]" />
@@ -365,8 +365,8 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     )}
                 </div>
 
-                {/* Navigation */}
-                <nav className="flex-1 px-4 space-y-1">
+                {/* Navigation - Scrollable Area */}
+                <nav className="flex-1 px-4 space-y-1 overflow-y-auto min-h-0">
                     <p className="px-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">
                         Main Menu
                     </p>
@@ -389,8 +389,8 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     ))}
                 </nav>
 
-                {/* User Profile & Admin Switch */}
-                <div className="p-4 border-t border-[#1a1a1a] space-y-4">
+                {/* Sticky Bottom Section */}
+                <div className="p-4 border-t border-[#1a1a1a] space-y-4 flex-shrink-0 bg-[#0a0a0a]">
                     {(isSuperAdmin || isAdmin) && (
                         <Link
                             href="/admin"
@@ -434,7 +434,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     </button>
                 </div>
 
-                <div className="px-8 pb-8 pt-2 text-center">
+                <div className="px-8 pb-8 pt-2 text-center flex-shrink-0">
                     <p className="text-[10px] text-gray-700 font-bold uppercase tracking-widest flex items-center justify-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
                         <span className="w-1.5 h-1.5 bg-gray-600 rounded-full" />
                         GatePass

@@ -152,4 +152,5 @@ export interface EventAddon {
     total_quantity?: number | null
     quantity_sold: number
     is_active: boolean
+    selection_type: 'quantity' | 'toggle'
 }

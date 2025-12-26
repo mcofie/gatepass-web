@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { Plus, X, Image as ImageIcon, Trash2, Edit2, Loader2, Package } from 'lucide-react'
+import { Plus, X, Image as ImageIcon, Trash2, Edit2, Loader2, Package, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
 import { EventAddon } from '@/types/gatepass'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 import { formatCurrency } from '@/utils/format'
+import { cn } from '@/lib/utils'
 
 interface AddonsTabProps {
     addons: EventAddon[]
@@ -25,7 +26,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
         price: 0,
         currency: 'GHS',
         image_url: '',
-        is_active: true
+        is_active: true,
+        selection_type: 'quantity'
     })
 
     const resetForm = () => {
@@ -35,7 +37,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
             price: 0,
             currency: 'GHS',
             image_url: '',
-            is_active: true
+            is_active: true,
+            selection_type: 'quantity'
         })
         setIsCreating(false)
         setEditingId(null)
@@ -68,7 +71,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                         description: form.description,
                         price: form.price,
                         image_url: form.image_url,
-                        is_active: form.is_active
+                        is_active: form.is_active,
+                        selection_type: form.selection_type
                     })
                     .eq('id', editingId)
 
@@ -85,7 +89,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                         price: form.price,
                         currency: 'GHS', // Default to GHS for now
                         image_url: form.image_url,
-                        is_active: true
+                        is_active: true,
+                        selection_type: form.selection_type || 'quantity'
                     })
 
                 if (error) throw error
@@ -177,6 +182,45 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                         </div>
                     </div>
 
+                    {/* Selection Type Card */}
+                    <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Selection Type</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setForm({ ...form, selection_type: 'quantity' })}
+                                className={cn(
+                                    "p-4 rounded-2xl border text-left transition-all",
+                                    form.selection_type === 'quantity'
+                                        ? "border-black dark:border-white bg-black/5 dark:bg-white/5 ring-1 ring-black dark:ring-white shadow-sm"
+                                        : "border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 bg-gray-50/50 dark:bg-transparent"
+                                )}
+                            >
+                                <div className="font-bold text-sm mb-1 text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Package className="w-3.5 h-3.5" />
+                                    Quantity
+                                </div>
+                                <div className="text-[11px] text-gray-500 leading-tight">Allow guests to buy multiple (e.g. Drinks, Merch)</div>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setForm({ ...form, selection_type: 'toggle' })}
+                                className={cn(
+                                    "p-4 rounded-2xl border text-left transition-all",
+                                    form.selection_type === 'toggle'
+                                        ? "border-black dark:border-white bg-black/5 dark:bg-white/5 ring-1 ring-black dark:ring-white shadow-sm"
+                                        : "border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 bg-gray-50/50 dark:bg-transparent"
+                                )}
+                            >
+                                <div className="font-bold text-sm mb-1 text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Check className="w-3.5 h-3.5" />
+                                    Toggle
+                                </div>
+                                <div className="text-[11px] text-gray-500 leading-tight">Single selection (0 or 1) only.</div>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Image Upload */}
                     <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm">
                         <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 block flex items-center gap-2">
@@ -210,27 +254,27 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingId ? 'Save Changes' : 'Create Add-on')}
                         </button>
                     </div>
-                </form>
-            </div>
+                </form >
+            </div >
         )
     }
 
     // LIST VIEW
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {/* Header / Empty State */}
             {addons.length === 0 ? (
-                <div className="text-center py-20 bg-white dark:bg-[#111] rounded-3xl border border-dashed border-gray-200 dark:border-white/10">
-                    <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <div className="text-center py-24 bg-white dark:bg-[#111] rounded-[2rem] border border-dashed border-gray-200 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.02)]">
+                    <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-gray-100 dark:border-white/5">
                         <Package className="w-8 h-8 text-gray-400" />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Add-ons Yet</h3>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-6">
-                        Sell merchandise, parking passes, or upgrades alongside your event tickets.
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 tracking-tight">No Add-ons Yet</h3>
+                    <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8 text-sm leading-relaxed">
+                        Enhance your event revenue by selling merchandise, parking passes, or upgrades alongside your tickets.
                     </p>
                     <button
                         onClick={() => setIsCreating(true)}
-                        className="h-11 px-6 bg-black dark:bg-white text-white dark:text-black rounded-xl font-bold inline-flex items-center gap-2 hover:scale-105 transition-transform"
+                        className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold inline-flex items-center gap-2 hover:scale-105 transition-transform shadow-xl shadow-black/10 dark:shadow-white/5"
                     >
                         <Plus className="w-4 h-4" />
                         Create First Add-on
@@ -238,57 +282,80 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                 </div>
             ) : (
                 <>
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-xl text-gray-900 dark:text-white">Active Add-ons</h3>
+                    <div className="flex justify-between items-center px-2">
+                        <div>
+                            <h3 className="font-bold text-2xl text-gray-900 dark:text-white tracking-tight">Active Add-ons</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Manage merchandise and upgrades</p>
+                        </div>
                         <button
                             onClick={() => setIsCreating(true)}
-                            className="h-10 px-4 bg-black dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
+                            className="h-11 px-6 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold text-sm inline-flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-black/10 dark:shadow-white/5 hover:-translate-y-0.5"
                         >
                             <Plus className="w-4 h-4" />
                             New Item
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                         {addons.map(addon => (
-                            <div key={addon.id} className="group bg-white dark:bg-[#111] p-4 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md transition-all flex gap-4">
-                                <div className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-xl flex-shrink-0 relative overflow-hidden">
+                            <div key={addon.id} className="group bg-white dark:bg-[#111] p-5 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all flex flex-col md:flex-row gap-6 items-start md:items-center">
+                                {/* Image */}
+                                <div className="w-full md:w-24 h-24 bg-gray-100 dark:bg-white/5 rounded-2xl flex-shrink-0 relative overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
                                     {addon.image_url ? (
                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={addon.image_url} alt={addon.name} className="w-full h-full object-cover" />
+                                        <img src={addon.image_url} alt={addon.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/20">
                                             <ImageIcon className="w-8 h-8" />
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0 py-1 flex flex-col justify-between">
-                                    <div>
-                                        <div className="flex justify-between items-start gap-2">
-                                            <h4 className="font-bold text-gray-900 dark:text-white truncate">{addon.name}</h4>
-                                            <span className="text-sm font-bold text-green-600 dark:text-green-400">{formatCurrency(addon.price, addon.currency)}</span>
-                                        </div>
-                                        {addon.description && <p className="text-xs text-gray-500 line-clamp-1 mt-1">{addon.description}</p>}
+
+                                {/* Content */}
+                                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <h4 className="font-bold text-lg text-gray-900 dark:text-white truncate">{addon.name}</h4>
+                                        <span className={cn(
+                                            "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border",
+                                            addon.selection_type === 'toggle'
+                                                ? "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
+                                                : "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20"
+                                        )}>
+                                            {addon.selection_type === 'toggle' ? 'Single Choice' : 'Multi-Quantity'}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-3 mt-3">
-                                        <button
-                                            onClick={() => startEdit(addon)}
-                                            className="text-xs font-bold text-gray-500 hover:text-black dark:hover:text-white flex items-center gap-1 transition-colors"
-                                        >
-                                            <Edit2 className="w-3 h-3" /> Edit
-                                        </button>
-                                        <div className="w-px h-3 bg-gray-200 dark:bg-white/10" />
-                                        <button
-                                            onClick={() => handleDelete(addon.id)}
-                                            className="text-xs font-bold text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors"
-                                        >
-                                            <Trash2 className="w-3 h-3" /> Delete
-                                        </button>
-                                        <div className="flex-1" />
-                                        <span className="text-[10px] font-medium text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 rounded-lg">
+
+                                    {addon.description && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 font-medium">{addon.description}</p>
+                                    )}
+
+                                    <div className="flex items-center gap-4 mt-2">
+                                        <p className="font-bold text-lg text-gray-900 dark:text-white">
+                                            {formatCurrency(addon.price, addon.currency)}
+                                        </p>
+                                        <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
+                                        <span className="text-xs font-bold text-gray-400 flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
                                             {addon.quantity_sold || 0} Sold
                                         </span>
                                     </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0 pl-0 md:pl-6 border-l-0 md:border-l border-gray-100 dark:border-white/10 md:h-16 justify-end">
+                                    <button
+                                        onClick={() => startEdit(addon)}
+                                        className="h-10 px-5 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-all flex items-center gap-2 border border-transparent hover:border-gray-200 dark:hover:border-white/10"
+                                    >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(addon.id)}
+                                        className="h-10 w-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all border border-transparent hover:border-red-100 dark:hover:border-red-500/20"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
                         ))}
