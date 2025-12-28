@@ -158,18 +158,41 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     let ticketsToProcess: Ticket[] = []
     let ticketsCreated = false
 
-    // Check if tickets already exist for this reference
-    const { data: existingTickets } = await supabase
-        .schema('gatepass')
-        .from('tickets')
-        .select('*')
-        .eq('order_reference', reference)
+    // Check if reservation is already confirmed (Prevents Race Condition)
+    if (reservation.status === 'confirmed') {
+        console.log('Reservation already confirmed:', reservation.id)
+        const { data: existingTickets } = await supabase
+            .schema('gatepass')
+            .from('tickets')
+            .select('*')
+            .eq('reservation_id', reservation.id)
 
-    if (existingTickets && existingTickets.length > 0) {
-        console.log('Tickets already exist for reference:', reference)
-        ticketsToProcess = existingTickets as Ticket[]
-        ticketsCreated = false
-    } else {
+        if (existingTickets && existingTickets.length > 0) {
+            ticketsToProcess = existingTickets as Ticket[]
+            ticketsCreated = false // Do not send email again
+        } else {
+            // Edge case: Confirmed but no tickets? Proceed to create (recovery)
+            console.warn('Reservation confirmed but no tickets found. Regenerating...')
+        }
+    }
+
+    if (ticketsToProcess.length === 0) {
+        // Fallback or Initial Check if not caught by status
+        const { data: existingTickets } = await supabase
+            .schema('gatepass')
+            .from('tickets')
+            .select('*')
+            .eq('order_reference', reference)
+
+        if (existingTickets && existingTickets.length > 0) {
+            console.log('Tickets already exist for reference:', reference)
+            ticketsToProcess = existingTickets as Ticket[]
+            ticketsCreated = false
+        }
+    }
+
+    // If still no tickets found/loaded, proceed to create
+    if (ticketsToProcess.length === 0) {
         // Generate Tickets Loop
         const quantity = reservation.quantity || 1
         console.log(`Generating ${quantity} tickets for Reservation ${reservation.id}`)

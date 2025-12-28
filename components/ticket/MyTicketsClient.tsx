@@ -139,14 +139,16 @@ export function MyTicketsClient({ tickets }: MyTicketsClientProps) {
                                         <QrCode size={16} />
                                         <span>Show Code</span>
                                     </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-11 w-11 rounded-xl border-gray-200 dark:border-white/10 text-gray-400 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-white/5 transition-all active:scale-95 bg-white dark:bg-transparent"
-                                        onClick={() => handleTransfer(ticket)}
-                                    >
-                                        <Share2 size={16} />
-                                    </Button>
+                                    {ticket.status === 'valid' && (
+                                        <Button
+                                            variant="outline"
+                                            className="h-11 px-4 rounded-xl border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-white/5 transition-all active:scale-95 bg-white dark:bg-transparent font-bold flex items-center gap-2"
+                                            onClick={() => handleTransfer(ticket)}
+                                        >
+                                            <Share2 size={16} />
+                                            <span>Invite Friend</span>
+                                        </Button>
+                                    )}
                                     {ticket.status === 'valid' && (
                                         <Button
                                             variant="outline"
