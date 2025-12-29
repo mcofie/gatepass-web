@@ -23,9 +23,15 @@ export async function GET(request: Request) {
             if (user) {
                 console.log(`[Auth Callback] User logged in: ${user.email}`)
 
-                // 1. Check Super Admin
-                const superAdmins = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
-                if (superAdmins.includes(user.email || '')) {
+                // 1. Check Super Admin via Database (No hardcoded emails)
+                const { data: profile } = await supabase
+                    .schema('gatepass')
+                    .from('profiles')
+                    .select('is_super_admin')
+                    .eq('id', user.id)
+                    .single()
+
+                if (profile?.is_super_admin) {
                     console.log('[Auth Callback] Redirecting Super Admin')
                     return NextResponse.redirect(`${origin}/dashboard?login=success`)
                 }

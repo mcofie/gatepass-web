@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-// Helper to verify super admin status
+// Helper to verify super admin status (database-only)
 async function verifySuperAdmin() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -21,10 +21,7 @@ async function verifySuperAdmin() {
         .eq('id', user.id)
         .single()
 
-    // Also check hardcoded admins as fallback
-    const isHardcodedAdmin = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '')
-
-    if (!profile?.is_super_admin && !isHardcodedAdmin) {
+    if (!profile?.is_super_admin) {
         throw new Error('Forbidden: Super Admin access required')
     }
 

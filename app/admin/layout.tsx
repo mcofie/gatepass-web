@@ -27,9 +27,8 @@ export default async function AdminLayout({
         .eq('id', user.id)
         .single()
 
-    const isHardcodedAdmin = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user?.email?.toLowerCase() || '')
-
-    if (!profile?.is_super_admin && !isHardcodedAdmin) {
+    // Enforce Super Admin access via database only (no hardcoded emails)
+    if (!profile?.is_super_admin) {
         return redirect('/dashboard')
     }
 

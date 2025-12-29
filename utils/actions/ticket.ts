@@ -36,6 +36,21 @@ export async function resendTicketEmail(reservationId: string) {
             return { success: false, error: 'Reservation not found' }
         }
 
+        // SECURITY: Verify ownership or admin rights
+        const isOwner = reservation.user_id === user.id
+
+        // Check if super admin
+        const { data: profile } = await supabase
+            .schema('gatepass')
+            .from('profiles')
+            .select('is_super_admin')
+            .eq('id', user.id)
+            .single()
+
+        if (!isOwner && !profile?.is_super_admin) {
+            return { success: false, error: 'Forbidden: You do not own this reservation' }
+        }
+
         // 3. Fetch Tickets
         const { data: tickets, error: ticketError } = await supabase
             .schema('gatepass')

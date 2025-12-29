@@ -3,6 +3,7 @@ import { verifyPaystackTransaction } from '@/lib/paystack'
 import { Ticket } from '@/types/gatepass'
 import { calculateFees, getEffectiveFeeRates } from '@/utils/fees'
 import { getFeeSettings } from '@/utils/settings'
+import { randomBytes } from 'crypto'
 
 export type PaymentResult = {
     success: boolean
@@ -208,7 +209,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     event_id: reservation.event_id,
                     tier_id: ticketTier.id,
                     reservation_id: reservation.id,
-                    qr_code_hash: Math.random().toString(36).substring(2, 12).toUpperCase(), // Better random hash
+                    qr_code_hash: randomBytes(16).toString('hex').toUpperCase(), // Cryptographically secure QR hash
                     order_reference: reference,
                     status: 'valid'
                 })
