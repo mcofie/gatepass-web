@@ -107,15 +107,69 @@ export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: R
 
     const amountPaid = transaction?.amount || 0
     const currency = transaction?.currency || 'GHS'
-    const subtotal = amountPaid // Simplified, need to separate fees if possible
+    const r = reservation
+    const quantity = r.quantity || 1
 
-    // Attempt to deduce fees if stored
-    const platformFee = transaction?.platform_fee || 0
-    // If platform_fee is stored, subtotal usually includes it or excludes it?
-    // In payment.ts: `rawAmount` is what user paid. `platformFee` is calculated from subtotal.
-    // If Fee Bearer is Customer: User Paid = Price + Fees.
-    // If Fee Bearer is Organizer: User Paid = Price.
-    // Let's rely on `amount` as Total Paid.
+    // Logic Mirror from TransactionDetailModal to ensure consistency
+    const ticketBasePrice = r.ticket_tiers?.price || 0
+    const ticketRevenueRaw = ticketBasePrice * quantity
+
+    // Discount
+    const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
+    let discountAmount = 0
+    if (discount) {
+        if (discount.type === 'fixed') discountAmount = discount.value
+        else if (discount.type === 'percentage') {
+            discountAmount = ticketRevenueRaw * (discount.value / 100)
+        }
+    }
+
+    // Fees Strategy: Re-derive based on standard rates if raw fields missing, 
+    // BUT rely on total amount paid (truth).
+    const effectiveRates = {
+        platformFeePercent: transaction?.applied_fee_rate ?? 0.04,
+        processorFeePercent: transaction?.applied_processor_rate ?? 0.0198
+    }
+
+    const ticketRevenueNetBase = Math.max(0, ticketRevenueRaw - discountAmount)
+
+    // Calculate expected fees
+    const calcPlatformFee = ticketRevenueNetBase * effectiveRates.platformFeePercent
+    const calcProcessorFee = amountPaid * effectiveRates.processorFeePercent
+    const displayPlatformFee = transaction?.platform_fee ?? calcPlatformFee
+    // If we don't have stored processor fee, we estimate it
+    const displayProcessorFee = transaction?.applied_processor_fee ?? calcProcessorFee
+
+    const totalFees = displayPlatformFee + displayProcessorFee
+
+    // Did user pay fees? Compare "Amount Paid" vs "Ticket Price".
+    // If Paid > Ticket Price, likely Customer Paid Fees.
+    // However, Add-ons complicate this. 
+    // Best proxy: Check Event Fee Bearer setting if passed, or infer.
+    // Inference: If `amountPaid` > `ticketRevenueNetBase + 1` (tolerance), assume Customer Fees + Addons
+
+    // Let's deduce "Net Product Value" (Tickets + Addons)
+    // If Fee Bearer = Customer, Net Product = Total - Fees
+    // If Fee Bearer = Organizer, Net Product = Total (Fees internal)
+
+    // We'll check the 'event.fee_bearer' if available (passed in prop as event object)
+    const feeBearer = event.fee_bearer || 'customer'
+
+    let finalClientFees = 0
+    let productsTotal = amountPaid
+
+    if (feeBearer === 'customer') {
+        finalClientFees = totalFees
+        productsTotal = amountPaid - totalFees
+    }
+
+    // Now split ProductsTotal into Tickets vs Addons
+    // Addon = ProductsTotal - TicketNet
+    let addonRevenue = Math.max(0, productsTotal - ticketRevenueNetBase)
+    let effectiveTicketPrice = ticketBasePrice
+
+    // Rounding clean up
+    if (addonRevenue < 0.05) addonRevenue = 0
 
     return (
         <Document>
@@ -155,19 +209,58 @@ export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: R
                 </View>
 
                 <View style={styles.lineItems}>
+                    {/* 1. TICKETS */}
                     <View style={styles.row}>
                         <Text style={styles.rowLabel}>
-                            {reservation.ticket_tiers?.name || 'Ticket'} x {reservation.quantity || 1}
+                            {reservation.ticket_tiers?.name || 'General Admission'} (x{reservation.quantity || 1})
                         </Text>
                         <Text style={styles.rowValue}>
-                            {currency} {amountPaid.toFixed(2)}
+                            {currency} {(effectiveTicketPrice * quantity).toFixed(2)}
                         </Text>
                     </View>
 
-                    {/* If we had specific fee breakdown visible to user, add here.
-                        For now, showing distinct subtotal/fee is risky if data isn't perfect.
-                        Standard receipt shows Total.
-                    */}
+                    {/* 2. ADD-ONS */}
+                    {addonRevenue > 0 && (
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>Add-ons</Text>
+                            <Text style={styles.rowValue}>
+                                {currency} {addonRevenue.toFixed(2)}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* 3. DISCOUNT */}
+                    {discountAmount > 0 && (
+                        <View style={styles.row}>
+                            <Text style={[styles.rowLabel, { color: '#e11d48' }]}>Discount ({discount?.code})</Text>
+                            <Text style={[styles.rowValue, { color: '#e11d48' }]}>
+                                - {currency} {discountAmount.toFixed(2)}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* 4. FEES (If User Paid) */}
+                    {finalClientFees > 0 ? (
+                        <>
+                            <View style={styles.row}>
+                                <Text style={styles.rowLabel}>Service Fee (GatePass)</Text>
+                                <Text style={styles.rowValue}>
+                                    {currency} {displayPlatformFee.toFixed(2)}
+                                </Text>
+                            </View>
+                            <View style={styles.row}>
+                                <Text style={styles.rowLabel}>Processing Fee</Text>
+                                <Text style={styles.rowValue}>
+                                    {currency} {displayProcessorFee.toFixed(2)}
+                                </Text>
+                            </View>
+                        </>
+                    ) : (
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>Fees</Text>
+                            <Text style={styles.rowValue}>Included</Text>
+                        </View>
+                    )}
 
                     <View style={styles.totalRow}>
                         <Text style={styles.totalLabel}>TOTAL PAID</Text>

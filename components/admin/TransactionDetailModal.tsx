@@ -126,59 +126,51 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
                     {/* Financial Breakdown (Receipt Style) */}
                     <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-6 space-y-3 border border-gray-100 dark:border-white/10">
-                        {/* 1. Ticket Base */}
+
+                        {/* 1. GROSS REVENUE SECTION */}
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500 dark:text-gray-400">Ticket Price</span>
-                            <span className="font-medium dark:text-gray-200">{formatCurrency(effectiveTicketPrice, transaction.currency)} × {quantity}</span>
+                            <span className="text-gray-500 dark:text-gray-400">Tickets ({quantity}x)</span>
+                            <span className="font-medium dark:text-gray-200">{formatCurrency(ticketRevenueRaw, transaction.currency)}</span>
                         </div>
 
-                        {/* 2. Add-ons (if any) */}
                         {addonRevenue > 0 && (
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500 dark:text-gray-400">Add-ons (Total)</span>
+                                <span className="text-gray-500 dark:text-gray-400">Add-ons</span>
                                 <span className="font-medium dark:text-gray-200">{formatCurrency(addonRevenue, transaction.currency)}</span>
                             </div>
                         )}
 
-                        {/* 3. Discount (if any) */}
+                        <div className="border-b border-gray-200 dark:border-white/10 border-dashed my-2 opacity-50"></div>
+
+                        {/* 2. DEDUCTIONS SECTION */}
                         {discountAmount > 0 && (
-                            <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
+                            <div className="flex justify-between text-sm text-red-500">
                                 <span className="flex items-center gap-1"><Receipt className="w-3 h-3" /> Discount ({discount?.code})</span>
                                 <span>- {formatCurrency(discountAmount, transaction.currency)}</span>
                             </div>
                         )}
 
-                        <div className="border-b border-gray-200 dark:border-white/10 border-dashed my-2"></div>
-
-                        {/* Subtotal before fees */}
-                        <div className="flex justify-between text-sm font-bold text-gray-900 dark:text-white">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(derivedSubtotal, transaction.currency)}</span>
-                        </div>
-
-                        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                            <span>Fees (Paid by Customer)</span>
-                            <span>
-                                + {formatCurrency(finalClientFees, transaction.currency)}
+                        <div className="flex justify-between text-sm text-red-500">
+                            <span className="flex items-center gap-1">
+                                <span>Platform Fee ({effectiveRates.platformFeePercent * 100}%)</span>
                             </span>
+                            <span>- {formatCurrency(displayPlatformFee, transaction.currency)}</span>
                         </div>
 
-                        <div className="flex justify-between text-sm font-bold text-black dark:text-white border-t border-gray-200 dark:border-white/10 pt-2 border-dashed">
-                            <span>Total Charge</span>
-                            <span>{formatCurrency(totalPaid, transaction.currency)}</span>
+                        <div className="flex justify-between text-sm text-red-500">
+                            <span className="flex items-center gap-1">
+                                <span>Processor Fee (1.98%)</span>
+                            </span>
+                            <span>- {formatCurrency(displayProcessorFee, transaction.currency)}</span>
                         </div>
 
-                        {/* Payout Section */}
-                        <div className="mt-4 pt-4 border-t-4 border-gray-200/50 dark:border-white/10">
-                            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
-                                <span>Processing Fee (Paid by You)</span>
-                                <span className={feeBearer === 'organizer' ? 'text-red-500 dark:text-red-400' : ''}>
-                                    {feeBearer === 'organizer' ? `- ${formatCurrency(finalProcessorFee, transaction.currency)}` : '0.00'}
-                                </span>
-                            </div>
-
-                            <div className="flex justify-between items-center mt-2">
-                                <span className="font-bold text-gray-900 dark:text-white">Net Payout</span>
+                        {/* 3. NET PAYOUT SECTION */}
+                        <div className="mt-4 pt-4 border-t-2 border-gray-200 dark:border-white/10">
+                            <div className="flex justify-between items-center">
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-gray-900 dark:text-white text-lg">Net Payout</span>
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Transferable Balance</span>
+                                </div>
                                 <span className="font-black text-2xl text-green-600 dark:text-green-400 tracking-tight">
                                     {formatCurrency(organizerPayout, transaction.currency)}
                                 </span>

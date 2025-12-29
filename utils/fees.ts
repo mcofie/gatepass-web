@@ -14,9 +14,9 @@ export const getEffectiveFeeRates = (
     // Precedence: Event Override > Organizer Override > Global Setting > Default
     let platformRate = PLATFORM_FEE_PERCENT
 
-    if (eventOverride?.platform_fee_percent && eventOverride.platform_fee_percent > 0) {
+    if (eventOverride?.platform_fee_percent !== undefined && eventOverride.platform_fee_percent !== null) {
         platformRate = eventOverride.platform_fee_percent
-    } else if (organizerOverride?.platform_fee_percent && organizerOverride.platform_fee_percent > 0) {
+    } else if (organizerOverride?.platform_fee_percent !== undefined && organizerOverride.platform_fee_percent !== null) {
         platformRate = organizerOverride.platform_fee_percent
     } else if (globalRates?.platformFeePercent) {
         platformRate = globalRates.platformFeePercent
