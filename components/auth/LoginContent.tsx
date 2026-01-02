@@ -24,12 +24,17 @@ export function LoginContent() {
         setLoading(true)
 
         try {
+            // Determine the base URL: prefer env var, fallback to origin
+            const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+                ? process.env.NEXT_PUBLIC_SITE_URL
+                : window.location.origin
+
             const { error } = await supabase.auth.signInWithOtp({
                 email: email.trim(),
                 options: {
                     shouldCreateUser: true,
                     // Pass 'next' to the callback route
-                    emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+                    emailRedirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
                 },
             })
 
