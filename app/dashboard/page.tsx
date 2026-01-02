@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 
 import { formatCurrency } from '@/utils/format'
-import { Calendar, Ticket, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react'
+import { Calendar, Ticket, DollarSign, AlertTriangle, ArrowRight, Wallet, Settings } from 'lucide-react'
 
 import { calculateFees } from '@/utils/fees'
 import Link from 'next/link'
@@ -367,9 +367,15 @@ export default async function DashboardPage() {
                                 </div>
                                 <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">Manage Events</span>
                             </a>
+                            <a href="/my-tickets" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                                <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
+                                    <Wallet className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
+                                </div>
+                                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">My Tickets</span>
+                            </a>
                             <a href="/dashboard/settings" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
                                 <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
-                                    <Ticket className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
+                                    <Settings className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
                                 </div>
                                 <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">Settings</span>
                             </a>
