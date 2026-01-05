@@ -51,13 +51,21 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                     status,
                     platform_fee,
                     applied_processor_fee,
+                    applied_fee_rate, 
+                    applied_processor_rate,
                     reservations!inner (
                         quantity,
                         guest_name,
                         guest_email,
                         profiles ( full_name, email ),
                         ticket_tiers ( name, price ),
-                        events!inner ( title, organization_id, fee_bearer ),
+                        events!inner ( 
+                            title, 
+                            organization_id, 
+                            fee_bearer, 
+                            platform_fee_percent,
+                            organizers ( platform_fee_percent ) 
+                        ),
                         discounts ( type, value, code ),
                         addons
                     )
@@ -153,6 +161,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                 sales.map((sale) => {
                                     const r = sale.reservations
                                     const event = r?.events
+                                    const organizer = event?.organizers
                                     const tier = r?.ticket_tiers
                                     const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
 
@@ -169,35 +178,28 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                         }
                                     }
 
-                                    // 2. Subtotal
-                                    const subtotal = Math.max(0, (price * quantity) - discountAmount)
+                                    // 2. Subtotal (Net of Discount)
+                                    const ticketRevenueNet = Math.max(0, (price * quantity) - discountAmount)
 
-                                    // 3. Fee Logic
-                                    const feeBearer = event?.fee_bearer || 'customer'
+                                    // 3. Fee Logic (Consistent with Modal)
+                                    // Use stored rates if available, else defaults (0.04 & 0.0198)
+                                    // But to be "Fix Across", we should prioritize what the Modal does:
+                                    // The Modal uses `transaction.applied_fee_rate` or 0.04.
 
-                                    // Need to calculate addon subtotal to be accurate if falling back to calculation
-                                    // But we don't have addon prices here easily unless we fetch them or store them in snapshot.
-                                    // Ideally `sale.platform_fee` and `sale.applied_processor_fee` are present.
+                                    const platformRate = sale.applied_fee_rate ?? 0.04
+                                    const processorRate = sale.applied_processor_rate ?? 0.0198
 
-                                    const finalPlatformFee = sale.platform_fee ?? 0
-                                    const finalProcessorFee = sale.applied_processor_fee ?? 0
-                                    const totalFees = finalPlatformFee + finalProcessorFee
+                                    const calcPlatformFee = ticketRevenueNet * platformRate
+                                    const calcProcessorFee = sale.amount * processorRate
 
-                                    // For the screenshot logic: 
-                                    // Total Paid by User (sale.amount) = 2.08
-                                    // Fees = 0.08
-                                    // Payout = 2.00
+                                    const expectedTotalFees = calcPlatformFee + calcProcessorFee
 
-                                    // The screenshot shows: 2.08 (Total) | -0.06 (Fees??) | 2.02 (Payout)
-                                    // Wait, 0.06 fees?
-                                    // 4% of 1.00 = 0.04
-                                    // 1.98% of 2.00 = 0.0396 ~ 0.04
-                                    // Total Fees should be ~0.08.
+                                    // Payout = Total Paid - Fees
+                                    // This applies for BOTH fee bearers (mathematically equivalent for Net Payout view)
+                                    // If Customer Pays: Total = 2.08. Fees = 0.08. Payout = 2.00.
+                                    // If Organizer Pays: Total = 2.00. Fees = 0.08. Payout = 1.92.
 
-                                    // User says: "Fee is supposed to be 0.08 and payout 2"
-
-                                    // So `organizerPayout` should be `sale.amount - totalFees`
-                                    const organizerPayout = sale.amount - totalFees
+                                    const organizerPayout = sale.amount - expectedTotalFees
 
                                     const purchasedAddons = r.addons || {}
                                     const hasAddons = Object.keys(purchasedAddons).length > 0

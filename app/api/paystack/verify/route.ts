@@ -5,7 +5,7 @@ import { processSuccessfulPayment } from '@/utils/actions/payment'
 
 export async function POST(request: Request) {
     try {
-        const { reference, reservationId, addons } = await request.json()
+        const { reference, reservationId, reservationIds, addons } = await request.json()
 
 
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         )
 
         // 1. Verify Request Data
-        if (!reference || !reservationId) {
+        if (!reference || (!reservationId && (!reservationIds || reservationIds.length === 0))) {
             console.error(`Verification missing data. Ref: ${reference}, ResID: ${reservationId}`)
             return NextResponse.json({ error: `Missing data. Reference: ${reference}, ReservationId: ${reservationId}` }, { status: 400 })
         }
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         }
 
         // 3. Process Payment (Shared Logic)
-        const result = await processSuccessfulPayment(reference, reservationId, transaction, addons)
+        const result = await processSuccessfulPayment(reference, reservationIds || reservationId, transaction, addons)
 
         if (!result.success) {
             return NextResponse.json({ error: result.error || 'Processing failed' }, { status: 500 })

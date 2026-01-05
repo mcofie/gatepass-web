@@ -238,11 +238,46 @@ export default async function DashboardPage() {
         transRes.data.forEach((tx: any) => {
             if (tx.currency) currencySymbol = tx.currency
 
-            const finalPlatformFee = tx.platform_fee ?? 0
-            const finalProcessorFee = tx.applied_processor_fee ?? 0
+            // Calculate Ticket Subtotal (Revenue from tickets)
+            // We need to parse reservations to get accurate fee basis
+            let ticketRevenue = 0
+            if (tx.reservations) {
+                const r = tx.reservations
+                const discount = r.discounts
+                let discountAmount = 0
+                const price = r.ticket_tiers?.price || 0
+                const quantity = r.quantity || 1
 
-            // Total Payout = Amount - Fees
-            const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
+                if (discount) {
+                    if (discount.type === 'percentage') {
+                        discountAmount = (price * quantity) * (discount.value / 100)
+                    } else {
+                        discountAmount = discount.value
+                    }
+                }
+                ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+            }
+
+            // Fallback: If no reservation data (shouldn't happen), assume ticket revenue is roughly total amount
+            // But we have query!inner, so it should exist.
+
+            // Get Rates
+            // Use stored rates on transaction if available, otherwise fallback to defaults (4% / 1.98%)
+            const platformRate = tx.applied_fee_rate ?? 0.04
+            const processorRate = tx.applied_processor_rate ?? 0.0198
+
+            // Recalculate Fees based on correct basis
+            // Platform Fee is on Ticket Revenue
+            const calcPlatformFee = ticketRevenue * platformRate
+
+            // Processor Fee is on Total Amount Paid
+            const calcProcessorFee = tx.amount * processorRate
+
+            const expectedTotalFees = calcPlatformFee + calcProcessorFee
+
+            // Net Payout = Total Paid - Total Fees
+            const netPayout = tx.amount - expectedTotalFees
+
             totalRevenue += netPayout
         })
     }
@@ -297,10 +332,33 @@ export default async function DashboardPage() {
                                     {recentSalesRes.data.map((sale: any) => {
                                         // Calculations
                                         // Simplified Logic: Rely on stored snapshot
-                                        const pFee = sale.platform_fee ?? 0
-                                        const procFee = sale.applied_processor_fee ?? 0
+                                        // UPDATED: Recalculate to match Total Revenue logic
+                                        let ticketRevenue = 0
+                                        if (sale.reservations) {
+                                            const r = sale.reservations
+                                            const discount = r.discounts
+                                            let discountAmount = 0
+                                            const price = r.ticket_tiers?.price || 0
+                                            const quantity = r.quantity || 1
 
-                                        const organizerPayout = sale.amount - pFee - procFee
+                                            if (discount) {
+                                                if (discount.type === 'percentage') {
+                                                    discountAmount = (price * quantity) * (discount.value / 100)
+                                                } else {
+                                                    discountAmount = discount.value
+                                                }
+                                            }
+                                            ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+                                        }
+
+                                        const platformRate = sale.applied_fee_rate ?? 0.04
+                                        const processorRate = sale.applied_processor_rate ?? 0.0198
+
+                                        const calcPlatformFee = ticketRevenue * platformRate
+                                        const calcProcessorFee = sale.amount * processorRate
+                                        const expectedTotalFees = calcPlatformFee + calcProcessorFee
+
+                                        const organizerPayout = sale.amount - expectedTotalFees
 
                                         return (
                                             <div key={sale.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">

@@ -22,13 +22,18 @@ export default async function ManageEventPage({ params }: PageProps) {
         .schema('gatepass')
         .from('transactions')
         .select(`
-amount,
-    reservations!inner(
-        quantity,
-        ticket_tiers(price),
-        discounts(type, value),
-        events!inner(fee_bearer)
-    )
+            amount,
+            platform_fee,
+            applied_processor_fee,
+            applied_fee_rate,
+            applied_processor_rate,
+            reservations!inner(
+                quantity,
+                ticket_tiers(price),
+                discounts(type, value),
+                events!inner(fee_bearer),
+                addons
+            )
         `)
         .eq('status', 'success')
         .eq('reservations.event_id', id)
@@ -86,9 +91,18 @@ amount,
             }
 
             const subtotal = Math.max(0, (price * quantity) - discountAmount)
-            const { organizerPayout } = calculateFees(subtotal, 0, feeBearer)
 
-            return acc + organizerPayout // Summing net payouts
+            // Recalculate Logic to Normalize Display
+            const platformRate = tx.applied_fee_rate ?? 0.04
+            const processorRate = tx.applied_processor_rate ?? 0.0198
+
+            const calcPlatformFee = subtotal * platformRate
+            const calcProcessorFee = tx.amount * processorRate
+
+            const expectedTotalFees = calcPlatformFee + calcProcessorFee
+            const organizerPayout = tx.amount - expectedTotalFees
+
+            return acc + organizerPayout
         }, 0)
 
         totalDiscountValue = transactions.reduce((acc, tx) => {

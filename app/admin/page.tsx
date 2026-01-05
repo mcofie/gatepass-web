@@ -29,7 +29,17 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     let query = supabase
         .schema('gatepass')
         .from('transactions')
-        .select('amount, created_at, platform_fee, applied_processor_fee')
+        .select(`
+            amount, created_at, 
+            platform_fee, applied_processor_fee, 
+            applied_fee_rate, applied_processor_rate,
+            reservations (
+                quantity,
+                ticket_tiers ( price ),
+                discounts ( type, value ),
+                addons
+            )
+        `)
         .eq('status', 'success')
 
     if (startDate) {
@@ -38,20 +48,60 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
     const { data: transactions } = await query
 
-    const totalRevenue = transactions?.reduce((acc, tx) => acc + (tx.amount || 0), 0) || 0
-    // Calculate REAL platform revenue from snapshots
-    const platformRevenue = transactions?.reduce((acc, tx) => acc + (tx.platform_fee || 0), 0) || 0
+    let totalRevenue = 0
+    let platformRevenue = 0
+
+    const processedTransactions = transactions?.map((tx: any) => {
+        // Robust Fee Recalculation
+        const r = tx.reservations
+        const quantity = r?.quantity || 1
+        const price = r?.ticket_tiers?.price || 0
+
+        // Discount
+        let discountAmount = 0
+        const dObj = Array.isArray(r?.discounts) ? r.discounts[0] : r?.discounts
+        if (dObj) {
+            if (dObj.type === 'percentage') {
+                discountAmount = (price * quantity) * (dObj.value / 100)
+            } else {
+                discountAmount = dObj.value
+            }
+        }
+
+        const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+
+        // Rates
+        const platformRate = tx.applied_fee_rate ?? 0.04
+        const processorRate = tx.applied_processor_rate ?? 0.0198
+
+        // Fees
+        const calcPlatformFee = ticketRevenue * platformRate
+        const calcProcessorFee = tx.amount * processorRate
+        const totalFees = calcPlatformFee + calcProcessorFee
+
+        const netPayout = tx.amount - totalFees
+
+        return {
+            ...tx,
+            netPayout,
+            calcPlatformFee
+        }
+    }) || []
+
+    totalRevenue = processedTransactions.reduce((acc, tx) => acc + tx.netPayout, 0)
+    // Calculate REAL platform revenue (Gatepass Take)
+    platformRevenue = processedTransactions.reduce((acc, tx) => acc + tx.calcPlatformFee, 0)
 
     // Prepare Chart Data
     // We render the number of days selected, or last 30 if 'all'
     const chartData = Array.from({ length: daysToRender }).map((_, i) => {
         const date = subDays(new Date(), (daysToRender - 1) - i)
-        const dayTotal = transactions?.reduce((acc, tx) => {
+        const dayTotal = processedTransactions.reduce((acc, tx) => {
             if (isSameDay(new Date(tx.created_at), date)) {
-                return acc + (tx.amount || 0)
+                return acc + tx.netPayout
             }
             return acc
-        }, 0) || 0
+        }, 0)
 
         return {
             date: format(date, 'MMM dd'),

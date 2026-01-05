@@ -1,10 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { X, Calendar, User, Mail, CreditCard, Hash, Receipt, CheckCircle, Clock } from 'lucide-react'
 import { formatCurrency, formatDateTime } from '@/utils/format'
-import { calculateFees, PLATFORM_FEE_PERCENT, PROCESSOR_FEE_PERCENT } from '@/utils/fees'
-import { Discount } from '@/types/gatepass'
+import { createClient } from '@/utils/supabase/client'
 
 interface TransactionDetailModalProps {
     transaction: any
@@ -14,87 +13,98 @@ interface TransactionDetailModalProps {
 }
 
 export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeBearer = 'customer' }: TransactionDetailModalProps) {
+    const [reservations, setReservations] = useState<any[]>([])
+    const supabase = createClient()
+
+    useEffect(() => {
+        if (!transaction) return
+
+        const fetchReservations = async () => {
+            // Default to the joined reservation if available
+            let initial = transaction.reservations ? [transaction.reservations] : []
+
+            const metaIds = transaction.metadata?.reservation_ids
+            if (Array.isArray(metaIds) && metaIds.length > 0) {
+                // If metadata implies multiple (or distinct) reservations, fetch them to be accurate
+                // We fetch ALL to ensure we have fresh data for the breakdown, avoiding mix of stale/partial data
+                const { data } = await supabase
+                    .schema('gatepass')
+                    .from('reservations')
+                    .select('*, ticket_tiers(*), events(*)')
+                    .in('id', metaIds)
+
+                if (data && data.length > 0) {
+                    setReservations(data)
+                    return
+                }
+            }
+            setReservations(initial)
+        }
+
+        fetchReservations()
+    }, [transaction?.id, transaction?.metadata, isOpen])
+
     if (!isOpen || !transaction) return null
 
-    const r = transaction.reservations
-    const quantity = r?.quantity || 1
-    const totalPaid = transaction.amount
+    // Aggregation Logic
+    let totalQuantity = 0
+    let totalTicketRevenueRaw = 0
+    let totalDiscountAmount = 0
+    let hasAddons = false
 
-    const totalFeesRaw = (transaction.platform_fee ?? 0) + (transaction.applied_processor_fee ?? 0)
-    // We will recalculate this below for display correctness, but keep raw for reference if needed.
+    // We use the first reservation for generic profile/event info
+    const primaryRes = reservations.length > 0 ? reservations[0] : transaction.reservations
+
+    reservations.forEach(r => {
+        const qty = r.quantity || 1
+        const price = r.ticket_tiers?.price || 0
+        totalQuantity += qty
+        totalTicketRevenueRaw += (price * qty)
+
+        // Discount
+        const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
+        if (discount) {
+            if (discount.type === 'fixed') totalDiscountAmount += discount.value
+            else if (discount.type === 'percentage') {
+                totalDiscountAmount += (price * qty) * (discount.value / 100)
+            }
+        }
+
+        // Addons flag
+        if (r.addons && Object.keys(r.addons).length > 0) hasAddons = true
+    })
+
+    const totalPaid = transaction.amount
     const feeBearer = eventFeeBearer
 
-    // 5. Discount Logic
-    const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
-    let discountAmount = 0
-    // We calculate Discount based on pure Ticket Price typically (logic from Checkout)
-    const ticketBasePrice = r.ticket_tiers?.price || 0
-    const ticketRevenueRaw = ticketBasePrice * quantity
-
-    if (discount) {
-        if (discount.type === 'fixed') discountAmount = discount.value
-        else if (discount.type === 'percentage') {
-            discountAmount = ticketRevenueRaw * (discount.value / 100)
-        }
-    }
-
-    // 6. Separate Add-on Revenue
-    const purchasedAddons = r.addons || {}
-    const hasAddons = Object.keys(purchasedAddons).length > 0
-
-    // Calculate effective components
-    // If we have addons, standard logic applies (Remainder = Addons)
-    // If NO addons, implies mismatch is due to Ticket Price change/variance -> Attribute all to Ticket.
-
-    let effectiveTicketPrice = ticketBasePrice
-    let addonRevenue = 0
-
-    const ticketRevenueNetBase = Math.max(0, ticketRevenueRaw - discountAmount)
-
-    // Recalculate Logic to Normalize Display
-    // We trust Total Paid (amount) above all else.
-    // We infer fees based on standard rules (User wants "0.08" shown not "0.06")
+    // Effective Calculations
+    // Net Ticket Revenue (Base for Platform Fee)
+    const ticketRevenueNetBase = Math.max(0, totalTicketRevenueRaw - totalDiscountAmount)
 
     const effectiveRates = {
-        platformFeePercent: transaction.applied_fee_rate ?? 0.04, // Default to standard if missing
+        platformFeePercent: transaction.applied_fee_rate ?? 0.04,
         processorFeePercent: transaction.applied_processor_rate ?? 0.0198
     }
 
     // Recalc Fees
-    // Platform Fee = Ticket Revenue * Rate
     const calcPlatformFee = ticketRevenueNetBase * effectiveRates.platformFeePercent
-    // Processor Fee = Total Amount * Rate
     const calcProcessorFee = totalPaid * effectiveRates.processorFeePercent
-
-    // Total Fees expected
     const expectedTotalFees = calcPlatformFee + calcProcessorFee
 
-    // Net Payout expected
+    // Payout
     const expectedPayout = totalPaid - expectedTotalFees
 
-    // Addon Revenue = Expected Payout - Ticket Revenue
+    // Gap Analysis (The diff is assumed to be Add-ons)
+    let addonRevenue = 0
     const gap = Math.max(0, expectedPayout - ticketRevenueNetBase)
 
     if (hasAddons || gap > 0.05) {
         addonRevenue = gap
-    } else {
-        if (quantity > 0) {
-            // Attribute small variances to ticket price adjustment
-            effectiveTicketPrice = (expectedPayout + discountAmount) / quantity
-        }
     }
 
-    // Override display values to match the "Correct" model
-    const derivedSubtotal = expectedPayout
+    // Variables for Display
     const displayPlatformFee = calcPlatformFee
     const displayProcessorFee = calcProcessorFee
-
-    // Clean up rounding
-    if (addonRevenue < 0.01) addonRevenue = 0
-
-    // Final variable mapping for display
-    const finalClientFees = feeBearer === 'customer' ? expectedTotalFees : 0
-    const finalProcessorFee = displayProcessorFee
     const organizerPayout = expectedPayout
 
     return (
@@ -129,9 +139,21 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
                         {/* 1. GROSS REVENUE SECTION */}
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500 dark:text-gray-400">Tickets ({quantity}x)</span>
-                            <span className="font-medium dark:text-gray-200">{formatCurrency(ticketRevenueRaw, transaction.currency)}</span>
+                            <span className="text-gray-500 dark:text-gray-400">Tickets ({totalQuantity}x)</span>
+                            <span className="font-medium dark:text-gray-200">{formatCurrency(totalTicketRevenueRaw, transaction.currency)}</span>
                         </div>
+
+                        {/* Detail of Tiers if multiple */}
+                        {reservations.length > 1 && (
+                            <div className="pl-4 border-l-2 border-gray-200 dark:border-white/10 space-y-1 mb-2">
+                                {reservations.map(r => (
+                                    <div key={r.id} className="flex justify-between text-xs text-gray-400">
+                                        <span>{r.ticket_tiers?.name} ({r.quantity}x)</span>
+                                        <span>{formatCurrency((r.ticket_tiers?.price || 0) * (r.quantity || 1), transaction.currency)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {addonRevenue > 0 && (
                             <div className="flex justify-between text-sm">
@@ -143,10 +165,10 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                         <div className="border-b border-gray-200 dark:border-white/10 border-dashed my-2 opacity-50"></div>
 
                         {/* 2. DEDUCTIONS SECTION */}
-                        {discountAmount > 0 && (
+                        {totalDiscountAmount > 0 && (
                             <div className="flex justify-between text-sm text-red-500">
-                                <span className="flex items-center gap-1"><Receipt className="w-3 h-3" /> Discount ({discount?.code})</span>
-                                <span>- {formatCurrency(discountAmount, transaction.currency)}</span>
+                                <span className="flex items-center gap-1"><Receipt className="w-3 h-3" /> Discount</span>
+                                <span>- {formatCurrency(totalDiscountAmount, transaction.currency)}</span>
                             </div>
                         )}
 
@@ -159,7 +181,7 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
                         <div className="flex justify-between text-sm text-red-500">
                             <span className="flex items-center gap-1">
-                                <span>Processor Fee (1.98%)</span>
+                                <span>Processor Fee ({(effectiveRates.processorFeePercent * 100).toFixed(2)}%)</span>
                             </span>
                             <span>- {formatCurrency(displayProcessorFee, transaction.currency)}</span>
                         </div>
@@ -198,11 +220,11 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                             </div>
                             <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-white/5">
                                 <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-400">
-                                    {(r?.profiles?.full_name || r?.guest_name || '?')[0]}
+                                    {(primaryRes?.profiles?.full_name || primaryRes?.guest_name || '?')[0]}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{r?.profiles?.full_name || r?.guest_name}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{r?.profiles?.email || r?.guest_email}</p>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{primaryRes?.profiles?.full_name || primaryRes?.guest_name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{primaryRes?.profiles?.email || primaryRes?.guest_email}</p>
                                 </div>
                             </div>
                         </div>

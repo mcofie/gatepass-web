@@ -26,25 +26,30 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
 
             const stats = eventTx.reduce((acc, tx) => {
                 const amount = tx.amount
+                let platFee = 0
+                let procFee = 0
 
-                // Calculate Fee Fallback
-                const price = tx.reservations?.ticket_tiers?.price || 0
-                const quantity = tx.reservations?.quantity || 1
-                const discountObj = Array.isArray(tx.reservations?.discounts) ? tx.reservations?.discounts[0] : tx.reservations?.discounts
+                // Use stored fees from transaction log if available (Accurate for multi-ticket orders)
+                if (tx.platform_fee !== null && tx.platform_fee !== undefined) {
+                    platFee = tx.platform_fee
+                    procFee = tx.applied_processor_fee ?? (amount * (tx.applied_processor_rate ?? 0))
+                } else {
+                    // Fallback Recalculation (For legacy or incomplete records)
+                    const price = tx.reservations?.ticket_tiers?.price || 0
+                    const quantity = tx.reservations?.quantity || 1
+                    const discountObj = Array.isArray(tx.reservations?.discounts) ? tx.reservations?.discounts[0] : tx.reservations?.discounts
 
-                let discountAmount = 0
-                if (discountObj) {
-                    if (discountObj.type === 'percentage') discountAmount = (price * quantity) * (discountObj.value / 100)
-                    else discountAmount = discountObj.value
+                    let discountAmount = 0
+                    if (discountObj) {
+                        if (discountObj.type === 'percentage') discountAmount = (price * quantity) * (discountObj.value / 100)
+                        else discountAmount = discountObj.value
+                    }
+                    const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+
+                    const effectiveRates = getEffectiveFeeRates(feeSettings, event)
+                    platFee = ticketRevenue * effectiveRates.platformFeePercent
+                    procFee = amount * effectiveRates.processorFeePercent
                 }
-                const subtotal = Math.max(0, (price * quantity) - discountAmount)
-
-                const effectiveRates = getEffectiveFeeRates(feeSettings, event)
-                const calculated = calculateFees(subtotal, 0, event.fee_bearer || 'customer', effectiveRates)
-
-                // Use Snapshot if available
-                const platFee = tx.platform_fee ?? calculated.platformFee
-                const procFee = tx.applied_processor_fee ?? calculated.processorFee
 
                 const net = amount - platFee - procFee
 

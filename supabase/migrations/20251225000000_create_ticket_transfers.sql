@@ -19,15 +19,19 @@ CREATE INDEX IF NOT EXISTS idx_ticket_transfers_ticket ON gatepass.ticket_transf
 ALTER TABLE gatepass.ticket_transfers ENABLE ROW LEVEL SECURITY;
 
 -- Policies
+DROP POLICY IF EXISTS "Senders can view their transfers" ON gatepass.ticket_transfers;
 CREATE POLICY "Senders can view their transfers" ON gatepass.ticket_transfers
     FOR SELECT USING (auth.uid() = sender_id);
 
+DROP POLICY IF EXISTS "Public view by token" ON gatepass.ticket_transfers;
 CREATE POLICY "Public view by token" ON gatepass.ticket_transfers
     FOR SELECT USING (true); 
 
+DROP POLICY IF EXISTS "Senders can create transfers" ON gatepass.ticket_transfers;
 CREATE POLICY "Senders can create transfers" ON gatepass.ticket_transfers
     FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
+DROP POLICY IF EXISTS "Senders can update their transfers" ON gatepass.ticket_transfers;
 CREATE POLICY "Senders can update their transfers" ON gatepass.ticket_transfers
     FOR UPDATE USING (auth.uid() = sender_id);
 

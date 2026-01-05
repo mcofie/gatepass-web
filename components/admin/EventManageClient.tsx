@@ -374,6 +374,7 @@ export function EventManageClient({
                         guest_email,
                         discounts ( type, value, code ),
                         profiles ( full_name, email ),
+                        ticket_tiers ( price ),
                         addons
                     )
                 `, { count: 'exact' })
@@ -437,12 +438,47 @@ export function EventManageClient({
 
                 // Calculate Fees & Payout
                 // We trust the stored fees implicitly now for net payout
-                const finalPlatformFee = tx.platform_fee ?? 0
-                const finalProcessorFee = tx.applied_processor_fee ?? 0
+                // Correction: Actually, we should RECALCULATE to be safe and consistent with other displays
+                const feeBearer = event.fee_bearer || 'customer'
+                const effectiveRates = getEffectiveFeeRates(feeRates, event) // Use fetched settings
 
-                const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
+                // Calculate Discount for Subtotal
+                const discount = tx.reservations?.discounts
+                let discountAmount = 0
+                if (discount) {
+                    if (discount.type === 'percentage') {
+                        discountAmount = (price * quantity) * (discount.value / 100)
+                    } else {
+                        discountAmount = discount.value
+                    }
+                }
+                const subtotal = Math.max(0, (price * quantity) - discountAmount)
 
-                totalPlatformFees += finalPlatformFee
+                // Note: tx.applied_fee_rate should be used if available to respect historical rates
+                const appliedPlatformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
+                const appliedProcessorRate = tx.applied_processor_rate ?? effectiveRates.processorFeePercent
+
+                const calculated = calculateFees(subtotal, txAddonRevenue, feeBearer, {
+                    platformFeePercent: appliedPlatformRate,
+                    processorFeePercent: appliedProcessorRate
+                })
+
+                // Use DB stored fees if valid, otherwise fallback to calculated
+                // Ideally, we want to show what was *actually* charged if possible, but for "Net Payout" correction request,
+                // we often need to derive it from the total Amount to ensure 2.08 - 0.08 = 2.00 match.
+
+                // Let's use the same logic as SalesClient/Modal:
+                // Expected Fees = Ticket Revenue * PlatformRate + Total * ProcessorRate
+                const calcPlatformFee = subtotal * appliedPlatformRate
+                const calcProcessorFee = tx.amount * appliedProcessorRate
+                const expectedTotalFees = calcPlatformFee + calcProcessorFee
+
+                // Payout = Amount - Fees
+                const netPayout = tx.amount - expectedTotalFees
+
+                // Update totals
+                // Note: We use the calculated values for display consistency
+                totalPlatformFees += expectedTotalFees
                 totalOrganizerNet += netPayout
             })
 
@@ -725,10 +761,16 @@ export function EventManageClient({
                                             const calculated = calculateFees(subtotal, addonSubtotal, feeBearer, effectiveRates)
 
                                             // Confirmed Logic: Payout = Amount - Fees
-                                            const finalPlatformFee = tx.platform_fee ?? calculated.platformFee
-                                            const finalProcessorFee = tx.applied_processor_fee ?? calculated.processorFee
-                                            const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
-                                            const totalFees = finalPlatformFee + finalProcessorFee
+                                            // Update: Use Robust Recalculation to match Stats/Modal
+                                            const appliedPlatformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
+                                            const appliedProcessorRate = tx.applied_processor_rate ?? effectiveRates.processorFeePercent
+
+                                            const calcPlatformFee = subtotal * appliedPlatformRate
+                                            const calcProcessorFee = tx.amount * appliedProcessorRate
+
+                                            // We use the calculated "Standard" fees for display to ensure 2.08 - 0.08 = 2.00 consistency
+                                            const totalFees = calcPlatformFee + calcProcessorFee
+                                            const netPayout = tx.amount - totalFees
 
                                             return (
                                                 <tr

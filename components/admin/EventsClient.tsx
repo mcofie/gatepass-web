@@ -234,7 +234,7 @@ function EventCard({ event, isStaff }: { event: Event, isStaff: boolean }) {
                     <div className="flex items-center gap-2.5 text-sm text-gray-500 font-medium dark:text-gray-400">
                         <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-600" />
                         <span>
-                            {event.starts_at ? new Date(event.starts_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'TBD'}
+                            {event.starts_at ? new Date(event.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' }) : 'TBD'}
                         </span>
                     </div>
                     <div className="flex items-center gap-2.5 text-sm text-gray-500 font-medium dark:text-gray-400">
@@ -296,7 +296,7 @@ function EventRow({ event, isStaff }: { event: Event, isStaff: boolean }) {
                 </div>
             </td>
             <td className="px-6 py-4 text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
-                {event.starts_at ? new Date(event.starts_at).toLocaleDateString() : 'TBD'}
+                {event.starts_at ? new Date(event.starts_at).toLocaleDateString('en-GB') : 'TBD'}
             </td>
             <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
                 {event.venue_name || 'TBD'}

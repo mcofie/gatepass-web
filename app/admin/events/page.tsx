@@ -31,6 +31,8 @@ export default async function MasterEventsPage() {
         .from('transactions')
         .select(`
             amount,
+            platform_fee,
+            applied_processor_fee,
             reservations!inner(
                 event_id,
                 quantity,
@@ -50,7 +52,9 @@ export default async function MasterEventsPage() {
                 status: 'success',
                 quantity: (tx.reservations as any)?.quantity || 1,
                 price: (tx.reservations as any)?.ticket_tiers?.price || 0,
-                discounts: (tx.reservations as any)?.discounts
+                discounts: (tx.reservations as any)?.discounts,
+                platform_fee: tx.platform_fee,
+                applied_processor_fee: tx.applied_processor_fee
             })) || []
 
         return {

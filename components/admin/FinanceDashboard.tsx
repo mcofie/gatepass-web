@@ -67,10 +67,10 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                     applied_processor_fee,
                     applied_processor_rate,
                     reservation_id,
-                    reservations!inner (
+                    reservations (
                         event_id,
                         guest_name,
-                        events!inner (
+                        events (
                             title,
                             organizer_id,
                             fee_bearer,
@@ -78,7 +78,8 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                         ),
                         quantity,
                         ticket_tiers (price),
-                        discounts (type, value)
+                        discounts (type, value),
+                        addons
                     )
                 `)
                 .eq('status', 'success')
@@ -86,6 +87,8 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
 
             if (!adminMode && user) {
                 // Explicitly filter by organizer's events if NOT in admin mode
+                // Note: with left join, reservations might be null. 
+                // We rely on reservation link for ownership check.
                 query = query.eq('reservations.events.organizer_id', user.id)
             }
 
@@ -120,15 +123,18 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                     else discountAmount = discountObj.value
                 }
 
-                const subtotal = Math.max(0, (price * quantity) - discountAmount)
+                const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
 
-                const calculated = calculateFees(subtotal, 0, bearer, effectiveRates)
+                // Recalculate Fees Strictly
+                const platformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
+                const processorRate = tx.applied_processor_rate ?? effectiveRates.processorFeePercent
 
-                // Robust Payout: Amount - Fees
-                // Prefer stored snapshots, fallback to calculation
-                const finalPlatformFee = tx.platform_fee ?? calculated.platformFee
-                const finalProcessorFee = tx.applied_processor_fee ?? calculated.processorFee
-                const netPayout = tx.amount - finalPlatformFee - finalProcessorFee
+                const calcPlatformFee = ticketRevenue * platformRate
+                const calcProcessorFee = tx.amount * processorRate
+
+                // Payout = Total - Fees
+                const totalFees = calcPlatformFee + calcProcessorFee
+                const netPayout = tx.amount - totalFees
 
                 return {
                     id: tx.id,
@@ -139,10 +145,10 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                     event_title: tx.reservations?.events?.title || 'Unknown Event',
                     guest_name: tx.reservations?.guest_name || 'Guest',
                     organizer_payout: netPayout,
-                    platform_fee: finalPlatformFee,
-                    processor_fee: finalProcessorFee,
-                    platform_rate: tx.applied_fee_rate ?? effectiveRates.platformFeePercent,
-                    processor_rate: tx.applied_processor_rate ?? effectiveRates.processorFeePercent
+                    platform_fee: calcPlatformFee, // Use calculated for stats
+                    processor_fee: calcProcessorFee, // Use calculated for stats
+                    platform_rate: platformRate,
+                    processor_rate: processorRate
                 }
             })
 

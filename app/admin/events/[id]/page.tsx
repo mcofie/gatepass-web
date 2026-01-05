@@ -37,12 +37,15 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
         .eq('reservations.event_id', id)
 
     let totalRevenue = 0
+    let totalDiscountValue = 0
+
     if (transactions) {
-        totalRevenue = transactions.reduce((acc, tx) => {
+        transactions.forEach((tx) => {
+            totalRevenue += tx.amount
+
             const r = tx.reservations as any
             const price = r.ticket_tiers?.price || 0
             const quantity = r.quantity || 1
-            const feeBearer = r.events?.fee_bearer || 'customer'
 
             let discountAmount = 0
             const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
@@ -53,12 +56,8 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
                     discountAmount = discount.value
                 }
             }
-
-            const subtotal = Math.max(0, (price * quantity) - discountAmount)
-            const { organizerPayout } = calculateFees(subtotal, 0, feeBearer, feeSettings)
-
-            return acc + organizerPayout
-        }, 0)
+            totalDiscountValue += discountAmount
+        })
     }
 
     if (!event) return <div className="p-12 text-center text-gray-500">Event not found</div>
@@ -68,6 +67,7 @@ export default async function AdminEventDetailPage({ params }: PageProps) {
             event={event as Event}
             initialTiers={(tiers as TicketTier[]) || []}
             initialTotalRevenue={totalRevenue}
+            initialTotalDiscountValue={totalDiscountValue}
             userRole="Administrator"
             feeRates={feeSettings}
             isSuperAdmin={true}

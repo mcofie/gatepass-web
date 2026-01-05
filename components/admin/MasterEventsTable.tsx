@@ -21,6 +21,8 @@ interface MasterEvent extends Event {
             quantity?: number
             price?: number
             discounts?: any
+            platform_fee?: number
+            applied_processor_fee?: number
         }[]
     }[]
 }
@@ -105,8 +107,6 @@ export default function MasterEventsTable({ events: initialEvents, feeRates }: M
                                 res.transactions?.forEach(tx => {
                                     if (tx.status !== 'success') return
 
-                                    const bearer = event.fee_bearer || 'customer'
-
                                     // Calculate Subtotal
                                     const price = (tx as any).price || 0
                                     const quantity = (tx as any).quantity || 1
@@ -118,10 +118,26 @@ export default function MasterEventsTable({ events: initialEvents, feeRates }: M
                                         else discountAmount = discountObj.value
                                     }
 
-                                    const subtotal = Math.max(0, (price * quantity) - discountAmount)
+                                    let platformFee = 0
+                                    let processorFee = 0
 
-                                    const effectiveRates = getEffectiveFeeRates(feeRates, event)
-                                    const { platformFee, processorFee, organizerPayout } = calculateFees(subtotal, 0, bearer, effectiveRates)
+                                    // Use stored fees from transaction log if available (Accurate for multi-ticket orders)
+                                    if (tx.platform_fee !== undefined && tx.platform_fee !== null) {
+                                        platformFee = tx.platform_fee
+                                        processorFee = tx.applied_processor_fee || 0
+                                    } else {
+                                        // Fallback Recalculation (Legacy)
+                                        const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+                                        const effectiveRates = getEffectiveFeeRates(feeRates, event)
+
+                                        platformFee = ticketRevenue * effectiveRates.platformFeePercent
+                                        processorFee = tx.amount * effectiveRates.processorFeePercent
+                                    }
+
+                                    const totalFees = platformFee + processorFee
+
+                                    // Robust Net Payout Definition: Gross - All Fees
+                                    const organizerPayout = tx.amount - totalFees
 
                                     acc.gross += tx.amount
                                     acc.platformProfits += platformFee

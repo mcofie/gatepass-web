@@ -127,6 +127,8 @@ export default async function AdminEventsPage() {
 
         // 2. Fetch Stats (Transactions)
         // We fetch all successful transactions for the org to aggregate ticket sales and revenue
+        // 2. Fetch Stats (Transactions)
+        // We fetch all successful transactions for the org to aggregate ticket sales and revenue
         const { data: transactions } = await adminSupabase
             .schema('gatepass')
             .from('transactions')
@@ -135,10 +137,15 @@ export default async function AdminEventsPage() {
                 currency,
                 platform_fee,
                 applied_processor_fee,
+                applied_fee_rate,
+                applied_processor_rate,
                 reservations!inner (
                     event_id,
                     quantity,
-                    events!inner ( fee_bearer )
+                    ticket_tiers ( price ),
+                    discounts ( type, value ),
+                    events!inner ( fee_bearer ),
+                    addons
                 )
             `)
             .eq('status', 'success')
@@ -153,37 +160,45 @@ export default async function AdminEventsPage() {
                 const eventId = tx.reservations.event_id
                 const quantity = tx.reservations.quantity || 1
 
-                // Revenue Calculation (Net Earnings)
-                // Use snapshot if available, else calc
-                // Actually for list view, using strict snapshot is best if available, but falling back to simple heuristic is okay for speed?
-                // No, let's allow consistency.
+                // Revenue Calculation (Net Earnings - Robust Recalc)
+                let netPayout = 0
 
-                let net = 0
+                const r = tx.reservations
+                const price = r.ticket_tiers?.price || 0
 
-                // If we have snapshot fees
-                if (tx.platform_fee !== null && tx.applied_processor_fee !== null) {
-                    net = tx.amount - tx.platform_fee - tx.applied_processor_fee
-                } else {
-                    // Fallback calc (Simplified for list view speed, or use robust util if needed)
-                    // Let's use robust util but we need subtotal... 
-                    // To get subtotal we need price... which we didn't fetch to keep query light?
-                    // Actually, if distinct fees are missing, it's likely an older record or logic.
-                    // Let's assume net = amount if we can't easily calc, OR fetch price.
-
-                    // To be safe and accurate, let's just use amount for now if snapshot missing, 
-                    // or maybe we should have fetched price.
-                    // Given the goal is "Better View", accuracy > speed.
-
-                    // Re-fetch logic: Actually to calculateFees we need subtotal.
-                    // Let's trust that most recent txs have snapshots. 
-                    // If not, we might slightly overestimate revenue on old events in this summary view.
-                    net = tx.amount // potentially gross if no fees deducted, but acceptable for summary fallback
+                // Discount
+                let discountAmount = 0
+                const discount = r.discounts
+                // Handle array or single object if multiple discounts (usually single)
+                // Note: Supabase single->array mapping depending on relationship. Usually 1:1 or 1:N.
+                // Assuming 1:1 or 1:N but we take first.
+                const dObj = Array.isArray(discount) ? discount[0] : discount
+                if (dObj) {
+                    if (dObj.type === 'percentage') {
+                        discountAmount = (price * quantity) * (dObj.value / 100)
+                    } else {
+                        discountAmount = dObj.value
+                    }
                 }
+
+                const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
+
+                // Get Effective Rates
+                const platformRate = tx.applied_fee_rate ?? 0.04
+                const processorRate = tx.applied_processor_rate ?? 0.0198
+
+                // Calculate Fees
+                const calcPlatformFee = ticketRevenue * platformRate
+                const calcProcessorFee = tx.amount * processorRate
+                const expectedTotalFees = calcPlatformFee + calcProcessorFee
+
+                // Net = Amount - Fees
+                netPayout = tx.amount - expectedTotalFees
 
                 const current = statsMap.get(eventId) || { tickets: 0, revenue: 0 }
                 statsMap.set(eventId, {
                     tickets: current.tickets + quantity,
-                    revenue: current.revenue + net
+                    revenue: current.revenue + netPayout
                 })
             })
         }
