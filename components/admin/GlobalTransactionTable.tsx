@@ -95,41 +95,48 @@ export default function GlobalTransactionTable() {
                             </tr>
                         ) : sales.length > 0 ? (
                             sales.map((sale) => {
-                                const r = sale.reservations
+                                const rList = Array.isArray(sale.reservations) ? sale.reservations : (sale.reservations ? [sale.reservations] : [])
+                                const r = rList[0] // Primary for details
+
                                 const event = r?.events
                                 const organizer = event?.organizers
-                                const tier = r?.ticket_tiers
-                                const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
 
-                                const price = tier?.price || 0
-                                const quantity = r?.quantity || 1
+                                // Aggregate Quantity
+                                const quantity = rList.reduce((acc: number, item: any) => acc + (item.quantity || 1), 0)
 
-                                // 1. Calculate Discount
-                                let discountAmount = 0
-                                if (discount) {
-                                    if (discount.type === 'percentage') {
-                                        discountAmount = (price * quantity) * (discount.value / 100)
-                                    } else {
-                                        discountAmount = discount.value
-                                    }
-                                }
+                                // Aggregate Tiers
+                                const tierNames = Array.from(new Set(rList.map((item: any) => item.ticket_tiers?.name).filter(Boolean))).join(', ')
 
-                                // 2. Subtotal (Tickets Only)
-                                const ticketSubtotal = Math.max(0, (price * quantity) - discountAmount)
-
-                                // 3. Fee Logic
+                                // Fee Logic
                                 // Prefer DB values for accuracy
                                 let platformFee = sale.platform_fee
                                 let totalPaid = sale.amount
 
-                                // Fallback Calculation (Approximate as we don't have addon prices here easily)
+                                // Fallback Calculation (Legacy / Single Item Recalc if DB missing)
                                 if (platformFee === null || platformFee === undefined) {
+                                    // Only works well for single item legacy.
+                                    // If multi-item legacy (unlikely as we just built it), we can't easily guess.
+                                    // We'll trust the stored amount mostly, or do a rough calc on the primary.
+                                    const ticketSubtotal = rList.reduce((sum: number, item: any) => {
+                                        const price = item.ticket_tiers?.price || 0
+                                        const qty = item.quantity || 1
+
+                                        // Discount
+                                        let discountAmount = 0
+                                        const discount = item.discounts // can be array or obj? logic below assumes obj
+                                        const dObj = Array.isArray(discount) ? discount[0] : discount
+
+                                        if (dObj) {
+                                            if (dObj.type === 'percentage') discountAmount = (price * qty) * (dObj.value / 100)
+                                            else discountAmount = dObj.value
+                                        }
+
+                                        return sum + Math.max(0, (price * qty) - discountAmount)
+                                    }, 0)
+
                                     const feeBearer = event?.fee_bearer || 'customer'
-                                    // Note: We are passing 0 for addons here as we don't have prices loaded. 
-                                    // This is a limitation but DB value should exist for all valid transactions.
                                     const calculated = calculateFees(ticketSubtotal, 0, feeBearer)
                                     platformFee = calculated.platformFee
-                                    // Only override totalPaid if it was missing/zero? Unlikely.
                                 }
 
                                 return (
@@ -151,7 +158,7 @@ export default function GlobalTransactionTable() {
                                         <td className="px-6 py-4">
                                             <p className="font-medium text-white">{event?.title}</p>
                                             <p className="text-gray-500 text-xs mt-0.5 flex items-center gap-1">
-                                                By {organizer?.name || 'Unknown'} • {tier?.name}
+                                                By {organizer?.name || 'Unknown'} • {tierNames || 'Ticket'}
                                             </p>
                                         </td>
                                         <td className="px-6 py-4 text-center text-gray-500 font-mono">

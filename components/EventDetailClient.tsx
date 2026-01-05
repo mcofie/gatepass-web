@@ -85,7 +85,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [verifying, setVerifying] = useState(false)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
     const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
-    const [reservation, setReservation] = useState<any>(null)
+    const [reservations, setReservations] = useState<any[]>([])
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
 
     // Mobile Expansion State
@@ -118,7 +118,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const router = useRouter()
     const searchParams = useSearchParams()
     const supabase = createClient()
-    const timeLeft = useTimer(reservation?.expires_at)
+    const timeLeft = useTimer(reservations[0]?.expires_at)
 
     // Handle Payment Callback (Redirect Flow)
     useEffect(() => {
@@ -304,19 +304,36 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
             setDiscount(data as Discount)
 
-            // Update the existing reservation with this discount (Secure RPC)
-            if (reservation) {
-                console.log('Linking Discount to Reservation via RPC:', reservation.id)
-                const { data: rpcData, error: updateError } = await supabase.rpc('apply_reservation_discount', {
-                    p_reservation_id: reservation.id,
-                    p_discount_code: promoCode
+
+            // Update the existing reservations with this discount (Secure RPC)
+            if (reservations.length > 0) {
+                console.log('Linking Discount to Reservations via RPC')
+                // Apply to all reservations (The RPC handles validation, or we can filter)
+                // We'll try to apply to all, as a global discount code might apply to multiple items if logic permits,
+                // OR technically usually a discount applies once per order.
+                // Current Discount Model: `apply_reservation_discount` takes (res_id, code).
+                // If the discount is specific to a tier, we should only apply to that tier's reservation.
+
+                const updatePromises = reservations.map(async (res) => {
+                    // Check Tier Restriction at Client Side to save RPC calls?
+                    // Already checked generic validity above.
+                    // If discount.tier_id is set, only apply to that reservation.
+                    if (data.tier_id && res.ticket_tier_id !== data.tier_id) return null
+
+                    return supabase.rpc('apply_reservation_discount', {
+                        p_reservation_id: res.id,
+                        p_discount_code: promoCode
+                    })
                 })
 
-                if (updateError || (rpcData && !rpcData.success)) {
-                    console.error('Failed to link discount:', updateError || rpcData?.error)
-                    const errorMsg = updateError?.message || rpcData?.error || 'Failed to apply discount'
-                    // If "Discount code usage limit reached", show that
-                    setDiscountError(errorMsg)
+                const results = await Promise.all(updatePromises)
+                const errors = results.filter(r => r && (r.error || (r.data && !r.data.success)))
+
+                if (errors.length > 0 && errors.length === reservations.length) {
+                    // All failed
+                    const firstErr = errors[0]
+                    console.error('Failed to link discount:', firstErr)
+                    setDiscountError('Failed to apply discount')
                     return
                 }
             }
@@ -342,32 +359,62 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         setLoading(true)
         try {
             let userId: string | null = null
-            const { data: { user } } = await supabase.auth.getUser()
 
-            if (user) {
-                userId = user.id
+            // robust user check
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                userId = session.user.id
+            } else {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) userId = user.id
             }
-            // Guest Flow: No signup required anymore. We just pass the details.
 
-            // 2. Determine Selection
-            const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
-            if (!firstTierId) throw new Error('No tickets selected')
-            const qty = selectedTickets[firstTierId]
-            const selectedTier = tiers.find(t => t.id === firstTierId)
+            console.log('[EventDetail] Creating reservation for User:', userId)
 
-            if (!selectedTier || !qty) throw new Error('Please select a ticket')
+            if (userId) {
+                // Double check binding? No, passed explicit.
+            }
 
-            // 3. Create Reservation
-            console.log('Creating Reservation with Discount:', discount)
-            const newReservation = await createReservation(event.id, selectedTier.id, userId, qty, supabase, {
-                email: guestEmail,
-                name: guestName,
-                phone: guestPhone
-            }, discount?.id, selectedAddons)
-            if (!newReservation || !newReservation.id) throw new Error('Failed to create reservation')
+            // 2. Identify all selected tiers
+            const tiersToBook = Object.entries(selectedTickets)
+                .filter(([_, qty]) => qty > 0)
+                .map(([tierId, qty]) => ({ tierId, qty }))
 
-            setReservation(newReservation)
-            setReservation(newReservation)
+            if (tiersToBook.length === 0) throw new Error('No tickets selected')
+
+            console.log('Creating Reservations for:', tiersToBook)
+
+            // 3. Create Reservations in Parallel
+            // Note: We only attach add-ons to the FIRST reservation to avoid duplicating cost/inventory.
+            // Or we should split them? Ideally logic should be: Add-ons are per Event invocation,
+            // but `createReservation` utility might attach them to the specific row.
+            // If we assume Add-ons are 1-time purchase for the whole groups, we attach to first.
+
+            const createdDocs = await Promise.all(tiersToBook.map(async (item, index) => {
+                const isFirst = index === 0
+                // Only attach add-ons to the first reservation in the batch
+                const addonsPayload = isFirst ? selectedAddons : {}
+
+                return createReservation(
+                    event.id,
+                    item.tierId,
+                    userId,
+                    item.qty,
+                    supabase,
+                    {
+                        email: guestEmail,
+                        name: guestName,
+                        phone: guestPhone
+                    },
+                    discount?.id,
+                    addonsPayload
+                )
+            }))
+
+            const validDocs = createdDocs.filter(d => d && d.id)
+            if (validDocs.length === 0) throw new Error('Failed to create reservations')
+
+            setReservations(validDocs)
             navigate('summary', 'forward')
 
         } catch (error: any) {
@@ -380,27 +427,30 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
     // Step 2: Payment (Invoked on "Pay Now")
     const handlePaystackPayment = async () => {
-        if (!reservation) {
+        if (reservations.length === 0) {
             toast.error('No active reservation found. Please try again.')
             return
         }
 
         setLoading(true)
-
-        const firstTierId = Object.keys(selectedTickets).find(id => selectedTickets[id] > 0)
-        const selectedTier = tiers.find(t => t.id === firstTierId)
-
-        // Safety Sync: Ensure discount is linked before payment
-        if (discount && reservation && reservation.discount_id !== discount.id) {
-            console.log('Syncing Discount ID before payment...', discount.id)
-            await supabase.rpc('apply_reservation_discount', {
-                p_reservation_id: reservation.id,
-                p_discount_code: promoCode
-            })
-            // Update local state implicitly or just proceed
-        }
+        const primaryTierId = reservations[0].ticket_tier_id
+        const selectedTier = tiers.find(t => t.id === primaryTierId)
 
         try {
+            // Check Sync for Discounts (Simple Loop)
+            if (discount) {
+                for (const res of reservations) {
+                    if (res.discount_id !== discount.id) {
+                        if (discount.tier_id && res.ticket_tier_id !== discount.tier_id) continue
+
+                        await supabase.rpc('apply_reservation_discount', {
+                            p_reservation_id: res.id,
+                            p_discount_code: promoCode
+                        })
+                    }
+                }
+            }
+
             // Call Initialize API
             const response = await fetch('/api/paystack/initialize', {
                 method: 'POST',
@@ -409,8 +459,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     email: guestEmail || 'customer@gatepass.com',
                     amount: Math.round(totalDue * 100),
                     currency: selectedTier?.currency || 'GHS',
-                    reservationId: reservation.id,
-                    callbackUrl: `${window.location.protocol}//${window.location.host}${window.location.pathname}?event_id=${event.id}` // Append Event ID to scope callback
+                    reservationIds: reservations.map(r => r.id), // Pass Array
+                    callbackUrl: `${window.location.protocol}//${window.location.host}${window.location.pathname}?event_id=${event.id}`
                 })
             })
 

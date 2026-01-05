@@ -4,9 +4,14 @@ import { PLATFORM_FEE_PERCENT, PROCESSOR_FEE_PERCENT } from '@/utils/fees'
 
 export async function POST(req: Request) {
     try {
-        const { email, amount, currency, reservationId, callbackUrl } = await req.json()
+        const body = await req.json()
+        const { email, amount, currency, callbackUrl } = body
+        // Support both single and multiple IDs
+        const reservationIds = Array.isArray(body.reservationIds)
+            ? body.reservationIds
+            : (body.reservationId ? [body.reservationId] : [])
 
-        if (!email || !amount || !reservationId || !callbackUrl) {
+        if (!email || !amount || reservationIds.length === 0 || !callbackUrl) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
@@ -16,14 +21,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
         }
 
-        // Fetch subaccount code
+        // Fetch all reservations
         const supabase = await createClient()
 
-        // Join reservations -> events -> organizers
-        const { data: reservation, error: resError } = await supabase
+        const { data: reservations, error: resError } = await supabase
             .schema('gatepass')
             .from('reservations')
             .select(`
+                id,
                 quantity,
                 addons,
                 event_id,
@@ -38,22 +43,27 @@ export async function POST(req: Request) {
                     )
                 )
             `)
-            .eq('id', reservationId)
-            .single()
+            .in('id', reservationIds)
 
-        let subaccountCode = null
-        let transactionCharge = 0
-        let addonRevenue = 0
+        if (resError || !reservations || reservations.length === 0) {
+            return NextResponse.json({ error: 'Reservations not found' }, { status: 404 })
+        }
 
-        if (reservation) {
+        let subaccountCode: string | null = null
+        let totalTransactionCharge = 0
+        let totalAddonRevenue = 0
+
+        // Iterate to aggregate fees and revenue
+        for (const reservation of reservations) {
             const event = Array.isArray((reservation as any).events) ? (reservation as any).events[0] : (reservation as any).events
             const organizer = event ? (Array.isArray(event.organizers) ? event.organizers[0] : event.organizers) : null
 
-            if (organizer) {
+            // Set Subaccount (from first valid organizer)
+            if (!subaccountCode && organizer?.paystack_subaccount_code) {
                 subaccountCode = organizer.paystack_subaccount_code
             }
 
-            // Calculate Addons Revenue (to be separated/kept by platform or routed via flat fee)
+            // 1. Calculate Addons Revenue
             const addons = (reservation as any).addons
             if (addons && Object.keys(addons).length > 0) {
                 const { data: addonDetails } = await supabase
@@ -64,46 +74,34 @@ export async function POST(req: Request) {
                     .in('id', Object.keys(addons))
 
                 if (addonDetails) {
-                    addonRevenue = addonDetails.reduce((sum, item) => {
+                    const resAddonRevenue = addonDetails.reduce((sum, item) => {
                         const qty = addons[item.id] || 0
                         return sum + (item.price * qty)
                     }, 0)
+                    totalAddonRevenue += resAddonRevenue
                 }
             }
 
-            // Convert Addon Revenue to Kobo/Pesewas immediately
-            const addonRevenueSubunits = Math.round(addonRevenue * 100)
-
-            // Calculate Split
-            if (subaccountCode) {
+            // 2. Calculate Platform Fee for this Reservation
+            if (subaccountCode) { // Only relevant if splitting
                 const ticketTier = Array.isArray((reservation as any).ticket_tiers) ? (reservation as any).ticket_tiers[0] : (reservation as any).ticket_tiers
                 let price = Number(ticketTier?.price) || 0
 
-                // Platform Fee Rate
-                let platformRate = PLATFORM_FEE_PERCENT // Default 0.04
-
-                // Determine Rate
+                // Rate Logic
+                let platformRate = PLATFORM_FEE_PERCENT
                 let rawPercent = (event?.platform_fee_percent as number)
                     ?? (organizer?.platform_fee_percent as number)
                     ?? 0;
 
                 if (rawPercent > 0) {
-                    // Check if stored as decimal (e.g. 0.04 for 4%) instead of integer (4 for 4%)
-                    // If less than 1, assume it's decimal representation and convert to percent integer
-                    if (rawPercent < 1.0) {
-                        rawPercent = rawPercent * 100
-                    }
+                    if (rawPercent < 1.0) rawPercent = rawPercent * 100
                     platformRate = rawPercent / 100
                 }
 
-                // Fallback if price missing (critical for calculations)
                 if (price === 0) {
-                    console.warn('Paystack Initialize: Price not found in DB, using transaction amount as fallback base')
-                    // Amount is in kobo/pesewas. Price is in GHS.
-                    // Assume Amount ~= Price + Fees. 
-                    // Amount = Price + (Price * PlatformRate) + (Price * ProcessorRate) [Roughly]
-                    // Price = (Amount/100) / (1 + PlatformRate + ProcessorRate)
-                    price = (amount / 100) / (1 + platformRate + PROCESSOR_FEE_PERCENT)
+                    // Fallback: If price 0/missing, we can't easily reverse-calc for just one item in a batch.
+                    // We skip fee calc for this specific broken item or assume 0 fee.
+                    console.warn(`Price missing for reservation ${reservation.id}, skipping fee calc`)
                 }
 
                 const quantity = reservation.quantity || 1
@@ -119,63 +117,32 @@ export async function POST(req: Request) {
                     }
                 }
 
-                // Effective Base for Platform Fee
-                // We calculate PLATFORM fee on the TICKET REVENUE ONLY.
-                // We calculate PROCESSOR fee on the TOTAL REVENUE (Tickets + Addons).
-
                 const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
-
-                // Platform Fee = Ticket Revenue * Rate
-                // (Add-ons are exempt from Platform Fee)
                 const platformFee = ticketRevenue * platformRate
 
-                // Convert to Kobo/Pesewas for Subaccount Split
-                // Transaction Charge = Platform Fee.
-                // Paystack takes their fee (Processor Fee) from the total amount automatically.
-                // The Bearer = 'subaccount' means the Subaccount (Organizer) pays the Paystack fee from their share, 
-                // UNLESS we adjust the total price to include it (which we do if feeBearer=customer).
-                // But specifically here, `transaction_charge` dictates what overrides the default split.
-                // If we set transaction_charge, Paystack gives (Amount - PaystackFee - TransactionCharge) to Subaccount.
-                // And (TransactionCharge) to Main Account.
-
-                transactionCharge = Math.round(platformFee * 100)
-
-                // Sanity Check: Ensure we don't take more than the total amount?
-                if (transactionCharge > amount) {
-                    console.error('Transaction charge exceeds total amount!', { transactionCharge, amount })
-                    transactionCharge = 0 // Safety fallback
-                }
-
-                const totalRevenue = ticketRevenue + addonRevenue
-
-                console.log('Paystack Split Logic:', {
-                    reservationId,
-                    dbPrice: ticketTier?.price,
-                    usedPrice: price,
-                    quantity,
-                    totalRevenue,
-                    ticketRevenue,
-                    platformRate,
-                    addonRevenue,
-                    transactionCharge, // in kobo
-                    amount // in kobo
-                })
+                totalTransactionCharge += Math.round(platformFee * 100)
             }
+        }
+
+        // Sanity Check
+        if (totalTransactionCharge > amount) {
+            console.error('Total charges exceed amount', { totalTransactionCharge, amount })
+            totalTransactionCharge = 0
         }
 
         const payload: any = {
             email,
             amount, // in kobo/pesewas
             currency,
-            reference: reservationId, // Use reservationId as reference for easy tracking
+            reference: reservationIds[0], // Use PRIMARY reservation ID as Paystack reference (simplifies webhook lookup)
             callback_url: callbackUrl,
             metadata: {
-                reservationId,
+                reservation_ids: reservationIds, // Store ALL IDs
                 custom_fields: [
                     {
-                        display_name: "Reservation ID",
-                        variable_name: "reservation_id",
-                        value: reservationId
+                        display_name: "Reservation IDs",
+                        variable_name: "reservation_ids",
+                        value: reservationIds.join(', ')
                     }
                 ]
             }
@@ -184,9 +151,11 @@ export async function POST(req: Request) {
         // Add subaccount if available
         if (subaccountCode) {
             payload.subaccount = subaccountCode
-            payload.transaction_charge = transactionCharge
+            payload.transaction_charge = totalTransactionCharge
             payload.bearer = 'subaccount'
         }
+
+        console.log(`[Paystack Init] Amount: ${amount}, Charge: ${totalTransactionCharge} (ids: ${reservationIds.length})`)
 
         // Initialize transaction with Paystack
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
@@ -205,7 +174,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: data.message || 'Failed to initialize payment' }, { status: 400 })
         }
 
-        return NextResponse.json(data.data) // Contains authorization_url, access_code, etc.
+        return NextResponse.json(data.data)
 
     } catch (error: any) {
         console.error('Initialization Error:', error)

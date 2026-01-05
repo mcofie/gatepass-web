@@ -23,7 +23,26 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
             // Default to the joined reservation if available
             let initial = transaction.reservations ? [transaction.reservations] : []
 
-            const metaIds = transaction.metadata?.reservation_ids
+            let metaIds = transaction.metadata?.reservation_ids
+
+            // Fallback: Nested Metadata (Common if Paystack object was spread without flattening)
+            // 'metadata' inside 'metadata' is where Paystack returns the custom fields object sometimes
+            if (!metaIds && transaction.metadata?.metadata?.reservation_ids) {
+                metaIds = transaction.metadata.metadata.reservation_ids
+            }
+
+            // Fallback: Custom Fields (Standard Paystack Display format)
+            if (!metaIds) {
+                const fields = transaction.metadata?.custom_fields || transaction.metadata?.metadata?.custom_fields
+                if (Array.isArray(fields)) {
+                    const f = fields.find((x: any) => x.variable_name === 'reservation_ids')
+                    if (f?.value) {
+                        // string "id1, id2"
+                        metaIds = f.value.split(',').map((s: string) => s.trim())
+                    }
+                }
+            }
+
             if (Array.isArray(metaIds) && metaIds.length > 0) {
                 // If metadata implies multiple (or distinct) reservations, fetch them to be accurate
                 // We fetch ALL to ensure we have fresh data for the breakdown, avoiding mix of stale/partial data
@@ -82,8 +101,8 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     const ticketRevenueNetBase = Math.max(0, totalTicketRevenueRaw - totalDiscountAmount)
 
     const effectiveRates = {
-        platformFeePercent: transaction.applied_fee_rate ?? 0.04,
-        processorFeePercent: transaction.applied_processor_rate ?? 0.0198
+        platformFeePercent: transaction.applied_fee_rate || 0.04,
+        processorFeePercent: transaction.applied_processor_rate || 0.0198
     }
 
     // Recalc Fees

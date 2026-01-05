@@ -22,6 +22,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
     const [page, setPage] = useState(0)
     const [count, setCount] = useState(0)
     const [addonMap, setAddonMap] = useState<Record<string, string>>({}) // ID -> Name
+    const [addonPrices, setAddonPrices] = useState<Record<string, number>>({}) // ID -> Price
 
     // Modal State
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
@@ -49,6 +50,8 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                     amount,
                     currency,
                     status,
+                    metadata,
+                    reservation_id,
                     platform_fee,
                     applied_processor_fee,
                     applied_fee_rate, 
@@ -94,15 +97,18 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                     const { data: addonsData } = await supabase
                         .schema('gatepass')
                         .from('event_addons')
-                        .select('id, name')
+                        .select('id, name, price')
                         .in('id', Array.from(addonIds))
 
                     if (addonsData) {
                         const map: Record<string, string> = {}
+                        const prices: Record<string, number> = {}
                         addonsData.forEach((a: any) => {
                             map[a.id] = a.name
+                            prices[a.id] = a.price
                         })
                         setAddonMap(map)
+                        setAddonPrices(prices)
                     }
                 }
             } catch (err) {
@@ -186,13 +192,40 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                     // But to be "Fix Across", we should prioritize what the Modal does:
                                     // The Modal uses `transaction.applied_fee_rate` or 0.04.
 
-                                    const platformRate = sale.applied_fee_rate ?? 0.04
+                                    const purchasedAddons = r.addons || {}
+                                    let addonRevenue = 0
+                                    if (typeof purchasedAddons === 'object') {
+                                        Object.entries(purchasedAddons).forEach(([id, qty]) => {
+                                            const p = addonPrices[id] || 0
+                                            addonRevenue += p * (qty as number)
+                                        })
+                                    }
+
+                                    // Fix Across Logic:
+                                    // If stored rate is 0/null, assume it's a legacy/buggy record and use the effective/standard rate
+                                    // We need to fetch/determine the effective rate. We can default to 4% if not available (safe for this specific user request)
+                                    // or better, use the stored rate if > 0.
+
+                                    let usedPlatformRate = sale.applied_fee_rate ?? 0.04
+                                    if (usedPlatformRate === 0) usedPlatformRate = 0.04
+
                                     const processorRate = sale.applied_processor_rate ?? 0.0198
 
-                                    const calcPlatformFee = ticketRevenueNet * platformRate
+                                    const calcPlatformFee = ticketRevenueNet * usedPlatformRate
                                     const calcProcessorFee = sale.amount * processorRate
 
-                                    const expectedTotalFees = calcPlatformFee + calcProcessorFee
+                                    // Prefer stored fee for accuracy with history
+                                    // BUT if stored fee is 0 and we expect a fee, RECALCULATE IT
+                                    let finalPlatformFee = sale.platform_fee
+                                    if ((finalPlatformFee === 0 || finalPlatformFee === null || finalPlatformFee === undefined) && usedPlatformRate > 0 && ticketRevenueNet > 0) {
+                                        finalPlatformFee = calcPlatformFee
+                                    } else if (finalPlatformFee === null || finalPlatformFee === undefined) {
+                                        finalPlatformFee = calcPlatformFee
+                                    }
+
+                                    const finalProcessorFee = (sale.applied_processor_fee !== null && sale.applied_processor_fee !== undefined) ? sale.applied_processor_fee : calcProcessorFee
+
+                                    const expectedTotalFees = finalPlatformFee + finalProcessorFee
 
                                     // Payout = Total Paid - Fees
                                     // This applies for BOTH fee bearers (mathematically equivalent for Net Payout view)
@@ -201,7 +234,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
                                     const organizerPayout = sale.amount - expectedTotalFees
 
-                                    const purchasedAddons = r.addons || {}
+                                    // purchasedAddons already defined above
                                     const hasAddons = Object.keys(purchasedAddons).length > 0
 
                                     return (
