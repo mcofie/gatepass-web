@@ -29,12 +29,22 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                 let platFee = 0
                 let procFee = 0
 
-                // Use stored fees from transaction log if available (Accurate for multi-ticket orders)
+                const effectiveRates = getEffectiveFeeRates(feeSettings, event)
+
+                // Use stored fees from transaction log if available AND Valid
+                // "Fix Across": If stored fee is 0 but effective rate is > 0, we assume it's a bug and recalculate
+                let useStored = false
                 if (tx.platform_fee !== null && tx.platform_fee !== undefined) {
+                    if (tx.platform_fee > 0) useStored = true
+                    else if (effectiveRates.platformFeePercent === 0) useStored = true // stored 0 is correct
+                }
+
+                if (useStored) {
                     platFee = tx.platform_fee
                     procFee = tx.applied_processor_fee ?? (amount * (tx.applied_processor_rate ?? 0))
                 } else {
                     // Fallback Recalculation (For legacy or incomplete records)
+                    // Ensure we have tier price
                     const price = tx.reservations?.ticket_tiers?.price || 0
                     const quantity = tx.reservations?.quantity || 1
                     const discountObj = Array.isArray(tx.reservations?.discounts) ? tx.reservations?.discounts[0] : tx.reservations?.discounts
@@ -46,7 +56,6 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                     }
                     const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
 
-                    const effectiveRates = getEffectiveFeeRates(feeSettings, event)
                     platFee = ticketRevenue * effectiveRates.platformFeePercent
                     procFee = amount * effectiveRates.processorFeePercent
                 }

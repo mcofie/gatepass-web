@@ -5,7 +5,6 @@ import Script from 'next/script'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { Database } from '@/types/supabase' // Assuming types are global or accessible, but sticking to 'any' if generic
 
 // Simple Timer Hook
 const useTimer = (expiresAt: string | undefined) => {

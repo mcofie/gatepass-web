@@ -22,6 +22,14 @@ interface TicketItem {
     type: string
 }
 
+interface TicketGroup {
+    tierName: string
+    tickets: {
+        id: string
+        qrCodeUrl: string
+    }[]
+}
+
 interface TicketEmailProps {
     eventName?: string;
     eventDate?: string;
@@ -30,8 +38,10 @@ interface TicketEmailProps {
     ticketType?: string;
     qrCodeUrl?: string;
     ticketId?: string;
-    // New prop for multiple tickets
+    // Prop for multiple tickets (flat list)
     tickets?: TicketItem[];
+    // NEW: Grouped tickets by tier (for multi-tier orders)
+    ticketGroups?: TicketGroup[];
     customerName?: string;
     posterUrl?: string;
     reservationId?: string;
@@ -46,13 +56,22 @@ export const TicketEmail = ({
     customerName = "Guest",
     ticketId = "GP-123456",
     tickets = [],
+    ticketGroups = [],
     posterUrl,
     reservationId,
 }: TicketEmailProps) => {
-    const previewText = `Your ${tickets.length > 1 ? 'tickets' : 'ticket'} for ${eventName}`;
+    // Determine total ticket count for preview text
+    const totalTicketCount = ticketGroups.length > 0
+        ? ticketGroups.reduce((sum, g) => sum + g.tickets.length, 0)
+        : (tickets.length > 0 ? tickets.length : 1);
+
+    const previewText = `Your ${totalTicketCount > 1 ? 'tickets' : 'ticket'} for ${eventName}`;
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName)}`;
 
-    // Normalize tickets: if array is empty, use the single props
+    // Use ticketGroups if provided, otherwise fallback to flat tickets array
+    const useGroupedView = ticketGroups.length > 0;
+
+    // Normalize flat tickets for legacy compatibility
     const allTickets = tickets.length > 0 ? tickets : [{ id: ticketId, qrCodeUrl, type: ticketType }];
     const primaryTicket = allTickets[0];
     const guestTickets = allTickets.slice(1);
@@ -110,7 +129,7 @@ export const TicketEmail = ({
                                     {eventName}
                                 </Heading>
                                 <Text className="text-sm text-gray-500 text-center m-0 mb-8 font-medium">
-                                    Admit One • {customerName}
+                                    {totalTicketCount > 1 ? `${totalTicketCount} Tickets` : 'Admit One'} • {customerName}
                                 </Text>
 
                                 {/* Info Grid */}
@@ -120,10 +139,12 @@ export const TicketEmail = ({
                                             <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">DATE</Text>
                                             <Text className="text-sm font-bold text-gray-900 m-0">{eventDate}</Text>
                                         </Column>
-                                        <Column align="right">
-                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">TIER</Text>
-                                            <Text className="text-sm font-bold text-gray-900 m-0">{primaryTicket.type}</Text>
-                                        </Column>
+                                        {!useGroupedView && (
+                                            <Column align="right">
+                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">TIER</Text>
+                                                <Text className="text-sm font-bold text-gray-900 m-0">{primaryTicket.type}</Text>
+                                            </Column>
+                                        )}
                                     </Row>
                                     <Row>
                                         <Column align="left">
@@ -134,35 +155,83 @@ export const TicketEmail = ({
                                         </Column>
                                     </Row>
                                 </Section>
+                                {/* CONDITIONAL: Grouped View vs Legacy Single Ticket View */}
+                                {useGroupedView ? (
+                                    /* GROUPED TICKETS VIEW - Show each tier as a section */
+                                    <>
+                                        {ticketGroups.map((group, gIndex) => {
+                                            const primaryOfGroup = group.tickets[0];
+                                            const additionalOfGroup = group.tickets.slice(1);
+                                            return (
+                                                <Section key={gIndex} className="mb-6 pb-6 border-b border-gray-100 last:border-b-0 last:mb-0 last:pb-0">
+                                                    <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-3 text-center">
+                                                        {group.tierName} ({group.tickets.length})
+                                                    </Text>
 
-                                {/* QR Code (Only for Primary) */}
-                                <Section className="text-center mb-8">
-                                    <div className="bg-white p-3 border-2 border-dashed border-gray-200 rounded-2xl inline-block">
-                                        <Img
-                                            src={primaryTicket.qrCodeUrl}
-                                            width="160"
-                                            height="160"
-                                            alt="QR Code"
-                                            className="rounded-lg mix-blend-multiply"
-                                        />
-                                    </div>
-                                    <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
-                                        {primaryTicket.id.substring(0, 8).toUpperCase()}
-                                    </Text>
-                                </Section>
+                                                    {/* QR Code for primary ticket of this tier */}
+                                                    <Section className="text-center mb-4">
+                                                        <div className="bg-white p-2 border-2 border-dashed border-gray-200 rounded-xl inline-block">
+                                                            <Img
+                                                                src={primaryOfGroup.qrCodeUrl}
+                                                                width="120"
+                                                                height="120"
+                                                                alt={`QR Code - ${group.tierName}`}
+                                                                className="rounded-lg mix-blend-multiply"
+                                                            />
+                                                        </div>
+                                                        <Text className="text-[10px] font-mono text-gray-400 mt-2 tracking-[0.15em] uppercase m-0">
+                                                            {primaryOfGroup.id.substring(0, 8).toUpperCase()}
+                                                        </Text>
+                                                    </Section>
+
+                                                    {/* Additional tickets in this tier */}
+                                                    {additionalOfGroup.length > 0 && (
+                                                        <Section className="mt-3">
+                                                            {additionalOfGroup.map((ticket, tIndex) => (
+                                                                <Row key={ticket.id} className="mb-2">
+                                                                    <Column className="text-center">
+                                                                        <Text className="text-[10px] text-gray-500 m-0">
+                                                                            +{tIndex + 1} Guest Ticket: <span className="font-mono tracking-wide">{ticket.id.substring(0, 8).toUpperCase()}</span>
+                                                                        </Text>
+                                                                    </Column>
+                                                                </Row>
+                                                            ))}
+                                                        </Section>
+                                                    )}
+                                                </Section>
+                                            );
+                                        })}
+                                    </>
+                                ) : (
+                                    /* LEGACY: Single Ticket / Flat List View */
+                                    <Section className="text-center mb-8">
+                                        <div className="bg-white p-3 border-2 border-dashed border-gray-200 rounded-2xl inline-block">
+                                            <Img
+                                                src={primaryTicket.qrCodeUrl}
+                                                width="160"
+                                                height="160"
+                                                alt="QR Code"
+                                                className="rounded-lg mix-blend-multiply"
+                                            />
+                                        </div>
+                                        <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
+                                            {primaryTicket.id.substring(0, 8).toUpperCase()}
+                                        </Text>
+                                    </Section>
+                                )}
 
                                 {/* CTAs */}
                                 <Button
                                     href={`https://gatepass.so/my-tickets`}
                                     className="bg-black text-white px-8 py-4 rounded-xl text-base font-bold no-underline block w-full text-center shadow-lg shadow-black/20 hover:bg-gray-900 transition-all"
                                 >
-                                    Access Ticket
+                                    {useGroupedView ? 'View All Tickets' : 'Access Ticket'}
                                 </Button>
                             </Section>
                         </Section>
 
-                        {/* GUEST TICKETS LIST */}
-                        {guestTickets.length > 0 && (
+                        {/* GUEST TICKETS LIST - Only for legacy flat list view */}
+                        {!useGroupedView && guestTickets.length > 0 && (
                             <Section className="mb-8">
                                 <Text className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">
                                     Guest Tickets ({guestTickets.length})

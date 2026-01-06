@@ -58,8 +58,43 @@ export const EventFeed = ({ events }: EventFeedProps) => {
 
     if (events.length === 0) {
         return (
-            <div className="h-screen w-full flex items-center justify-center bg-black text-white">
-                <p>No active events found.</p>
+            <div className="relative h-[100dvh] w-full flex flex-col items-center justify-center bg-[#09090b] text-white overflow-hidden">
+                {/* Subtle Grain/Texture Overlay (Optional, keep clean for now) */}
+
+                <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-lg mx-auto">
+                    {/* Minimal Icon */}
+                    <div className="mb-6 text-white/20 animate-fade-in transition-transform duration-500 hover:scale-110 hover:text-white/40 cursor-default">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="64"
+                            height="64"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                            <line x1="16" x2="16" y1="2" y2="6" />
+                            <line x1="8" x2="8" y1="2" y2="6" />
+                            <line x1="3" x2="21" y1="10" y2="10" />
+                        </svg>
+                    </div>
+
+                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white animate-slide-up">
+                        No Upcoming Events
+                    </h1>
+
+                    <p className="text-zinc-500 text-base md:text-lg font-medium leading-relaxed mb-8 max-w-sm mx-auto animate-slide-up" style={{ animationDelay: '0.1s' }}>
+                        The curated list is currently empty. Check back soon for exclusive access.
+                    </p>
+
+                    <div className="animate-slide-up flex flex-col gap-4 items-center" style={{ animationDelay: '0.2s' }}>
+                        <div className="h-px w-12 bg-[#d4af37]" /> {/* Gold Accent */}
+                        <span className="text-[10px] font-bold tracking-[0.3em] text-[#d4af37] uppercase">GatePass</span>
+                    </div>
+                </div>
             </div>
         )
     }

@@ -3,12 +3,20 @@ import { TicketEmail } from '@/emails/TicketEmail'
 import { StaffAccessEmail } from '@/emails/StaffAccessEmail'
 import { TransferEmail } from '@/emails/TransferEmail'
 
+interface TicketGroup {
+    tierName: string
+    tickets: {
+        id: string
+        qrCodeUrl: string
+    }[]
+}
+
 interface SendTicketEmailProps {
     to: string
     eventName: string
     eventDate: string
     venueName: string
-    ticketType: string
+    ticketType?: string // Now optional for multi-tier orders
     customerName: string
     qrCodeUrl?: string
     ticketId?: string
@@ -18,6 +26,7 @@ interface SendTicketEmailProps {
         qrCodeUrl: string
         type: string
     }[]
+    ticketGroups?: TicketGroup[] // NEW: For consolidated multi-tier emails
     reservationId?: string
 }
 

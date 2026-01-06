@@ -40,7 +40,29 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     }
 
     // 2. Fetch Reservations (Handling Multiple)
-    const reservationIds = Array.isArray(reservationId) ? reservationId : (reservationId ? [reservationId] : [])
+    let reservationIds: string[] = Array.isArray(reservationId) ? reservationId : (reservationId ? [reservationId] : [])
+
+    // Auto-discovery from Metadata (if missing form arguments)
+    if (reservationIds.length === 0 && tx?.metadata) {
+        let metaIds = tx.metadata.reservation_ids
+
+        if (typeof metaIds === 'string') {
+            metaIds = metaIds.split(',').map((s: string) => s.trim())
+        }
+
+        // Fallback to custom fields
+        if ((!metaIds || !Array.isArray(metaIds)) && tx.metadata.custom_fields) {
+            const field = tx.metadata.custom_fields.find((f: any) => f.variable_name === 'reservation_ids')
+            if (field?.value) {
+                metaIds = field.value.split(',').map((s: string) => s.trim())
+            }
+        }
+
+        if (Array.isArray(metaIds) && metaIds.length > 0) {
+            reservationIds = metaIds
+        }
+    }
+
     let reservations: any[] = []
 
     if (reservationIds.length > 0) {
@@ -174,12 +196,36 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         console.error('Transaction Log Error:', txError)
     }
 
-    // 5. Process Tickets & Emails (Loop)
+    // 5. Process Tickets (Loop) - Email moved outside loop
+    let anyTicketsCreated = false
+    let targetEmail: string | null = null
+    let customerName: string = 'Guest'
+    let emailPrimaryEvent: any = null
+    let primaryPosterUrl: string | null = null
+
+    // Collect tickets grouped by tier for consolidated email
+    const ticketGroupsForEmail: { tierName: string; tickets: { id: string; qrCodeUrl: string }[] }[] = []
+
     for (const reservation of reservations) {
         const { ticketTier, effectiveRates, finalAddons } = reservation._calc
         const event = reservation.events
         let ticketsToProcess: Ticket[] = []
-        let ticketsCreated = false
+        let ticketsCreatedThisReservation = false
+
+        // Capture email target and customer name from first reservation
+        if (!targetEmail) {
+            targetEmail = reservation.profiles?.email || reservation.guest_email
+            customerName = reservation.profiles?.full_name || reservation.guest_name || 'Guest'
+            emailPrimaryEvent = event
+
+            // Resolve poster URL
+            let posterUrl = event?.poster_url
+            if (posterUrl && !posterUrl.startsWith('http')) {
+                const { data: { publicUrl } } = supabase.storage.from('posters').getPublicUrl(posterUrl)
+                posterUrl = publicUrl
+            }
+            primaryPosterUrl = posterUrl
+        }
 
         // Idempotency: Check Status
         if (reservation.status === 'confirmed') {
@@ -198,7 +244,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         // Create Tickets if none
         if (ticketsToProcess.length === 0) {
             const quantity = reservation.quantity || 1
-            ticketsCreated = true
+            ticketsCreatedThisReservation = true
+            anyTicketsCreated = true
 
             for (let i = 0; i < quantity; i++) {
                 const { data: ticket, error: tErr } = await supabase
@@ -258,36 +305,46 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
         allTickets.push(...ticketsToProcess)
 
-        // Email (Per Reservation)
-        if (ticketsToProcess.length > 0 && ticketsCreated) {
-            try {
-                const { sendTicketEmail } = await import('@/utils/email')
-                const targetEmail = reservation.profiles?.email || reservation.guest_email
+        // Collect tickets for this tier (for consolidated email)
+        if (ticketsToProcess.length > 0) {
+            ticketGroupsForEmail.push({
+                tierName: ticketTier?.name || 'Ticket',
+                tickets: ticketsToProcess.map((t) => ({
+                    id: t.id,
+                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`
+                }))
+            })
+        }
+    }
 
-                let posterUrl = event?.poster_url
-                if (posterUrl && !posterUrl.startsWith('http')) {
-                    const { data: { publicUrl } } = supabase.storage.from('posters').getPublicUrl(posterUrl)
-                    posterUrl = publicUrl
-                }
+    // 6. Send ONE Consolidated Email (After Loop)
+    if (anyTicketsCreated && targetEmail && emailPrimaryEvent) {
+        try {
+            const { sendTicketEmail } = await import('@/utils/email')
 
-                if (targetEmail) {
-                    await sendTicketEmail({
-                        to: targetEmail,
-                        eventName: event?.title,
-                        eventDate: new Date(event?.starts_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }),
-                        venueName: event?.venue_name,
-                        ticketType: ticketTier?.name,
-                        customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                        reservationId: reservation.id,
-                        posterUrl,
-                        tickets: ticketsToProcess.map((t) => ({
-                            id: t.id,
-                            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
-                            type: ticketTier?.name || 'Ticket'
-                        }))
-                    })
-                }
-            } catch (e) { console.error('Email error:', e) }
+            await sendTicketEmail({
+                to: targetEmail,
+                eventName: emailPrimaryEvent?.title,
+                eventDate: new Date(emailPrimaryEvent?.starts_at).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric'
+                }),
+                venueName: emailPrimaryEvent?.venue_name,
+                customerName,
+                posterUrl: primaryPosterUrl || undefined,
+                // Use ticketGroups for multi-tier orders, tickets for single-tier
+                ticketGroups: ticketGroupsForEmail.length > 1 ? ticketGroupsForEmail : undefined,
+                tickets: ticketGroupsForEmail.length === 1
+                    ? ticketGroupsForEmail[0].tickets.map(t => ({ ...t, type: ticketGroupsForEmail[0].tierName }))
+                    : undefined,
+                ticketType: ticketGroupsForEmail.length === 1 ? ticketGroupsForEmail[0].tierName : undefined,
+                reservationId: reservations[0]?.id
+            })
+        } catch (e) {
+            console.error('Consolidated Email error:', e)
         }
     }
 
