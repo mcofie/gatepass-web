@@ -27,6 +27,7 @@
     "dotenv": "^17.2.3",
     "framer-motion": "^12.23.26",
     "html2canvas": "^1.4.1",
+    "isomorphic-dompurify": "^2.35.0",
     "jspdf": "^3.0.4",
     "lucide-react": "^0.561.0",
     "next": "16.0.10",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

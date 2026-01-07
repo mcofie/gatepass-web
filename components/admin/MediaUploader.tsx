@@ -97,7 +97,7 @@ export function MediaUploader({
 
             // Upload Logic
             const timestamp = new Date().getTime()
-            const fileName = `${path}/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`
+            const fileName = `${path}/${timestamp}-${crypto.randomUUID()}.${fileExt}`
 
             const { data, error } = await supabase.storage
                 .from(bucket)

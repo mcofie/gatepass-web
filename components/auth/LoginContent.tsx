@@ -76,7 +76,7 @@ export function LoginContent() {
             if (error) throw error
 
             toast.success('Logged in successfully!')
-            toast.success('Logged in successfully!')
+
             // Hard reload to refresh session state and go to next path
             if (nextPath) {
                 window.location.href = nextPath

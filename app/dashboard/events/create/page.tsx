@@ -72,7 +72,7 @@ export default function CreateEventPage() {
             } else {
                 // Auto-create default organizer
                 const name = user.user_metadata?.full_name || 'My Organization'
-                const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(7)
+                const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + crypto.randomUUID().split('-')[0]
 
                 const { data: newOrg, error } = await supabase
                     .schema('gatepass')
@@ -594,7 +594,7 @@ export default function CreateEventPage() {
                                                 <div className="mt-1">
                                                     <MediaUploader
                                                         type="image"
-                                                        path={`${formData.organization_id}/lineup/${Math.random().toString(36).substring(7)}`}
+                                                        path={`${formData.organization_id}/lineup/${crypto.randomUUID()}`}
                                                         value={newLineupItem.image_url || ''}
                                                         onChange={url => setNewLineupItem(p => ({ ...p, image_url: url }))}
                                                         className="!h-32"

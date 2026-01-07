@@ -223,7 +223,7 @@ export const TicketEmail = ({
                                 {/* CTAs */}
                                 <Button
                                     href={`https://gatepass.so/my-tickets`}
-                                    className="bg-black text-white px-8 py-4 rounded-xl text-base font-bold no-underline block w-full text-center shadow-lg shadow-black/20 hover:bg-gray-900 transition-all"
+                                    className="bg-black text-white px-8 py-4 rounded-xl text-base font-bold no-underline block w-[200px] mx-auto text-center shadow-lg shadow-black/20 hover:bg-gray-900 transition-all"
                                 >
                                     {useGroupedView ? 'View All Tickets' : 'Access Ticket'}
                                 </Button>

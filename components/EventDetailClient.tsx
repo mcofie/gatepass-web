@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import Link from 'next/link'
 import Image from 'next/image'
 import Script from 'next/script'
@@ -764,7 +765,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                                     WebkitBoxOrient: 'vertical',
                                     overflow: 'hidden'
                                 } : {}}
-                                dangerouslySetInnerHTML={{ __html: event.description || '' }}
+                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(event.description || '') }}
                             />
 
                             {/* Lineup Toggle Button */}

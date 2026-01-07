@@ -4,11 +4,14 @@ import { createClient } from '@/utils/supabase/server'
 import { sendStaffAccessEmail } from '@/utils/email'
 import { revalidatePath } from 'next/cache'
 
+import { randomBytes } from 'crypto'
+
 function generateAccessCode(length = 5) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Removed easily confused chars like I, O, 0, 1
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    const bytes = randomBytes(length)
     let result = ''
     for (let i = 0; i < length; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length))
+        result += chars[bytes[i] % chars.length]
     }
     return result
 }
@@ -118,6 +121,32 @@ export async function fetchEventStaff(eventId: string) {
 
 export async function deleteEventStaff(staffId: string) {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Unauthorized' }
+
+    // 1. Get Event ID
+    const { data: staff } = await supabase
+        .schema('gatepass')
+        .from('event_staff')
+        .select('event_id')
+        .eq('id', staffId)
+        .single()
+
+    if (!staff) return { success: false, error: 'Staff member not found' }
+
+    // 2. Check Ownership
+    const { data: event } = await supabase
+        .schema('gatepass')
+        .from('events')
+        .select('organizer_id')
+        .eq('id', staff.event_id)
+        .single()
+
+    if (!event || event.organizer_id !== user.id) {
+        return { success: false, error: 'Unauthorized: You do not own this event' }
+    }
+
+    // 3. Delete
     const { error } = await supabase.schema('gatepass').from('event_staff').delete().eq('id', staffId)
     if (error) {
         return { success: false, error: error.message }

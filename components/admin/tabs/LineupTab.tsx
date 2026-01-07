@@ -102,7 +102,7 @@ export function LineupTab({ lineup, onChange, organizationId }: LineupTabProps) 
                             <div className="mt-1">
                                 <MediaUploader
                                     type="image"
-                                    path={`${organizationId}/lineup/${Math.random().toString(36).substring(7)}`}
+                                    path={`${organizationId}/lineup/${crypto.randomUUID()}`}
                                     value={newLineupItem.image_url || ''}
                                     onChange={url => setNewLineupItem(p => ({ ...p, image_url: url }))}
                                     className="!h-32"
