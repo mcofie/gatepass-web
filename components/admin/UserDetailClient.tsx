@@ -6,7 +6,7 @@ import { Profile, Organizer } from '@/types/gatepass'
 import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, Save, RefreshCw, Ticket } from 'lucide-react'
 import { format } from 'date-fns'
 import { updateOrganizerFee } from '@/app/actions/fees'
-import { suspendUser, unsuspendUser, deleteUser, toggleSuperAdmin } from '@/app/actions/admin'
+import { suspendUser, unsuspendUser, deleteUser, toggleSuperAdmin, deleteOrganization } from '@/app/actions/admin'
 import { resendTicketEmail } from '@/utils/actions/ticket'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -22,7 +22,9 @@ interface UserDetailProps {
 }
 
 function OrganizerCard({ organizer }: { organizer: Organizer }) {
+    const router = useRouter()
     const [feeSaving, setFeeSaving] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
     const [feeInput, setFeeInput] = useState<string>(organizer.platform_fee_percent ? (organizer.platform_fee_percent * 100).toString() : '')
 
     const handleSaveFee = async () => {
@@ -38,15 +40,41 @@ function OrganizerCard({ organizer }: { organizer: Organizer }) {
         }
     }
 
+    const handleDelete = async () => {
+        const confirm = window.confirm(`Are you sure you want to PERMANENTLY delete the organization "${organizer.name}"? This action cannot be undone.`)
+        if (!confirm) return
+
+        setIsDeleting(true)
+        try {
+            const res = await deleteOrganization(organizer.id)
+            if (res.error) throw new Error(res.error)
+            toast.success('Organization deleted')
+            router.refresh()
+        } catch (e: any) {
+            toast.error(e.message)
+            setIsDeleting(false)
+        }
+    }
+
     return (
         <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
                 <Building2 className="w-24 h-24 text-blue-500" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-blue-500" />
-                Organization
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-blue-500" />
+                    Organization
+                </h3>
+                <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors relative z-20"
+                    title="Delete Organization"
+                >
+                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </button>
+            </div>
 
             <div className="space-y-4 relative z-10">
                 <div>
