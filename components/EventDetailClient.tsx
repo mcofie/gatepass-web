@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
+import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl } from '@/utils/social'
 import { motion } from 'framer-motion'
 
 interface EventDetailClientProps {
@@ -818,18 +819,18 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                                     {/* Organizer Socials */}
                                     {event.organizers && (
                                         <div className="flex items-center gap-3">
-                                            {event.organizers.website && (
-                                                <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                            {formatWebsiteUrl(event.organizers.website) && (
+                                                <a href={formatWebsiteUrl(event.organizers.website)!} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                                                     <Globe className="w-3.5 h-3.5" />
                                                 </a>
                                             )}
-                                            {event.organizers.instagram && (
-                                                <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                            {formatInstagramUrl(event.organizers.instagram) && (
+                                                <a href={formatInstagramUrl(event.organizers.instagram)!} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
                                                 </a>
                                             )}
-                                            {event.organizers.twitter && (
-                                                <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                                            {formatTwitterUrl(event.organizers.twitter) && (
+                                                <a href={formatTwitterUrl(event.organizers.twitter)!} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                                                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
                                                 </a>
                                             )}

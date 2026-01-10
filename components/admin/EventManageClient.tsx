@@ -89,6 +89,10 @@ export function EventManageClient({
     const [feeSaving, setFeeSaving] = useState(false)
     const [feeInput, setFeeInput] = useState<string>(event.platform_fee_percent ? (event.platform_fee_percent * 100).toString() : '')
 
+    // Slug Validation State
+    const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+    const [originalSlug] = useState(initialEvent.slug) // Track original slug to skip validation if unchanged
+
     // Determine current effective source
     const feeSource = React.useMemo(() => {
         if (event.platform_fee_percent && event.platform_fee_percent > 0) return 'Event Specific'
@@ -113,6 +117,40 @@ export function EventManageClient({
         }
         fetchDeepData()
     }, [event.id])
+
+    // Debounced slug validation
+    useEffect(() => {
+        const checkSlug = async () => {
+            // Skip if slug is empty or unchanged from original
+            if (!event.slug || event.slug === originalSlug) {
+                setSlugStatus('idle')
+                return
+            }
+
+            setSlugStatus('checking')
+            try {
+                const { data, error } = await supabase
+                    .schema('gatepass')
+                    .from('events')
+                    .select('id')
+                    .eq('slug', event.slug)
+                    .neq('id', event.id) // Exclude current event
+                    .single()
+
+                if (data) {
+                    setSlugStatus('taken')
+                } else {
+                    setSlugStatus('available')
+                }
+            } catch (e) {
+                // If error is "row not found", then it's available
+                setSlugStatus('available')
+            }
+        }
+
+        const timeoutId = setTimeout(checkSlug, 500)
+        return () => clearTimeout(timeoutId)
+    }, [event.slug, event.id, originalSlug])
 
     // Callback to refresh addons
     const refreshAddons = async () => {
@@ -202,6 +240,11 @@ export function EventManageClient({
         if (e) e.preventDefault()
         setLoading(true)
         try {
+            // Validate slug availability
+            if (slugStatus === 'taken') {
+                throw new Error('This URL slug is already taken. Please choose a different one.')
+            }
+
             if (event.is_published && tiers.length === 0) {
                 throw new Error('You must create at least one ticket tier before publishing.')
             }
@@ -1068,13 +1111,36 @@ export function EventManageClient({
                                         <div>
                                             <div className="flex flex-col">
                                                 <span className="text-xs text-gray-400 mb-1">gatepass.com/events/</span>
-                                                <input
-                                                    disabled={isStaff}
-                                                    value={event.slug}
-                                                    onChange={e => setEvent({ ...event, slug: e.target.value })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
-                                                    placeholder="my-event"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        disabled={isStaff}
+                                                        value={event.slug}
+                                                        onChange={e => setEvent({ ...event, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                                                        className={`w-full bg-gray-50 dark:bg-white/5 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70 ${slugStatus === 'taken'
+                                                                ? 'border-red-300 dark:border-red-500 focus:ring-red-200 dark:focus:ring-red-500/20'
+                                                                : slugStatus === 'available'
+                                                                    ? 'border-green-300 dark:border-green-500 focus:ring-green-200 dark:focus:ring-green-500/20'
+                                                                    : 'border-gray-200 dark:border-white/10 focus:ring-black dark:focus:ring-white'
+                                                            }`}
+                                                        placeholder="my-event"
+                                                    />
+                                                    {slugStatus === 'checking' && (
+                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                                                        </div>
+                                                    )}
+                                                    {slugStatus === 'available' && (
+                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                            <Check className="w-4 h-4 text-green-500" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {slugStatus === 'taken' && (
+                                                    <p className="text-xs text-red-500 mt-1.5 font-medium">This URL slug is already taken.</p>
+                                                )}
+                                                {slugStatus === 'available' && event.slug !== originalSlug && (
+                                                    <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 font-medium">URL available!</p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

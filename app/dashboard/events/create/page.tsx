@@ -47,7 +47,7 @@ export default function CreateEventPage() {
         longitude: null as number | null,
         slug: '',
         fee_bearer: 'customer' as 'customer' | 'organizer',
-        platform_fee_percent: PLATFORM_FEE_PERCENT * 100,
+        platform_fee_percent: PLATFORM_FEE_PERCENT,
         organization_id: '',
         primary_color: '#000000',
         tiers: [] as Partial<TicketTier>[],

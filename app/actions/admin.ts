@@ -147,7 +147,13 @@ export async function deleteOrganization(organizationId: string) {
         .eq('organization_id', organizationId)
 
     // 4. Delete Organization
-    if (error) return { error: error.message }
+    const { error: orgError } = await supabase
+        .schema('gatepass')
+        .from('organizers')
+        .delete()
+        .eq('id', organizationId)
+
+    if (orgError) return { error: orgError.message }
     revalidatePath('/admin/users')
     return { success: true }
 }

@@ -67,6 +67,7 @@ export interface TicketTier {
     max_per_order?: number
     description?: string
     perks?: string[]
+    is_visible?: boolean
 }
 
 export interface Ticket {

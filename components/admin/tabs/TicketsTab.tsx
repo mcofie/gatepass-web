@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Ticket, Edit2, Check, Trash2, X } from 'lucide-react'
+import { Plus, Ticket, Edit2, Check, Trash2, X, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { TicketTier, Event } from '@/types/gatepass'
 import { createClient } from '@/utils/supabase/client'
@@ -103,6 +103,24 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                 }
             }
         })
+    }
+
+    const handleToggleVisibility = async (tierId: string, currentVisibility: boolean) => {
+        const newVisibility = !currentVisibility
+        const { data, error } = await supabase
+            .schema('gatepass')
+            .from('ticket_tiers')
+            .update({ is_visible: newVisibility })
+            .eq('id', tierId)
+            .select()
+            .single()
+
+        if (data) {
+            onTiersUpdate(tiers.map(t => t.id === tierId ? { ...t, is_visible: newVisibility } : t))
+            toast.success(newVisibility ? 'Ticket tier is now visible' : 'Ticket tier is now hidden')
+        } else {
+            toast.error(error?.message || 'Failed to update visibility')
+        }
     }
 
     return (
@@ -366,19 +384,33 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className="flex items-center gap-3 mb-1">
-                                                <h3 className="font-bold text-xl text-gray-900 dark:text-white">{tier.name}</h3>
+                                                <h3 className={`font-bold text-xl ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>{tier.name}</h3>
                                                 <span className="px-2.5 py-0.5 bg-gray-100 dark:bg-white/10 rounded-full text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                                                     {tier.quantity_sold} / {tier.total_quantity} Sold
                                                 </span>
+                                                {tier.is_visible === false && (
+                                                    <span className="px-2.5 py-0.5 bg-red-50 dark:bg-red-500/10 rounded-full text-xs font-bold text-red-500 uppercase tracking-wide flex items-center gap-1">
+                                                        <EyeOff className="w-3 h-3" /> Hidden
+                                                    </span>
+                                                )}
                                             </div>
-                                            <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">{tier.description}</p>
+                                            <p className={`text-sm max-w-md ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{tier.description}</p>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                            <div className={`text-2xl font-bold mb-2 ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                                                 {formatCurrency(tier.price, event.currency)}
                                             </div>
                                             {!isStaff && (
                                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => handleToggleVisibility(tier.id, tier.is_visible !== false)}
+                                                        className={`p-2 rounded-lg transition-colors ${tier.is_visible === false
+                                                            ? 'hover:bg-green-50 dark:hover:bg-green-500/10 text-gray-400 hover:text-green-500'
+                                                            : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-600'}`}
+                                                        title={tier.is_visible === false ? 'Show on event page' : 'Hide from event page'}
+                                                    >
+                                                        {tier.is_visible === false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             setEditingTierId(tier.id)
