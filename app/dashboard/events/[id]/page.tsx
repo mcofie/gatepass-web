@@ -15,7 +15,7 @@ export default async function ManageEventPage({ params }: PageProps) {
     const { data: event } = await supabase.schema('gatepass').from('events').select('*').eq('id', id).single()
 
     // Fetch Tiers
-    const { data: tiers } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', id).order('price')
+    const { data: tiers } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', id).order('sort_order', { ascending: true })
 
     // Calculate Total Realized Revenue (Server Side) with Strict Net Logic
     const { data: transactions } = await supabase

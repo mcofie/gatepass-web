@@ -1,5 +1,8 @@
 import React, { useState } from 'react'
-import { Plus, Ticket, Edit2, Check, Trash2, X, Eye, EyeOff } from 'lucide-react'
+import { Plus, Ticket, X } from 'lucide-react'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { TicketTierCard } from './TicketTierCard'
 import { toast } from 'sonner'
 import { TicketTier, Event } from '@/types/gatepass'
 import { createClient } from '@/utils/supabase/client'
@@ -21,17 +24,22 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
         name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: []
     })
 
-    const [editForm, setEditForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[] }>({
-        name: '', price: 0, total_quantity: 0, max_per_order: 0, description: '', perks: []
-    })
+
 
     const [newPerk, setNewPerk] = useState('')
-    const [editPerk, setEditPerk] = useState('')
+
+    // DnD Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    )
 
     const supabase = createClient()
 
     const fetchTiers = async () => {
-        const { data } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', event.id).order('price')
+        const { data } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', event.id).order('sort_order', { ascending: true })
         if (data) onTiersUpdate(data as TicketTier[])
     }
 
@@ -65,11 +73,11 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
         }
     }
 
-    const handleUpdateTier = async (tierId: string) => {
+    const handleUpdateTier = async (tierId: string, updatedData: any) => {
         const { data, error } = await supabase
             .schema('gatepass')
             .from('ticket_tiers')
-            .update(editForm)
+            .update(updatedData)
             .eq('id', tierId)
             .select()
             .single()
@@ -80,6 +88,24 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
             toast.success('Ticket updated')
         } else {
             toast.error(error?.message)
+        }
+    }
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event
+
+        if (active.id !== over?.id) {
+            const oldIndex = tiers.findIndex((t) => t.id === active.id)
+            const newIndex = tiers.findIndex((t) => t.id === over?.id)
+
+            const newTiers = arrayMove(tiers, oldIndex, newIndex)
+            onTiersUpdate(newTiers) // Optimistic update
+
+            // Persist order
+            const updates = newTiers.map((tier, index) =>
+                supabase.schema('gatepass').from('ticket_tiers').update({ sort_order: index }).eq('id', tier.id)
+            )
+            await Promise.all(updates)
         }
     }
 
@@ -271,183 +297,32 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                             </p>
                         </div>
                     ) : (
-                        tiers.map((tier) => (
-                            <div key={tier.id} className="group bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl p-6 hover:shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-all duration-300">
-                                {editingTierId === tier.id ? (
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Name</label>
-                                                <input
-                                                    value={editForm.name}
-                                                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
-                                                    placeholder="Ticket Name"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Price</label>
-                                                <input
-                                                    type="number"
-                                                    value={editForm.price}
-                                                    onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Total Qty</label>
-                                                <input
-                                                    type="number"
-                                                    value={editForm.total_quantity}
-                                                    onChange={e => setEditForm({ ...editForm, total_quantity: parseInt(e.target.value) })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
-                                                    placeholder="100"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Max / Order</label>
-                                                <input
-                                                    type="number"
-                                                    value={editForm.max_per_order}
-                                                    onChange={e => setEditForm({ ...editForm, max_per_order: parseInt(e.target.value) })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
-                                                    placeholder="10"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Perks</label>
-                                            <div className="space-y-2 mb-2">
-                                                {editForm.perks?.map((perk, i) => (
-                                                    <div key={i} className="flex items-center justify-between bg-gray-50 dark:bg-white/5 p-2 rounded-lg text-sm font-bold dark:text-gray-300">
-                                                        <span>{perk}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setEditForm({ ...editForm, perks: editForm.perks.filter((_, idx) => idx !== i) })}
-                                                            className="text-gray-400 hover:text-red-500"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    value={editPerk}
-                                                    onChange={e => setEditPerk(e.target.value)}
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter') {
-                                                            e.preventDefault()
-                                                            if (editPerk.trim()) {
-                                                                setEditForm({ ...editForm, perks: [...(editForm.perks || []), editPerk.trim()] })
-                                                                setEditPerk('')
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
-                                                    placeholder="Add a perk..."
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (editPerk.trim()) {
-                                                            setEditForm({ ...editForm, perks: [...(editForm.perks || []), editPerk.trim()] })
-                                                            setEditPerk('')
-                                                        }
-                                                    }}
-                                                    className="bg-black dark:bg-white text-white dark:text-black p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
-                                                >
-                                                    <Plus className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Description</label>
-                                            <textarea
-                                                value={editForm.description}
-                                                onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-medium text-sm text-gray-900 dark:text-white min-h-[80px] resize-none"
-                                                placeholder="Ticket description..."
-                                            />
-                                        </div>
-                                        <div className="flex justify-end gap-2">
-                                            <button onClick={() => setEditingTierId(null)} className="px-4 py-2 text-sm text-gray-500 font-bold">Cancel</button>
-                                            <button onClick={() => handleUpdateTier(tier.id)} className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg text-sm font-bold flex items-center gap-2">
-                                                <Check className="w-4 h-4" /> Save
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <h3 className={`font-bold text-xl ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>{tier.name}</h3>
-                                                <span className="px-2.5 py-0.5 bg-gray-100 dark:bg-white/10 rounded-full text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                    {tier.quantity_sold} / {tier.total_quantity} Sold
-                                                </span>
-                                                {tier.is_visible === false && (
-                                                    <span className="px-2.5 py-0.5 bg-red-50 dark:bg-red-500/10 rounded-full text-xs font-bold text-red-500 uppercase tracking-wide flex items-center gap-1">
-                                                        <EyeOff className="w-3 h-3" /> Hidden
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className={`text-sm max-w-md ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{tier.description}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className={`text-2xl font-bold mb-2 ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
-                                                {formatCurrency(tier.price, event.currency)}
-                                            </div>
-                                            {!isStaff && (
-                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => handleToggleVisibility(tier.id, tier.is_visible !== false)}
-                                                        className={`p-2 rounded-lg transition-colors ${tier.is_visible === false
-                                                            ? 'hover:bg-green-50 dark:hover:bg-green-500/10 text-gray-400 hover:text-green-500'
-                                                            : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-600'}`}
-                                                        title={tier.is_visible === false ? 'Show on event page' : 'Hide from event page'}
-                                                    >
-                                                        {tier.is_visible === false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingTierId(tier.id)
-                                                            setEditForm({
-                                                                name: tier.name,
-                                                                price: tier.price,
-                                                                total_quantity: tier.total_quantity,
-                                                                max_per_order: tier.max_per_order || 10,
-                                                                description: tier.description || '',
-                                                                perks: tier.perks || []
-                                                            })
-                                                        }}
-                                                        className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteTier(tier.id)}
-                                                        className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Progress Bar */}
-                                <div className="mt-6 h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-black dark:bg-white rounded-full transition-all duration-500 ease-out"
-                                        style={{ width: `${(tier.quantity_sold / tier.total_quantity) * 100}%` }}
+                        <DndContext
+                            id="ticket-tiers-dnd"
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <SortableContext
+                                items={tiers.map(t => t.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {tiers.map((tier) => (
+                                    <TicketTierCard
+                                        key={tier.id}
+                                        tier={tier}
+                                        event={event}
+                                        isStaff={isStaff}
+                                        onUpdate={handleUpdateTier}
+                                        onDelete={handleDeleteTier}
+                                        onToggleVisibility={handleToggleVisibility}
+                                        isEditing={editingTierId === tier.id}
+                                        onEditStart={() => setEditingTierId(tier.id)}
+                                        onEditCancel={() => setEditingTierId(null)}
                                     />
-                                </div>
-                            </div>
-                        ))
+                                ))}
+                            </SortableContext>
+                        </DndContext>
                     )}
                 </div>
             </div>

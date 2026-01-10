@@ -1,23 +1,28 @@
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Search, Download, ScanLine } from 'lucide-react'
+import { Search, Download, ScanLine, QrCode, Upload } from 'lucide-react'
 import { generateCSV, downloadCSV } from '@/utils/analytics'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { Event } from '@/types/gatepass'
+import { Event, TicketTier } from '@/types/gatepass'
+import { QRCodeModal } from '@/components/admin/QRCodeModal'
+import { GuestImportModal } from '@/components/admin/GuestImportModal'
 
 interface AttendeesTabProps {
     event: Event
+    tiers?: TicketTier[]
     isStaff?: boolean
 }
 
-export function AttendeesTab({ event, isStaff = false }: AttendeesTabProps) {
+export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTabProps) {
     const [tickets, setTickets] = useState<any[]>([])
     const [loadingTickets, setLoadingTickets] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [isCheckInMode, setIsCheckInMode] = useState(false)
     const [ticketPage, setTicketPage] = useState(0)
     const [ticketCount, setTicketCount] = useState(0)
+    const [selectedTicketForQR, setSelectedTicketForQR] = useState<any>(null)
+    const [showImportModal, setShowImportModal] = useState(false)
     const TICKETS_PER_PAGE = 20
 
     const supabase = createClient()
@@ -86,16 +91,25 @@ export function AttendeesTab({ event, isStaff = false }: AttendeesTabProps) {
                         />
                     </div>
                     {!isStaff && (
-                        <button
-                            onClick={() => {
-                                const csv = generateCSV(tickets)
-                                downloadCSV(csv, `${event.slug}-guests.csv`)
-                            }}
-                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
-                        >
-                            <Download className="w-4 h-4" />
-                            Export
-                        </button>
+                        <>
+                            <button
+                                onClick={() => {
+                                    const csv = generateCSV(tickets)
+                                    downloadCSV(csv, `${event.slug}-guests.csv`)
+                                }}
+                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export
+                            </button>
+                            <button
+                                onClick={() => setShowImportModal(true)}
+                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
+                            >
+                                <Upload className="w-4 h-4" />
+                                Import CSV
+                            </button>
+                        </>
                     )}
                     <button
                         onClick={() => setIsCheckInMode(!isCheckInMode)}
@@ -177,17 +191,26 @@ export function AttendeesTab({ event, isStaff = false }: AttendeesTabProps) {
                                         </span>
                                     </td>
                                     <td className="px-8 py-5 text-right">
-                                        {ticket.status === 'valid' && (
+                                        <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => updateTicketStatus(ticket.id, 'checked_in')}
-                                                className={clsx("font-bold bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
-                                                    'px-6 py-3 text-sm w-full': isCheckInMode,
-                                                    'px-4 py-2 text-xs': !isCheckInMode
-                                                })}
+                                                onClick={() => setSelectedTicketForQR(ticket)}
+                                                className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                                                title="View QR Code"
                                             >
-                                                Check In
+                                                <QrCode className="w-4 h-4" />
                                             </button>
-                                        )}
+                                            {ticket.status === 'valid' && (
+                                                <button
+                                                    onClick={() => updateTicketStatus(ticket.id, 'checked_in')}
+                                                    className={clsx("font-bold bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
+                                                        'px-6 py-3 text-sm': isCheckInMode,
+                                                        'px-4 py-2 text-xs': !isCheckInMode
+                                                    })}
+                                                >
+                                                    Check In
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -228,6 +251,25 @@ export function AttendeesTab({ event, isStaff = false }: AttendeesTabProps) {
                     </div>
                 </div>
             )}
+
+            {/* QR Code Modal */}
+            <QRCodeModal
+                isOpen={!!selectedTicketForQR}
+                onClose={() => setSelectedTicketForQR(null)}
+                ticketId={selectedTicketForQR?.id || ''}
+                guestName={selectedTicketForQR?.profiles?.full_name || selectedTicketForQR?.reservations?.guest_name || 'Guest'}
+                ticketType={selectedTicketForQR?.ticket_tiers?.name || 'Ticket'}
+                eventSlug={event.slug || ''}
+            />
+
+            {/* Guest Import Modal */}
+            <GuestImportModal
+                isOpen={showImportModal}
+                onClose={() => setShowImportModal(false)}
+                eventId={event.id}
+                tiers={tiers}
+                onImportComplete={() => fetchTickets(0)}
+            />
         </div>
     )
 }

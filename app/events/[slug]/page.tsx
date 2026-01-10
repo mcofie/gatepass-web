@@ -156,7 +156,7 @@ export default async function EventPage({ params }: PageProps) {
         .select('*')
         .eq('event_id', event.id)
         .neq('is_visible', false)
-        .order('price', { ascending: true })
+        .order('sort_order', { ascending: true })
 
     // Fetch Addons
     const { data: addons } = await supabase

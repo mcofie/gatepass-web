@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2 } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2, CopyPlus } from 'lucide-react'
 import { Event, TicketTier, Discount, EventStaff } from '@/types/gatepass'
 import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
 import clsx from 'clsx'
@@ -16,6 +16,7 @@ import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV 
 import { logActivity } from '@/app/actions/logger'
 import { updateEventFee, updateEventFeeBearer } from '@/app/actions/fees'
 import { requestPayout } from '@/app/actions/payouts'
+import { duplicateEvent } from '@/app/actions/events'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
@@ -85,6 +86,7 @@ export function EventManageClient({
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isDuplicating, setIsDuplicating] = useState(false)
 
     const [feeSaving, setFeeSaving] = useState(false)
     const [feeInput, setFeeInput] = useState<string>(event.platform_fee_percent ? (event.platform_fee_percent * 100).toString() : '')
@@ -270,7 +272,8 @@ export function EventManageClient({
                 fee_bearer: event.fee_bearer,
                 platform_fee_percent: event.platform_fee_percent,
                 primary_color: event.primary_color,
-                lineup: event.lineup
+                lineup: event.lineup,
+                publish_at: event.publish_at || null
             }).eq('id', event.id)
 
             if (error) throw error
@@ -620,6 +623,31 @@ export function EventManageClient({
                                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live Page
                             </button>
                         </Link>
+                        {!isStaff && (
+                            <button
+                                onClick={async () => {
+                                    setIsDuplicating(true)
+                                    try {
+                                        const result = await duplicateEvent(event.id)
+                                        if (result.error) {
+                                            toast.error(result.error)
+                                        } else {
+                                            toast.success('Event duplicated! Redirecting...')
+                                            router.push(`/dashboard/events/${result.eventId}`)
+                                        }
+                                    } catch (e: any) {
+                                        toast.error('Failed to duplicate: ' + e.message)
+                                    } finally {
+                                        setIsDuplicating(false)
+                                    }
+                                }}
+                                disabled={isDuplicating}
+                                className="h-10 px-5 rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 font-semibold text-sm hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-white/10 dark:text-white transition-all flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CopyPlus className="w-4 h-4" />}
+                                {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+                            </button>
+                        )}
                         <button
                             onClick={() => updateEvent()}
                             disabled={loading}
@@ -1117,10 +1145,10 @@ export function EventManageClient({
                                                         value={event.slug}
                                                         onChange={e => setEvent({ ...event, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
                                                         className={`w-full bg-gray-50 dark:bg-white/5 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70 ${slugStatus === 'taken'
-                                                                ? 'border-red-300 dark:border-red-500 focus:ring-red-200 dark:focus:ring-red-500/20'
-                                                                : slugStatus === 'available'
-                                                                    ? 'border-green-300 dark:border-green-500 focus:ring-green-200 dark:focus:ring-green-500/20'
-                                                                    : 'border-gray-200 dark:border-white/10 focus:ring-black dark:focus:ring-white'
+                                                            ? 'border-red-300 dark:border-red-500 focus:ring-red-200 dark:focus:ring-red-500/20'
+                                                            : slugStatus === 'available'
+                                                                ? 'border-green-300 dark:border-green-500 focus:ring-green-200 dark:focus:ring-green-500/20'
+                                                                : 'border-gray-200 dark:border-white/10 focus:ring-black dark:focus:ring-white'
                                                             }`}
                                                         placeholder="my-event"
                                                     />
@@ -1389,7 +1417,7 @@ export function EventManageClient({
                                                         toast.error('You must create at least one ticket tier before publishing.')
                                                         return
                                                     }
-                                                    setEvent({ ...event, is_published: e.target.checked })
+                                                    setEvent({ ...event, is_published: e.target.checked, publish_at: undefined })
                                                 }}
                                                 className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
                                                 style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
@@ -1397,8 +1425,46 @@ export function EventManageClient({
                                             <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-green-500' : 'bg-gray-600'}`}></label>
                                         </div>
                                     </div>
+
+                                    {/* Scheduled Publishing */}
+                                    {!event.is_published && (
+                                        <div className="mt-4 pt-4 border-t border-white/10">
+                                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                Schedule Publish
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={event.publish_at ? new Date(event.publish_at).toISOString().slice(0, 16) : ''}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    if (value) {
+                                                        setEvent({ ...event, publish_at: new Date(value).toISOString() })
+                                                    } else {
+                                                        setEvent({ ...event, publish_at: undefined })
+                                                    }
+                                                }}
+                                                min={new Date().toISOString().slice(0, 16)}
+                                                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-white focus:border-transparent outline-none"
+                                            />
+                                            {event.publish_at && (
+                                                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                                    Scheduled for {new Date(event.publish_at).toLocaleString()}
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                Leave empty to publish manually
+                                            </p>
+                                        </div>
+                                    )}
+
                                     <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-                                        When published, your event will be visible to the public and tickets will be available for purchase.
+                                        {event.is_published
+                                            ? 'Your event is live and visible to the public.'
+                                            : event.publish_at
+                                                ? 'Your event will be automatically published at the scheduled time.'
+                                                : 'When published, your event will be visible to the public and tickets will be available for purchase.'
+                                        }
                                     </p>
                                 </div>
 

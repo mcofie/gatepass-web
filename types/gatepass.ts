@@ -28,6 +28,7 @@ export interface Event {
     primary_color?: string
     logo_url?: string
     lineup?: LineupItem[]
+    publish_at?: string
 }
 
 export interface Organizer {
@@ -68,6 +69,7 @@ export interface TicketTier {
     description?: string
     perks?: string[]
     is_visible?: boolean
+    sort_order?: number
 }
 
 export interface Ticket {
