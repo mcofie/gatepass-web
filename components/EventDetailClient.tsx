@@ -898,7 +898,16 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                                     return `${dateString} • ${startTime} - ${endTime}`
                                 } else {
                                     const endDateString = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                    return `${dateString}, ${startTime} - ${endDateString}, ${endTime}`
+
+                                    // Calculate number of days
+                                    const s = new Date(startDate)
+                                    s.setHours(0, 0, 0, 0)
+                                    const e = new Date(endDate)
+                                    e.setHours(0, 0, 0, 0)
+                                    const diffTime = Math.abs(e.getTime() - s.getTime())
+                                    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+
+                                    return `${dateString}, ${startTime} - ${endDateString}, ${endTime} (${days} Days)`
                                 }
                             }
 
