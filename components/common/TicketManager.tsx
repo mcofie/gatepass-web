@@ -1,7 +1,7 @@
 'use client'
 
-import React from 'react'
-import { Plus, Trash2, Tag } from 'lucide-react'
+import React, { useState } from 'react'
+import { Plus, Trash2, Tag, X } from 'lucide-react'
 import { TicketTier } from '@/types/gatepass'
 
 interface TicketManagerProps {
@@ -34,6 +34,43 @@ export function TicketManager({ tiers, onChange, currency = 'GHS' }: TicketManag
         const newTiers = [...tiers]
         newTiers[index] = { ...newTiers[index], [field]: value }
         onChange(newTiers)
+    }
+
+    // Helper component for adding perks
+    const PerkInput = ({ onAdd }: { onAdd: (perk: string) => void }) => {
+        const [value, setValue] = useState('')
+
+        const handleAdd = () => {
+            if (value.trim()) {
+                onAdd(value.trim())
+                setValue('')
+            }
+        }
+
+        return (
+            <div className="flex gap-2">
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAdd()
+                        }
+                    }}
+                    placeholder="Add a perk..."
+                    className="flex-1 px-3 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none font-medium text-sm transition-all text-gray-900 dark:text-white dark:placeholder-gray-600"
+                />
+                <button
+                    type="button"
+                    onClick={handleAdd}
+                    className="bg-black dark:bg-white text-white dark:text-black p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+                >
+                    <Plus className="w-5 h-5" />
+                </button>
+            </div>
+        )
     }
 
     return (
@@ -93,13 +130,32 @@ export function TicketManager({ tiers, onChange, currency = 'GHS' }: TicketManag
                             />
                         </div>
                         <div className="col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Perks (Comma separated)</label>
-                            <input
-                                type="text"
-                                value={tier.perks?.join(', ') || ''}
-                                onChange={(e) => updateTier(index, 'perks', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                                placeholder="e.g. Free Drink, VIP Entry, Exclusive Badge"
-                                className="w-full px-3 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none font-medium text-sm transition-all text-gray-900 dark:text-white dark:placeholder-gray-600"
+                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Perks</label>
+                            {/* Display existing perks */}
+                            <div className="space-y-2 mb-2">
+                                {(tier.perks || []).map((perk, perkIndex) => (
+                                    <div key={perkIndex} className="flex items-center justify-between bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 p-2 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-300">
+                                        <span>{perk}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newPerks = [...(tier.perks || [])]
+                                                newPerks.splice(perkIndex, 1)
+                                                updateTier(index, 'perks', newPerks)
+                                            }}
+                                            className="text-gray-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Add new perk input */}
+                            <PerkInput
+                                onAdd={(perk) => {
+                                    const newPerks = [...(tier.perks || []), perk]
+                                    updateTier(index, 'perks', newPerks)
+                                }}
                             />
                         </div>
                     </div>
