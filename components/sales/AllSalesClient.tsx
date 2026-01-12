@@ -209,7 +209,11 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                     let usedPlatformRate = sale.applied_fee_rate ?? 0.04
                                     if (usedPlatformRate === 0) usedPlatformRate = 0.04
 
-                                    const processorRate = sale.applied_processor_rate ?? 0.0198
+                                    // Normalize old 2% rate to current 1.95%
+                                    const storedProcessorRate = sale.applied_processor_rate
+                                    const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                                        ? 0.0195
+                                        : storedProcessorRate
 
                                     const calcPlatformFee = ticketRevenueNet * usedPlatformRate
                                     const calcProcessorFee = sale.amount * processorRate

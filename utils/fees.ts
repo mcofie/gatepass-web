@@ -1,5 +1,5 @@
 export const PLATFORM_FEE_PERCENT = 0.04
-export const PROCESSOR_FEE_PERCENT = 0.0198
+export const PROCESSOR_FEE_PERCENT = 0.0195
 
 /**
  * Resolves the effective fee rates for a specific event, prioritizing event-specific overrides

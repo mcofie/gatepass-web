@@ -72,7 +72,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
         // Rates
         const platformRate = tx.applied_fee_rate ?? 0.04
-        const processorRate = tx.applied_processor_rate ?? 0.0198
+        // Normalize old 2% rate to current 1.95%
+        const storedProcessorRate = tx.applied_processor_rate
+        const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+            ? 0.0195
+            : storedProcessorRate
 
         // Fees
         const calcPlatformFee = ticketRevenue * platformRate

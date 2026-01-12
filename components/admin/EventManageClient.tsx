@@ -501,7 +501,11 @@ export function EventManageClient({
 
                 // Note: tx.applied_fee_rate should be used if available to respect historical rates
                 const appliedPlatformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
-                const appliedProcessorRate = tx.applied_processor_rate ?? effectiveRates.processorFeePercent
+                // Normalize old 2% rate to current 1.95%
+                const storedProcessorRate = tx.applied_processor_rate
+                const appliedProcessorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                    ? effectiveRates.processorFeePercent
+                    : storedProcessorRate
 
                 // Expected Fees = Ticket Revenue * PlatformRate + Total * ProcessorRate
 
@@ -846,7 +850,11 @@ export function EventManageClient({
                                             // Confirmed Logic: Payout = Amount - Fees
 
                                             const appliedPlatformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
-                                            const appliedProcessorRate = tx.applied_processor_rate ?? effectiveRates.processorFeePercent
+                                            // Normalize old 2% rate to current 1.95%
+                                            const storedProcessorRate2 = tx.applied_processor_rate
+                                            const appliedProcessorRate = (storedProcessorRate2 === 0.02 || !storedProcessorRate2)
+                                                ? effectiveRates.processorFeePercent
+                                                : storedProcessorRate2
 
                                             let usedPlatformRate = appliedPlatformRate
                                             // Fix Across: If stored rate is 0, use effective rate. 

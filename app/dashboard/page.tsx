@@ -262,9 +262,13 @@ export default async function DashboardPage() {
             // But we have query!inner, so it should exist.
 
             // Get Rates
-            // Use stored rates on transaction if available, otherwise fallback to defaults (4% / 1.98%)
+            // Use stored rates on transaction if available, otherwise fallback to defaults (4% / 1.95%)
             const platformRate = tx.applied_fee_rate ?? 0.04
-            const processorRate = tx.applied_processor_rate ?? 0.0198
+            // Normalize old 2% rate to current 1.95%
+            const storedProcessorRate = tx.applied_processor_rate
+            const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                ? 0.0195
+                : storedProcessorRate
 
             // Recalculate Fees based on correct basis
             // Platform Fee is on Ticket Revenue
@@ -352,7 +356,11 @@ export default async function DashboardPage() {
                                         }
 
                                         const platformRate = sale.applied_fee_rate ?? 0.04
-                                        const processorRate = sale.applied_processor_rate ?? 0.0198
+                                        // Normalize old 2% rate to current 1.95%
+                                        const storedProcessorRate2 = sale.applied_processor_rate
+                                        const processorRate = (storedProcessorRate2 === 0.02 || !storedProcessorRate2)
+                                            ? 0.0195
+                                            : storedProcessorRate2
 
                                         const calcPlatformFee = ticketRevenue * platformRate
                                         const calcProcessorFee = sale.amount * processorRate

@@ -126,9 +126,15 @@ export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: R
 
     // Fees Strategy: Re-derive based on standard rates if raw fields missing, 
     // BUT rely on total amount paid (truth).
+    // Normalize old 2% rate to current 1.95% for consistent display
+    const storedProcessorRate = transaction?.applied_processor_rate
+    const normalizedProcessorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+        ? 0.0195
+        : storedProcessorRate
+
     const effectiveRates = {
         platformFeePercent: transaction?.applied_fee_rate ?? 0.04,
-        processorFeePercent: transaction?.applied_processor_rate ?? 0.0198
+        processorFeePercent: normalizedProcessorRate
     }
 
     const ticketRevenueNetBase = Math.max(0, ticketRevenueRaw - discountAmount)

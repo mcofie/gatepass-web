@@ -163,7 +163,11 @@ export default async function AdminEventsPage() {
 
                 // Recalc fees based on stored rates or defaults
                 const platformRate = tx.applied_fee_rate ?? 0.04
-                const processorRate = tx.applied_processor_rate ?? 0.0198
+                // Normalize old 2% rate to current 1.95%
+                const storedProcessorRate = tx.applied_processor_rate
+                const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                    ? 0.0195
+                    : storedProcessorRate
 
                 // We need 'ticketRevenue' base for Platform Fee (Net of discount)
                 // Since we don't have exact breakdown of multi-res here without querying all,

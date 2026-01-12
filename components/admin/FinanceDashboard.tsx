@@ -133,7 +133,11 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
 
                 // Recalculate Fees Strictly
                 const platformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
-                const processorRate = tx.applied_processor_rate ?? effectiveRates.processorFeePercent
+                // Normalize old 2% rate to current 1.95% for consistent display
+                const storedProcessorRate = tx.applied_processor_rate
+                const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                    ? effectiveRates.processorFeePercent
+                    : storedProcessorRate
 
                 const calcPlatformFee = ticketRevenue * platformRate
                 const calcProcessorFee = tx.amount * processorRate
