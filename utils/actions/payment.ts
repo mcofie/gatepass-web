@@ -289,6 +289,15 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     }
                 }
             }
+
+            // Increment Discount Usage
+            if (reservation.discount_id) {
+                try {
+                    await supabase.rpc('increment_discount_usage', { p_discount_id: reservation.discount_id })
+                } catch (discErr) {
+                    console.error('Failed to increment discount usage:', discErr)
+                }
+            }
             // Notify Admin
             try {
                 const { notifyAdminOfSale } = await import('@/utils/notifications')
@@ -300,6 +309,25 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     quantity: quantity,
                     ticketType: ticketTier?.name || 'Ticket'
                 })
+            } catch (ignore) { }
+
+            // Notify Organizer (if they have notifications enabled)
+            try {
+                const organizer = event?.organizers
+                if (organizer?.notify_on_sale && organizer?.notification_email) {
+                    const { notifyOrganizerOfSale } = await import('@/utils/notifications')
+                    await notifyOrganizerOfSale({
+                        organizerEmail: organizer.notification_email,
+                        organizerName: organizer.name || 'Organizer',
+                        eventName: event?.title,
+                        customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
+                        amount: (ticketTier.price * quantity),
+                        currency: tx.currency || 'GHS',
+                        quantity: quantity,
+                        ticketType: ticketTier?.name || 'Ticket',
+                        eventUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://gatepass.so'}/dashboard/events/${event.id}`
+                    })
+                }
             } catch (ignore) { }
         }
 

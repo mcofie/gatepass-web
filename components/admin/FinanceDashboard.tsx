@@ -4,9 +4,10 @@ import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates, PLATFORM_FEE_PERCENT } from '@/utils/fees'
-import { Calendar, DollarSign, TrendingUp, Filter, Download } from 'lucide-react'
+import { Calendar, DollarSign, TrendingUp, Filter, Download, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { exportToCSV } from '@/utils/export'
+import { TransactionDetailModal } from '@/components/admin/TransactionDetailModal'
 
 
 interface FinancialStats {
@@ -29,6 +30,9 @@ type FlattenedTransaction = {
     processor_fee: number
     platform_rate: number
     processor_rate: number
+    discount_code?: string
+    discount_amount: number
+    has_addons: boolean
 }
 
 interface FinanceDashboardProps {
@@ -41,6 +45,8 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
     const [transactions, setTransactions] = useState<FlattenedTransaction[]>([])
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState<'all' | '30days' | '7days'>('all')
+    const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
+    const [loadingDetail, setLoadingDetail] = useState(false)
 
     useEffect(() => {
         fetchTransactions()
@@ -78,7 +84,7 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                         ),
                         quantity,
                         ticket_tiers (price),
-                        discounts (type, value),
+                        discounts (type, value, code),
                         addons
                     )
                 `)
@@ -136,6 +142,9 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                 const totalFees = calcPlatformFee + calcProcessorFee
                 const netPayout = tx.amount - totalFees
 
+                // Calculate addon presence
+                const hasAddons = tx.reservations?.addons && Object.keys(tx.reservations.addons).length > 0
+
                 return {
                     id: tx.id,
                     amount: tx.amount,
@@ -145,10 +154,13 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                     event_title: tx.reservations?.events?.title || 'Unknown Event',
                     guest_name: tx.reservations?.guest_name || 'Guest',
                     organizer_payout: netPayout,
-                    platform_fee: calcPlatformFee, // Use calculated for stats
-                    processor_fee: calcProcessorFee, // Use calculated for stats
+                    platform_fee: calcPlatformFee,
+                    processor_fee: calcProcessorFee,
                     platform_rate: platformRate,
-                    processor_rate: processorRate
+                    processor_rate: processorRate,
+                    discount_code: discountObj?.code,
+                    discount_amount: discountAmount,
+                    has_addons: hasAddons
                 }
             })
 
@@ -207,6 +219,35 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
             Payout: tx.organizer_payout
         }))
         exportToCSV(data, 'global_transactions')
+    }
+
+    const fetchTransactionDetail = async (txId: string) => {
+        setLoadingDetail(true)
+        try {
+            const { data, error } = await supabase
+                .schema('gatepass')
+                .from('transactions')
+                .select(`
+                    *,
+                    reservations (
+                        *,
+                        ticket_tiers (*),
+                        events (*),
+                        profiles (full_name, email),
+                        discounts (type, value, code)
+                    )
+                `)
+                .eq('id', txId)
+                .single()
+
+            if (error) throw error
+            setSelectedTransaction(data)
+        } catch (e) {
+            console.error('Failed to fetch transaction detail:', e)
+            toast.error('Failed to load transaction details')
+        } finally {
+            setLoadingDetail(false)
+        }
     }
 
     return (
@@ -305,17 +346,36 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Plat. Fee</th>
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Proc. Fee</th>
                                 <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-right">Payout</th>
+                                <th className="px-6 py-3 uppercase tracking-wider text-[10px] font-bold text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-white/10">
                             {transactions.map((tx) => (
-                                <tr key={tx.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                <tr
+                                    key={tx.id}
+                                    onClick={() => fetchTransactionDetail(tx.id)}
+                                    className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                >
                                     <td className="px-6 py-4 font-mono text-[10px] text-gray-400">
                                         #{tx.id.split('-')[0]}
                                     </td>
                                     <td className="px-6 py-4">
                                         <p className="font-bold text-gray-900 dark:text-white line-clamp-1">{tx.event_title}</p>
                                         <p className="text-[11px] text-gray-500">{tx.guest_name}</p>
+                                        {(tx.discount_code || tx.has_addons) && (
+                                            <div className="flex items-center gap-1.5 mt-1.5">
+                                                {tx.discount_code && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
+                                                        🏷️ {tx.discount_code}
+                                                    </span>
+                                                )}
+                                                {tx.has_addons && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400">
+                                                        + Add-ons
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                         {new Date(tx.paid_at).toLocaleDateString(undefined, {
@@ -341,6 +401,17 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                                     <td className="px-6 py-4 text-right text-green-600 dark:text-green-400 font-bold">
                                         {formatCurrency(tx.organizer_payout, tx.currency)}
                                     </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                fetchTransactionDetail(tx.id)
+                                            }}
+                                            className="text-gray-400 hover:text-black dark:hover:text-white transition-colors p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -352,6 +423,13 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                     )}
                 </div>
             </div>
+
+            {/* Transaction Detail Modal */}
+            <TransactionDetailModal
+                transaction={selectedTransaction}
+                isOpen={!!selectedTransaction}
+                onClose={() => setSelectedTransaction(null)}
+            />
         </div>
     )
 }

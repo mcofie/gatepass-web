@@ -152,7 +152,19 @@ export async function POST(req: Request) {
         if (subaccountCode) {
             payload.subaccount = subaccountCode
             payload.transaction_charge = totalTransactionCharge
-            payload.bearer = 'subaccount'
+
+            // CRITICAL: Bearer determines who pays the Paystack processing fee
+            // - 'account': Main platform account pays the Paystack fee (use when customer bears fees)
+            // - 'subaccount': Organizer pays the Paystack fee (use when organizer bears fees)
+            // 
+            // When customer bears fees, they already paid the processor fee as part of customerTotal,
+            // so the platform should absorb it from the gross payment to ensure organizer gets full payout.
+            const firstEvent = reservations[0] ? (Array.isArray((reservations[0] as any).events)
+                ? (reservations[0] as any).events[0]
+                : (reservations[0] as any).events) : null
+            const feeBearer = firstEvent?.fee_bearer || 'customer'
+
+            payload.bearer = feeBearer === 'customer' ? 'account' : 'subaccount'
         }
 
         console.log(`[Paystack Init] Amount: ${amount}, Charge: ${totalTransactionCharge} (ids: ${reservationIds.length})`)

@@ -14,50 +14,88 @@ interface TransactionDetailModalProps {
 
 export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeBearer = 'customer' }: TransactionDetailModalProps) {
     const [reservations, setReservations] = useState<any[]>([])
+    const [addonDetails, setAddonDetails] = useState<Record<string, { name: string, price: number }>>({})
     const supabase = createClient()
 
     useEffect(() => {
         if (!transaction) return
 
         const fetchReservations = async () => {
-            // Default to the joined reservation if available
-            let initial = transaction.reservations ? [transaction.reservations] : []
+            // Try to get reservation ID(s)
+            let reservationIds: string[] = []
 
+            // Check direct reservation link
+            if (transaction.reservation_id) {
+                reservationIds = [transaction.reservation_id]
+            }
+
+            // Also check metadata for multi-reservation
             let metaIds = transaction.metadata?.reservation_ids
 
-            // Fallback: Nested Metadata (Common if Paystack object was spread without flattening)
-            // 'metadata' inside 'metadata' is where Paystack returns the custom fields object sometimes
+            // Fallback: Nested Metadata
             if (!metaIds && transaction.metadata?.metadata?.reservation_ids) {
                 metaIds = transaction.metadata.metadata.reservation_ids
             }
 
-            // Fallback: Custom Fields (Standard Paystack Display format)
+            // Fallback: Custom Fields
             if (!metaIds) {
                 const fields = transaction.metadata?.custom_fields || transaction.metadata?.metadata?.custom_fields
                 if (Array.isArray(fields)) {
                     const f = fields.find((x: any) => x.variable_name === 'reservation_ids')
                     if (f?.value) {
-                        // string "id1, id2"
                         metaIds = f.value.split(',').map((s: string) => s.trim())
                     }
                 }
             }
 
             if (Array.isArray(metaIds) && metaIds.length > 0) {
-                // If metadata implies multiple (or distinct) reservations, fetch them to be accurate
-                // We fetch ALL to ensure we have fresh data for the breakdown, avoiding mix of stale/partial data
+                reservationIds = metaIds
+            }
+
+            // Always fetch fresh data with full relations
+            if (reservationIds.length > 0) {
                 const { data } = await supabase
                     .schema('gatepass')
                     .from('reservations')
-                    .select('*, ticket_tiers(*), events(*)')
-                    .in('id', metaIds)
+                    .select('*, ticket_tiers(*), events(*), discounts(*), profiles(full_name, email)')
+                    .in('id', reservationIds)
 
                 if (data && data.length > 0) {
                     setReservations(data)
+
+                    // Collect all addon IDs and fetch their details
+                    const allAddonIds: string[] = []
+                    data.forEach(r => {
+                        if (r.addons && typeof r.addons === 'object') {
+                            Object.keys(r.addons).forEach(id => {
+                                if (!allAddonIds.includes(id)) allAddonIds.push(id)
+                            })
+                        }
+                    })
+
+                    if (allAddonIds.length > 0) {
+                        const { data: addonsData } = await supabase
+                            .schema('gatepass')
+                            .from('event_addons')
+                            .select('id, name, price')
+                            .in('id', allAddonIds)
+
+                        if (addonsData) {
+                            const addonMap: Record<string, { name: string, price: number }> = {}
+                            addonsData.forEach(a => {
+                                addonMap[a.id] = { name: a.name, price: a.price }
+                            })
+                            setAddonDetails(addonMap)
+                        }
+                    }
                     return
                 }
             }
-            setReservations(initial)
+
+            // Fallback to joined reservation if available
+            if (transaction.reservations) {
+                setReservations([transaction.reservations])
+            }
         }
 
         fetchReservations()
@@ -69,7 +107,10 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     let totalQuantity = 0
     let totalTicketRevenueRaw = 0
     let totalDiscountAmount = 0
+    let discountCode: string | null = null
+    let discountPercent: number | null = null
     let hasAddons = false
+    let addonData: Record<string, number> = {}
 
     // We use the first reservation for generic profile/event info
     const primaryRes = reservations.length > 0 ? reservations[0] : transaction.reservations
@@ -82,15 +123,21 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
         // Discount
         const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
-        if (discount) {
-            if (discount.type === 'fixed') totalDiscountAmount += discount.value
-            else if (discount.type === 'percentage') {
+        if (discount && discount.value) {
+            discountCode = discount.code || discountCode
+            if (discount.type === 'fixed') {
+                totalDiscountAmount += discount.value
+            } else if (discount.type === 'percentage') {
+                discountPercent = discount.value
                 totalDiscountAmount += (price * qty) * (discount.value / 100)
             }
         }
 
-        // Addons flag
-        if (r.addons && Object.keys(r.addons).length > 0) hasAddons = true
+        // Addons
+        if (r.addons && typeof r.addons === 'object' && Object.keys(r.addons).length > 0) {
+            hasAddons = true
+            addonData = { ...addonData, ...r.addons }
+        }
     })
 
     const totalPaid = transaction.amount
@@ -102,7 +149,7 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
     const effectiveRates = {
         platformFeePercent: transaction.applied_fee_rate || 0.04,
-        processorFeePercent: transaction.applied_processor_rate || 0.0198
+        processorFeePercent: transaction.applied_processor_rate || 0.0195
     }
 
     // Recalc Fees
@@ -113,12 +160,19 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     // Payout
     const expectedPayout = totalPaid - expectedTotalFees
 
-    // Gap Analysis (The diff is assumed to be Add-ons)
+    // Calculate actual add-on revenue from fetched details
     let addonRevenue = 0
-    const gap = Math.max(0, expectedPayout - ticketRevenueNetBase)
+    const addonItems: { name: string, quantity: number, total: number }[] = []
 
-    if (hasAddons || gap > 0.05) {
-        addonRevenue = gap
+    if (hasAddons && Object.keys(addonData).length > 0) {
+        Object.entries(addonData).forEach(([addonId, qty]) => {
+            const detail = addonDetails[addonId]
+            if (detail && qty > 0) {
+                const total = detail.price * (qty as number)
+                addonRevenue += total
+                addonItems.push({ name: detail.name, quantity: qty as number, total })
+            }
+        })
     }
 
     // Variables for Display
@@ -174,19 +228,39 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                             </div>
                         )}
 
-                        {addonRevenue > 0 && (
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-500 dark:text-gray-400">Add-ons</span>
-                                <span className="font-medium dark:text-gray-200">{formatCurrency(addonRevenue, transaction.currency)}</span>
-                            </div>
+                        {addonItems.length > 0 && (
+                            <>
+                                {addonItems.map((addon, idx) => (
+                                    <div key={idx} className="flex justify-between text-sm">
+                                        <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                                            <span className="w-3 h-3 flex items-center justify-center text-[10px]">+</span>
+                                            {addon.name} ({addon.quantity}x)
+                                        </span>
+                                        <span className="font-medium text-purple-600 dark:text-purple-400">
+                                            {formatCurrency(addon.total, transaction.currency)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </>
                         )}
 
                         <div className="border-b border-gray-200 dark:border-white/10 border-dashed my-2 opacity-50"></div>
 
                         {/* 2. DEDUCTIONS SECTION */}
                         {totalDiscountAmount > 0 && (
-                            <div className="flex justify-between text-sm text-red-500">
-                                <span className="flex items-center gap-1"><Receipt className="w-3 h-3" /> Discount</span>
+                            <div className="flex justify-between text-sm text-orange-600 dark:text-orange-400">
+                                <span className="flex items-center gap-1">
+                                    <Receipt className="w-3 h-3" />
+                                    Discount
+                                    {discountCode && (
+                                        <span className="ml-1 px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-500/20 text-[10px] font-bold">
+                                            {discountCode}
+                                        </span>
+                                    )}
+                                    {discountPercent && (
+                                        <span className="text-xs opacity-70">({discountPercent}% off)</span>
+                                    )}
+                                </span>
                                 <span>- {formatCurrency(totalDiscountAmount, transaction.currency)}</span>
                             </div>
                         )}

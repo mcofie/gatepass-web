@@ -71,10 +71,33 @@ export const calculateFees = (
     // 1. Platform Fee (Applies ONLY to Ticket Revenue)
     const platformFee = ticketSubtotal * platformRate
 
-    // 2. Processor Fee (Applies to TOTAL Revenue: Tickets + Addons)
-    // If 'customer' bears fees -> Added to customer total.
-    // If 'organizer' bears fees -> Deducted from organizer payout.
-    const processorFee = combinedSubtotal * processorRate
+    // 2. Processor Fee Calculation
+    // IMPORTANT: Paystack charges their fee on the GROSS payment amount (total customer pays),
+    // not on the base subtotal. We need to calculate it correctly to avoid shortfall.
+    // 
+    // If customer bears fees:
+    //   - Customer pays: subtotal + platformFee + processorFee
+    //   - Paystack charges: (subtotal + platformFee + processorFee) * processorRate
+    //   - To solve for processorFee: pf = (subtotal + platformFee + pf) * rate
+    //   - pf = (subtotal + platformFee) * rate + pf * rate
+    //   - pf - pf * rate = (subtotal + platformFee) * rate
+    //   - pf * (1 - rate) = (subtotal + platformFee) * rate
+    //   - pf = (subtotal + platformFee) * rate / (1 - rate)
+    //
+    // If organizer bears fees:
+    //   - Customer pays: subtotal only
+    //   - Paystack charges on subtotal (deducted from organizer)
+    //   - processorFee = subtotal * rate
+
+    let processorFee: number
+    if (feeBearer === 'customer') {
+        // Gross-up calculation: processor fee on gross amount (including itself)
+        const baseForProcessorFee = combinedSubtotal + platformFee
+        processorFee = (baseForProcessorFee * processorRate) / (1 - processorRate)
+    } else {
+        // Organizer bears: simple calculation on base
+        processorFee = combinedSubtotal * processorRate
+    }
 
     // clientFees = What the customer sees added to the Ticket Price
     // Always includes Platform Fee. Includes Processor Fee only if Customer bears it.

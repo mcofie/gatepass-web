@@ -56,7 +56,7 @@ export function EventManageClient({
     isSuperAdmin = false
 }: EventManageClientProps) {
     const isStaff = userRole === 'Staff'
-    const isAdmin = userRole === 'Owner' || userRole === 'Admin'
+    const isAdmin = userRole === 'Owner' || userRole === 'Admin' || isSuperAdmin
     const [event, setEvent] = useState(initialEvent)
     const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons'>('tickets')
     const [loading, setLoading] = useState(false)
