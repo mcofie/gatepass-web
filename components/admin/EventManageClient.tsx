@@ -70,7 +70,7 @@ export function EventManageClient({
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
-    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0, tier_id: '' })
+    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0, tier_id: '', expires_at: '' })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
 
@@ -309,7 +309,8 @@ export function EventManageClient({
                     type: discountForm.type,
                     value: discountForm.value,
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
-                    tier_id: discountForm.tier_id || null
+                    tier_id: discountForm.tier_id || null,
+                    expires_at: discountForm.expires_at || null
                 }).eq('id', editingDiscountId)
 
                 if (error) throw error
@@ -323,7 +324,8 @@ export function EventManageClient({
                     value: discountForm.value,
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
                     used_count: 0,
-                    tier_id: discountForm.tier_id || null
+                    tier_id: discountForm.tier_id || null,
+                    expires_at: discountForm.expires_at || null
                 })
 
                 if (error) throw error
@@ -332,7 +334,7 @@ export function EventManageClient({
 
             await fetchDiscounts()
             await fetchDiscounts()
-            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '' })
+            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '' })
         } catch (e: any) {
             toast.error(e.message)
         } finally {
@@ -347,14 +349,15 @@ export function EventManageClient({
             type: discount.type,
             value: discount.value,
             max_uses: discount.max_uses || 0,
-            tier_id: discount.tier_id || ''
+            tier_id: discount.tier_id || '',
+            expires_at: discount.expires_at || ''
         })
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
     const cancelEditingDiscount = () => {
         setEditingDiscountId(null)
-        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '' })
+        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '' })
     }
 
     const deleteDiscount = (id: string) => {
@@ -1746,7 +1749,7 @@ export function EventManageClient({
                                     </button>
                                 )}
                             </div>
-                            <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                            <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                 <div className="md:col-span-1">
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Code</label>
                                     <input
@@ -1799,6 +1802,13 @@ export function EventManageClient({
                                     />
                                 </div>
                                 <div>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Expires At</label>
+                                    <DateTimePicker
+                                        date={discountForm.expires_at ? new Date(discountForm.expires_at) : undefined}
+                                        setDate={(date) => setDiscountForm({ ...discountForm, expires_at: date ? date.toISOString() : '' })}
+                                    />
+                                </div>
+                                <div>
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Applies To</label>
                                     <div className="relative">
                                         <select
@@ -1816,7 +1826,7 @@ export function EventManageClient({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="md:col-span-5 flex justify-end pt-2">
+                                <div className="md:col-span-3 flex justify-end pt-2">
                                     <button
                                         disabled={creatingDiscount}
                                         className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 shadow-lg shadow-black/20 hover:-translate-y-0.5 transition-all"
@@ -1853,6 +1863,12 @@ export function EventManageClient({
                                                 <span className={clsx("text-xs uppercase font-bold tracking-wider", discount.tier_id ? "text-purple-600" : "text-gray-400")}>
                                                     {discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Specific Tier') : 'All Tickets'}
                                                 </span>
+                                                {discount.expires_at && (
+                                                    <>
+                                                        <span className="mx-2 text-gray-300">|</span>
+                                                        <span className="text-orange-500 font-medium text-xs bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded">Expires {new Date(discount.expires_at).toLocaleDateString()}</span>
+                                                    </>
+                                                )}
                                             </p>
                                         </div>
                                     </div>

@@ -293,6 +293,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 return
             }
 
+            // Check Expiration
+            if (data.expires_at && new Date(data.expires_at) < new Date()) {
+                setDiscountError('Discount code has expired')
+                return
+            }
+
             // Check Tier Restriction
             if (data.tier_id) {
                 const requiredTier = tiers.find(t => t.id === data.tier_id)
@@ -335,7 +341,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     // All failed
                     const firstErr = errors[0]
                     console.error('Failed to link discount:', firstErr)
-                    setDiscountError('Failed to apply discount')
+                    // Extract error message from RPC response if available
+                    const rpcError = firstErr?.data?.error || firstErr?.error?.message || 'Failed to apply discount'
+                    setDiscountError(rpcError)
                     return
                 }
             }
