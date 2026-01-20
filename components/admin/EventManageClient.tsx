@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2, CopyPlus } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2, CopyPlus, ChevronDown } from 'lucide-react'
 import { Event, TicketTier, Discount, EventStaff } from '@/types/gatepass'
 import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
 import clsx from 'clsx'
@@ -62,6 +62,7 @@ export function EventManageClient({
     const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets'>('tickets')
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
+    const [showMoreMenu, setShowMoreMenu] = useState(false)
 
     // Tickets State
     const [tiers, setTiers] = useState<TicketTier[]>(initialTiers) // Kept initialTiers from props
@@ -669,20 +670,65 @@ export function EventManageClient({
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex justify-start mb-10 overflow-x-auto pb-4 sm:pb-0 scrollbar-hide">
-                <div className="inline-flex bg-gray-100/50 dark:bg-white/5 p-1.5 rounded-full border border-gray-200/50 dark:border-white/5 relative">
+            <div className="flex justify-start mb-10 overflow-visible pb-4 sm:pb-0 scrollbar-hide">
+                <div className="relative inline-flex bg-gray-100/50 dark:bg-white/5 p-1.5 rounded-full border border-gray-200/50 dark:border-white/5">
                     <button onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
                     <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
                     <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
                     {isAdmin && (
                         <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
                     )}
-                    <button onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
-                    <button onClick={() => setActiveTab('addons')} className={tabClass('addons')}>Add-ons</button>
-                    <button onClick={() => setActiveTab('widgets')} className={tabClass('widgets')}>Widgets</button>
                     {isAdmin && (
                         <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
                     )}
+
+                    {/* More Dropdown */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowMoreMenu(!showMoreMenu)}
+                            onBlur={() => setTimeout(() => setShowMoreMenu(false), 200)}
+                            className={clsx(
+                                "px-5 py-2.5 text-sm font-bold rounded-full transition-all duration-300 ease-out flex items-center gap-2",
+                                ['team', 'addons', 'widgets'].includes(activeTab)
+                                    ? "bg-white dark:bg-white text-black dark:text-black shadow-md shadow-black/5 ring-1 ring-black/5"
+                                    : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/10"
+                            )}
+                        >
+                            More <ChevronDown className={clsx("w-4 h-4 transition-transform", showMoreMenu && "rotate-180")} />
+                        </button>
+
+                        {showMoreMenu && (
+                            <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-800 p-2 z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                <button
+                                    onClick={() => setActiveTab('team')}
+                                    className={clsx(
+                                        "w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
+                                        activeTab === 'team' ? "bg-gray-100 dark:bg-white/10 text-black dark:text-white" : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-400"
+                                    )}
+                                >
+                                    Team
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('addons')}
+                                    className={clsx(
+                                        "w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
+                                        activeTab === 'addons' ? "bg-gray-100 dark:bg-white/10 text-black dark:text-white" : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-400"
+                                    )}
+                                >
+                                    Add-ons
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('widgets')}
+                                    className={clsx(
+                                        "w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
+                                        activeTab === 'widgets' ? "bg-gray-100 dark:bg-white/10 text-black dark:text-white" : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-400"
+                                    )}
+                                >
+                                    Widgets
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

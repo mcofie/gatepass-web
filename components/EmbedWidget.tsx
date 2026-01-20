@@ -692,7 +692,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             initial="initial"
             animate="animate"
             exit="exit"
-            className={cn("flex flex-col h-full p-6 relative overflow-y-auto no-scrollbar", isDark ? "bg-zinc-950" : "bg-white")}
+            className={cn("flex flex-col h-auto p-6 relative overflow-y-auto no-scrollbar", isDark ? "bg-zinc-950" : "bg-white")}
         >
             {/* Header */}
             <div className="flex justify-between items-start mb-2">
@@ -728,7 +728,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             </div>
 
             {/* Dynamic Content Area */}
-            <div className="mt-4 flex-1 relative min-h-[120px]">
+            <div className="mt-4 flex-1 relative">
                 <AnimatePresence mode="wait">
                     {detailsSlide === 'description' && <motion.div
                         key="description"
@@ -853,7 +853,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             </div>
 
             {/* Logistics */}
-            <div className={cn("flex flex-col gap-3 mb-5 mt-auto p-4 rounded-xl", isDark ? "bg-zinc-900/50" : "bg-gray-50/50")}>
+            <div className={cn("flex flex-col gap-3 mb-5 mt-5 p-4 rounded-xl", isDark ? "bg-zinc-900/50" : "bg-gray-50/50")}>
                 <div className="flex items-start gap-3">
                     <Calendar className={cn("w-4 h-4 mt-0.5 flex-shrink-0", isDark ? "text-zinc-500" : "text-gray-500")} />
                     <span className={cn("text-[13px] font-medium leading-tight", isDark ? "text-white" : "text-black")}>
@@ -1450,7 +1450,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
     return (
         <div className={cn(
-            "w-full h-full md:rounded-2xl overflow-hidden shadow-2xl flex flex-col font-sans border selection:bg-black/10 transition-colors duration-300",
+            "w-full h-auto md:rounded-2xl overflow-hidden flex flex-col font-sans border selection:bg-black/10 transition-colors duration-300",
             isDark
                 ? "bg-zinc-950 border-zinc-900 text-white"
                 : "bg-white border-gray-100 text-black"
