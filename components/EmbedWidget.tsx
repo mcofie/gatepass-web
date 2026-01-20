@@ -1,6 +1,8 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import React, { useState, useEffect } from 'react'
+import Script from 'next/script'
 import Image from 'next/image'
 import { motion, AnimatePresence, Variants } from 'framer-motion'
 import confetti from 'canvas-confetti'
@@ -34,7 +36,7 @@ const itemVariants: Variants = {
 }
 
 // --- Component: TicketCard ---
-const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void, primaryColor?: string }) => {
+const TicketCard = ({ tier, qty, onQuantityChange, primaryColor, isDark }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void, primaryColor?: string, isDark?: boolean }) => {
     const [showPerks, setShowPerks] = useState(false)
     const isSelected = qty > 0
     const isSoldOut = tier.quantity_sold >= tier.total_quantity
@@ -44,17 +46,16 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
     const themeColor = primaryColor || '#000000'
 
     return (
-        <motion.div
-            layout
+        <div
             style={isSelected ? { backgroundColor: themeColor, color: '#ffffff' } : {}}
-            className={`
-                relative flex-shrink-0 w-full rounded-2xl p-5 flex flex-col justify-between
-                transition-all duration-300 min-h-[220px]
-                ${isSelected
-                    ? 'ring-0 shadow-xl'
-                    : 'bg-white text-black ring-1 ring-black/5'
-                }
-            `}
+            className={cn(
+                "relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 snap-center min-h-[320px]",
+                isSelected
+                    ? 'scale-[1.02] ring-0 shadow-xl'
+                    : isDark
+                        ? 'bg-zinc-900 text-white ring-1 ring-white/10'
+                        : 'bg-white text-black ring-1 ring-black/5'
+            )}
         >
             {isLowStock && (
                 <div className="absolute top-3 right-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 z-10 shadow-sm">
@@ -68,26 +69,26 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
 
             <div className="space-y-4">
                 <div>
-                    <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white' : 'text-black'}`}>
+                    <div className={cn("text-[24px] font-bold leading-none mb-2 tracking-tighter", isSelected ? 'text-white' : isDark ? 'text-white' : 'text-black')}>
                         {formatCurrency(tier.price, tier.currency)}
                     </div>
-                    <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-white/90' : 'text-gray-900'}`}>{tier.name}</div>
+                    <div className={cn("text-[15px] font-bold leading-tight", isSelected ? 'text-white/90' : isDark ? 'text-zinc-300' : 'text-gray-900')}>{tier.name}</div>
                 </div>
 
                 {tier.description && (
-                    <p className={`text-[13px] leading-relaxed ${isSelected ? 'text-white/70' : 'text-gray-500'}`}>
+                    <p className={cn("text-[13px] leading-relaxed", isSelected ? 'text-white/70' : isDark ? 'text-zinc-500' : 'text-gray-500')}>
                         {tier.description}
                     </p>
                 )}
 
-                <div className={`h-px w-full ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`} />
+                <div className={cn("h-px w-full", isSelected ? 'bg-white/20' : isDark ? 'bg-white/10' : 'bg-gray-100')} />
 
                 {hasPerks ? (
                     <div>
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setShowPerks(!showPerks); }}
-                            className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider mb-2 hover:opacity-80 transition-opacity ${isSelected ? 'text-white/70' : 'text-gray-500'}`}
+                            className={cn("flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider mb-2 hover:opacity-80 transition-opacity", isSelected ? 'text-white/70' : isDark ? 'text-zinc-500' : 'text-gray-500')}
                         >
                             <span>Perks</span>
                             {showPerks ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -97,10 +98,10 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                             <ul className="space-y-2.5 animate-fade-in origin-top">
                                 {tier.perks!.map((perk, i) => (
                                     <li key={i} className="flex items-start gap-2.5 text-[13px] leading-tight">
-                                        <div className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-black/5 text-black'}`}>
+                                        <div className={cn("mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0", isSelected ? 'bg-white/20 text-white' : isDark ? 'bg-white/10 text-white' : 'bg-black/5 text-black')}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
-                                        <span className={isSelected ? 'text-white/90' : 'text-gray-600'}>{perk}</span>
+                                        <span className={isSelected ? 'text-white/90' : isDark ? 'text-zinc-400' : 'text-gray-600'}>{perk}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -111,29 +112,29 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                 )}
             </div>
 
-            <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-black/20' : 'bg-gray-50'}`}>
+            <div className={cn("mt-6 flex items-center justify-between px-1 py-1 rounded-full", isSelected ? 'bg-black/20' : isDark ? 'bg-white/5' : 'bg-gray-50')}>
                 <button
                     onClick={() => onQuantityChange(tier.id, -1)}
                     disabled={qty === 0}
-                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black'}`}
+                    className={cn("w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors", isSelected ? 'hover:bg-black/20 text-white' : isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black')}
                 >
                     -
                 </button>
-                <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white' : 'text-black'}`}>{qty}</span>
+                <span className={cn("font-bold text-lg min-w-[20px] text-center", isSelected ? 'text-white' : isDark ? 'text-white' : 'text-black')}>{qty}</span>
                 <button
                     onClick={() => onQuantityChange(tier.id, 1)}
                     disabled={isSoldOut}
-                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black'}`}
+                    className={cn("w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors", isSelected ? 'hover:bg-black/20 text-white' : isDark ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black')}
                 >
                     +
                 </button>
             </div>
-        </motion.div>
+        </div>
     )
 }
 
 // --- Component: AddonCard ---
-const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addon: EventAddon, qty: number, onQuantityChange: (id: string, delta: number) => void, index: number, primaryColor?: string }) => {
+const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor, isDark }: { addon: EventAddon, qty: number, onQuantityChange: (id: string, delta: number) => void, index: number, primaryColor?: string, isDark?: boolean }) => {
     const isSelected = qty > 0
     const remaining = (addon.total_quantity !== null && addon.total_quantity !== undefined)
         ? Math.max(0, addon.total_quantity - addon.quantity_sold)
@@ -149,10 +150,11 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
             animate="animate"
             className={cn(
                 "group relative overflow-hidden rounded-[24px] border transition-all duration-500",
-                isSoldOut ? "bg-gray-50/50 border-gray-100 opacity-60" :
-                    isSelected
+                isSoldOut
+                    ? (isDark ? "bg-zinc-900/50 border-white/5 opacity-60" : "bg-gray-50/50 border-gray-100 opacity-60")
+                    : isSelected
                         ? "border-transparent shadow-2xl scale-[1.01]"
-                        : "bg-gray-50/50 border-transparent hover:bg-gray-100 shadow-sm"
+                        : (isDark ? "bg-zinc-900/50 border-transparent hover:bg-zinc-900 shadow-sm" : "bg-gray-50/50 border-transparent hover:bg-gray-100 shadow-sm")
             )}
             style={isSelected && !isSoldOut ? {
                 backgroundColor: primaryColor || '#000000',
@@ -161,12 +163,12 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
         >
             <div className="flex p-4 gap-4">
                 {/* Elevated Image Container */}
-                <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 relative bg-white shadow-sm border border-black/5">
+                <div className={cn("w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 relative shadow-sm border", isDark ? "bg-zinc-800 border-white/5" : "bg-white border-black/5")}>
                     {addon.image_url ? (
                         <Image src={addon.image_url} alt={addon.name} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                            <ShoppingBag className="w-8 h-8 text-gray-400" />
+                        <div className={cn("w-full h-full flex items-center justify-center", isDark ? "bg-zinc-800" : "bg-gray-100")}>
+                            <ShoppingBag className={cn("w-8 h-8", isDark ? "text-zinc-600" : "text-gray-400")} />
                         </div>
                     )}
                     {isSoldOut && (
@@ -182,11 +184,11 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
                         <div className="flex justify-between items-start mb-0.5">
                             <h4 className={cn(
                                 "text-[15px] font-extrabold leading-tight line-clamp-1 tracking-tight",
-                                isSelected ? "text-current" : "text-black"
+                                isSelected ? "text-current" : isDark ? "text-white" : "text-black"
                             )}>{addon.name}</h4>
                             <span className={cn(
                                 "font-bold text-[14px] tabular-nums",
-                                isSelected ? "opacity-80" : "text-gray-400"
+                                isSelected ? "opacity-80" : isDark ? "text-zinc-500" : "text-gray-400"
                             )}>
                                 {formatCurrency(addon.price, addon.currency)}
                             </span>
@@ -194,7 +196,7 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
                         {addon.description && (
                             <p className={cn(
                                 "text-[12px] line-clamp-2 leading-snug font-medium",
-                                isSelected ? "opacity-60" : "text-gray-500"
+                                isSelected ? "opacity-60" : isDark ? "text-zinc-500" : "text-gray-500"
                             )}>{addon.description}</p>
                         )}
                     </div>
@@ -203,7 +205,7 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
                     <div className="flex items-center justify-between mt-3">
                         <div className={cn(
                             "text-[9px] font-black uppercase tracking-[0.15em]",
-                            isSelected ? "opacity-40" : "text-gray-400"
+                            isSelected ? "opacity-40" : isDark ? "text-zinc-600" : "text-gray-400"
                         )}>
                             {isSoldOut ? "Unavailable" : isSelected ? "In Cart" : "Optional"}
                         </div>
@@ -217,7 +219,7 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
                                             "h-8 px-4 rounded-full transition-all text-[12px] font-bold flex items-center justify-center gap-1.5",
                                             isSelected
                                                 ? "bg-white/20 text-current hover:bg-white/30"
-                                                : "bg-black text-white hover:opacity-90 shadow-sm"
+                                                : isDark ? "bg-white text-black hover:opacity-90 shadow-sm" : "bg-black text-white hover:opacity-90 shadow-sm"
                                         )}
                                     >
                                         {isSelected ? (
@@ -230,28 +232,28 @@ const AddonCard = ({ addon, qty, onQuantityChange, index, primaryColor }: { addo
                                 ) : (
                                     <div className={cn(
                                         "flex items-center gap-1.5 p-1 rounded-full",
-                                        isSelected ? "bg-white/10" : "bg-white shadow-sm border border-black/5"
+                                        isSelected ? "bg-white/10" : isDark ? "bg-zinc-800 shadow-sm border border-white/5" : "bg-white shadow-sm border border-black/5"
                                     )}>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onQuantityChange(addon.id, -1); }}
                                             disabled={qty === 0}
                                             className={cn(
                                                 "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                isSelected ? "hover:bg-white/10 text-current" : "hover:bg-gray-100 text-black"
+                                                isSelected ? "hover:bg-white/10 text-current" : isDark ? "hover:bg-zinc-700 text-white" : "hover:bg-gray-100 text-black"
                                             )}
                                         >
                                             -
                                         </button>
                                         <span className={cn(
                                             "text-[14px] font-extrabold tabular-nums w-4 text-center",
-                                            isSelected ? "text-current" : "text-black"
+                                            isSelected ? "text-current" : isDark ? "text-white" : "text-black"
                                         )}>{qty}</span>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onQuantityChange(addon.id, 1); }}
                                             disabled={isMaxed}
                                             className={cn(
                                                 "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                isSelected ? "hover:bg-white/10 text-current" : "hover:bg-gray-100 text-black"
+                                                isSelected ? "hover:bg-white/10 text-current" : isDark ? "hover:bg-zinc-700 text-white" : "hover:bg-gray-100 text-black"
                                             )}
                                         >
                                             +
@@ -271,11 +273,34 @@ interface EmbedWidgetProps {
     event: Event
     cheapestTier: TicketTier | null
     tiers: TicketTier[]
-    feeRates?: FeeRates
     availableAddons?: EventAddon[]
+    feeRates?: FeeRates
+    initialSearchParams?: { [key: string]: string | string[] | undefined }
 }
 
-export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAddons = [] }: EmbedWidgetProps) {
+export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAddons = [], initialSearchParams }: EmbedWidgetProps) {
+    const searchParams = useSearchParams()
+
+    const getParam = (key: string) => {
+        if (initialSearchParams && initialSearchParams[key]) {
+            return initialSearchParams[key] as string
+        }
+        return searchParams?.get(key)
+    }
+
+    // --- Customization Params ---
+    const themeParam = getParam('theme')
+    const colorParam = getParam('color')
+    const viewParam = getParam('view')
+    const hideDetailsParam = getParam('hideDetails')
+    const refParam = getParam('ref')
+    const fontParam = getParam('font')
+    const layoutParam = getParam('layout')
+    const isCompact = layoutParam === 'compact'
+
+    const isDark = themeParam === 'dark'
+    const primaryColor = colorParam ? `#${colorParam}` : (event.primary_color || '#000000')
+
     const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>('details')
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
     const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
@@ -302,6 +327,15 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             return () => clearInterval(timer)
         }
     }, [view, timeLeft])
+
+    // Handle Initial View
+    useEffect(() => {
+        if (viewParam && ['details', 'tickets', 'addons', 'checkout', 'summary'].includes(viewParam)) {
+            setView(viewParam as any)
+        } else if (hideDetailsParam === 'true') {
+            setView('tickets')
+        }
+    }, [viewParam, hideDetailsParam])
 
     const formattedTime = (() => {
         const m = Math.floor(timeLeft / 60)
@@ -515,7 +549,8 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                     supabase,
                     { email: guestEmail, name: guestName, phone: guestPhone },
                     discount?.id, // Pass Discount ID
-                    addonsToSend
+                    addonsToSend,
+                    refParam ? { referral_source: refParam } : undefined // Pass metadata
                 )
             }))
 
@@ -529,6 +564,30 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             toast.error(error.message || 'Something went wrong')
         } finally {
             setLoading(false)
+        }
+    }
+
+    // Step 2 of Booking: Pay
+    const handlePaymentSuccess = async (reference: string) => {
+        setLoading(true)
+        try {
+            const response = await fetch('/api/paystack/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reference, reservationId: reference })
+            })
+            const result = await response.json()
+
+            if (!result.success) throw new Error(result.error || 'Verification failed')
+
+            setPurchasedTickets(result.tickets || [])
+            setView('success')
+        } catch (error: any) {
+            console.error('Verification Error:', error)
+            toast.error(error.message || 'Payment verification failed')
+        } finally {
+            setLoading(false)
+            setVerifying(false)
         }
     }
 
@@ -563,7 +622,28 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
             const data = await response.json()
             if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
-            window.location.href = data.authorization_url
+
+            // POPUP CHECKOUT
+            if (typeof window !== 'undefined' && (window as any).PaystackPop) {
+                const handler = (window as any).PaystackPop.setup({
+                    key: process.env.NEXT_PUBLIC_PAYSTACK_KEY,
+                    email: guestEmail,
+                    amount: Math.round(total * 100),
+                    currency: primaryTier?.currency || 'GHS',
+                    ref: data.reference,
+                    callback: (response: any) => {
+                        setVerifying(true)
+                        handlePaymentSuccess(response.reference)
+                    },
+                    onClose: () => {
+                        setLoading(false)
+                        toast.info('Transaction cancelled')
+                    }
+                })
+                handler.openIframe()
+            } else {
+                window.location.href = data.authorization_url
+            }
 
         } catch (error: any) {
             console.error('Payment Error:', error)
@@ -612,12 +692,12 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex flex-col h-full bg-white p-6 relative overflow-y-auto no-scrollbar"
+            className={cn("flex flex-col h-full p-6 relative overflow-y-auto no-scrollbar", isDark ? "bg-zinc-950" : "bg-white")}
         >
             {/* Header */}
             <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 text-black flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 relative">
+                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border relative", isDark ? "bg-zinc-800 text-white border-zinc-700" : "bg-gray-100 text-black border-gray-100")}>
                         {event.logo_url ? (
                             <Image src={event.logo_url} alt="Logo" fill className="object-cover" />
                         ) : (
@@ -625,21 +705,22 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                         )}
                     </div>
                     <div>
-                        <h2 className="text-[17px] font-bold text-black leading-none tracking-tight mb-0.5">{event.title}</h2>
+                        <h2 className={cn("text-[17px] font-bold leading-none tracking-tight mb-0.5", isDark ? "text-white" : "text-black")}>{event.title}</h2>
                         <button
-                            onClick={() => setDetailsSlide(detailsSlide === 'host' ? 'description' : 'host')}
-                            className="flex items-center gap-0.5 group outline-none text-left"
+                            onClick={() => !isCompact && setDetailsSlide(detailsSlide === 'host' ? 'description' : 'host')}
+                            disabled={isCompact}
+                            className={cn("flex items-center gap-0.5 group outline-none text-left", isCompact ? "cursor-default" : "cursor-pointer")}
                         >
-                            <p className="text-[12px] text-gray-500 font-medium group-hover:text-black transition-colors">
+                            <p className={cn("text-[12px] font-medium transition-colors", isDark ? "text-zinc-400 group-hover:text-white" : "text-gray-500 group-hover:text-black")}>
                                 {event.organizers?.name || 'GatePass Event'}
                             </p>
-                            <ChevronRight className={`w-3 h-3 text-gray-400 group-hover:text-black transition-transform duration-300 ${detailsSlide === 'host' ? 'rotate-90' : ''}`} />
+                            {!isCompact && <ChevronRight className={cn("w-3 h-3 transition-transform duration-300", detailsSlide === 'host' ? 'rotate-90' : '', isDark ? "text-zinc-600 group-hover:text-white" : "text-gray-400 group-hover:text-black")} />}
                         </button>
                     </div>
                 </div>
                 {cheapestTier && (
                     <div className="text-right">
-                        <span className="block text-[16px] font-bold text-gray-400">
+                        <span className={cn("block text-[16px] font-bold", isDark ? "text-zinc-500" : "text-gray-400")}>
                             {formatCurrency(cheapestTier.price, cheapestTier.currency)}
                         </span>
                     </div>
@@ -649,52 +730,50 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             {/* Dynamic Content Area */}
             <div className="mt-4 flex-1 relative min-h-[120px]">
                 <AnimatePresence mode="wait">
-                    {detailsSlide === 'description' && (
-                        <motion.div
-                            key="description"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 10 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            <div
-                                className="text-[13px] font-normal text-black leading-relaxed mb-4 prose prose-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: event.description || '' }}
-                            />
+                    {detailsSlide === 'description' && <motion.div
+                        key="description"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        <div
+                            className={cn("text-[13px] font-normal leading-relaxed mb-4 prose prose-sm max-w-none", isDark ? "text-zinc-300 prose-invert" : "text-black")}
+                            dangerouslySetInnerHTML={{ __html: event.description || '' }}
+                        />
 
-                            {/* Lineup Preview (Clickable) */}
-                            {(event as any).lineup && (event as any).lineup.length > 0 && (
-                                <button
-                                    onClick={() => setDetailsSlide('lineup')}
-                                    className="mt-5 mb-2 w-full text-left group"
-                                >
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[11px] font-bold text-gray-900 uppercase tracking-widest">Lineup</span>
-                                        <span className="text-[10px] font-medium text-gray-400 group-hover:text-black transition-colors">View All</span>
-                                    </div>
-                                    <div className="flex -space-x-2 overflow-hidden py-1">
-                                        {(event as any).lineup.slice(0, 4).map((item: any, i: number) => (
-                                            <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-gray-100 overflow-hidden relative z-[1]">
-                                                {item.image_url ? (
-                                                    <Image src={item.image_url} alt={item.name} fill className="object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-400">
-                                                        {item.name.charAt(0)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {(event as any).lineup.length > 4 && (
-                                            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-gray-50 flex items-center justify-center relative z-0">
-                                                <span className="text-[10px] font-bold text-gray-500">+{(event as any).lineup.length - 4}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </button>
-                            )}
-                        </motion.div>
-                    )}
-
+                        {/* Lineup Preview (Clickable) - Hidden in Compact Mode */}
+                        {!isCompact && (event as any).lineup && (event as any).lineup.length > 0 && (
+                            <button
+                                onClick={() => setDetailsSlide('lineup')}
+                                className="mt-5 mb-2 w-full text-left group"
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className={cn("text-[11px] font-bold uppercase tracking-widest", isDark ? "text-white" : "text-gray-900")}>Lineup</span>
+                                    <span className={cn("text-[10px] font-medium transition-colors", isDark ? "text-zinc-500 group-hover:text-white" : "text-gray-400 group-hover:text-black")}>View All</span>
+                                </div>
+                                <div className="flex -space-x-2 overflow-hidden py-1">
+                                    {(event as any).lineup.slice(0, 4).map((item: any, i: number) => (
+                                        <div key={i} className={cn("inline-block h-8 w-8 rounded-full ring-2 overflow-hidden relative z-[1]", isDark ? "ring-zinc-900 bg-zinc-800" : "ring-white bg-gray-100")}>
+                                            {item.image_url ? (
+                                                <Image src={item.image_url} alt={item.name} fill className="object-cover" />
+                                            ) : (
+                                                <div className={cn("w-full h-full flex items-center justify-center text-[10px] font-bold", isDark ? "text-zinc-500" : "text-gray-400")}>
+                                                    {item.name.charAt(0)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {(event as any).lineup.length > 4 && (
+                                        <div className={cn("inline-block h-8 w-8 rounded-full ring-2 flex items-center justify-center relative z-0", isDark ? "ring-zinc-900 bg-zinc-800" : "ring-white bg-gray-50")}>
+                                            <span className={cn("text-[10px] font-bold", isDark ? "text-zinc-400" : "text-gray-500")}>+{(event as any).lineup.length - 4}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </button>
+                        )}
+                    </motion.div>
+                    }
                     {detailsSlide === 'host' && (
                         <motion.div
                             key="host"
@@ -705,8 +784,8 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                             className="space-y-4"
                         >
                             <div>
-                                <h3 className="text-[11px] font-bold text-gray-900 uppercase tracking-widest mb-2">About the Host</h3>
-                                <p className="text-[13px] text-gray-600 leading-relaxed">
+                                <h3 className={cn("text-[11px] font-bold uppercase tracking-widest mb-2", isDark ? "text-white" : "text-gray-900")}>About the Host</h3>
+                                <p className={cn("text-[13px] leading-relaxed", isDark ? "text-zinc-400" : "text-gray-600")}>
                                     {event.organizers?.description || 'No bio available.'}
                                 </p>
                             </div>
@@ -715,17 +794,17 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                             {event.organizers && (
                                 <div className="flex items-center gap-3 pt-2">
                                     {event.organizers.website && (
-                                        <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                        <a href={event.organizers.website} target="_blank" rel="noopener noreferrer" className={cn("transition-colors", isDark ? "text-zinc-500 hover:text-white" : "text-gray-400 hover:text-black")}>
                                             <ExternalLink className="w-4 h-4" />
                                         </a>
                                     )}
                                     {event.organizers.instagram && (
-                                        <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                        <a href={`https://instagram.com/${event.organizers.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className={cn("transition-colors", isDark ? "text-zinc-500 hover:text-white" : "text-gray-400 hover:text-black")}>
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
                                         </a>
                                     )}
                                     {event.organizers.twitter && (
-                                        <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition-colors">
+                                        <a href={`https://twitter.com/${event.organizers.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className={cn("transition-colors", isDark ? "text-zinc-500 hover:text-white" : "text-gray-400 hover:text-black")}>
                                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
                                         </a>
                                     )}
@@ -743,10 +822,10 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                             transition={{ duration: 0.2 }}
                         >
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-[11px] font-bold text-gray-900 uppercase tracking-widest">Full Lineup</h3>
+                                <h3 className={cn("text-[11px] font-bold uppercase tracking-widest", isDark ? "text-white" : "text-gray-900")}>Full Lineup</h3>
                                 <button
                                     onClick={() => setDetailsSlide('description')}
-                                    className="text-[10px] font-bold text-gray-400 hover:text-black flex items-center gap-1"
+                                    className={cn("text-[10px] font-bold flex items-center gap-1", isDark ? "text-zinc-500 hover:text-white" : "text-gray-400 hover:text-black")}
                                 >
                                     <ArrowLeft className="w-3 h-3" /> Back
                                 </button>
@@ -754,17 +833,17 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                             <div className="grid grid-cols-3 gap-3">
                                 {((event as any).lineup || []).map((item: any, i: number) => (
                                     <div key={i} className="flex flex-col items-center text-center">
-                                        <div className="w-14 h-14 rounded-full bg-gray-100 overflow-hidden mb-2 relative">
+                                        <div className={cn("w-14 h-14 rounded-full overflow-hidden mb-2 relative", isDark ? "bg-zinc-800" : "bg-gray-100")}>
                                             {item.image_url ? (
                                                 <Image src={item.image_url} alt={item.name} fill className="object-cover" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-400">
+                                                <div className={cn("w-full h-full flex items-center justify-center text-[10px] font-bold", isDark ? "text-zinc-500" : "text-gray-400")}>
                                                     {item.name.charAt(0)}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="text-[11px] font-bold leading-tight text-black w-full break-words">{item.name}</div>
-                                        <div className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">{item.role}</div>
+                                        <div className={cn("text-[11px] font-bold leading-tight w-full break-words", isDark ? "text-white" : "text-black")}>{item.name}</div>
+                                        <div className={cn("text-[9px] font-medium uppercase tracking-wide", isDark ? "text-zinc-500" : "text-gray-500")}>{item.role}</div>
                                     </div>
                                 ))}
                             </div>
@@ -774,18 +853,18 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             </div>
 
             {/* Logistics */}
-            <div className="flex flex-col gap-3 mb-5 mt-auto bg-gray-50/50 p-4 rounded-xl">
+            <div className={cn("flex flex-col gap-3 mb-5 mt-auto p-4 rounded-xl", isDark ? "bg-zinc-900/50" : "bg-gray-50/50")}>
                 <div className="flex items-start gap-3">
-                    <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" />
-                    <span className="text-[13px] font-medium text-black leading-tight">
+                    <Calendar className={cn("w-4 h-4 mt-0.5 flex-shrink-0", isDark ? "text-zinc-500" : "text-gray-500")} />
+                    <span className={cn("text-[13px] font-medium leading-tight", isDark ? "text-white" : "text-black")}>
                         {formatDateRange(event.starts_at, event.ends_at)}
                     </span>
                 </div>
                 <div className="flex items-start gap-3">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500" />
+                    <MapPin className={cn("w-4 h-4 mt-0.5 flex-shrink-0", isDark ? "text-zinc-500" : "text-gray-500")} />
                     <div className="flex flex-col">
-                        <span className="text-[13px] font-medium text-black leading-tight mb-0.5">{event.venue_name}</span>
-                        <span className="text-[12px] text-gray-500 leading-tight">
+                        <span className={cn("text-[13px] font-medium leading-tight mb-0.5", isDark ? "text-white" : "text-black")}>{event.venue_name}</span>
+                        <span className={cn("text-[12px] leading-tight", isDark ? "text-zinc-500" : "text-gray-500")}>
                             {/* @ts-ignore */}
                             {event.venue_address || event.location || 'Location Details'}
                         </span>
@@ -798,13 +877,13 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setView('tickets')}
-                    style={{ backgroundColor: event.primary_color || '#000000', color: getContrastColor(event.primary_color || '#000000') }}
-                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg text-white"
+                    style={{ backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
+                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg"
                 >
                     Get Tickets
                 </motion.button>
                 <div className="flex justify-end mt-3">
-                    <span className="text-[10px] text-gray-500 font-medium">Powered by GatePass</span>
+                    <span className={cn("text-[10px] font-medium", isDark ? "text-zinc-600" : "text-gray-500")}>Powered by GatePass</span>
                 </div>
             </div>
         </motion.div>
@@ -812,7 +891,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
     const renderTickets = () => {
         const { total } = calculateFinancials()
-        const hasSelection = total > 0
+        const hasSelection = Object.values(selectedTickets).some(qty => qty > 0)
 
         return (
             <motion.div
@@ -821,39 +900,45 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full bg-white relative"
+                className={cn("flex flex-col h-full relative", isDark ? "bg-zinc-950" : "bg-white")}
             >
                 <div className="flex justify-between items-center mb-6 px-6 pt-6 flex-shrink-0">
-                    <h2 className="text-[18px] font-bold tracking-tight text-black">Select Tickets</h2>
+                    <h2 className={cn("text-[18px] font-bold tracking-tight", isDark ? "text-white" : "text-black")}>Select Tickets</h2>
                     <button
                         onClick={() => setView('details')}
-                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black transition-all bg-gray-50 rounded-full"
+                        className={cn("w-10 h-10 flex items-center justify-center transition-all rounded-full", isDark ? "text-zinc-400 hover:text-white bg-zinc-900" : "text-gray-400 hover:text-black bg-gray-50")}
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-4 no-scrollbar">
+                <div className="flex-1 overflow-x-auto flex gap-4 items-stretch px-6 pb-24 no-scrollbar snap-x snap-mandatory">
                     {tiers.map((tier, idx) => (
                         <TicketCard
                             key={tier.id}
                             tier={tier}
                             qty={selectedTickets[tier.id] || 0}
                             onQuantityChange={handleQuantityChange}
-                            primaryColor={event.primary_color}
+                            primaryColor={primaryColor}
+                            isDark={isDark}
                         />
                     ))}
                 </div>
 
-                <div className={`
-                    absolute bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10 transition-transform duration-300
-                    ${hasSelection ? 'translate-y-0' : 'translate-y-full'}
-                `}>
+                <div className={cn(
+                    "absolute bottom-0 left-0 right-0 p-4 backdrop-blur-xl border-t z-10 transition-transform duration-300",
+                    isDark ? "bg-zinc-950/95 border-zinc-800" : "bg-white/95 border-gray-100",
+                    hasSelection ? 'translate-y-0' : 'translate-y-full'
+                )}>
                     <motion.button
                         whileTap={{ scale: 0.98 }}
+                        disabled={!hasSelection}
                         onClick={() => availableAddons.length > 0 ? setView('addons') : setView('checkout')}
-                        style={{ backgroundColor: event.primary_color || '#000000', color: getContrastColor(event.primary_color || '#000000') }}
-                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg flex items-center justify-between px-4"
+                        style={{
+                            backgroundColor: hasSelection ? primaryColor : undefined,
+                            color: hasSelection ? getContrastColor(primaryColor!) : undefined
+                        }}
+                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg flex items-center justify-between px-4 disabled:opacity-50 disabled:cursor-not-allowed bg-black text-white"
                     >
                         <span>{availableAddons.length > 0 ? 'Continue to Add-ons' : 'Checkout'}</span>
                         <span>{formatCurrency(total, tiers[0]?.currency)}</span>
@@ -879,43 +964,51 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full bg-white relative"
+                className={cn("flex flex-col h-full relative", isDark ? "bg-zinc-950" : "bg-white")}
             >
                 <div className="flex justify-between items-center mb-6 px-6 pt-6 flex-shrink-0">
-                    <div>
-                        <h2 className="text-[18px] font-bold tracking-tight text-black">Enhance Experience</h2>
-                        <p className="text-[13px] text-gray-400 font-medium tracking-tight">Select optional extras</p>
-                    </div>
+                    <h2 className={cn("text-[18px] font-bold tracking-tight", isDark ? "text-white" : "text-black")}>Enhance Your Experience</h2>
                     <button
                         onClick={() => setView('tickets')}
-                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black transition-all bg-gray-50 rounded-full"
+                        className={cn("w-10 h-10 flex items-center justify-center transition-all rounded-full", isDark ? "text-zinc-400 hover:text-white bg-zinc-900" : "text-gray-400 hover:text-black bg-gray-50")}
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-4 pt-2 no-scrollbar">
-                    {availableAddons.map((addon, idx) => (
-                        <AddonCard
-                            key={addon.id}
-                            addon={addon}
-                            index={idx}
-                            qty={selectedAddons[addon.id] || 0}
-                            onQuantityChange={handleAddonQuantityChange}
-                            primaryColor={event.primary_color}
-                        />
-                    ))}
+                <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-4 no-scrollbar">
+                    {availableAddons.length > 0 ? (
+                        availableAddons.map((addon, idx) => (
+                            <AddonCard
+                                key={addon.id}
+                                addon={addon}
+                                qty={selectedAddons[addon.id] || 0}
+                                onQuantityChange={handleAddonQuantityChange}
+                                index={idx}
+                                primaryColor={primaryColor}
+                                isDark={isDark}
+                            />
+                        ))
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-40 text-center">
+                            <ShoppingBag className={cn("w-8 h-8 mb-2", isDark ? "text-zinc-700" : "text-gray-300")} />
+                            <p className={cn("text-sm", isDark ? "text-zinc-500" : "text-gray-400")}>No add-ons available for this event.</p>
+                        </div>
+                    )}
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-xl border-t border-gray-100 z-10">
+                <div className={cn(
+                    "absolute bottom-0 left-0 right-0 p-4 backdrop-blur-xl border-t z-10",
+                    isDark ? "bg-zinc-950/95 border-zinc-800" : "bg-white/95 border-gray-100"
+                )}>
                     <motion.button
                         whileTap={{ scale: 0.98 }}
                         onClick={() => setView('checkout')}
-                        style={{ backgroundColor: event.primary_color || '#000000', color: getContrastColor(event.primary_color || '#000000') }}
+                        style={{ backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
                         className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg flex items-center justify-center gap-2"
                     >
-                        <span>{hasSelection ? 'Continue with Add-ons' : 'No Thanks, Continue'}</span>
-                        <ChevronRight className="w-4 h-4" />
+                        {Object.values(selectedAddons).some(v => v > 0) ? 'Continue with Add-ons' : 'No Thanks, Continue'}
+                        <ArrowRight className="w-4 h-4" />
                     </motion.button>
                 </div>
             </motion.div>
@@ -929,67 +1022,90 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             initial="initial"
             animate="animate"
             exit="exit"
-            className="flex flex-col h-full bg-white relative"
+            className={cn("flex flex-col h-full relative", isDark ? "bg-zinc-950" : "bg-white")}
         >
-            <div className="flex justify-between items-center mb-8 px-6 pt-6 flex-shrink-0">
-                <h2 className="text-[18px] font-bold tracking-tight text-black">Your Details</h2>
+            <div className="flex justify-between items-center mb-6 px-6 pt-6 flex-shrink-0">
+                <h2 className={cn("text-[18px] font-bold tracking-tight", isDark ? "text-white" : "text-black")}>Guest Details</h2>
                 <button
                     onClick={() => availableAddons.length > 0 ? setView('addons') : setView('tickets')}
-                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black transition-all bg-gray-50 rounded-full"
+                    className={cn("w-10 h-10 flex items-center justify-center transition-all rounded-full", isDark ? "text-zinc-400 hover:text-white bg-zinc-900" : "text-gray-400 hover:text-black bg-gray-50")}
                 >
                     <ArrowLeft className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="space-y-5 px-6 pb-24 overflow-y-auto no-scrollbar">
-                <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Name</label>
-                    <input
-                        type="text"
-                        value={guestName}
-                        onChange={e => setGuestName(e.target.value)}
-                        placeholder="Jane Smith"
-                        className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 transition-all text-black text-[16px] placeholder:text-gray-400 font-medium"
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Email Address</label>
-                    <input
-                        type="email"
-                        value={guestEmail}
-                        onChange={e => setGuestEmail(e.target.value)}
-                        placeholder="jane@example.com"
-                        className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 transition-all text-black text-[16px] placeholder:text-gray-400 font-medium"
-                    />
-                    <p className="text-[11px] text-gray-400 px-1">We'll send your tickets here.</p>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Phone Number</label>
-                    <input
-                        type="tel"
-                        value={guestPhone}
-                        onChange={e => setGuestPhone(e.target.value)}
-                        placeholder="+233"
-                        className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 transition-all text-black text-[16px] placeholder:text-gray-400 font-medium"
-                    />
+            <div className="flex-1 overflow-y-auto px-6 space-y-5 no-scrollbar">
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className={cn("text-[11px] font-bold uppercase tracking-wider ml-1", isDark ? "text-zinc-400" : "text-gray-500")}>Full Name</label>
+                        <input
+                            type="text"
+                            value={guestName}
+                            onChange={(e) => setGuestName(e.target.value)}
+                            placeholder="John Doe"
+                            className={cn(
+                                "w-full h-12 px-4 rounded-xl outline-none transition-all text-[14px] font-medium placeholder:text-gray-400",
+                                isDark
+                                    ? "bg-zinc-900 text-white border-2 border-transparent focus:border-zinc-700"
+                                    : "bg-gray-50 text-black border-2 border-transparent focus:border-black/5 focus:bg-white"
+                            )}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className={cn("text-[11px] font-bold uppercase tracking-wider ml-1", isDark ? "text-zinc-400" : "text-gray-500")}>Email Address</label>
+                        <input
+                            type="email"
+                            value={guestEmail}
+                            onChange={(e) => setGuestEmail(e.target.value)}
+                            placeholder="john@example.com"
+                            className={cn(
+                                "w-full h-12 px-4 rounded-xl outline-none transition-all text-[14px] font-medium placeholder:text-gray-400",
+                                isDark
+                                    ? "bg-zinc-900 text-white border-2 border-transparent focus:border-zinc-700"
+                                    : "bg-gray-50 text-black border-2 border-transparent focus:border-black/5 focus:bg-white"
+                            )}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className={cn("text-[11px] font-bold uppercase tracking-wider ml-1", isDark ? "text-zinc-400" : "text-gray-500")}>Phone Number</label>
+                        <input
+                            type="tel"
+                            value={guestPhone}
+                            onChange={(e) => setGuestPhone(e.target.value)}
+                            placeholder="+1 (555) 000-0000"
+                            className={cn(
+                                "w-full h-12 px-4 rounded-xl outline-none transition-all text-[14px] font-medium placeholder:text-gray-400",
+                                isDark
+                                    ? "bg-zinc-900 text-white border-2 border-transparent focus:border-zinc-700"
+                                    : "bg-gray-50 text-black border-2 border-transparent focus:border-black/5 focus:bg-white"
+                            )}
+                        />
+                    </div>
                 </div>
             </div>
 
-            <div className="mt-auto p-4 bg-white absolute bottom-0 left-0 right-0 border-t border-gray-100">
+            <div className={cn(
+                "p-4 border-t mt-auto",
+                isDark ? "bg-zinc-950 border-zinc-900" : "bg-white border-gray-100"
+            )}>
                 <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={handleCreateReservation}
-                    disabled={loading || !guestName || !guestEmail}
+                    disabled={loading || !guestName || !guestEmail || !guestPhone}
                     style={{
-                        backgroundColor: (guestName && guestEmail) ? (event.primary_color || '#000000') : undefined,
-                        color: (guestName && guestEmail) ? getContrastColor(event.primary_color || '#000000') : '#ffffff'
+                        backgroundColor: (guestName && guestEmail && guestPhone) ? primaryColor : undefined,
+                        color: (guestName && guestEmail && guestPhone) ? getContrastColor(primaryColor!) : undefined
                     }}
-                    className="w-full h-10 bg-black text-white rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all shadow-lg flex items-center justify-center gap-2 group"
+                    className={cn(
+                        "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg flex items-center justify-center gap-2",
+                        (!guestName || !guestEmail || !guestPhone) ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-600 cursor-not-allowed shadow-none" : ""
+                    )}
                 >
-                    {loading ? 'Processing...' : 'Continue to Payment'}
-                    {!loading && <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
+                    {loading ? (
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+                    ) : (
+                        'Continue to Payment'
+                    )}
                 </motion.button>
             </div>
         </motion.div>
@@ -1015,7 +1131,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full bg-white relative"
+                className={cn("flex flex-col h-full relative", isDark ? "bg-zinc-950" : "bg-white")}
             >
                 {/* Immersive Timer */}
                 <div className="flex justify-center mt-6 mb-2 sticky top-4 z-20 pointer-events-none">
@@ -1026,19 +1142,83 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 </div>
 
                 <div className="flex justify-between items-center px-6 pt-2 mb-6 flex-shrink-0">
-                    <h2 className="text-[18px] font-bold tracking-tight text-black">Order Summary</h2>
+                    <h2 className={cn("text-[18px] font-bold tracking-tight", isDark ? "text-white" : "text-black")}>Order Summary</h2>
                     <button
                         onClick={() => setView('checkout')}
-                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black transition-all bg-gray-50 rounded-full"
+                        className={cn("w-10 h-10 flex items-center justify-center transition-all rounded-full", isDark ? "text-zinc-400 hover:text-white bg-zinc-900" : "text-gray-400 hover:text-black bg-gray-50")}
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 pb-24 no-scrollbar">
-                    <div className="bg-white rounded-2xl p-0 border border-gray-100 overflow-hidden shadow-sm relative">
-                        <div className="bg-gray-50 p-6 border-b border-gray-100">
-                            <h3 className="text-[16px] font-bold leading-tight text-black">{event.title}</h3>
+                <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-6 no-scrollbar">
+                    {/* Promo Code Input */}
+                    <div className="mb-4">
+                        {!showPromo ? (
+                            <button
+                                onClick={() => setShowPromo(true)}
+                                className={cn("text-[12px] font-bold underline decoration-dotted underline-offset-4", isDark ? "text-zinc-400 hover:text-white" : "text-gray-500 hover:text-black")}
+                            >
+                                Have a promo code?
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        value={promoCode}
+                                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                        placeholder="ENTER CODE"
+                                        className={cn(
+                                            "w-full h-10 pl-3 pr-10 rounded-lg text-[12px] font-bold tracking-wider outline-none border transition-all placeholder:font-normal",
+                                            discountError
+                                                ? "border-red-500 bg-red-50 text-red-900"
+                                                : discount
+                                                    ? "border-green-500 bg-green-50 text-green-900"
+                                                    : isDark
+                                                        ? "bg-zinc-900 border-zinc-800 text-white focus:border-zinc-700"
+                                                        : "bg-gray-50 border-gray-200 text-black focus:border-black/20"
+                                        )}
+                                        disabled={!!discount || applyingDiscount}
+                                    />
+                                    {applyingDiscount && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                                        </div>
+                                    )}
+                                </div>
+                                {!discount ? (
+                                    <>
+                                        <button
+                                            onClick={handleApplyDiscount}
+                                            disabled={!promoCode || applyingDiscount}
+                                            className="h-10 px-3 bg-black text-white rounded-lg text-[11px] font-bold disabled:opacity-50"
+                                        >
+                                            Apply
+                                        </button>
+                                        <button
+                                            onClick={() => { setShowPromo(false); setPromoCode(''); setDiscountError('') }}
+                                            className={cn("h-10 w-8 flex items-center justify-center rounded-lg hover:bg-black/5", isDark ? "text-zinc-500" : "text-gray-400")}
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={() => { setDiscount(null); setPromoCode(''); setShowPromo(false) }}
+                                        className="h-10 px-3 bg-red-100 text-red-600 rounded-lg text-[11px] font-bold hover:bg-red-200"
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {discountError && <p className="text-[10px] font-bold text-red-500 mt-1">{discountError}</p>}
+                    </div>
+
+                    <div className={cn("rounded-2xl p-0 overflow-hidden shadow-sm relative border", isDark ? "bg-zinc-900 border-zinc-800" : "bg-white border-gray-100")}>
+                        <div className={cn("p-6 border-b", isDark ? "bg-zinc-800/50 border-zinc-800" : "bg-gray-50 border-gray-100")}>
+                            <h3 className={cn("text-[16px] font-bold leading-tight", isDark ? "text-white" : "text-black")}>{event.title}</h3>
                         </div>
 
                         <div className="p-6 space-y-4">
@@ -1047,9 +1227,9 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                 {Object.entries(selectedTickets).filter(([_, q]) => q > 0).map(([id, qty]) => {
                                     const tier = tiers.find(t => t.id === id)
                                     return (
-                                        <div key={id} className="flex justify-between items-center text-[13px] text-gray-500">
+                                        <div key={id} className={cn("flex justify-between items-center text-[13px]", isDark ? "text-zinc-400" : "text-gray-500")}>
                                             <span>{tier?.name} <span className="text-[11px] ml-1">x{qty}</span></span>
-                                            <span className="font-medium text-black">{formatCurrency((tier?.price || 0) * qty, tier?.currency)}</span>
+                                            <span className={cn("font-medium", isDark ? "text-white" : "text-black")}>{formatCurrency((tier?.price || 0) * qty, tier?.currency)}</span>
                                         </div>
                                     )
                                 })}
@@ -1058,24 +1238,24 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                 {Object.entries(selectedAddons).filter(([_, q]) => q > 0).map(([id, qty]) => {
                                     const addon = availableAddons.find(a => a.id === id)
                                     return (
-                                        <div key={id} className="flex justify-between items-center text-[13px] text-gray-500">
+                                        <div key={id} className={cn("flex justify-between items-center text-[13px]", isDark ? "text-zinc-400" : "text-gray-500")}>
                                             <span>{addon?.name} <span className="text-[11px] ml-1">x{qty}</span></span>
-                                            <span className="font-medium text-black">{formatCurrency((addon?.price || 0) * qty, addon?.currency)}</span>
+                                            <span className={cn("font-medium", isDark ? "text-white" : "text-black")}>{formatCurrency((addon?.price || 0) * qty, addon?.currency)}</span>
                                         </div>
                                     )
                                 })}
                             </div>
 
-                            <div className="h-px bg-gray-100 w-full" />
+                            <div className={cn("h-px w-full", isDark ? "bg-zinc-800" : "bg-gray-100")} />
 
                             <div className="space-y-2 text-[13px]">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Subtotal</span>
-                                    <span className="font-medium text-gray-900">{formatCurrency(subtotal + addonSubtotal, tiers[0]?.currency)}</span>
+                                    <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Subtotal</span>
+                                    <span className={cn("font-medium", isDark ? "text-white" : "text-gray-900")}>{formatCurrency(subtotal + addonSubtotal, tiers[0]?.currency)}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Fees</span>
-                                    <span className="font-medium text-gray-900">{formatCurrency(fees, tiers[0]?.currency)}</span>
+                                    <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Fees</span>
+                                    <span className={cn("font-medium", isDark ? "text-white" : "text-gray-900")}>{formatCurrency(fees, tiers[0]?.currency)}</span>
                                 </div>
 
                                 {/* Discount Row */}
@@ -1092,86 +1272,37 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                 )}
                             </div>
 
-                            {/* Promo Input */}
-                            {!discount && (
-                                <div className="pt-1">
-                                    {!showPromo ? (
-                                        <button
-                                            onClick={() => setShowPromo(true)}
-                                            className="text-[13px] text-gray-500 font-medium hover:text-black transition-colors flex items-center gap-2 group"
-                                        >
-                                            <div className="w-5 h-5 rounded-full border border-dashed border-gray-300 flex items-center justify-center group-hover:border-gray-400 transition-colors">
-                                                <Plus className="w-3 h-3" />
-                                            </div>
-                                            Add promo code
-                                        </button>
-                                    ) : (
-                                        <div className="animate-fade-in">
-                                            <div className="flex gap-2">
-                                                <input
-                                                    value={promoCode}
-                                                    onChange={(e) => setPromoCode(e.target.value)}
-                                                    placeholder="Enter promo code"
-                                                    className="flex-1 bg-white border border-gray-200 rounded-lg text-[13px] px-3 py-2 uppercase placeholder:normal-case focus:ring-1 focus:ring-black focus:border-black outline-none transition-all text-black"
-                                                    autoFocus
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            e.preventDefault()
-                                                            handleApplyDiscount()
-                                                        }
-                                                        if (e.key === 'Escape') {
-                                                            setShowPromo(false)
-                                                        }
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={handleApplyDiscount}
-                                                    disabled={!promoCode || applyingDiscount}
-                                                    className="bg-black text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 disabled:opacity-50 transition-all shadow-sm"
-                                                >
-                                                    {applyingDiscount ? '...' : 'Apply'}
-                                                </button>
-                                                <button
-                                                    onClick={() => setShowPromo(false)}
-                                                    className="p-2 text-gray-400 hover:text-black transition-colors"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            {discountError && <p className="text-red-500 text-[11px] mt-1.5 font-medium ml-1 flex items-center gap-1"><X className="w-3 h-3" />{discountError}</p>}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="border-t border-dashed border-gray-200 pt-2" />
+                            <div className={cn("border-t border-dashed pt-2", isDark ? "border-zinc-800" : "border-gray-200")} />
 
                             <div className="flex justify-between items-end">
-                                <span className="text-[15px] font-bold text-gray-900">Total Due</span>
+                                <span className={cn("text-[15px] font-bold", isDark ? "text-white" : "text-gray-900")}>Total Due</span>
                                 <div className="text-right">
-                                    <span className="text-[24px] font-bold text-black leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
-                                    <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
+                                    <span className={cn("text-[24px] font-bold leading-none tracking-tight block", isDark ? "text-white" : "text-black")}>{formatCurrency(total, tiers[0]?.currency)}</span>
+                                    <span className={cn("text-[10px] font-medium uppercase tracking-wide", isDark ? "text-zinc-600" : "text-gray-400")}>Incl. taxes & fees</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <p className="text-center text-[10px] text-gray-400 mt-4 px-4 leading-relaxed mb-4">
+                    <p className={cn("text-center text-[10px] mt-4 px-4 leading-relaxed mb-4", isDark ? "text-zinc-600" : "text-gray-400")}>
                         By purchasing, you agree to the <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>. All sales are final.
                     </p>
                 </div>
 
-                <div className="bg-white/95 backdrop-blur-xl border-t border-gray-100 p-4 absolute bottom-0 left-0 right-0 z-30">
+                <div className={cn(
+                    "backdrop-blur-xl border-t p-4 absolute bottom-0 left-0 right-0 z-30",
+                    isDark ? "bg-zinc-950/95 border-zinc-800" : "bg-white/95 border-gray-100"
+                )}>
                     <button
                         onClick={handlePaystackPayment}
                         disabled={loading}
-                        style={{ backgroundColor: event.primary_color || '#000000', color: getContrastColor(event.primary_color || '#000000') }}
+                        style={{ backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
                         className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
                     >
                         {loading ? 'Processing...' : `Pay ${formatCurrency(total, tiers[0]?.currency)}`}
                     </button>
                     <div className="flex justify-center mt-3">
-                        <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1">
+                        <span className={cn("text-[10px] font-medium flex items-center gap-1", isDark ? "text-zinc-600" : "text-gray-400")}>
                             <Check className="w-3 h-3" /> Secure Payment by GatePass
                         </span>
                     </div>
@@ -1206,22 +1337,23 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 variants={pageVariants}
                 initial="initial"
                 animate="animate"
-                className="flex flex-col h-full bg-white rounded-[24px] overflow-hidden relative"
+                exit="exit"
+                className={cn("flex flex-col h-full rounded-[24px] overflow-hidden relative", isDark ? "bg-zinc-950" : "bg-white")}
             >
                 <div className="flex-shrink-0 px-6 pt-6 pb-2 flex justify-between items-start">
                     <div className="space-y-1">
-                        <h2 className="text-[18px] leading-tight font-extrabold tracking-tight text-black max-w-[200px]">
+                        <h2 className={cn("text-[18px] leading-tight font-extrabold tracking-tight max-w-[200px]", isDark ? "text-white" : "text-black")}>
                             See you at {event.title}!🎉
                         </h2>
                     </div>
-                    <button onClick={() => window.location.reload()} className="p-1.5 -mr-1.5 text-black hover:opacity-70">
+                    <button onClick={() => window.location.reload()} className={cn("p-1.5 -mr-1.5", isDark ? "text-white hover:opacity-70" : "text-black hover:opacity-70")}>
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 pb-6 no-scrollbar">
                     <div className="flex flex-col items-center my-6">
-                        <div className="bg-white p-2 rounded-xl border border-gray-100 shadow-sm mb-3">
+                        <div className={cn("p-2 rounded-xl  shadow-sm mb-3", isDark ? "bg-zinc-900 border border-zinc-800" : "bg-white border border-gray-100")}>
                             {ticket?.qr_code_hash ? (
                                 <Image
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
@@ -1232,18 +1364,18 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                     unoptimized
                                 />
                             ) : (
-                                <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <div className={cn("w-32 h-32 rounded-lg flex items-center justify-center", isDark ? "bg-zinc-800" : "bg-gray-100")}>
                                     <Check className="w-10 h-10 text-green-500" />
                                 </div>
                             )}
                         </div>
-                        <span className="text-[10px] uppercase font-mono tracking-widest text-gray-400 select-all">
+                        <span className={cn("text-[10px] uppercase font-mono tracking-widest select-all", isDark ? "text-zinc-500" : "text-gray-400")}>
                             {ticket?.qr_code_hash || 'ORDER CONFIRMED'}
                         </span>
                     </div>
 
-                    <div className="bg-gray-50 border border-gray-100 rounded-[20px] p-4 space-y-3">
-                        <h3 className="text-[16px] font-bold text-black leading-tight mb-0.5">{event.title}</h3>
+                    <div className={cn("border rounded-[20px] p-4 space-y-3", isDark ? "bg-zinc-900 border-zinc-800" : "bg-gray-50 border-gray-100")}>
+                        <h3 className={cn("text-[16px] font-bold leading-tight mb-0.5", isDark ? "text-white" : "text-black")}>{event.title}</h3>
 
                         <div className="space-y-2.5">
                             {/* Simple counts for success screen */}
@@ -1251,23 +1383,23 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                 const tier = tiers.find(t => t.id === id)
                                 return (
                                     <div key={id} className="flex justify-between items-center text-[13px]">
-                                        <span className="font-medium text-black">{tier?.name}</span>
-                                        <span className="font-bold text-gray-500">x{qty}</span>
+                                        <span className={cn("font-medium", isDark ? "text-white" : "text-black")}>{tier?.name}</span>
+                                        <span className={cn("font-bold", isDark ? "text-zinc-500" : "text-gray-500")}>x{qty}</span>
                                     </div>
                                 )
                             })}
                         </div>
 
-                        <div className="h-px w-full bg-gray-200" />
+                        <div className={cn("h-px w-full", isDark ? "bg-zinc-800" : "bg-gray-200")} />
 
                         <div className="space-y-3 text-[13px]">
                             <div className="flex justify-between items-start">
-                                <span className="text-gray-500 font-medium">Location</span>
-                                <span className="font-bold text-black text-right max-w-[60%] leading-tight">{event.venue_name}</span>
+                                <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Location</span>
+                                <span className={cn("font-bold text-right max-w-[60%] leading-tight", isDark ? "text-white" : "text-black")}>{event.venue_name}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-medium">Date</span>
-                                <span className="font-bold text-black">
+                                <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Date</span>
+                                <span className={cn("font-bold", isDark ? "text-white" : "text-black")}>
                                     {new Date(event.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </span>
                             </div>
@@ -1275,7 +1407,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                     </div>
                 </div>
 
-                <div className="p-6 bg-white border-t border-gray-100">
+                <div className={cn("p-6 border-t", isDark ? "bg-zinc-950 border-zinc-900" : "bg-white border-gray-100")}>
                     <div className="flex flex-col gap-3">
                         <button
                             onClick={handleDownloadPDF}
@@ -1289,13 +1421,13 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                 href={window.location.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex-1 h-12 bg-gray-100 text-black rounded-2xl text-[13px] font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+                                className={cn("flex-1 h-12 rounded-2xl text-[13px] font-bold transition-all flex items-center justify-center gap-2", isDark ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-gray-100 text-black hover:bg-gray-200")}
                             >
                                 <Share2 className="w-4 h-4" /> Share
                             </a>
                             <button
                                 onClick={handleCalendar}
-                                className="flex-1 h-12 bg-zinc-50 text-black border border-gray-200 rounded-2xl text-[13px] font-bold hover:bg-gray-100 transition-all flex items-center justify-center gap-2"
+                                className={cn("flex-1 h-12 border rounded-2xl text-[13px] font-bold transition-all flex items-center justify-center gap-2", isDark ? "bg-zinc-900 text-white border-zinc-800 hover:bg-zinc-800" : "bg-zinc-50 text-black border-gray-200 hover:bg-gray-100")}
                             >
                                 <Calendar className="w-4 h-4" /> Calendar
                             </button>
@@ -1317,7 +1449,15 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
     }
 
     return (
-        <div className="w-full h-full min-h-screen bg-white md:rounded-2xl overflow-hidden shadow-2xl flex flex-col font-sans text-black border border-gray-100 selection:bg-black/10">
+        <div className={cn(
+            "w-full h-full min-h-screen md:rounded-2xl overflow-hidden shadow-2xl flex flex-col font-sans border selection:bg-black/10 transition-colors duration-300",
+            isDark
+                ? "bg-zinc-950 border-zinc-900 text-white"
+                : "bg-white border-gray-100 text-black"
+        )}
+            style={fontParam ? { fontFamily: fontParam } : {}}
+        >
+            <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
             <AnimatePresence mode="wait">
                 {view === 'details' && renderDetails()}
                 {view === 'tickets' && renderTickets()}

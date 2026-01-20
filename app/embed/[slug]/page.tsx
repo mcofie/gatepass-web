@@ -8,6 +8,7 @@ export const revalidate = 0
 
 interface PageProps {
     params: Promise<{ slug: string }>
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -41,9 +42,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 }
 
-export default async function EmbedPage({ params }: PageProps) {
+export default async function EmbedPage({ params, searchParams }: PageProps) {
     const supabase = await createClient()
     const { slug } = await params
+    const resolvedSearchParams = await searchParams
 
     // Check if slug is UUID
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
@@ -102,6 +104,7 @@ export default async function EmbedPage({ params }: PageProps) {
             tiers={(tiers as TicketTier[]) || []}
             feeRates={feeSettings}
             availableAddons={addons || []}
+            initialSearchParams={resolvedSearchParams}
         />
     )
 }
