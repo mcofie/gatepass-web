@@ -9,7 +9,8 @@ export const createReservation = async (
     supabaseClient?: SupabaseClient,
     guestDetails?: { email: string, name: string, phone: string },
     discountId?: string,
-    addons?: Record<string, number>
+    addons?: Record<string, number>,
+    metadata?: Record<string, any>
 ) => {
     const client = supabaseClient || createClient()
 
@@ -30,7 +31,8 @@ export const createReservation = async (
             guest_name: guestDetails?.name,
             guest_phone: guestDetails?.phone,
             discount_id: discountId,
-            addons: addons // Pass addons JSONB
+            addons: addons, // Pass addons JSONB
+            metadata: metadata // Pass metadata JSONB
         })
         .select()
         .single()

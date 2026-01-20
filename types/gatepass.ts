@@ -115,6 +115,7 @@ export interface Reservation {
     guest_name?: string
     guest_email?: string
     addons?: Record<string, number> // Map of AddonID -> Quantity
+    metadata?: Record<string, any>
 }
 
 export interface Discount {
