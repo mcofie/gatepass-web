@@ -11,8 +11,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     const isStudio = pathname?.startsWith('/studio')
     const isTicket = pathname?.startsWith('/tickets/')
 
-    // Hide global nav/footer on dashboard, admin, studio, and ticket pages
-    const shouldHideGlobalNav = isDashboard || isAdmin || isStudio || isTicket
+    const isEmbed = pathname?.startsWith('/embed')
+
+    // Hide global nav/footer on dashboard, admin, studio, ticket, and embed pages
+    const shouldHideGlobalNav = isDashboard || isAdmin || isStudio || isTicket || isEmbed
 
     return (
         <>
