@@ -2,12 +2,14 @@ import React, { useState } from 'react'
 import { Event } from '@/types/gatepass'
 import { Copy, Check, ExternalLink, Code } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 interface WidgetsTabProps {
     event: Event
 }
 
 export function WidgetsTab({ event }: WidgetsTabProps) {
+    const [theme, setTheme] = useState<'light' | 'dark'>('light')
     const [copied, setCopied] = useState(false)
 
     // Construct the embed URL
@@ -16,10 +18,14 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
         : process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.io'
 
     const embedUrl = `${baseUrl}/embed/${event.slug || event.id}`
+    const previewUrl = `${embedUrl}?theme=${theme}`
 
     // Construct the iframe code
+    // Only add ?theme=dark if theme is dark to keep URL clean for default
+    const codeSrc = theme === 'dark' ? `${embedUrl}?theme=dark` : embedUrl
+
     const iframeCode = `<iframe
-  src="${embedUrl}"
+  src="${codeSrc}"
   width="100%"
   height="600"
   frameborder="0"
@@ -34,7 +40,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
     }
 
     const handleOpenPreview = () => {
-        window.open(embedUrl, '_blank')
+        window.open(previewUrl, '_blank')
     }
 
     return (
@@ -53,6 +59,43 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                     </div>
 
                     <div className="bg-white dark:bg-[#111] p-6 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                                Settings
+                            </label>
+                        </div>
+
+                        {/* Theme Toggle */}
+                        <div className="flex items-center gap-3">
+                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Theme:</div>
+                            <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/5">
+                                <button
+                                    onClick={() => setTheme('light')}
+                                    className={cn(
+                                        "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
+                                        theme === 'light'
+                                            ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm"
+                                            : "text-gray-500 hover:text-black dark:hover:text-white"
+                                    )}
+                                >
+                                    Light
+                                </button>
+                                <button
+                                    onClick={() => setTheme('dark')}
+                                    className={cn(
+                                        "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
+                                        theme === 'dark'
+                                            ? "bg-black text-white dark:bg-white dark:text-black shadow-sm"
+                                            : "text-gray-500 hover:text-black dark:hover:text-white"
+                                    )}
+                                >
+                                    Dark
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="h-px bg-gray-50 dark:bg-white/5 w-full" />
+
                         <div className="flex items-center justify-between">
                             <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
                                 Embed Code
@@ -109,7 +152,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                     <div className="flex-1 bg-gray-100 dark:bg-black/20 rounded-3xl border border-dashed border-gray-300 dark:border-white/10 flex items-center justify-center p-8 min-h-[500px]">
                         <div className="w-full max-w-[400px] pointer-events-none select-none shadow-2xl">
                             <iframe
-                                src={embedUrl}
+                                src={previewUrl}
                                 width="100%"
                                 height="600"
                                 frameBorder="0"

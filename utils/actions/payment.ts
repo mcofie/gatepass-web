@@ -314,10 +314,13 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             // Notify Organizer (if they have notifications enabled)
             try {
                 const organizer = event?.organizers
-                if (organizer?.notify_on_sale && organizer?.notification_email) {
+                // Fallback to main email if notification_email is not set
+                const targetEmail = organizer?.notification_email || organizer?.email
+
+                if (organizer?.notify_on_sale && targetEmail) {
                     const { notifyOrganizerOfSale } = await import('@/utils/notifications')
                     await notifyOrganizerOfSale({
-                        organizerEmail: organizer.notification_email,
+                        organizerEmail: targetEmail,
                         organizerName: organizer.name || 'Organizer',
                         eventName: event?.title,
                         customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
