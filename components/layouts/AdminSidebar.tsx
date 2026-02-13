@@ -14,6 +14,7 @@ import {
     ScanLine,
     History,
     ShieldAlert,
+    BarChart3,
 
     ChevronDown,
     Plus,
@@ -236,6 +237,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
         return [
             { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
             ...(role !== 'Staff' ? [{ name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity }] : []),
+            { name: 'Marketing', path: '/dashboard/marketing', icon: BarChart3 },
             { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
             { name: 'Customers', path: '/dashboard/customers', icon: Users },
             { name: 'Events', path: '/dashboard/events', icon: Calendar },

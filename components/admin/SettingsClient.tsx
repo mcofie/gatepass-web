@@ -6,7 +6,8 @@ import { OrganizationSettings } from '@/components/admin/settings/OrganizationSe
 import { TeamSettings } from '@/components/admin/settings/TeamSettings'
 import { SettlementSettings } from '@/components/admin/settings/SettlementSettings'
 import { NotificationSettings } from '@/components/admin/settings/NotificationSettings'
-import { Settings, Users, Shield, Wallet, User, Bell } from 'lucide-react'
+import { MarketingSettings } from '@/components/admin/settings/MarketingSettings'
+import { Settings, Users, Shield, Wallet, User, Bell, Share2 } from 'lucide-react'
 
 export function SettingsClient({
     initialSettings,
@@ -21,7 +22,7 @@ export function SettingsClient({
     userRole: string,
     teamInfo: any
 }) {
-    const [activeTab, setActiveTab] = useState<'details' | 'profile' | 'team' | 'settlement' | 'notifications'>('profile')
+    const [activeTab, setActiveTab] = useState<'details' | 'profile' | 'team' | 'settlement' | 'notifications' | 'marketing'>('profile')
 
     const canManageTeam = (userRole || '').trim().toLowerCase() === 'owner' || (userRole || '').trim().toLowerCase() === 'admin'
 
@@ -87,6 +88,16 @@ export function SettingsClient({
                                 <Bell className="w-4 h-4" />
                                 Notifications
                             </button>
+                            <button
+                                onClick={() => setActiveTab('marketing')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'marketing'
+                                    ? 'bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                <Share2 className="w-4 h-4" />
+                                Marketing
+                            </button>
                         </>
                     )}
                 </div>
@@ -109,6 +120,9 @@ export function SettingsClient({
                             )}
                             {activeTab === 'notifications' && (
                                 <NotificationSettings organizer={initialOrganizer} userRole={userRole} />
+                            )}
+                            {activeTab === 'marketing' && (
+                                <MarketingSettings organizer={initialOrganizer} userRole={userRole} />
                             )}
                         </>
                     )}

@@ -379,6 +379,32 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         }
     }
 
+    // 7. Update Marketing Stats (UTM Tracking)
+    try {
+        for (const reservation of reservations) {
+            const metadata = reservation.metadata
+            if (metadata && metadata.utm_source) {
+                const { utm_source, utm_medium, utm_campaign } = metadata
+                const amount = reservation._calc.ticketTier.price * reservation.quantity
+                const currency = reservation._calc.ticketTier.currency || 'GHS'
+
+                console.log(`[Marketing] Updating stats for Source: ${utm_source}, Amount: ${amount}`)
+
+                // Update marketing_stats table
+                await supabase.rpc('track_marketing_conversion', {
+                    p_event_id: reservation.event_id,
+                    p_utm_source: utm_source,
+                    p_utm_medium: utm_medium,
+                    p_utm_campaign: utm_campaign,
+                    p_revenue: amount,
+                    p_currency: currency
+                })
+            }
+        }
+    } catch (err) {
+        console.error('Marketing Stats Update Error:', err)
+    }
+
     return { success: true, tickets: allTickets }
 }
 

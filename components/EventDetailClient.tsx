@@ -16,6 +16,7 @@ import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 
 import { createReservation } from '@/utils/gatepass'
+import { trackConversion } from '@/components/TrackingScripts'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
@@ -67,21 +68,57 @@ const useTimer = (expiresAt: string | undefined): { label: string, seconds: numb
 }
 
 export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [] }: EventDetailClientProps) {
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const supabase = createClient()
     const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>('details')
 
-    // Track View Count
+    // Track View Count & UTM Marketing
     useEffect(() => {
         if (!isFeedItem) {
             // Skip incrementing views for previews
             if (event.id === 'preview-id') return
 
             const supabase = createClient()
+
+            // 1. Standard View Count
             supabase.rpc('increment_event_view', { event_id: event.id })
                 .then(({ error }) => {
                     if (error) console.error('Error incrementing view count:', error.message || error)
                 })
+
+            // 2. Marketing UTM Tracking
+            const utm_source = searchParams.get('utm_source')
+            if (utm_source) {
+                const utm_medium = searchParams.get('utm_medium')
+                const utm_campaign = searchParams.get('utm_campaign')
+
+                supabase.rpc('track_marketing_event', {
+                    p_event_id: event.id,
+                    p_utm_source: utm_source,
+                    p_utm_medium: utm_medium,
+                    p_utm_campaign: utm_campaign,
+                    p_event_type: 'view'
+                }).then(({ error }) => {
+                    if (error) console.error('Error tracking marketing event:', error.message || error)
+                })
+
+                // 3. Auto-Apply Discount linked to UTM campaign
+                if (utm_campaign) {
+                    supabase.schema('gatepass').from('discounts')
+                        .select('code')
+                        .eq('event_id', event.id)
+                        .eq('linked_utm_campaign', utm_campaign)
+                        .maybeSingle()
+                        .then(({ data }) => {
+                            if (data?.code) {
+                                setPromoCode(data.code)
+                            }
+                        })
+                }
+            }
         }
-    }, [event.id, isFeedItem])
+    }, [event.id, isFeedItem, searchParams, supabase])
     const [direction, setDirection] = useState<'forward' | 'back'>('forward')
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
@@ -104,6 +141,20 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         if (newView === 'addons' && Object.keys(selectedAddons).length === 0 && availableAddons.length > 0) {
             setSelectedAddons({ [availableAddons[0].id]: 1 })
         }
+
+        // Track Checkout Initiated
+        if (newView === 'checkout' && dir === 'forward') {
+            const utm_source = searchParams.get('utm_source')
+            if (utm_source) {
+                supabase.rpc('track_marketing_event', {
+                    p_event_id: event.id,
+                    p_utm_source: utm_source,
+                    p_utm_medium: searchParams.get('utm_medium'),
+                    p_utm_campaign: searchParams.get('utm_campaign'),
+                    p_event_type: 'checkout'
+                })
+            }
+        }
     }
 
     // Form State
@@ -117,9 +168,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [discountError, setDiscountError] = useState('')
     const [applyingDiscount, setApplyingDiscount] = useState(false)
 
-    const router = useRouter()
-    const searchParams = useSearchParams()
-    const supabase = createClient()
     const timeLeft = useTimer(reservations[0]?.expires_at)
 
     // Handle Payment Callback (Redirect Flow)
@@ -147,7 +195,20 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
                     if (!result.success) throw new Error(result.error || 'Verification failed')
 
-                    setPurchasedTickets(result.tickets || [])
+                    const tickets = result.tickets || []
+                    setPurchasedTickets(tickets)
+
+                    // Track Conversion (Meta Pixel & GA4)
+                    try {
+                        const totalAmount = tickets.reduce((acc: number, t: any) => acc + (t.amount || 0), 0)
+                        const currency = tickets[0]?.currency || 'GHS'
+                        if (totalAmount > 0) {
+                            trackConversion(totalAmount, currency, tickets[0]?.id || reference)
+                        }
+                    } catch (err) {
+                        console.error('Tracking Error:', err)
+                    }
+
                     navigate('success', 'forward')
                 } catch (error: any) {
                     console.error('Verification Error:', error)
@@ -417,7 +478,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         phone: guestPhone
                     },
                     discount?.id,
-                    addonsPayload
+                    addonsPayload,
+                    {
+                        utm_source: searchParams.get('utm_source'),
+                        utm_medium: searchParams.get('utm_medium'),
+                        utm_campaign: searchParams.get('utm_campaign')
+                    }
                 )
             }))
 

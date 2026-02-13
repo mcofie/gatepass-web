@@ -7,6 +7,7 @@ import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
 import { getFeeSettings } from '@/utils/settings'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl, formatFacebookUrl } from '@/utils/social'
+import { TrackingScripts } from '@/components/TrackingScripts'
 
 interface PageProps {
     params: Promise<{ slug: string }>
@@ -171,6 +172,10 @@ export default async function EventPage({ params }: PageProps) {
 
     return (
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
+            <TrackingScripts
+                metaPixelId={event.organizers?.meta_pixel_id}
+                ga4Id={event.organizers?.ga4_measurement_id}
+            />
             {/* Full Screen Background */}
             <EventBackground
                 videoUrl={event.video_url}

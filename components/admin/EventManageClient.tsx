@@ -72,7 +72,7 @@ export function EventManageClient({
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
-    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0, tier_id: '', expires_at: '' })
+    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0, tier_id: '', expires_at: '', linked_utm_campaign: '' })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
 
@@ -312,7 +312,8 @@ export function EventManageClient({
                     value: discountForm.value,
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
                     tier_id: discountForm.tier_id || null,
-                    expires_at: discountForm.expires_at || null
+                    expires_at: discountForm.expires_at || null,
+                    linked_utm_campaign: discountForm.linked_utm_campaign || null
                 }).eq('id', editingDiscountId)
 
                 if (error) throw error
@@ -327,7 +328,8 @@ export function EventManageClient({
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
                     used_count: 0,
                     tier_id: discountForm.tier_id || null,
-                    expires_at: discountForm.expires_at || null
+                    expires_at: discountForm.expires_at || null,
+                    linked_utm_campaign: discountForm.linked_utm_campaign || null
                 })
 
                 if (error) throw error
@@ -336,7 +338,7 @@ export function EventManageClient({
 
             await fetchDiscounts()
             await fetchDiscounts()
-            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '' })
+            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '', linked_utm_campaign: '' })
         } catch (e: any) {
             toast.error(e.message)
         } finally {
@@ -352,14 +354,15 @@ export function EventManageClient({
             value: discount.value,
             max_uses: discount.max_uses || 0,
             tier_id: discount.tier_id || '',
-            expires_at: discount.expires_at || ''
+            expires_at: discount.expires_at || '',
+            linked_utm_campaign: (discount as any).linked_utm_campaign || ''
         })
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
     const cancelEditingDiscount = () => {
         setEditingDiscountId(null)
-        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '' })
+        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '', linked_utm_campaign: '' })
     }
 
     const deleteDiscount = (id: string) => {
@@ -1879,6 +1882,16 @@ export function EventManageClient({
                                         </div>
                                     </div>
                                 </div>
+                                <div className="md:col-span-3">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Link to UTM Campaign (Auto-Apply)</label>
+                                    <input
+                                        value={discountForm.linked_utm_campaign}
+                                        onChange={e => setDiscountForm({ ...discountForm, linked_utm_campaign: e.target.value })}
+                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white"
+                                        placeholder="e.g. summer_promo_2024"
+                                    />
+                                    <p className="text-[10px] text-gray-400 mt-1 italic">When users arrive via this UTM Campaign, this discount applies automatically.</p>
+                                </div>
                                 <div className="md:col-span-3 flex justify-end pt-2">
                                     <button
                                         disabled={creatingDiscount}
@@ -1907,6 +1920,11 @@ export function EventManageClient({
                                                 >
                                                     {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                                                 </button>
+                                                {(discount as any).linked_utm_campaign && (
+                                                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
+                                                        Linked to UTM: {(discount as any).linked_utm_campaign}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-sm font-medium text-gray-500 mt-1">
                                                 {discount.type === 'percentage' ? `${discount.value}% OFF` : `-${formatCurrency(discount.value, event.currency || 'GHS')}`}
