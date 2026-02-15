@@ -391,7 +391,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 console.log(`[Marketing] Updating stats for Source: ${utm_source}, Amount: ${amount}`)
 
                 // Update marketing_stats table
-                await supabase.rpc('track_marketing_conversion', {
+                await supabase.schema('gatepass').rpc('track_marketing_conversion', {
                     p_event_id: reservation.event_id,
                     p_utm_source: utm_source,
                     p_utm_medium: utm_medium,

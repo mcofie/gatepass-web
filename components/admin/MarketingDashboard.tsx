@@ -21,6 +21,7 @@ import {
     DollarSign,
     Target,
     Search,
+    Download,
 } from 'lucide-react'
 
 interface MarketingStat {
@@ -68,7 +69,7 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
         return initialStats.filter(stat => {
             const matchesSearch = stat.utm_source.toLowerCase().includes(search.toLowerCase()) ||
                 stat.events.title.toLowerCase().includes(search.toLowerCase()) ||
-                (stat.utm_campaign?.toLowerCase().includes(search.toLowerCase()))
+                (stat.utm_campaign?.toLowerCase()?.includes(search.toLowerCase()) ?? false)
 
             const matchesEvent = selectedEventId === 'all' || stat.event_id === selectedEventId
 
@@ -105,7 +106,17 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
             sourceMap[stat.utm_source].revenue += stat.revenue
         })
 
-        return Object.values(sourceMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+        const sorted = Object.values(sourceMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+        return sorted
+    }, [filteredStats])
+
+    const topPerformingSource = useMemo(() => {
+        if (filteredStats.length === 0) return null
+        return [...filteredStats].sort((a, b) => {
+            const yieldA = a.views > 0 ? a.transactions / a.views : 0
+            const yieldB = b.views > 0 ? b.transactions / b.views : 0
+            return yieldB - yieldA
+        })[0]?.id
     }, [filteredStats])
 
     const generatedLink = useMemo(() => {
@@ -337,9 +348,25 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                                             <p className="font-bold text-sm dark:text-white text-green-500">GHS {stat.revenue.toLocaleString()}</p>
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            <span className="text-sm font-black text-blue-600 dark:text-blue-400">
-                                                {stat.views > 0 ? ((stat.transactions / stat.views) * 100).toFixed(1) : 0}%
-                                            </span>
+                                            <div className="flex flex-col items-end gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-black text-blue-600 dark:text-blue-400">
+                                                        {stat.views > 0 ? ((stat.transactions / stat.views) * 100).toFixed(1) : 0}%
+                                                    </span>
+                                                    {stat.id === topPerformingSource && (
+                                                        <div className="bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                                            <TrendingUp className="w-2 h-2 text-amber-500" />
+                                                            <span className="text-[7px] font-black text-amber-600 uppercase tracking-tighter">Top Yield</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="w-20 h-1 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-blue-500 rounded-full transition-all duration-1000"
+                                                        style={{ width: `${Math.min(100, (stat.views > 0 ? (stat.transactions / stat.views) * 1000 : 0))}%` }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -379,22 +406,53 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {/* Source Selection */}
+                                <div className="space-y-3">
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Source</label>
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {['instagram', 'facebook', 'whatsapp', 'x', 'email'].map(s => (
+                                            <button
+                                                key={s}
+                                                onClick={() => setGenSource(s)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tight transition-all border ${genSource === s
+                                                    ? 'bg-blue-600 border-transparent text-white shadow-lg shadow-blue-600/20 scale-105'
+                                                    : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                {s}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <input
                                         value={genSource}
                                         onChange={(e) => setGenSource(e.target.value)}
-                                        placeholder="instagram"
+                                        placeholder="Custom Source..."
                                         className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
                                     />
                                 </div>
-                                <div className="space-y-2">
+
+                                {/* Medium Selection */}
+                                <div className="space-y-3">
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Medium</label>
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {['ad', 'story', 'bio', 'post', 'email'].map(m => (
+                                            <button
+                                                key={m}
+                                                onClick={() => setGenMedium(m)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tight transition-all border ${genMedium === m
+                                                    ? 'bg-blue-600 border-transparent text-white shadow-lg shadow-blue-600/20 scale-105'
+                                                    : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                {m}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <input
                                         value={genMedium}
                                         onChange={(e) => setGenMedium(e.target.value)}
-                                        placeholder="story"
+                                        placeholder="Custom Medium..."
                                         className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
                                     />
                                 </div>
@@ -413,23 +471,49 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
 
                         <div className="pt-6">
                             {generatedLink ? (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="p-4 bg-white/5 rounded-xl border border-white/5 group cursor-pointer" onClick={handleCopy}>
-                                        <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Snippet</p>
-                                        <p className="text-[10px] font-mono break-all text-blue-400 font-bold line-clamp-2">{generatedLink}</p>
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                                    <div className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-white/10 shadow-inner group">
+                                        <div className="w-20 h-20 bg-white p-1 rounded-lg flex-shrink-0">
+                                            <img
+                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(generatedLink)}&bgcolor=ffffff&color=000000`}
+                                                alt="Campaign QR"
+                                                className="w-full h-full object-contain"
+                                            />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-black/40 dark:text-gray-500 uppercase tracking-widest mb-1.5">Live Preview</p>
+                                            <div className="p-2.5 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-100 dark:border-white/5">
+                                                <p className="text-[10px] font-mono break-all text-blue-600 dark:text-blue-400 font-bold line-clamp-2 leading-relaxed">{generatedLink}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <button
-                                        onClick={handleCopy}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-xl shadow-blue-600/20 active:scale-95 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-                                    >
-                                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                        {copied ? 'Copied!' : 'Copy Link'}
-                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleCopy}
+                                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-xl shadow-blue-600/20 active:scale-95 transition-all text-[11px] uppercase tracking-widest flex items-center justify-center gap-2"
+                                        >
+                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                            {copied ? 'Link Copied' : 'Copy Link'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const link = document.createElement('a');
+                                                link.href = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(generatedLink)}`;
+                                                link.download = `qr_${genSource}_${genCampaign}.png`;
+                                                link.target = '_blank';
+                                                link.click();
+                                            }}
+                                            className="w-14 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-all active:scale-95 border border-white/10"
+                                            title="Download QR Code"
+                                        >
+                                            <Download className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="p-6 border border-dashed border-white/10 rounded-2xl text-center">
+                                <div className="p-6 border border-dashed border-white/10 rounded-2xl text-center bg-white/5">
                                     <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] leading-relaxed">
-                                        Fill details to generate<br />tracking link
+                                        Select an event to<br />activate builder
                                     </p>
                                 </div>
                             )}

@@ -93,7 +93,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 const utm_medium = searchParams.get('utm_medium')
                 const utm_campaign = searchParams.get('utm_campaign')
 
-                supabase.rpc('track_marketing_event', {
+                supabase.schema('gatepass').rpc('track_marketing_event', {
                     p_event_id: event.id,
                     p_utm_source: utm_source,
                     p_utm_medium: utm_medium,
@@ -146,7 +146,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         if (newView === 'checkout' && dir === 'forward') {
             const utm_source = searchParams.get('utm_source')
             if (utm_source) {
-                supabase.rpc('track_marketing_event', {
+                supabase.schema('gatepass').rpc('track_marketing_event', {
                     p_event_id: event.id,
                     p_utm_source: utm_source,
                     p_utm_medium: searchParams.get('utm_medium'),
