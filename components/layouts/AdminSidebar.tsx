@@ -83,11 +83,19 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                 .order('created_at', { ascending: false })
 
             // 2. Fetch ALL team memberships
-            const { data: teamOrgs } = await supabase
+            interface TeamOrgRecord {
+                role: string
+                organization: { id: string; name: string } | null
+            }
+            const { data: teamOrgs, error: teamErr } = await supabase
                 .schema('gatepass')
                 .from('organization_team')
-                .select('role, organization:organization_id(id, name)')
+                .select('role, organization:organizers(id, name)')
                 .eq('user_id', authedUser.id)
+
+            if (teamErr) {
+                console.error('Sidebar: Error fetching team orgs:', teamErr.message)
+            }
 
             const combined: { id: string, name: string, role: string }[] = []
 
@@ -95,7 +103,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                 ownedOrgs.forEach(o => combined.push({ id: o.id, name: o.name, role: 'Owner' }))
             }
             if (teamOrgs) {
-                teamOrgs.forEach((t: any) => {
+                (teamOrgs as unknown as TeamOrgRecord[]).forEach((t) => {
                     if (t.organization) {
                         combined.push({ id: t.organization.id, name: t.organization.name, role: t.role })
                     }
@@ -118,13 +126,13 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     }
                 } else {
                     // Check if team
-                    const matchedTeam = teamOrgs?.find((t: any) => t.organization?.id === activeOrgId)
+                    const matchedTeam = (teamOrgs as unknown as TeamOrgRecord[])?.find((t) => t.organization?.id === activeOrgId)
                     if (matchedTeam) {
                         if (mounted) {
                             setIsOwner(false)
                             const rawRole = matchedTeam.role || 'Staff'
                             setRole(rawRole.charAt(0).toUpperCase() + rawRole.slice(1))
-                            setOrgDetails({ name: (matchedTeam.organization as any).name })
+                            setOrgDetails({ name: matchedTeam.organization?.name ?? 'Unknown Organization' })
                             isFoundViaActiveId = true
                         }
                     }
@@ -132,42 +140,19 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             }
 
             // 4. Fallback if no active ID or not found
-            if (!isFoundViaActiveId) {
-                // Determine Current Context (Default: Latest Owner -> Latest Team)
-                const { data: ownerData } = await supabase
-                    .schema('gatepass')
-                    .from('organizers')
-                    .select('id, name')
-                    .eq('user_id', authedUser.id)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle()
-
-                if (!mounted) return
-
-                if (ownerData) {
-                    setIsOwner(true)
-                    setRole('Owner')
-                    setOrgDetails({ name: ownerData.name })
-                } else {
+            if (!isFoundViaActiveId && combined.length > 0) {
+                // Pick first one (Latest Owner -> Then Teams)
+                const first = combined[0]
+                console.log('Sidebar: Using fallback from combined array:', first)
+                if (mounted) {
+                    setIsOwner(first.role === 'Owner')
+                    setRole(first.role)
+                    setOrgDetails({ name: first.name })
+                }
+            } else if (combined.length === 0) {
+                if (mounted) {
                     setIsOwner(false)
-
-                    // Staff?
-                    const { data: teamData } = await supabase
-                        .schema('gatepass')
-                        .from('organization_team')
-                        .select('role, organization:organization_id(name)')
-                        .eq('user_id', authedUser.id)
-                        .limit(1)
-                        .maybeSingle()
-
-                    if (!mounted) return
-
-                    const orgName = (teamData as any)?.organization?.name ?? null
-                    const rawRole = (teamData as any)?.role ?? 'Staff'
-                    setRole(rawRole.charAt(0).toUpperCase() + rawRole.slice(1))
-
-                    setOrgDetails(orgName ? { name: orgName } : null)
+                    setOrgDetails(null)
                 }
             }
 
@@ -244,7 +229,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             ...(isOwner ? [{ name: 'Activity Log', path: '/dashboard/activity', icon: History }] : []),
             { name: 'Settings', path: '/dashboard/settings', icon: Settings },
         ]
-    }, [isOwner, isAdmin, isSuperAdmin, role])
+    }, [isOwner, role])
 
     return (
         <>

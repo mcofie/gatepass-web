@@ -187,11 +187,12 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                     // 2. Subtotal (Net of Discount)
                                     const ticketRevenueNet = Math.max(0, (price * quantity) - discountAmount)
 
-                                    // 3. Fee Logic (Consistent with Modal)
-                                    // Use stored rates if available, else defaults (0.04 & 0.0198)
-                                    // But to be "Fix Across", we should prioritize what the Modal does:
-                                    // The Modal uses `transaction.applied_fee_rate` or 0.04.
+                                    // 3. Detect instalment and fee bearer
+                                    const isInstalment = sale.metadata?.payment_type === 'instalment' ||
+                                        sale.metadata?.metadata?.payment_type === 'instalment'
+                                    const feeBearer = event?.fee_bearer || 'customer'
 
+                                    // 4. Fee Logic
                                     const purchasedAddons = r.addons || {}
                                     let addonRevenue = 0
                                     if (typeof purchasedAddons === 'object') {
@@ -200,11 +201,6 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                             addonRevenue += p * (qty as number)
                                         })
                                     }
-
-                                    // Fix Across Logic:
-                                    // If stored rate is 0/null, assume it's a legacy/buggy record and use the effective/standard rate
-                                    // We need to fetch/determine the effective rate. We can default to 4% if not available (safe for this specific user request)
-                                    // or better, use the stored rate if > 0.
 
                                     let usedPlatformRate = sale.applied_fee_rate ?? 0.04
                                     if (usedPlatformRate === 0) usedPlatformRate = 0.04
@@ -215,28 +211,23 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                         ? 0.0195
                                         : storedProcessorRate
 
-                                    const calcPlatformFee = ticketRevenueNet * usedPlatformRate
-                                    const calcProcessorFee = sale.amount * processorRate
-
-                                    // Prefer stored fee for accuracy with history
-                                    // BUT if stored fee is 0 and we expect a fee, RECALCULATE IT
+                                    // Platform fee: use stored value, or calculate proportionally for instalments
                                     let finalPlatformFee = sale.platform_fee
-                                    if ((finalPlatformFee === 0 || finalPlatformFee === null || finalPlatformFee === undefined) && usedPlatformRate > 0 && ticketRevenueNet > 0) {
-                                        finalPlatformFee = calcPlatformFee
-                                    } else if (finalPlatformFee === null || finalPlatformFee === undefined) {
-                                        finalPlatformFee = calcPlatformFee
+                                    if (finalPlatformFee == null || finalPlatformFee === 0) {
+                                        finalPlatformFee = isInstalment
+                                            ? sale.amount * usedPlatformRate  // Proportional to instalment amount
+                                            : ticketRevenueNet * usedPlatformRate  // Standard: % of ticket revenue
                                     }
 
-                                    const finalProcessorFee = (sale.applied_processor_fee !== null && sale.applied_processor_fee !== undefined) ? sale.applied_processor_fee : calcProcessorFee
+                                    const finalProcessorFee = (sale.applied_processor_fee != null)
+                                        ? sale.applied_processor_fee
+                                        : sale.amount * processorRate
 
-                                    const expectedTotalFees = finalPlatformFee + finalProcessorFee
-
-                                    // Payout = Total Paid - Fees
-                                    // This applies for BOTH fee bearers (mathematically equivalent for Net Payout view)
-                                    // If Customer Pays: Total = 2.08. Fees = 0.08. Payout = 2.00.
-                                    // If Organizer Pays: Total = 2.00. Fees = 0.08. Payout = 1.92.
-
-                                    const organizerPayout = sale.amount - expectedTotalFees
+                                    // Payout: When customer bears fees, processor fee is NOT deducted from organizer
+                                    // (Paystack charges it to the platform account via bearer:'account')
+                                    const organizerPayout = feeBearer === 'customer'
+                                        ? sale.amount - finalPlatformFee  // Customer bears: organizer only pays platform fee
+                                        : sale.amount - finalPlatformFee - finalProcessorFee  // Organizer bears: pays both
 
                                     // purchasedAddons already defined above
                                     const hasAddons = Object.keys(purchasedAddons).length > 0

@@ -20,6 +20,9 @@ export function Footer() {
                 </div>
 
                 <div className="flex items-center gap-6 text-xs font-medium text-gray-500 dark:text-gray-400">
+                    <Link href="/our-offering" className="hover:text-black dark:hover:text-white transition-colors">
+                        Our Offering
+                    </Link>
                     <Link href="/terms-of-service" className="hover:text-black dark:hover:text-white transition-colors">
                         Terms of Service
                     </Link>

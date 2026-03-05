@@ -143,7 +143,12 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
     const totalPaid = transaction.amount
     const feeBearer = eventFeeBearer
 
+    // Detect instalment payment
+    const isInstalment = transaction.metadata?.payment_type === 'instalment' ||
+        transaction.metadata?.metadata?.payment_type === 'instalment'
+
     // Effective Calculations
+    // For instalments, the platform fee should be based on the instalment amount, not full ticket price
     // Net Ticket Revenue (Base for Platform Fee)
     const ticketRevenueNetBase = Math.max(0, totalTicketRevenueRaw - totalDiscountAmount)
 
@@ -158,13 +163,20 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
         processorFeePercent: normalizedProcessorRate
     }
 
-    // Recalc Fees
-    const calcPlatformFee = ticketRevenueNetBase * effectiveRates.platformFeePercent
+    // Recalc Fees - use stored platform_fee if available, otherwise calculate
+    // For instalments: platform fee is proportional to the instalment amount, not the full ticket price
+    const calcPlatformFee = (transaction.platform_fee != null && transaction.platform_fee > 0)
+        ? transaction.platform_fee  // Use the stored fee (already calculated proportionally at payment time)
+        : isInstalment
+            ? totalPaid * effectiveRates.platformFeePercent  // Proportional to instalment amount
+            : ticketRevenueNetBase * effectiveRates.platformFeePercent  // Standard: % of ticket revenue
     const calcProcessorFee = totalPaid * effectiveRates.processorFeePercent
-    const expectedTotalFees = calcPlatformFee + calcProcessorFee
 
-    // Payout
-    const expectedPayout = totalPaid - expectedTotalFees
+    // Payout: When customer bears fees, processor fee is NOT deducted from organizer
+    // (Paystack charges it to the platform account via bearer:'account')
+    const expectedPayout = feeBearer === 'customer'
+        ? totalPaid - calcPlatformFee  // Customer bears: organizer only pays platform fee
+        : totalPaid - calcPlatformFee - calcProcessorFee  // Organizer bears: pays both fees
 
     // Calculate actual add-on revenue from fetched details
     let addonRevenue = 0
@@ -278,11 +290,14 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                             <span>- {formatCurrency(displayPlatformFee, transaction.currency)}</span>
                         </div>
 
-                        <div className="flex justify-between text-sm text-red-500">
+                        <div className={`flex justify-between text-sm ${feeBearer === 'customer' ? 'text-gray-400 dark:text-gray-500' : 'text-red-500'}`}>
                             <span className="flex items-center gap-1">
                                 <span>Processor Fee ({(effectiveRates.processorFeePercent * 100).toFixed(2)}%)</span>
+                                {feeBearer === 'customer' && (
+                                    <span className="text-[10px] bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded font-bold">Paid by buyer</span>
+                                )}
                             </span>
-                            <span>- {formatCurrency(displayProcessorFee, transaction.currency)}</span>
+                            <span>{feeBearer === 'customer' ? '' : '- '}{formatCurrency(displayProcessorFee, transaction.currency)}</span>
                         </div>
 
                         {/* 3. NET PAYOUT SECTION */}

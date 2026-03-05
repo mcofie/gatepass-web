@@ -5,6 +5,11 @@ import { SettingsClient } from '@/components/admin/SettingsClient'
 
 export const revalidate = 0
 
+interface TeamMemberRecord {
+    organization_id: string
+    organization: Record<string, unknown> | null
+}
+
 export default async function SettingsPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -21,7 +26,7 @@ export default async function SettingsPage() {
         .eq('id', user?.id)
         .single()
 
-    const settings = settingsData?.reduce((acc: any, curr) => {
+    const settings = settingsData?.reduce((acc: Record<string, unknown>, curr) => {
         acc[curr.key] = curr.value
         return acc
     }, {}) || {}
@@ -51,13 +56,14 @@ export default async function SettingsPage() {
                 const { data: teamMember } = await supabase
                     .schema('gatepass')
                     .from('organization_team')
-                    .select('organization_id, organizers(*)')
+                    .select('organization_id, organization:organizers(*)')
                     .eq('organization_id', activeOrgId)
                     .eq('user_id', user?.id)
                     .maybeSingle()
 
-                if (teamMember && teamMember.organizers) {
-                    resolvedOrganizer = teamMember.organizers as any
+                const tm = teamMember as unknown as TeamMemberRecord
+                if (tm && tm.organization) {
+                    resolvedOrganizer = tm.organization
                 }
             }
         } else {
@@ -72,7 +78,7 @@ export default async function SettingsPage() {
 
             if (teamMember && teamMember.organizers) {
                 resolvedOrgId = teamMember.organization_id
-                resolvedOrganizer = teamMember.organizers as any
+                resolvedOrganizer = teamMember.organizers as unknown as Record<string, unknown>
             } else {
                 resolvedOrgId = undefined
             }
@@ -97,14 +103,40 @@ export default async function SettingsPage() {
             const { data: teamMember } = await supabase
                 .schema('gatepass')
                 .from('organization_team')
-                .select('role, organization_id, organizers(*)')
+                .select('role, organization_id, organization:organizers(*)')
                 .eq('user_id', user?.id)
                 .limit(1)
                 .maybeSingle()
 
-            if (teamMember && teamMember.organizers) {
-                resolvedOrgId = teamMember.organization_id
-                resolvedOrganizer = teamMember.organizers as any
+            const tm = teamMember as unknown as TeamMemberRecord
+            if (tm && tm.organization) {
+                resolvedOrgId = tm.organization_id
+                resolvedOrganizer = tm.organization
+            } else if (user?.email && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                // Secondary fallback: Try as admin by email (bypasses RLS)
+                const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+                const adminSupabase = createAdminClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!
+                )
+
+                const { data: inviteByEmail } = await adminSupabase
+                    .schema('gatepass')
+                    .from('organization_team')
+                    .select('organization_id, organization:organizers(*)')
+                    .ilike('email', user.email)
+                    .limit(1)
+                    .maybeSingle()
+
+                const inv = inviteByEmail as unknown as TeamMemberRecord
+                if (inv && inv.organization) {
+                    resolvedOrgId = inv.organization_id
+                    resolvedOrganizer = inv.organization
+
+                    // Trigger sync synchronously
+                    const { syncUserTeamMemberships } = await import('@/app/actions/team')
+                    await syncUserTeamMemberships()
+                }
             }
         }
     }
@@ -115,7 +147,7 @@ export default async function SettingsPage() {
 
     // Determine Role for this specific resolved organizer
     let role = resolvedOrganizer.user_id === user?.id ? 'Owner' : 'Member'
-    let teamInfo = null
+    const teamInfo = null
 
     if (resolvedOrganizer.user_id !== user?.id) {
         const { data: teamMember } = await supabase

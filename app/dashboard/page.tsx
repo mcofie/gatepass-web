@@ -2,12 +2,44 @@ import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 
 import { formatCurrency } from '@/utils/format'
-import { Calendar, Ticket, DollarSign, AlertTriangle, ArrowRight, Wallet, Settings } from 'lucide-react'
-
-import { calculateFees } from '@/utils/fees'
+import { Calendar, Ticket, DollarSign, Wallet, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 export const revalidate = 0
+
+interface TeamMemberRecord {
+    organization_id: string
+    organization: Record<string, unknown> | null
+}
+
+interface TransactionRecord {
+    id: string
+    amount: number
+    currency: string
+    platform_fee?: number
+    applied_processor_fee?: number
+    applied_fee_rate?: number
+    applied_processor_rate?: number
+    metadata?: {
+        payment_type?: string
+        metadata?: { payment_type?: string }
+    } | null
+    reservations?: {
+        quantity: number
+        guest_name?: string
+        guest_email?: string
+        profiles?: { full_name?: string; email?: string }
+        ticket_tiers?: { name?: string; price?: number }
+        events?: { title?: string; organization_id?: string; fee_bearer?: string }
+        discounts?: { type?: string; value?: number }
+        addons?: Record<string, number>
+    } | null
+}
+
+interface AddonRecord {
+    id: string
+    name: string
+}
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -18,7 +50,6 @@ export default async function DashboardPage() {
     const cookieStore = await cookies()
     const activeOrgId = cookieStore.get('gatepass-org-id')?.value
 
-    let resolvedOrgId = activeOrgId
     let resolvedOrg = null
 
     // 1. Determine Organization Context
@@ -32,7 +63,7 @@ export default async function DashboardPage() {
             .maybeSingle()
 
         if (explicitOrg) {
-            resolvedOrgId = explicitOrg.id
+
             if (explicitOrg.user_id === user.id) {
                 resolvedOrg = explicitOrg
             } else {
@@ -40,13 +71,14 @@ export default async function DashboardPage() {
                 const { data: teamMember } = await supabase
                     .schema('gatepass')
                     .from('organization_team')
-                    .select('organization_id, organizers(*)')
+                    .select('organization_id, organization:organizers(*)')
                     .eq('organization_id', activeOrgId)
                     .eq('user_id', user.id)
                     .maybeSingle()
 
-                if (teamMember && teamMember.organizers) {
-                    resolvedOrg = teamMember.organizers as any
+                const tm = teamMember as unknown as TeamMemberRecord
+                if (tm && tm.organization) {
+                    resolvedOrg = tm.organization
                 }
             }
         } else {
@@ -60,10 +92,10 @@ export default async function DashboardPage() {
                 .maybeSingle()
 
             if (teamMember && teamMember.organizers) {
-                resolvedOrgId = teamMember.organization_id
-                resolvedOrg = teamMember.organizers as any
+
+                resolvedOrg = teamMember.organizers as unknown as Record<string, unknown>
             } else {
-                resolvedOrgId = undefined
+
             }
         }
     }
@@ -81,34 +113,52 @@ export default async function DashboardPage() {
             .maybeSingle()
 
         if (latestOrg) {
-            resolvedOrgId = latestOrg.id
+
             resolvedOrg = latestOrg
         } else {
             // Latest Team
             const { data: teamMember } = await supabase
                 .schema('gatepass')
                 .from('organization_team')
-                .select('organization_id, organizers(*)')
+                .select('organization_id, organization:organizers(*)')
                 .eq('user_id', user.id)
                 .limit(1)
                 .maybeSingle()
 
-            if (teamMember && teamMember.organizers) {
-                resolvedOrgId = teamMember.organization_id
-                resolvedOrg = teamMember.organizers as any
+            const tm = teamMember as unknown as TeamMemberRecord
+            if (tm && tm.organization) {
+                resolvedOrg = tm.organization
+            } else if (user.email && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                // Secondary fallback: Try as admin by email (bypasses RLS)
+                const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+                const adminSupabase = createAdminClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!
+                )
+
+                const { data: inviteByEmail } = await adminSupabase
+                    .schema('gatepass')
+                    .from('organization_team')
+                    .select('organization_id, organization:organizers(*)')
+                    .ilike('email', user.email)
+                    .limit(1)
+                    .maybeSingle()
+
+                const inv = inviteByEmail as unknown as TeamMemberRecord
+                if (inv && inv.organization) {
+                    resolvedOrg = inv.organization
+
+                    // Trigger sync synchronously
+                    const { syncUserTeamMemberships } = await import('@/app/actions/team')
+                    await syncUserTeamMemberships()
+                }
             }
         }
     }
 
     const org = resolvedOrg
 
-    // Fetch user profile to check for personal completeness
-    const { data: profile } = await supabase
-        .schema('gatepass')
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+
 
     // If still no org, they need to onboard
     if (!org) {
@@ -119,18 +169,12 @@ export default async function DashboardPage() {
             <div className="max-w-7xl mx-auto py-12 text-center">
                 <h2 className="text-2xl font-bold">No Organization Found</h2>
                 <p className="mb-4">Please create an organization to get started.</p>
-                <a href="/onboarding" className="text-blue-600 hover:underline">Go to Onboarding</a>
+                <Link href="/onboarding" className="text-blue-600 hover:underline">Go to Onboarding</Link>
             </div>
         )
     }
 
-    // Check for missing details
-    const missingOrg = !org.logo_url || !org.description || !org.paystack_subaccount_code
-    const missingProfile = !profile?.full_name || !profile?.username || !profile?.phone_number
-    const needsSetup = missingOrg || missingProfile
 
-    // Check for settlement status
-    const needsSettlement = org ? !org.paystack_subaccount_code : false
 
     const orgId = org.id
 
@@ -164,6 +208,9 @@ export default async function DashboardPage() {
                 currency,
                 platform_fee,
                 applied_processor_fee,
+                applied_fee_rate,
+                applied_processor_rate,
+                metadata,
                 reservations!inner (
                     quantity,
                     guest_name,
@@ -188,6 +235,9 @@ export default async function DashboardPage() {
                 currency,
                 platform_fee,
                 applied_processor_fee,
+                applied_fee_rate,
+                applied_processor_rate,
+                metadata,
                 reservations!inner (
                     quantity,
                     ticket_tiers(price),
@@ -204,8 +254,9 @@ export default async function DashboardPage() {
     try {
         if (recentSalesRes.data && recentSalesRes.data.length > 0) {
             const addonIds = new Set<string>()
-            recentSalesRes.data.forEach((sale: any) => {
-                const addons = sale.reservations?.addons
+            recentSalesRes.data.forEach((sale: unknown) => {
+                const s = sale as TransactionRecord
+                const addons = s.reservations?.addons
                 if (addons && typeof addons === 'object') {
                     Object.keys(addons).forEach(id => addonIds.add(id))
                 }
@@ -219,8 +270,9 @@ export default async function DashboardPage() {
                     .in('id', Array.from(addonIds))
 
                 if (addonsData) {
-                    addonsData.forEach((a: any) => {
-                        addonMap[a.id] = a.name
+                    addonsData.forEach((a: unknown) => {
+                        const addon = a as AddonRecord
+                        addonMap[addon.id] = addon.name
                     })
                 }
             }
@@ -235,14 +287,18 @@ export default async function DashboardPage() {
 
     if (transRes.data) {
         // Sum actual transaction amounts - Updated to Strict Net Payout
-        transRes.data.forEach((tx: any) => {
-            if (tx.currency) currencySymbol = tx.currency
+        transRes.data.forEach((tx: unknown) => {
+            const t = tx as TransactionRecord
+            if (t.currency) currencySymbol = t.currency
+
+            const feeBearer = t.reservations?.events?.fee_bearer || 'customer'
+            const isInstalment = t.metadata?.payment_type === 'instalment' || t.metadata?.metadata?.payment_type === 'instalment'
 
             // Calculate Ticket Subtotal (Revenue from tickets)
             // We need to parse reservations to get accurate fee basis
             let ticketRevenue = 0
-            if (tx.reservations) {
-                const r = tx.reservations
+            if (t.reservations) {
+                const r = t.reservations
                 const discount = r.discounts
                 let discountAmount = 0
                 const price = r.ticket_tiers?.price || 0
@@ -250,37 +306,39 @@ export default async function DashboardPage() {
 
                 if (discount) {
                     if (discount.type === 'percentage') {
-                        discountAmount = (price * quantity) * (discount.value / 100)
+                        discountAmount = (price * quantity) * ((discount.value || 0) / 100)
                     } else {
-                        discountAmount = discount.value
+                        discountAmount = discount.value || 0
                     }
                 }
                 ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
             }
 
-            // Fallback: If no reservation data (shouldn't happen), assume ticket revenue is roughly total amount
-            // But we have query!inner, so it should exist.
-
             // Get Rates
             // Use stored rates on transaction if available, otherwise fallback to defaults (4% / 1.95%)
-            const platformRate = tx.applied_fee_rate ?? 0.04
+            const platformRate = t.applied_fee_rate ?? 0.04
             // Normalize old 2% rate to current 1.95%
-            const storedProcessorRate = tx.applied_processor_rate
+            const storedProcessorRate = t.applied_processor_rate
             const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
                 ? 0.0195
                 : storedProcessorRate
 
             // Recalculate Fees based on correct basis
-            // Platform Fee is on Ticket Revenue
-            const calcPlatformFee = ticketRevenue * platformRate
+            let finalPlatformFee = t.platform_fee
+            if (finalPlatformFee == null || finalPlatformFee === 0) {
+                finalPlatformFee = isInstalment
+                    ? t.amount * platformRate
+                    : ticketRevenue * platformRate
+            }
 
-            // Processor Fee is on Total Amount Paid
-            const calcProcessorFee = tx.amount * processorRate
-
-            const expectedTotalFees = calcPlatformFee + calcProcessorFee
+            const finalProcessorFee = (t.applied_processor_fee != null)
+                ? t.applied_processor_fee
+                : t.amount * processorRate
 
             // Net Payout = Total Paid - Total Fees
-            const netPayout = tx.amount - expectedTotalFees
+            const netPayout = feeBearer === 'customer'
+                ? t.amount - finalPlatformFee
+                : t.amount - finalPlatformFee - finalProcessorFee
 
             totalRevenue += netPayout
         })
@@ -299,12 +357,12 @@ export default async function DashboardPage() {
             {/* Header */}
             <div className="flex flex-col gap-1">
                 <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
-                <p className="text-gray-500 font-medium dark:text-gray-400">Welcome back, here's what's happening today.</p>
+                <p className="text-gray-500 font-medium dark:text-gray-400">Welcome back, here{"'"}s what{"'"}s happening today.</p>
             </div>
 
             {/* Stats Grid - Bento Style */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {stats.map((stat, i) => (
+                {stats.map((stat) => (
                     <div key={stat.label} className="group bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
                         <div className="flex items-center justify-between mb-8">
                             <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">{stat.label}</p>
@@ -327,19 +385,23 @@ export default async function DashboardPage() {
                     <div>
                         <div className="flex items-center justify-between px-1 mb-4">
                             <h3 className="font-bold text-xl tracking-tight dark:text-white">Recent Sales</h3>
-                            <a href="/dashboard/sales" className="text-sm font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors">View All</a>
+                            <Link href="/dashboard/sales" className="text-sm font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors">View All</Link>
                         </div>
 
                         <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
                             {recentSalesRes.data && recentSalesRes.data.length > 0 ? (
                                 <div className="divide-y divide-gray-50 dark:divide-white/5">
-                                    {recentSalesRes.data.map((sale: any) => {
+                                    {recentSalesRes.data.map((sale: unknown) => {
+                                        const s = sale as TransactionRecord
                                         // Calculations
                                         // Simplified Logic: Rely on stored snapshot
                                         // UPDATED: Recalculate to match Total Revenue logic
+                                        const feeBearer = s.reservations?.events?.fee_bearer || 'customer'
+                                        const isInstalment = s.metadata?.payment_type === 'instalment' || s.metadata?.metadata?.payment_type === 'instalment'
+
                                         let ticketRevenue = 0
-                                        if (sale.reservations) {
-                                            const r = sale.reservations
+                                        if (s.reservations) {
+                                            const r = s.reservations
                                             const discount = r.discounts
                                             let discountAmount = 0
                                             const price = r.ticket_tiers?.price || 0
@@ -347,43 +409,51 @@ export default async function DashboardPage() {
 
                                             if (discount) {
                                                 if (discount.type === 'percentage') {
-                                                    discountAmount = (price * quantity) * (discount.value / 100)
+                                                    discountAmount = (price * quantity) * ((discount.value || 0) / 100)
                                                 } else {
-                                                    discountAmount = discount.value
+                                                    discountAmount = discount.value || 0
                                                 }
                                             }
                                             ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
                                         }
 
-                                        const platformRate = sale.applied_fee_rate ?? 0.04
-                                        // Normalize old 2% rate to current 1.95%
-                                        const storedProcessorRate2 = sale.applied_processor_rate
+                                        const platformRate = s.applied_fee_rate ?? 0.04
+                                        const storedProcessorRate2 = s.applied_processor_rate
                                         const processorRate = (storedProcessorRate2 === 0.02 || !storedProcessorRate2)
                                             ? 0.0195
                                             : storedProcessorRate2
 
-                                        const calcPlatformFee = ticketRevenue * platformRate
-                                        const calcProcessorFee = sale.amount * processorRate
-                                        const expectedTotalFees = calcPlatformFee + calcProcessorFee
+                                        let finalPlatformFee = s.platform_fee
+                                        if (finalPlatformFee == null || finalPlatformFee === 0) {
+                                            finalPlatformFee = isInstalment
+                                                ? s.amount * platformRate
+                                                : ticketRevenue * platformRate
+                                        }
 
-                                        const organizerPayout = sale.amount - expectedTotalFees
+                                        const finalProcessorFee = (s.applied_processor_fee != null)
+                                            ? s.applied_processor_fee
+                                            : s.amount * processorRate
+
+                                        const organizerPayout = feeBearer === 'customer'
+                                            ? s.amount - finalPlatformFee
+                                            : s.amount - finalPlatformFee - finalProcessorFee
 
                                         return (
-                                            <div key={sale.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
+                                            <div key={s.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                                 <div className="flex items-center gap-5">
                                                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/10 dark:to-white/5 text-gray-600 dark:text-white flex items-center justify-center font-bold text-sm shadow-inner">
-                                                        {sale.reservations?.profiles?.full_name?.charAt(0) || sale.reservations?.guest_name?.charAt(0) || 'G'}
+                                                        {s.reservations?.profiles?.full_name?.charAt(0) || s.reservations?.guest_name?.charAt(0) || 'G'}
                                                     </div>
                                                     <div>
                                                         <p className="text-[15px] font-semibold text-gray-900 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors">
-                                                            {sale.reservations?.profiles?.full_name || sale.reservations?.guest_name || 'Guest User'}
+                                                            {s.reservations?.profiles?.full_name || s.reservations?.guest_name || 'Guest User'}
                                                         </p>
                                                         <p className="text-[13px] text-gray-500 dark:text-gray-400">
-                                                            purchased <span className="font-medium text-gray-700 dark:text-gray-300">{sale.reservations?.ticket_tiers?.name}</span> • {sale.reservations?.events?.title}
+                                                            purchased <span className="font-medium text-gray-700 dark:text-gray-300">{s.reservations?.ticket_tiers?.name}</span> • {s.reservations?.events?.title}
                                                         </p>
-                                                        {sale.reservations?.addons && Object.keys(sale.reservations.addons).length > 0 && (
+                                                        {s.reservations?.addons && Object.keys(s.reservations.addons).length > 0 && (
                                                             <div className="mt-1 flex flex-col gap-0.5">
-                                                                {Object.entries(sale.reservations.addons).map(([id, qty]) => (
+                                                                {Object.entries(s.reservations.addons).map(([id, qty]) => (
                                                                     <p key={id} className="text-[11px] text-gray-500 font-medium flex items-center gap-1.5">
                                                                         <span className="bg-gray-100 dark:bg-white/10 px-1.5 rounded text-[10px]">{qty as number}x</span> {addonMap[id] || 'Add-on'}
                                                                     </p>
@@ -393,7 +463,7 @@ export default async function DashboardPage() {
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-[15px] font-bold text-green-600 dark:text-green-400 tabular-nums">+{formatCurrency(organizerPayout, sale.currency)}</p>
+                                                    <p className="text-[15px] font-bold text-green-600 dark:text-green-400 tabular-nums">+{formatCurrency(organizerPayout, s.currency)}</p>
                                                     <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
                                                         Net Earnings
                                                     </p>
@@ -418,33 +488,33 @@ export default async function DashboardPage() {
                         <div className="relative z-10">
                             <h3 className="font-bold text-2xl mb-2">Create Event</h3>
                             <p className="text-gray-400 mb-8 max-w-[200px] leading-relaxed">Ready to launch your next experience?</p>
-                            <a href="/dashboard/events/create" className="inline-flex items-center justify-center w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all active:scale-[0.98]">
+                            <Link href="/dashboard/events/create" className="inline-flex items-center justify-center w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all active:scale-[0.98]">
                                 Get Started
-                            </a>
+                            </Link>
                         </div>
                     </div>
 
                     <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-8">
                         <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Quick Links</h3>
                         <div className="space-y-2">
-                            <a href="/dashboard/events" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                            <Link href="/dashboard/events" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
                                 <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
                                     <Calendar className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
                                 </div>
                                 <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">Manage Events</span>
-                            </a>
-                            <a href="/my-tickets" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                            </Link>
+                            <Link href="/my-tickets" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
                                 <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
                                     <Wallet className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
                                 </div>
                                 <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">My Tickets</span>
-                            </a>
-                            <a href="/dashboard/settings" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                            </Link>
+                            <Link href="/dashboard/settings" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
                                 <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
                                     <Settings className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
                                 </div>
                                 <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">Settings</span>
-                            </a>
+                            </Link>
                         </div>
                     </div>
                 </div>

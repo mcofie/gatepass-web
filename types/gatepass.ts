@@ -70,6 +70,8 @@ export interface TicketTier {
     perks?: string[]
     is_visible?: boolean
     sort_order?: number
+    allow_instalments?: boolean
+    payment_plans?: PaymentPlan[]
 }
 
 export interface Ticket {
@@ -106,7 +108,7 @@ export interface Reservation {
     tier_id: string
     user_id: string
     quantity: number
-    status: 'pending' | 'confirmed' | 'cancelled' | 'expired'
+    status: 'pending' | 'confirmed' | 'cancelled' | 'expired' | 'instalment'
     expires_at: string
     discount_id?: string
     events?: Event
@@ -157,4 +159,62 @@ export interface EventAddon {
     quantity_sold: number
     is_active: boolean
     selection_type: 'quantity' | 'toggle'
+}
+
+// ============ INSTALMENT PAYMENT TYPES ============
+
+export interface PaymentPlan {
+    id: string
+    tier_id: string
+    event_id: string
+    name: string
+    num_instalments: number
+    initial_percent: number
+    deadline_days: number
+    is_active: boolean
+    allow_early_completion: boolean
+    forfeit_on_miss: boolean
+    grace_period_hours: number
+    created_at: string
+}
+
+export interface InstalmentReservation {
+    id: string
+    reservation_id: string
+    payment_plan_id: string
+    user_id?: string
+    total_amount: number
+    amount_paid: number
+    currency: string
+    status: 'active' | 'completed' | 'forfeited' | 'refunded'
+    next_instalment_due_at?: string
+    completed_at?: string
+    forfeited_at?: string
+    contact_email?: string
+    contact_name?: string
+    contact_phone?: string
+    created_at: string
+    updated_at: string
+    // Relations
+    reservation?: Reservation
+    payment_plan?: PaymentPlan
+    instalment_payments?: InstalmentPayment[]
+    // Joined from reservation
+    events?: Event
+    ticket_tiers?: TicketTier
+}
+
+export interface InstalmentPayment {
+    id: string
+    instalment_reservation_id: string
+    instalment_number: number
+    amount: number
+    currency: string
+    transaction_reference?: string
+    status: 'pending' | 'paid' | 'failed' | 'overdue'
+    due_at: string
+    paid_at?: string
+    platform_fee: number
+    processor_fee: number
+    created_at: string
 }

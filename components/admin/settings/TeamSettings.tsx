@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { Loader2, Trash2, Mail, Shield, UserPlus } from 'lucide-react'
-import { inviteTeamMember, updateTeamMemberRole } from '@/app/actions/team'
+import { inviteTeamMember, updateTeamMemberRole, resendTeamInvite } from '@/app/actions/team'
 
 type TeamMember = {
     id: string
@@ -125,6 +125,16 @@ export function TeamSettings({ organizer }: { organizer: any }) {
         })
     }
 
+    const handleResend = async (email: string, role: 'admin' | 'staff') => {
+        try {
+            const result = await resendTeamInvite(organizer.id, email, role, organizer.name)
+            if (result.error) throw new Error(result.error)
+            toast.success(`Invitation resent to ${email}`)
+        } catch (error: any) {
+            toast.error(error.message)
+        }
+    }
+
     return (
         <div className="max-w-4xl space-y-8">
             {/* Invite Form */}
@@ -228,7 +238,15 @@ export function TeamSettings({ organizer }: { organizer: any }) {
                                         </div>
 
                                         {!member.user_id && (
-                                            <span className="text-[10px] bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-2 py-0.5 rounded-full font-bold">Pending</span>
+                                            <div className="flex items-center gap-2 border border-yellow-200 dark:border-yellow-500/20 bg-yellow-50 dark:bg-yellow-500/5 rounded-full px-1 py-0.5">
+                                                <span className="text-[10px] text-yellow-700 dark:text-yellow-500 px-1 font-bold">Pending</span>
+                                                <button
+                                                    onClick={() => handleResend(member.email, member.role)}
+                                                    className="text-[9px] bg-white dark:bg-black border border-yellow-200 dark:border-yellow-500/20 hover:bg-yellow-100 dark:hover:bg-yellow-500/10 text-yellow-800 dark:text-yellow-400 font-bold px-2 py-0.5 rounded-full transition-colors"
+                                                >
+                                                    Resend
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

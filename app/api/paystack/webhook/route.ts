@@ -27,20 +27,35 @@ export async function POST(req: NextRequest) {
         if (evt.event === "charge.success") {
             const tx = evt.data;
             const reference = tx.reference;
+            const metadata = tx.metadata || {};
 
-            // Import shared processor
-            const { processSuccessfulPayment } = await import('@/utils/actions/payment')
+            // Check if this is an instalment payment
+            if (metadata.payment_type === 'instalment') {
+                if (metadata.instalment_payment_id) {
+                    // Subsequent instalment payment
+                    const { processInstalmentPayment } = await import('@/utils/actions/instalment')
+                    const result = await processInstalmentPayment(reference, metadata.instalment_payment_id, tx)
 
-            // We use the reference as the reservationId fallback inside the processor
-            const result = await processSuccessfulPayment(reference, undefined, tx)
+                    if (!result.success) {
+                        console.error('[paystack-webhook] Instalment processing failed:', result.error)
+                        return NextResponse.json({ ok: false }, { status: 500 })
+                    }
+                    console.log(`[paystack-webhook] Successfully processed instalment ref: ${reference}`)
+                } else {
+                    // First instalment — handled by verify-instalment callback route
+                    console.log(`[paystack-webhook] First instalment ref: ${reference} — handled by callback`)
+                }
+            } else {
+                // Standard full payment
+                const { processSuccessfulPayment } = await import('@/utils/actions/payment')
+                const result = await processSuccessfulPayment(reference, undefined, tx)
 
-            if (!result.success) {
-                console.error('[paystack-webhook] Processing failed:', result.error);
-                // Return 500 so Paystack retries later
-                return NextResponse.json({ ok: false }, { status: 500 });
+                if (!result.success) {
+                    console.error('[paystack-webhook] Processing failed:', result.error);
+                    return NextResponse.json({ ok: false }, { status: 500 });
+                }
+                console.log(`[paystack-webhook] Successfully processed ref: ${reference}`)
             }
-
-            console.log(`[paystack-webhook] Successfully processed ref: ${reference}`)
         }
 
         return NextResponse.json({ ok: true });

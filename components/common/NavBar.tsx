@@ -37,7 +37,7 @@ export function NavBar() {
         setIsMobileMenuOpen(false)
     }
 
-    if (pathname === '/' || pathname === '/my-tickets' || pathname.startsWith('/claim/') || pathname.startsWith('/dashboard') || pathname.startsWith('/events/') || pathname.startsWith('/ticket/') || pathname === '/login' || pathname === '/privacy-policy' || pathname === '/terms-of-service' || pathname.startsWith('/onboarding')) return null
+    if (pathname === '/' || pathname.startsWith('/our-offering') || pathname.startsWith('/my-tickets') || pathname.startsWith('/claim/') || pathname.startsWith('/dashboard') || pathname.startsWith('/events/') || pathname.startsWith('/ticket/') || pathname === '/login' || pathname === '/privacy-policy' || pathname === '/terms-of-service' || pathname.startsWith('/onboarding')) return null
 
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center py-4 px-4 pointer-events-none">
@@ -52,8 +52,9 @@ export function NavBar() {
                         <Link href="/" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
                             Events
                         </Link>
-
-
+                        <Link href="/our-offering" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
+                            Our Offering
+                        </Link>
 
                         {user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '') && (
                             <Link href="/dashboard" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
@@ -110,8 +111,13 @@ export function NavBar() {
                             >
                                 Events
                             </Link>
-
-
+                            <Link
+                                href="/our-offering"
+                                className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                Our Offering
+                            </Link>
 
                             {user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '') && (
                                 <Link

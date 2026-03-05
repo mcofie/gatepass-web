@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { ArrowRight, Loader2, Check, ChevronLeft } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { syncUserTeamMemberships } from '@/app/actions/team'
 
 export function LoginContent() {
     const [email, setEmail] = useState('')
@@ -13,11 +14,15 @@ export function LoginContent() {
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
     const [view, setView] = useState<'LOGIN' | 'SENT' | 'MANUAL'>('LOGIN')
+    const [intent, setIntent] = useState<'buyer' | 'organizer'>('buyer')
+
     const searchParams = useSearchParams()
-    const nextPath = searchParams.get('next') || ''
+    const urlTarget = searchParams.get('next') || searchParams.get('redirect') || ''
     const router = useRouter() // Though we use window.location for full reload often, consistency helps.
 
     const supabase = createClient()
+
+    const actualPath = urlTarget || (intent === 'organizer' ? '/dashboard' : '/my-tickets')
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -34,7 +39,7 @@ export function LoginContent() {
                 options: {
                     shouldCreateUser: true,
                     // Pass 'next' to the callback route
-                    emailRedirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+                    emailRedirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(actualPath)}`,
                 },
             })
 
@@ -67,21 +72,71 @@ export function LoginContent() {
 
         setVerifying(true)
         try {
-            const { error } = await supabase.auth.verifyOtp({
+            let res = await supabase.auth.verifyOtp({
                 email: email.trim(),
                 token: otp,
                 type: 'email',
             })
 
-            if (error) throw error
+            // Fallback for when Magic Link + OTP config expects 'magiclink' explicitly
+            if (res.error?.message?.toLowerCase().includes('expired') || res.error?.message?.toLowerCase().includes('invalid')) {
+                const retryRes = await supabase.auth.verifyOtp({
+                    email: email.trim(),
+                    token: otp,
+                    type: 'magiclink',
+                })
+                if (!retryRes.error) {
+                    res = retryRes
+                }
+            }
+
+            if (res.error) throw res.error
+
+            // Perform team membership sync just in case they were invited pending creation
+            try {
+                const syncResult = await syncUserTeamMemberships()
+                if (syncResult && syncResult.success) {
+                    if (syncResult.count && syncResult.count > 0) {
+                        console.log(`[Auth] Synced ${syncResult.count} staff memberships`)
+                        toast.success('Logged in successfully!')
+                        window.location.href = '/dashboard?login=success'
+                        return
+                    }
+
+                    // Check if already a staff member
+                    const { createClient: createSupClient } = await import('@supabase/supabase-js')
+                    const supabaseAdmin = createSupClient(
+                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                        process.env.SUPABASE_SERVICE_ROLE_KEY!
+                    )
+                    const { data: { user: authedUser } } = await supabase.auth.getUser()
+                    if (authedUser) {
+                        const { data: existingStaff } = await supabaseAdmin
+                            .schema('gatepass')
+                            .from('organization_team')
+                            .select('id')
+                            .eq('user_id', authedUser.id)
+                            .limit(1)
+
+                        if (existingStaff && existingStaff.length > 0) {
+                            console.log('[Auth] Existing staff detected, redirecting to dashboard')
+                            toast.success('Logged in successfully!')
+                            window.location.href = '/dashboard?login=success'
+                            return
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to sync or verify team memberships:', err)
+            }
 
             toast.success('Logged in successfully!')
 
-            // Hard reload to refresh session state and go to next path
-            if (nextPath) {
-                window.location.href = nextPath
+            // Hard reload to refresh session state and go to actual path
+            if (actualPath) {
+                window.location.href = actualPath
             } else {
-                // If no next path, hit the callback to let server decide (dashboard vs my-tickets)
+                // Should technically not hit here since actualPath is never empty now, but safe fallback
                 window.location.href = '/auth/callback'
             }
         } catch (error: any) {
@@ -127,6 +182,31 @@ export function LoginContent() {
                             </div>
 
                             <form onSubmit={handleAuth} className="space-y-6">
+                                {!urlTarget && (
+                                    <div className="flex bg-gray-50 dark:bg-zinc-900/50 p-1.5 rounded-2xl relative z-0">
+                                        <div
+                                            className="absolute inset-y-1.5 left-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-sm transition-transform duration-300 z-0"
+                                            style={{
+                                                width: 'calc(50% - 6px)',
+                                                transform: intent === 'buyer' ? 'translateX(0)' : 'translateX(100%)'
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setIntent('buyer')}
+                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'buyer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                        >
+                                            My Tickets
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIntent('organizer')}
+                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'organizer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                        >
+                                            Manage Events
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <input
                                         value={email}
@@ -245,6 +325,31 @@ export function LoginContent() {
                             </div>
 
                             <form onSubmit={handleVerifyOtp} className="space-y-6">
+                                {!urlTarget && (
+                                    <div className="flex bg-gray-50 dark:bg-zinc-900/50 p-1.5 rounded-2xl relative z-0">
+                                        <div
+                                            className="absolute inset-y-1.5 left-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-sm transition-transform duration-300 z-0"
+                                            style={{
+                                                width: 'calc(50% - 6px)',
+                                                transform: intent === 'buyer' ? 'translateX(0)' : 'translateX(100%)'
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setIntent('buyer')}
+                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'buyer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                        >
+                                            My Tickets
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIntent('organizer')}
+                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'organizer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                        >
+                                            Manage Events
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="space-y-4">
                                     <div className="space-y-1.5">
                                         <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Email</label>

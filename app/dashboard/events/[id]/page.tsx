@@ -15,7 +15,7 @@ export default async function ManageEventPage({ params }: PageProps) {
     const { data: event } = await supabase.schema('gatepass').from('events').select('*').eq('id', id).single()
 
     // Fetch Tiers
-    const { data: tiers } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', id).order('sort_order', { ascending: true })
+    const { data: tiers } = await supabase.schema('gatepass').from('ticket_tiers').select('*, payment_plans(*)').eq('event_id', id).order('sort_order', { ascending: true })
 
     // Calculate Total Realized Revenue (Server Side) with Strict Net Logic
     const { data: transactions } = await supabase
@@ -27,6 +27,7 @@ export default async function ManageEventPage({ params }: PageProps) {
             applied_processor_fee,
             applied_fee_rate,
             applied_processor_rate,
+            metadata,
             reservations!inner(
                 quantity,
                 ticket_tiers(price),
@@ -72,12 +73,14 @@ export default async function ManageEventPage({ params }: PageProps) {
 
     let totalRevenue = 0
     let totalDiscountValue = 0
+
     if (transactions) {
         totalRevenue = transactions.reduce((acc, tx) => {
             const r = tx.reservations as any
             const price = r.ticket_tiers?.price || 0
             const quantity = r.quantity || 1
             const feeBearer = r.events?.fee_bearer || 'customer'
+            const isInstalment = tx.metadata?.payment_type === 'instalment' || tx.metadata?.metadata?.payment_type === 'instalment'
 
             // Discount
             let discountAmount = 0
@@ -100,11 +103,21 @@ export default async function ManageEventPage({ params }: PageProps) {
                 ? 0.0195
                 : storedProcessorRate
 
-            const calcPlatformFee = subtotal * platformRate
-            const calcProcessorFee = tx.amount * processorRate
+            let finalPlatformFee = tx.platform_fee
+            if (finalPlatformFee == null || finalPlatformFee === 0) {
+                finalPlatformFee = isInstalment
+                    ? tx.amount * platformRate
+                    : subtotal * platformRate
+            }
 
-            const expectedTotalFees = calcPlatformFee + calcProcessorFee
-            const organizerPayout = tx.amount - expectedTotalFees
+            const finalProcessorFee = (tx.applied_processor_fee != null)
+                ? tx.applied_processor_fee
+                : tx.amount * processorRate
+
+            // Payout: When customer bears fees, processor fee is NOT deducted from organizer
+            const organizerPayout = feeBearer === 'customer'
+                ? tx.amount - finalPlatformFee
+                : tx.amount - finalPlatformFee - finalProcessorFee
 
             return acc + organizerPayout
         }, 0)

@@ -154,7 +154,7 @@ export default async function EventPage({ params }: PageProps) {
     const { data: tiers } = await supabase
         .schema('gatepass')
         .from('ticket_tiers')
-        .select('*')
+        .select('*, payment_plans(*)')
         .eq('event_id', event.id)
         .neq('is_visible', false)
         .order('sort_order', { ascending: true })

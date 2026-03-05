@@ -39,7 +39,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
     const supabase = createClient()
 
     const fetchTiers = async () => {
-        const { data } = await supabase.schema('gatepass').from('ticket_tiers').select('*').eq('event_id', event.id).order('sort_order', { ascending: true })
+        const { data } = await supabase.schema('gatepass').from('ticket_tiers').select('*, payment_plans(*)').eq('event_id', event.id).order('sort_order', { ascending: true })
         if (data) onTiersUpdate(data as TicketTier[])
     }
 
@@ -74,16 +74,87 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
     }
 
     const handleUpdateTier = async (tierId: string, updatedData: any) => {
+        // Extract instalment config (not a DB column on ticket_tiers)
+        const { _instalmentConfig, ...tierData } = updatedData
+
         const { data, error } = await supabase
             .schema('gatepass')
             .from('ticket_tiers')
-            .update(updatedData)
+            .update(tierData)
             .eq('id', tierId)
             .select()
             .single()
 
         if (data) {
-            onTiersUpdate(tiers.map(t => t.id === tierId ? data : t))
+            // Handle payment plan upsert
+            if (_instalmentConfig) {
+                try {
+                    // Check if plan exists
+                    const { data: existingPlan, error: fetchError } = await supabase
+                        .schema('gatepass')
+                        .from('payment_plans')
+                        .select('id')
+                        .eq('tier_id', tierId)
+                        .maybeSingle()
+
+                    if (fetchError) {
+                        console.error('[Payment Plan] Fetch error:', fetchError)
+                        toast.error(`Payment plan fetch failed: ${fetchError.message}`)
+                    }
+
+                    if (existingPlan) {
+                        // Update existing plan
+                        const { error: updateError } = await supabase
+                            .schema('gatepass')
+                            .from('payment_plans')
+                            .update({
+                                ..._instalmentConfig,
+                                is_active: true
+                            })
+                            .eq('id', existingPlan.id)
+
+                        if (updateError) {
+                            console.error('[Payment Plan] Update error:', updateError)
+                            toast.error(`Payment plan update failed: ${updateError.message}`)
+                        }
+                    } else {
+                        // Create new plan
+                        const { error: insertError } = await supabase
+                            .schema('gatepass')
+                            .from('payment_plans')
+                            .insert({
+                                tier_id: tierId,
+                                event_id: event.id,
+                                name: `${tierData.name || 'Ticket'} Instalment Plan`,
+                                allow_early_completion: true,
+                                forfeit_on_miss: true,
+                                grace_period_hours: 48,
+                                ..._instalmentConfig,
+                                is_active: true
+                            })
+
+                        if (insertError) {
+                            console.error('[Payment Plan] Insert error:', JSON.stringify(insertError))
+                            toast.error(`Payment plan creation failed: ${insertError.message || 'Unknown error'}`)
+                        } else {
+                            console.log('[Payment Plan] Created successfully')
+                        }
+                    }
+                } catch (e: any) {
+                    console.error('[Payment Plan] Exception:', e)
+                    toast.error(`Payment plan error: ${e.message}`)
+                }
+            } else if (tierData.allow_instalments === false) {
+                // Deactivate existing plans if instalments are turned off
+                await supabase
+                    .schema('gatepass')
+                    .from('payment_plans')
+                    .update({ is_active: false })
+                    .eq('tier_id', tierId)
+            }
+
+            // Refetch to get updated payment_plans relation
+            await fetchTiers()
             setEditingTierId(null)
             toast.success('Ticket updated')
         } else {

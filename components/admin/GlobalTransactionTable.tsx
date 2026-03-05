@@ -36,6 +36,7 @@ export default function GlobalTransactionTable() {
                     currency,
                     status,
                     platform_fee,
+                    metadata,
                     reservations!inner (
                         quantity,
                         guest_name,
@@ -159,6 +160,11 @@ export default function GlobalTransactionTable() {
                                             <p className="font-medium text-white">{event?.title}</p>
                                             <p className="text-gray-500 text-xs mt-0.5 flex items-center gap-1">
                                                 By {organizer?.name || 'Unknown'} • {tierNames || 'Ticket'}
+                                                {sale.metadata?.payment_type === 'instalment' && (
+                                                    <span className="ml-1 px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-bold">
+                                                        Instalment {sale.metadata.instalment_number || ''}
+                                                    </span>
+                                                )}
                                             </p>
                                         </td>
                                         <td className="px-6 py-4 text-center text-gray-500 font-mono">

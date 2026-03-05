@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Ticket } from '@/types/gatepass'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, formatCurrency } from '@/utils/format'
 import { TransferModal } from '@/components/transfer/TransferModal'
 import { Button } from '@/components/ui/Button'
 import { Share2, QrCode, Download, Calendar, MapPin, Ticket as TicketIcon } from 'lucide-react'
@@ -12,25 +12,40 @@ import Image from 'next/image'
 
 interface MyTicketsClientProps {
     tickets: Ticket[]
+    instalments?: any[]
 }
 
-export function MyTicketsClient({ tickets }: MyTicketsClientProps) {
+export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientProps) {
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
     const [isTransferring, setIsTransferring] = useState(false)
     const [showQR, setShowQR] = useState(false)
 
     // Group by Event
-    const groupedTickets = tickets.reduce((acc, ticket) => {
-        const eventId = ticket.event_id
+    const safeInstalments = instalments || []
+    const safeTickets = tickets || []
+    const groupedItems = [...safeTickets, ...safeInstalments].reduce((acc, item) => {
+        // Both `tickets` and `instalment_reservations` tables have `reservation_id` columns now.
+        // We can distinguish an instalment by checking for `amount_paid` instead.
+        const isInstalment = 'amount_paid' in item
+        const event = isInstalment ? item.reservations.events : item.events
+        const eventId = event.id
+
         if (!acc[eventId]) {
             acc[eventId] = {
-                event: ticket.events!,
-                tickets: []
+                event: event,
+                tickets: [],
+                instalments: []
             }
         }
-        acc[eventId].tickets.push(ticket)
+
+        if (isInstalment) {
+            acc[eventId].instalments.push(item)
+        } else {
+            acc[eventId].tickets.push(item)
+        }
+
         return acc
-    }, {} as Record<string, { event: any, tickets: Ticket[] }>) // using any for event temporarily
+    }, {} as Record<string, { event: any, tickets: Ticket[], instalments: any[] }>)
 
     const handleTransfer = (ticket: Ticket) => {
         setSelectedTicket(ticket)
@@ -43,11 +58,11 @@ export function MyTicketsClient({ tickets }: MyTicketsClientProps) {
     }
 
     // Sort groups by event date (soonest first)
-    const sortedGroups = Object.values(groupedTickets).sort((a, b) => {
+    const sortedGroups = Object.values(groupedItems).sort((a: any, b: any) => {
         return new Date(a.event.starts_at).getTime() - new Date(b.event.starts_at).getTime()
     })
 
-    if (tickets.length === 0) {
+    if (safeTickets.length === 0 && safeInstalments.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
                 <div className="w-20 h-20 bg-gray-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-6">
@@ -66,7 +81,7 @@ export function MyTicketsClient({ tickets }: MyTicketsClientProps) {
 
     return (
         <div className="space-y-12 animate-in fade-in duration-500">
-            {sortedGroups.map(({ event, tickets }, index) => (
+            {sortedGroups.map(({ event, tickets, instalments }: any, index) => (
                 <div key={event.id} className="space-y-6">
                     {/* Visual Divider for subsequent events */}
                     {index > 0 && (
@@ -93,7 +108,7 @@ export function MyTicketsClient({ tickets }: MyTicketsClientProps) {
                     </div>
 
                     <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {tickets.map(ticket => (
+                        {tickets.map((ticket: Ticket) => (
                             <div key={ticket.id} className="group relative bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 h-[280px]">
                                 {/* Ticket Stub Effect: Dashed Line & Notches */}
                                 <div className="absolute top-[72%] left-0 right-0 h-px border-t-2 border-dashed border-gray-100 dark:border-white/10" />
@@ -152,6 +167,58 @@ export function MyTicketsClient({ tickets }: MyTicketsClientProps) {
                                             <span className="truncate">Transfer</span>
                                         </Button>
                                     )}
+                                </div>
+                            </div>
+                        ))}
+                        {instalments.map((instalment: any) => (
+                            <div key={instalment.id} className="group relative bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 h-[280px]">
+                                {/* Ticket Stub Effect: Dashed Line & Notches */}
+                                <div className="absolute top-[72%] left-0 right-0 h-px border-t-2 border-dashed border-gray-100 dark:border-white/10" />
+                                <div className="absolute top-[72%] -left-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border border-gray-100 dark:border-white/10 dark:border-l-transparent dark:border-t-transparent border-r-transparent border-b-transparent rotate-45 z-10" />
+                                <div className="absolute top-[72%] -right-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border border-gray-100 dark:border-white/10 dark:border-l-transparent dark:border-t-transparent border-l-transparent border-t-transparent -rotate-45 z-10" />
+
+                                {/* Upper Section: Info */}
+                                <div className="p-6 h-[72%] flex flex-col justify-between relative bg-yellow-50/50 dark:bg-yellow-500/[0.02]">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-bl-[100px] pointer-events-none" />
+                                    {/* Content */}
+                                    <div>
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="space-y-1.5 min-w-0 pr-2 z-10">
+                                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.15em] truncate">
+                                                    {instalment.reservations?.ticket_tiers?.name || 'General Access'} x{instalment.reservations?.quantity || 1}
+                                                </p>
+                                                <p className="text-[10px] font-mono font-bold text-gray-400 lowercase tracking-wide">
+                                                    Instalment Plan: #{instalment.id.slice(0, 8)}
+                                                </p>
+                                            </div>
+                                            <div className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-yellow-50 text-yellow-600 border-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/20 z-10">
+                                                {instalment.status === 'active' ? 'Paying' : instalment.status}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col mt-4 opacity-100 z-10 relative">
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Paid Status</span>
+                                            <div className="text-xl font-bold font-mono text-gray-900 dark:text-white mt-1">
+                                                <span className="text-gray-900 dark:text-white">{formatCurrency(instalment.amount_paid)}</span>
+                                                <span className="text-xs text-gray-400 tracking-tighter"> / {formatCurrency(instalment.total_amount)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Lower Section: Actions */}
+                                <div className="absolute bottom-0 left-0 right-0 h-[28%] bg-white dark:bg-[#111] px-3 flex items-center gap-2 border-t border-dashed border-gray-100 dark:border-white/10">
+                                    <div className="flex-1 px-2 pt-1 text-[10px] font-mono text-gray-400">
+                                        Amount due <br />
+                                        <strong className="text-black dark:text-white">
+                                            {formatCurrency(instalment.total_amount - instalment.amount_paid)}
+                                        </strong>
+                                    </div>
+                                    <Button
+                                        className="h-9 rounded-xl text-xs font-bold bg-yellow-400 text-yellow-950 hover:bg-yellow-500 shadow-sm transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-[120px] px-3 border border-yellow-500"
+                                        onClick={() => window.location.href = `/my-tickets/instalments/${instalment.id}`}
+                                    >
+                                        <span className="truncate">Manage</span>
+                                    </Button>
                                 </div>
                             </div>
                         ))}

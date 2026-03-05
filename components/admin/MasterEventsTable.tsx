@@ -136,8 +136,11 @@ export default function MasterEventsTable({ events: initialEvents, feeRates }: M
 
                                     const totalFees = platformFee + processorFee
 
-                                    // Robust Net Payout Definition: Gross - All Fees
-                                    const organizerPayout = tx.amount - totalFees
+                                    // Robust Net Payout Definition: Gross - Required Fees
+                                    const feeBearer = event.fee_bearer || 'customer'
+                                    const organizerPayout = feeBearer === 'customer'
+                                        ? tx.amount - platformFee
+                                        : tx.amount - totalFees
 
                                     acc.gross += tx.amount
                                     acc.platformProfits += platformFee

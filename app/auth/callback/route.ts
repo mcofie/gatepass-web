@@ -47,7 +47,14 @@ export async function GET(request: Request) {
     if (user) {
         console.log(`[Auth Callback] User logged in: ${user.email}`)
 
-        // 1. Check Super Admin via Database (No hardcoded emails)
+        // 1. Check for explicit path first
+        const explicitNext = searchParams.get('next') || searchParams.get('redirect')
+        if (explicitNext && explicitNext !== '/') {
+            console.log(`[Auth Callback] Honoring explicit return path: ${explicitNext}`)
+            return NextResponse.redirect(`${origin}${explicitNext}`)
+        }
+
+        // 2. Check Super Admin via Database
         const { data: profile } = await supabase
             .schema('gatepass')
             .from('profiles')
@@ -73,8 +80,20 @@ export async function GET(request: Request) {
             return NextResponse.redirect(`${origin}/dashboard?login=success`)
         }
 
-        // 3. Check if Staff (Organization Team) - USE ADMIN CLIENT TO BYPASS RLS
-        // We need admin rights to search by email if the user_id isn't linked yet
+        // 3. Check if Staff (Organization Team)
+        // We sync their memberships and redirect to dashboard setting if they have any successful link
+        const { syncUserTeamMemberships } = await import('@/app/actions/team')
+        const syncResult = await syncUserTeamMemberships()
+
+        if (syncResult.success && syncResult.count && syncResult.count > 0) {
+            console.log(`[Auth Callback] Synced ${syncResult.count} staff memberships`)
+            return NextResponse.redirect(`${origin}/dashboard?login=success`)
+        } else if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error('[Auth Callback] Missing SUPABASE_SERVICE_ROLE_KEY')
+        }
+
+        // We can just rely on the sync process silently and proceed to regular tickets if none synced,
+        // Wait, what if they were already linked and just logging in? We should check if they are in organization_team!
         if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
             const { createClient: createAdminClient } = await import('@supabase/supabase-js')
             const adminSupabase = createAdminClient(
@@ -82,30 +101,17 @@ export async function GET(request: Request) {
                 process.env.SUPABASE_SERVICE_ROLE_KEY!
             )
 
-            const { data: staffMember } = await adminSupabase
+            const { data: existingStaff } = await adminSupabase
                 .schema('gatepass')
                 .from('organization_team')
-                .select('id, organization_id, user_id')
-                .eq('email', user.email)
-                .single()
+                .select('id')
+                .eq('user_id', user.id)
+                .limit(1)
 
-            if (staffMember) {
-                console.log('[Auth Callback] Found Staff Member', staffMember.id)
-
-                // Link user_id if not set
-                if (!staffMember.user_id) {
-                    await adminSupabase
-                        .schema('gatepass')
-                        .from('organization_team')
-                        .update({ user_id: user.id })
-                        .eq('id', staffMember.id)
-                    console.log('[Auth Callback] Linked Staff User ID')
-                }
-
+            if (existingStaff && existingStaff.length > 0) {
+                console.log('[Auth Callback] Found Existing Staff Member')
                 return NextResponse.redirect(`${origin}/dashboard?login=success`)
             }
-        } else {
-            console.error('[Auth Callback] Missing SUPABASE_SERVICE_ROLE_KEY')
         }
 
         // 4. Default: Regular User -> My Tickets

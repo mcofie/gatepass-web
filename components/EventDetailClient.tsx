@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import html2canvas from 'html2canvas'
 // import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
-import { Event, TicketTier, Discount } from '@/types/gatepass'
+import { Event, TicketTier, Discount, PaymentPlan } from '@/types/gatepass'
 import { cn, getContrastColor } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
@@ -20,7 +20,7 @@ import { trackConversion } from '@/components/TrackingScripts'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
-import { Globe, Calendar, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft } from 'lucide-react'
+import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl } from '@/utils/social'
@@ -72,6 +72,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const searchParams = useSearchParams()
     const supabase = createClient()
     const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>('details')
+    const [paymentMode, setPaymentMode] = useState<'full' | 'instalment'>('full')
+    const [activePaymentPlan, setActivePaymentPlan] = useState<PaymentPlan | null>(null)
 
     // Track View Count & UTM Marketing
     useEffect(() => {
@@ -554,6 +556,83 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         }
     }
 
+    // Step 2b: Instalment Payment (First instalment only)
+    // Instalment: order value = tickets + addons - discount (fees excluded, they're per-transaction)
+    const orderValue = netTicketSubtotal + addonSubtotal
+
+    const handleInstalmentPayment = async () => {
+        if (reservations.length === 0 || !activePaymentPlan) {
+            toast.error('No reservation or payment plan found.')
+            return
+        }
+
+        setLoading(true)
+        const primaryRes = reservations[0]
+        const selectedTier = tiers.find(t => t.id === primaryRes.ticket_tier_id || t.id === primaryRes.tier_id)
+
+        // Calculate first instalment: split the ORDER VALUE (tickets + addons), not totalDue
+        const initialPercent = activePaymentPlan.initial_percent || 50
+        const firstInstalmentOrderShare = Math.round(orderValue * initialPercent / 100 * 100) / 100
+
+        // Fees will be calculated by Paystack on this amount automatically.
+        // We send the order share as the amount; the /api/paystack/initialize route
+        // handles fee calculation and adds it on top (if customer-bears-fees).
+
+        try {
+            const response = await fetch('/api/paystack/initialize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: guestEmail || 'customer@gatepass.com',
+                    amount: Math.round(firstInstalmentOrderShare * 100),
+                    currency: selectedTier?.currency || 'GHS',
+                    reservationIds: [primaryRes.id],
+                    callbackUrl: `${window.location.protocol}//${window.location.host}/my-tickets/instalments/callback?event_id=${event.id}&plan_id=${activePaymentPlan.id}&reservation_id=${primaryRes.id}`
+                })
+            })
+
+            const data = await response.json()
+            if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
+
+            window.location.href = data.authorization_url
+        } catch (error: any) {
+            console.error('Instalment Payment Error:', error)
+            toast.error(error.message)
+            setLoading(false)
+        }
+    }
+
+    // Detect if any selected tier has instalment plans
+    const availableInstalmentPlans = React.useMemo(() => {
+        const plans: PaymentPlan[] = []
+        const activeTiers = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
+
+        // Gap Fix: Prevent multi-tier checkout for instalments.
+        // It's too complex to link multiple payment plans to a single Paystack reference.
+        if (activeTiers.length !== 1) {
+            return []
+        }
+
+        const tierId = activeTiers[0]
+        const tier = tiers.find(t => t.id === tierId)
+        if (tier?.allow_instalments && tier.payment_plans && tier.payment_plans.length > 0) {
+            const activePlan = tier.payment_plans.find((p: any) => p.is_active)
+            if (activePlan) plans.push(activePlan)
+        }
+
+        return plans
+    }, [selectedTickets, tiers])
+
+    const hasMultiTierInstalmentConflict = React.useMemo(() => {
+        const activeTiers = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
+        if (activeTiers.length <= 1) return false
+
+        return activeTiers.some(tierId => {
+            const tier = tiers.find(t => t.id === tierId)
+            return tier?.allow_instalments && tier.payment_plans && tier.payment_plans.length > 0
+        })
+    }, [selectedTickets, tiers])
+
 
     const hasTicketsSelected = Object.values(selectedTickets).some(q => q > 0)
     const cheapestTier = tiers.length > 0 ? tiers[0] : null
@@ -704,7 +783,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             timeLeft={timeLeft}
                             loading={loading}
                             onBack={() => navigate('checkout', 'back')}
-                            onPay={handlePaystackPayment}
+                            onPay={paymentMode === 'instalment' ? handleInstalmentPayment : handlePaystackPayment}
                             promoCode={promoCode}
                             setPromoCode={setPromoCode}
                             onApplyDiscount={applyPromoCode}
@@ -715,6 +794,15 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             availableAddons={availableAddons}
                             selectedAddons={selectedAddons}
                             addonSubtotal={addonSubtotal}
+                            instalmentPlans={availableInstalmentPlans}
+                            paymentMode={paymentMode}
+                            onPaymentModeChange={(mode, plan) => {
+                                setPaymentMode(mode)
+                                setActivePaymentPlan(plan || null)
+                            }}
+                            effectiveRates={effectiveRates}
+                            feeBearer={event.fee_bearer as 'customer' | 'organizer'}
+                            hasMultiTierInstalmentConflict={hasMultiTierInstalmentConflict}
                         />
                     </div>
                 )}
@@ -1055,6 +1143,22 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                         {tier.description}
                     </p>
                 )}
+
+                {/* Instalment Badge */}
+                {tier.allow_instalments && tier.payment_plans && tier.payment_plans.length > 0 && (() => {
+                    const plan = tier.payment_plans.find((p: any) => p.is_active)
+                    if (!plan) return null
+                    const firstPayment = tier.price * plan.initial_percent / 100
+                    return (
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-bold ${isSelected
+                            ? 'bg-white/15 text-white'
+                            : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            }`}>
+                            <CalendarClock className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>Pay in {plan.num_instalments} from {formatCurrency(firstPayment, tier.currency)}</span>
+                        </div>
+                    )
+                })()}
 
                 <div className={`h-px w-full ${isSelected ? 'bg-white/20' : 'bg-gray-100 dark:bg-zinc-800'}`} />
 
@@ -1435,7 +1539,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
         </div>
     )
 }
-const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor, availableAddons = [], selectedAddons = {} }: {
+const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number, // Ticket Subtotal
@@ -1455,7 +1559,13 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
     timeLeft: { label: string, seconds: number },
     primaryColor?: string,
     availableAddons?: any[],
-    selectedAddons?: Record<string, number>
+    selectedAddons?: Record<string, number>,
+    instalmentPlans?: PaymentPlan[],
+    paymentMode?: 'full' | 'instalment',
+    onPaymentModeChange?: (mode: 'full' | 'instalment', plan?: PaymentPlan) => void,
+    effectiveRates?: FeeRates,
+    feeBearer?: 'customer' | 'organizer',
+    hasMultiTierInstalmentConflict?: boolean
 }) => {
     const [showPromo, setShowPromo] = useState(false)
 
@@ -1623,13 +1733,133 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
 
                         <div className="border-t border-dashed border-gray-200 dark:border-zinc-800 pt-2" />
 
-                        <div className="flex justify-between items-end">
-                            <span className="text-[15px] font-bold text-gray-900 dark:text-white">Total Due</span>
-                            <div className="text-right">
-                                <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">{formatCurrency(total, tiers[0]?.currency)}</span>
-                                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
+                        {hasMultiTierInstalmentConflict && (
+                            <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 dark:border-amber-500/10 rounded-xl p-3 space-y-2 mt-2 mb-4 text-[12px] text-amber-800 dark:text-amber-300 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <p className="font-bold flex items-center gap-1.5"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Instalments Unavailable</p>
+                                <p className="text-amber-700/80 dark:text-amber-300/80">Instalment plans cannot be applied when purchasing multiple ticket types at once. Please checkout each type separately to use a payment plan.</p>
                             </div>
+                        )}
 
+                        {/* Instalment Payment Option - Inside summary card */}
+                        {instalmentPlans.length > 0 && onPaymentModeChange && (() => {
+                            const plan = instalmentPlans[0]
+                            // Split the ORDER VALUE (tickets + addons - discount), NOT the total with fees
+                            const orderVal = subtotal + addonSubtotal - (discount ? (discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100)) : 0)
+                            const firstShare = Math.round(orderVal * plan.initial_percent / 100 * 100) / 100
+                            const remainingVal = Math.round((orderVal - firstShare) * 100) / 100
+                            const perInstalment = Math.round(remainingVal / (plan.num_instalments - 1) * 100) / 100
+
+                            return (
+                                <div className="space-y-3">
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Payment Method</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => onPaymentModeChange('full')}
+                                            className={`p-3 rounded-xl border-2 transition-all text-left ${paymentMode === 'full'
+                                                ? 'border-black dark:border-white bg-black/5 dark:bg-white/5'
+                                                : 'border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700'
+                                                }`}
+                                        >
+                                            <span className="text-[12px] font-bold text-gray-900 dark:text-white block">Pay in Full</span>
+                                            <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatCurrency(total, tiers[0]?.currency)} now</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onPaymentModeChange('instalment', plan)}
+                                            className={`p-3 rounded-xl border-2 transition-all text-left relative overflow-hidden ${paymentMode === 'instalment'
+                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/5'
+                                                : 'border-gray-100 dark:border-zinc-800 hover:border-amber-300 dark:hover:border-amber-500/30'
+                                                }`}
+                                        >
+                                            <span className="text-[12px] font-bold text-gray-900 dark:text-white block">Pay in {plan.num_instalments}</span>
+                                            <span className="text-[11px] text-amber-600 dark:text-amber-400">From {formatCurrency(firstShare, tiers[0]?.currency)}</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Instalment Schedule Preview */}
+                                    {paymentMode === 'instalment' && (
+                                        <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 dark:border-amber-500/10 rounded-xl p-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Payment Schedule</p>
+                                            {(() => {
+                                                const schedule = []
+                                                schedule.push({ num: 1, amount: firstShare, label: 'Today' })
+                                                for (let i = 2; i <= plan.num_instalments; i++) {
+                                                    const daysFromNow = plan.deadline_days * (i - 1)
+                                                    const amt = i === plan.num_instalments
+                                                        ? Math.round((remainingVal - perInstalment * (plan.num_instalments - 2)) * 100) / 100
+                                                        : perInstalment
+                                                    schedule.push({ num: i, amount: amt, label: `In ${daysFromNow} days` })
+                                                }
+                                                return (
+                                                    <>
+                                                        {schedule.map(s => (
+                                                            <div key={s.num} className="flex justify-between items-center text-[12px]">
+                                                                <span className="text-amber-800 dark:text-amber-300">
+                                                                    {s.num === 1 ? '⚡' : '📅'} Payment {s.num} · {s.label}
+                                                                </span>
+                                                                <span className="font-bold text-amber-900 dark:text-amber-200">
+                                                                    {formatCurrency(s.amount, tiers[0]?.currency)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="flex justify-between items-center text-[12px] pt-1 border-t border-amber-200/30 dark:border-amber-500/10 font-bold">
+                                                            <span className="text-amber-900 dark:text-amber-200">Order Total</span>
+                                                            <span className="text-amber-900 dark:text-amber-200">{formatCurrency(orderVal, tiers[0]?.currency)}</span>
+                                                        </div>
+                                                    </>
+                                                )
+                                            })()}
+                                            <div className="space-y-1.5 pt-1 border-t border-amber-200/30 dark:border-amber-500/10 mt-1">
+                                                <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+                                                    🔒 Ticket is reserved immediately. Issued after final payment. Fees apply per transaction.
+                                                </p>
+                                                <p className="text-[10.5px] font-medium text-red-600/90 dark:text-red-400/90 flex items-start gap-1 p-1.5 bg-red-50 dark:bg-red-500/10 rounded-md border border-red-100 dark:border-red-500/20">
+                                                    <span className="mt-0.5">⚠️</span>
+                                                    <span>By proceeding, you agree that there are <strong>no refunds</strong> if your reservation is forfeited due to missed payments.</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })()}
+
+                        <div className="flex justify-between items-end">
+                            <span className="text-[15px] font-bold text-gray-900 dark:text-white">
+                                {paymentMode === 'instalment' && instalmentPlans[0] ? 'Due Today' : 'Total Due'}
+                            </span>
+                            <div className="text-right">
+                                {(() => {
+                                    if (paymentMode === 'instalment' && instalmentPlans[0]) {
+                                        const plan = instalmentPlans[0]
+                                        const orderVal = subtotal + addonSubtotal - (discount ? (discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100)) : 0)
+                                        const firstShare = Math.round(orderVal * plan.initial_percent / 100 * 100) / 100
+                                        // Calculate fees on the first instalment share
+                                        const { customerTotal: firstInstalmentTotal } = calculateFees(
+                                            firstShare, 0,
+                                            feeBearer,
+                                            effectiveRates
+                                        )
+                                        return (
+                                            <>
+                                                <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">
+                                                    {formatCurrency(firstInstalmentTotal, tiers[0]?.currency)}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                                                    of {formatCurrency(orderVal, tiers[0]?.currency)} order · incl. fees
+                                                </span>
+                                            </>
+                                        )
+                                    }
+                                    return (
+                                        <>
+                                            <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">
+                                                {formatCurrency(total, tiers[0]?.currency)}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
+                                        </>
+                                    )
+                                })()}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1655,7 +1885,13 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                     >
                         {loading ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
-                        ) : (
+                        ) : paymentMode === 'instalment' && instalmentPlans && instalmentPlans[0] ? (() => {
+                            const plan = instalmentPlans[0]
+                            const orderVal = subtotal + addonSubtotal - (discount ? (discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100)) : 0)
+                            const firstShare = Math.round(orderVal * plan.initial_percent / 100 * 100) / 100
+                            const { customerTotal: firstTotal } = calculateFees(firstShare, 0, feeBearer, effectiveRates)
+                            return <>Pay {formatCurrency(firstTotal, tiers[0]?.currency)} (1st Instalment)</>
+                        })() : (
                             <>Pay {formatCurrency(total, tiers[0]?.currency)}</>
                         )}
                     </button>
