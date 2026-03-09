@@ -72,7 +72,17 @@ export function EventManageClient({
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
-    const [discountForm, setDiscountForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: 0, max_uses: 0, tier_id: '', expires_at: '', linked_utm_campaign: '' })
+    const [discountForm, setDiscountForm] = useState({
+        code: '',
+        type: 'percentage' as 'percentage' | 'fixed',
+        value: 0,
+        max_uses: 0,
+        tier_id: '',
+        expires_at: '',
+        linked_utm_campaign: '',
+        affiliate_email: '',
+        affiliate_commission_percent: 10
+    })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
 
@@ -313,7 +323,9 @@ export function EventManageClient({
                     max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
                     tier_id: discountForm.tier_id || null,
                     expires_at: discountForm.expires_at || null,
-                    linked_utm_campaign: discountForm.linked_utm_campaign || null
+                    linked_utm_campaign: discountForm.linked_utm_campaign || null,
+                    affiliate_email: discountForm.affiliate_email || null,
+                    affiliate_commission_percent: discountForm.affiliate_commission_percent
                 }).eq('id', editingDiscountId)
 
                 if (error) throw error
@@ -329,7 +341,9 @@ export function EventManageClient({
                     used_count: 0,
                     tier_id: discountForm.tier_id || null,
                     expires_at: discountForm.expires_at || null,
-                    linked_utm_campaign: discountForm.linked_utm_campaign || null
+                    linked_utm_campaign: discountForm.linked_utm_campaign || null,
+                    affiliate_email: discountForm.affiliate_email || null,
+                    affiliate_commission_percent: discountForm.affiliate_commission_percent
                 })
 
                 if (error) throw error
@@ -338,7 +352,17 @@ export function EventManageClient({
 
             await fetchDiscounts()
             await fetchDiscounts()
-            setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '', linked_utm_campaign: '' })
+            setDiscountForm({
+                code: '',
+                type: 'percentage',
+                value: 0,
+                max_uses: 0,
+                tier_id: '',
+                expires_at: '',
+                linked_utm_campaign: '',
+                affiliate_email: '',
+                affiliate_commission_percent: 10
+            })
         } catch (e: any) {
             toast.error(e.message)
         } finally {
@@ -355,14 +379,26 @@ export function EventManageClient({
             max_uses: discount.max_uses || 0,
             tier_id: discount.tier_id || '',
             expires_at: discount.expires_at || '',
-            linked_utm_campaign: (discount as any).linked_utm_campaign || ''
+            linked_utm_campaign: (discount as any).linked_utm_campaign || '',
+            affiliate_email: (discount as any).affiliate_email || '',
+            affiliate_commission_percent: (discount as any).affiliate_commission_percent || 10
         })
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
     const cancelEditingDiscount = () => {
         setEditingDiscountId(null)
-        setDiscountForm({ code: '', type: 'percentage', value: 0, max_uses: 0, tier_id: '', expires_at: '', linked_utm_campaign: '' })
+        setDiscountForm({
+            code: '',
+            type: 'percentage',
+            value: 0,
+            max_uses: 0,
+            tier_id: '',
+            expires_at: '',
+            linked_utm_campaign: '',
+            affiliate_email: '',
+            affiliate_commission_percent: 10
+        })
     }
 
     const deleteDiscount = (id: string) => {
@@ -1882,15 +1918,33 @@ export function EventManageClient({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="md:col-span-3">
+                                <div className="md:col-span-2">
                                     <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Link to UTM Campaign (Auto-Apply)</label>
                                     <input
                                         value={discountForm.linked_utm_campaign}
                                         onChange={e => setDiscountForm({ ...discountForm, linked_utm_campaign: e.target.value })}
                                         className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white"
-                                        placeholder="e.g. summer_promo_2024"
+                                        placeholder="e.g. summer_promo"
                                     />
-                                    <p className="text-[10px] text-gray-400 mt-1 italic">When users arrive via this UTM Campaign, this discount applies automatically.</p>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block text-blue-600">Affiliate Commission (%)</label>
+                                    <input
+                                        type="number"
+                                        value={discountForm.affiliate_commission_percent}
+                                        onChange={e => setDiscountForm({ ...discountForm, affiliate_commission_percent: parseFloat(e.target.value) })}
+                                        className="w-full bg-blue-50/30 dark:bg-blue-500/5 border-blue-100 dark:border-blue-500/10 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-blue-600"
+                                    />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block text-blue-600">Affiliate Email (For Notifications)</label>
+                                    <input
+                                        value={discountForm.affiliate_email}
+                                        onChange={e => setDiscountForm({ ...discountForm, affiliate_email: e.target.value })}
+                                        className="w-full bg-blue-50/30 dark:bg-blue-500/5 border-blue-100 dark:border-blue-500/10 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-blue-600"
+                                        placeholder="promoter@email.com"
+                                    />
+                                    <p className="text-[10px] text-blue-500/70 mt-1 italic font-medium">Providing an email enables automated sales notifications for this promoter.</p>
                                 </div>
                                 <div className="md:col-span-3 flex justify-end pt-2">
                                     <button
@@ -1915,7 +1969,7 @@ export function EventManageClient({
                                                 <h4 className="font-bold text-lg tracking-tight text-gray-900 dark:text-white">{discount.code}</h4>
                                                 <button
                                                     onClick={() => copyCode(discount.code, discount.id)}
-                                                    className="text-gray-400 hover:text-black transition-colors p-1"
+                                                    className="text-gray-400 hover:text-black dark:hover:text-white transition-colors p-1"
                                                     title="Copy Code"
                                                 >
                                                     {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
@@ -1925,22 +1979,42 @@ export function EventManageClient({
                                                         Linked to UTM: {(discount as any).linked_utm_campaign}
                                                     </span>
                                                 )}
-                                            </div>
-                                            <p className="text-sm font-medium text-gray-500 mt-1">
-                                                {discount.type === 'percentage' ? `${discount.value}% OFF` : `-${formatCurrency(discount.value, event.currency || 'GHS')}`}
-                                                <span className="mx-2 text-gray-300">|</span>
-                                                Used: {discount.used_count || 0} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
-                                                <span className="mx-2 text-gray-300">|</span>
-                                                <span className={clsx("text-xs uppercase font-bold tracking-wider", discount.tier_id ? "text-purple-600" : "text-gray-400")}>
-                                                    {discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Specific Tier') : 'All Tickets'}
-                                                </span>
-                                                {discount.expires_at && (
-                                                    <>
-                                                        <span className="mx-2 text-gray-300">|</span>
-                                                        <span className="text-orange-500 font-medium text-xs bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded">Expires {new Date(discount.expires_at).toLocaleDateString()}</span>
-                                                    </>
+                                                {(discount as any).affiliate_email && (
+                                                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-500/20">
+                                                        Affiliate: {(discount as any).affiliate_email} ({(discount as any).affiliate_commission_percent}%)
+                                                    </span>
                                                 )}
-                                            </p>
+                                            </div>
+                                            <div className="flex flex-col gap-1.5">
+                                                <p className="text-sm font-medium text-gray-500">
+                                                    {discount.type === 'percentage' ? `${discount.value}% OFF` : `-${formatCurrency(discount.value, event.currency || 'GHS')}`}
+                                                    <span className="mx-2 text-gray-300">|</span>
+                                                    Used: {discount.used_count || 0} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
+                                                    <span className="mx-2 text-gray-300">|</span>
+                                                    <span className={clsx("text-xs uppercase font-bold tracking-wider", discount.tier_id ? "text-purple-600" : "text-gray-400")}>
+                                                        {discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Specific Tier') : 'All Tickets'}
+                                                    </span>
+                                                    {discount.expires_at && (
+                                                        <>
+                                                            <span className="mx-2 text-gray-300">|</span>
+                                                            <span className="text-orange-500 font-medium text-xs bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded">Expires {new Date(discount.expires_at).toLocaleDateString()}</span>
+                                                        </>
+                                                    )}
+                                                </p>
+                                                <div className="flex items-center gap-2 group cursor-pointer" onClick={() => {
+                                                    const link = `${window.location.origin}/events/${event.slug}?code=${discount.code}`;
+                                                    navigator.clipboard.writeText(link);
+                                                    toast.success('Affiliate link copied!');
+                                                }}>
+                                                    <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 flex items-center gap-2 group-hover:border-blue-500/50 transition-all">
+                                                        <Share2 className="w-3 h-3 text-blue-500" />
+                                                        <code className="text-[11px] font-mono text-gray-400 group-hover:text-blue-400 transition-colors">
+                                                            {window.location.origin}/events/{event.slug}?code={discount.code}
+                                                        </code>
+                                                        <Copy className="w-3 h-3 text-gray-300 group-hover:text-blue-500 ml-1 opacity-0 group-hover:opacity-100 transition-all" />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">

@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
 import {
     BarChart,
     Bar,
@@ -58,11 +59,43 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
     const [selectedEventId, setSelectedEventId] = useState<string>('all')
     const [copied, setCopied] = useState(false)
 
-    // UTM Link Generator State
+    // Tracking Link Generator State
     const [genEventId, setGenEventId] = useState('')
-    const [genSource, setGenSource] = useState('instagram')
-    const [genMedium, setGenMedium] = useState('ad')
+    const [genSource, setGenSource] = useState('affiliate')
+    const [genMedium, setGenMedium] = useState('referral')
     const [genCampaign, setGenCampaign] = useState('')
+    const [genAffiliateCode, setGenAffiliateCode] = useState('')
+    const [linkMode, setLinkMode] = useState<'standard' | 'simple'>('simple')
+
+    // Code Validation State
+    const [isCodeValid, setIsCodeValid] = useState<boolean | null>(null)
+    const [isValidating, setIsValidating] = useState(false)
+
+    // Debounced Code Validation
+    useEffect(() => {
+        if (!genAffiliateCode || !genEventId) {
+            setIsCodeValid(null)
+            return
+        }
+
+        const checkCode = async () => {
+            setIsValidating(true)
+            const supabase = createClient()
+            const { data, error } = await supabase
+                .schema('gatepass')
+                .from('discounts')
+                .select('id')
+                .eq('event_id', genEventId)
+                .eq('code', genAffiliateCode.toUpperCase())
+                .maybeSingle()
+
+            setIsValidating(false)
+            setIsCodeValid(!!data && !error)
+        }
+
+        const timer = setTimeout(checkCode, 500)
+        return () => clearTimeout(timer)
+    }, [genAffiliateCode, genEventId])
 
     // Derived Data
     const filteredStats = useMemo(() => {
@@ -125,12 +158,18 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
 
         const baseUrl = `${window.location.origin}/events/${event.slug}`
         const params = new URLSearchParams()
-        if (genSource) params.set('utm_source', genSource)
-        if (genMedium) params.set('utm_medium', genMedium)
-        if (genCampaign) params.set('utm_campaign', genCampaign)
+
+        if (linkMode === 'simple' && genAffiliateCode) {
+            params.set('code', genAffiliateCode.toUpperCase())
+        } else {
+            if (genSource) params.set('utm_source', genSource)
+            if (genMedium) params.set('utm_medium', genMedium)
+            if (genCampaign) params.set('utm_campaign', genCampaign)
+            if (genAffiliateCode) params.set('code', genAffiliateCode.toUpperCase())
+        }
 
         return `${baseUrl}?${params.toString()}`
-    }, [genEventId, genSource, genMedium, genCampaign, events])
+    }, [genEventId, genSource, genMedium, genCampaign, genAffiliateCode, linkMode, events])
 
     const handleCopy = () => {
         if (!generatedLink) return
@@ -389,8 +428,20 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                             <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6 border border-white/10">
                                 <Share2 className="w-5 h-5 text-white" />
                             </div>
-                            <h3 className="text-xl font-bold tracking-tight">Campaign Builder</h3>
-                            <p className="text-xs text-white/40 font-medium mt-1">Generate trackable UTM links</p>
+                            <div className="flex items-center justify-between mb-1">
+                                <h3 className="text-xl font-bold tracking-tight">Link Generator</h3>
+                                <div className="flex bg-white/5 p-1 rounded-lg border border-white/5 scale-90 origin-right">
+                                    <button
+                                        onClick={() => setLinkMode('simple')}
+                                        className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${linkMode === 'simple' ? 'bg-blue-600 text-white' : 'text-white/40'}`}
+                                    >Affiliate</button>
+                                    <button
+                                        onClick={() => setLinkMode('standard')}
+                                        className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-tight transition-all ${linkMode === 'standard' ? 'bg-blue-600 text-white' : 'text-white/40'}`}
+                                    >Advanced</button>
+                                </div>
+                            </div>
+                            <p className="text-xs text-white/40 font-medium">Create easy-share referral links</p>
                         </div>
 
                         <div className="space-y-6">
@@ -406,67 +457,90 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                {/* Source Selection */}
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Source</label>
-                                    <div className="flex flex-wrap gap-2 mb-3">
-                                        {['instagram', 'facebook', 'whatsapp', 'x', 'email'].map(s => (
-                                            <button
-                                                key={s}
-                                                onClick={() => setGenSource(s)}
-                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tight transition-all border ${genSource === s
-                                                    ? 'bg-blue-600 border-transparent text-white shadow-lg shadow-blue-600/20 scale-105'
-                                                    : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                            >
-                                                {s}
-                                            </button>
-                                        ))}
+                            {linkMode === 'simple' ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">Affiliate / Promo Code</label>
+                                        {genAffiliateCode && (
+                                            <div className="flex items-center gap-1.5 translate-y-[-2px]">
+                                                {isValidating ? (
+                                                    <div className="w-2.5 h-2.5 border border-white/20 border-t-white rounded-full animate-spin" />
+                                                ) : isCodeValid ? (
+                                                    <div className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-tighter">
+                                                        <Check className="w-2.5 h-2.5" />
+                                                        Verified
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">
+                                                        Code Missing
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <input
-                                        value={genSource}
-                                        onChange={(e) => setGenSource(e.target.value)}
-                                        placeholder="Custom Source..."
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
+                                        value={genAffiliateCode}
+                                        onChange={(e) => setGenAffiliateCode(e.target.value)}
+                                        placeholder="RAVE10"
+                                        className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20 ${genAffiliateCode
+                                                ? isCodeValid === true ? 'border-emerald-500/50 focus:border-emerald-500'
+                                                    : isCodeValid === false ? 'border-rose-500/50 focus:border-rose-500'
+                                                        : 'border-white/10'
+                                                : 'border-white/10'
+                                            }`}
                                     />
+                                    {isCodeValid === false && (
+                                        <p className="text-[9px] text-rose-400 font-bold px-1 mt-1">This code does not exist for the selected event.</p>
+                                    )}
+                                    <p className="text-[9px] text-white/30 font-medium px-1">Links directly to the discount code for auto-apply.</p>
                                 </div>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        {/* Source Selection */}
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Source</label>
+                                            <input
+                                                value={genSource}
+                                                onChange={(e) => setGenSource(e.target.value)}
+                                                placeholder="instagram"
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
+                                            />
+                                        </div>
 
-                                {/* Medium Selection */}
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Medium</label>
-                                    <div className="flex flex-wrap gap-2 mb-3">
-                                        {['ad', 'story', 'bio', 'post', 'email'].map(m => (
-                                            <button
-                                                key={m}
-                                                onClick={() => setGenMedium(m)}
-                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tight transition-all border ${genMedium === m
-                                                    ? 'bg-blue-600 border-transparent text-white shadow-lg shadow-blue-600/20 scale-105'
-                                                    : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                            >
-                                                {m}
-                                            </button>
-                                        ))}
+                                        {/* Medium Selection */}
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Medium</label>
+                                            <input
+                                                value={genMedium}
+                                                onChange={(e) => setGenMedium(e.target.value)}
+                                                placeholder="ad"
+                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
+                                            />
+                                        </div>
                                     </div>
-                                    <input
-                                        value={genMedium}
-                                        onChange={(e) => setGenMedium(e.target.value)}
-                                        placeholder="Custom Medium..."
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Campaign</label>
-                                <input
-                                    value={genCampaign}
-                                    onChange={(e) => setGenCampaign(e.target.value)}
-                                    placeholder="summer_2024"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
-                                />
-                            </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Campaign (Optional)</label>
+                                        <input
+                                            value={genCampaign}
+                                            onChange={(e) => setGenCampaign(e.target.value)}
+                                            placeholder="summer_2024"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2 pt-2">
+                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Attach Promo Code</label>
+                                        <input
+                                            value={genAffiliateCode}
+                                            onChange={(e) => setGenAffiliateCode(e.target.value)}
+                                            placeholder="RAVE10"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
+                                        />
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="pt-6">

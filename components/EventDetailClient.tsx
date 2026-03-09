@@ -75,52 +75,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [paymentMode, setPaymentMode] = useState<'full' | 'instalment'>('full')
     const [activePaymentPlan, setActivePaymentPlan] = useState<PaymentPlan | null>(null)
 
-    // Track View Count & UTM Marketing
-    useEffect(() => {
-        if (!isFeedItem) {
-            // Skip incrementing views for previews
-            if (event.id === 'preview-id') return
-
-            const supabase = createClient()
-
-            // 1. Standard View Count
-            supabase.rpc('increment_event_view', { event_id: event.id })
-                .then(({ error }) => {
-                    if (error) console.error('Error incrementing view count:', error.message || error)
-                })
-
-            // 2. Marketing UTM Tracking
-            const utm_source = searchParams.get('utm_source')
-            if (utm_source) {
-                const utm_medium = searchParams.get('utm_medium')
-                const utm_campaign = searchParams.get('utm_campaign')
-
-                supabase.schema('gatepass').rpc('track_marketing_event', {
-                    p_event_id: event.id,
-                    p_utm_source: utm_source,
-                    p_utm_medium: utm_medium,
-                    p_utm_campaign: utm_campaign,
-                    p_event_type: 'view'
-                }).then(({ error }) => {
-                    if (error) console.error('Error tracking marketing event:', error.message || error)
-                })
-
-                // 3. Auto-Apply Discount linked to UTM campaign
-                if (utm_campaign) {
-                    supabase.schema('gatepass').from('discounts')
-                        .select('code')
-                        .eq('event_id', event.id)
-                        .eq('linked_utm_campaign', utm_campaign)
-                        .maybeSingle()
-                        .then(({ data }) => {
-                            if (data?.code) {
-                                setPromoCode(data.code)
-                            }
-                        })
-                }
-            }
-        }
-    }, [event.id, isFeedItem, searchParams, supabase])
     const [direction, setDirection] = useState<'forward' | 'back'>('forward')
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
@@ -128,6 +82,133 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
     const [reservations, setReservations] = useState<any[]>([])
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
+
+    // Discount State
+    const [promoCode, setPromoCode] = useState('')
+    const [discount, setDiscount] = useState<Discount | null>(null)
+    const [discountError, setDiscountError] = useState('')
+    const [applyingDiscount, setApplyingDiscount] = useState(false)
+
+    // Modular Discount Application Logic
+    const applyPromoCode = React.useCallback(async (codeOverride?: string, isAutoApply = false) => {
+        const codeToUse = (codeOverride || promoCode).trim().toUpperCase()
+        if (!codeToUse) return
+
+        if (!isAutoApply) setApplyingDiscount(true)
+        setDiscountError('')
+        if (!isAutoApply) setDiscount(null)
+
+        try {
+            const { data, error } = await supabase
+                .schema('gatepass')
+                .from('discounts')
+                .select('*')
+                .eq('event_id', event.id)
+                .eq('code', codeToUse)
+                .maybeSingle()
+
+            if (error || !data) {
+                if (!isAutoApply) setDiscountError('Invalid promo code')
+                return
+            }
+
+            // Check limits
+            if (data.max_uses && data.used_count >= data.max_uses) {
+                if (!isAutoApply) setDiscountError('This code has been fully redeemed')
+                return
+            }
+
+            // Check Expiration
+            if (data.expires_at && new Date(data.expires_at) < new Date()) {
+                if (!isAutoApply) setDiscountError('Discount code has expired')
+                return
+            }
+
+            // Check Tier Restriction (Only if not auto-applying from URL, or if we want to be strict)
+            // If auto-applying, we set the discount but the memoized calculation handles 0 benefit until tier is added.
+            if (data.tier_id && !isAutoApply) {
+                const requiredTier = tiers.find(t => t.id === data.tier_id)
+                const hasTierInCart = (selectedTickets[data.tier_id] || 0) > 0
+                if (!hasTierInCart) {
+                    setDiscountError(`This code is only valid for ${requiredTier?.name || 'specific'} tickets`)
+                    return
+                }
+            }
+
+            setDiscount(data as Discount)
+            if (codeOverride) setPromoCode(codeToUse)
+
+            // Update existing reservations if already at checkout
+            if (reservations.length > 0) {
+                const updatePromises = reservations.map(async (res) => {
+                    if (data.tier_id && res.ticket_tier_id !== data.tier_id) return null
+                    return supabase.rpc('apply_reservation_discount', {
+                        p_reservation_id: res.id,
+                        p_discount_code: codeToUse
+                    })
+                })
+                await Promise.all(updatePromises)
+            }
+
+            if (!isAutoApply) toast.success('Discount applied!')
+        } catch (e) {
+            if (!isAutoApply) setDiscountError('Failed to verify code')
+        } finally {
+            if (!isAutoApply) setApplyingDiscount(false)
+        }
+    }, [promoCode, event.id, tiers, selectedTickets, reservations, supabase])
+
+    // Track View Count & UTM Marketing
+    useEffect(() => {
+        if (!isFeedItem) {
+            // Skip incrementing views for previews
+            if (event.id === 'preview-id') return
+
+            // 1. Standard View Count
+            supabase.rpc('increment_event_view', { event_id: event.id })
+                .then(({ error }) => {
+                    if (error) console.error('Error incrementing view count:', error.message || error)
+                })
+
+            // 2. Marketing Tracking (UTM or Direct Discount Code)
+            const utm_source = searchParams.get('utm_source')
+            const urlCode = searchParams.get('code')
+
+            if (utm_source || urlCode) {
+                const effectiveSource = utm_source || 'affiliate_direct'
+                const effectiveCampaign = searchParams.get('utm_campaign') || urlCode || 'organic_promo'
+                const effectiveMedium = searchParams.get('utm_medium') || (urlCode ? 'referral' : 'social')
+
+                supabase.schema('gatepass').rpc('track_marketing_event', {
+                    p_event_id: event.id,
+                    p_utm_source: effectiveSource,
+                    p_utm_medium: effectiveMedium,
+                    p_utm_campaign: effectiveCampaign,
+                    p_event_type: 'view'
+                }).then(({ error }) => {
+                    if (error) console.error('Error tracking marketing event:', error.message || error)
+                })
+
+                // Auto-Apply Logic
+                if (urlCode) {
+                    applyPromoCode(urlCode, true)
+                } else if (searchParams.get('utm_campaign')) {
+                    // Auto-Apply Discount linked to UTM campaign if no direct code parameter
+                    supabase.schema('gatepass').from('discounts')
+                        .select('code')
+                        .eq('event_id', event.id)
+                        .eq('linked_utm_campaign', searchParams.get('utm_campaign'))
+                        .maybeSingle()
+                        .then(({ data }) => {
+                            if (data?.code) {
+                                applyPromoCode(data.code, true)
+                            }
+                        })
+                }
+            }
+
+        }
+    }, [event.id, isFeedItem, searchParams, supabase, applyPromoCode])
 
     // Mobile Expansion State
     const [isExpanded, setIsExpanded] = useState(false)
@@ -163,12 +244,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [guestName, setGuestName] = useState('')
     const [guestEmail, setGuestEmail] = useState('')
     const [guestPhone, setGuestPhone] = useState('')
-
-    // Discount State
-    const [promoCode, setPromoCode] = useState('')
-    const [discount, setDiscount] = useState<Discount | null>(null)
-    const [discountError, setDiscountError] = useState('')
-    const [applyingDiscount, setApplyingDiscount] = useState(false)
 
     const timeLeft = useTimer(reservations[0]?.expires_at)
 
@@ -329,95 +404,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
     // Helper for creating reservation payload (Total Amount validation)
     const calculatedTotal = ticketSubtotal + addonSubtotal
-
-    const applyPromoCode = async () => {
-        if (!promoCode.trim()) return
-        setApplyingDiscount(true)
-        setDiscountError('')
-        setDiscount(null)
-
-        try {
-            const { data, error } = await supabase
-                .schema('gatepass')
-                .from('discounts')
-                .select('*')
-                .eq('event_id', event.id)
-                .eq('code', promoCode.toUpperCase())
-                .single()
-
-            if (error || !data) {
-                setDiscountError('Invalid promo code')
-                return
-            }
-
-            // Check limits
-            if (data.max_uses && data.used_count >= data.max_uses) {
-                setDiscountError('This code has been fully redeemed')
-                return
-            }
-
-            // Check Expiration
-            if (data.expires_at && new Date(data.expires_at) < new Date()) {
-                setDiscountError('Discount code has expired')
-                return
-            }
-
-            // Check Tier Restriction
-            if (data.tier_id) {
-                const requiredTier = tiers.find(t => t.id === data.tier_id)
-                const hasTierInCart = (selectedTickets[data.tier_id] || 0) > 0
-
-                if (!hasTierInCart) {
-                    setDiscountError(`This code is only valid for ${requiredTier?.name || 'specific'} tickets`)
-                    return
-                }
-            }
-
-            setDiscount(data as Discount)
-
-
-            // Update the existing reservations with this discount (Secure RPC)
-            if (reservations.length > 0) {
-                console.log('Linking Discount to Reservations via RPC')
-                // Apply to all reservations (The RPC handles validation, or we can filter)
-                // We'll try to apply to all, as a global discount code might apply to multiple items if logic permits,
-                // OR technically usually a discount applies once per order.
-                // Current Discount Model: `apply_reservation_discount` takes (res_id, code).
-                // If the discount is specific to a tier, we should only apply to that tier's reservation.
-
-                const updatePromises = reservations.map(async (res) => {
-                    // Check Tier Restriction at Client Side to save RPC calls?
-                    // Already checked generic validity above.
-                    // If discount.tier_id is set, only apply to that reservation.
-                    if (data.tier_id && res.ticket_tier_id !== data.tier_id) return null
-
-                    return supabase.rpc('apply_reservation_discount', {
-                        p_reservation_id: res.id,
-                        p_discount_code: promoCode
-                    })
-                })
-
-                const results = await Promise.all(updatePromises)
-                const errors = results.filter(r => r && (r.error || (r.data && !r.data.success)))
-
-                if (errors.length > 0 && errors.length === reservations.length) {
-                    // All failed
-                    const firstErr = errors[0]
-                    console.error('Failed to link discount:', firstErr)
-                    // Extract error message from RPC response if available
-                    const rpcError = firstErr?.data?.error || firstErr?.error?.message || 'Failed to apply discount'
-                    setDiscountError(rpcError)
-                    return
-                }
-            }
-
-            toast.success('Discount applied!')
-        } catch (e) {
-            setDiscountError('Failed to verify code')
-        } finally {
-            setApplyingDiscount(false)
-        }
-    }
 
     const handleContinueToCheckout = () => {
         if (availableAddons && availableAddons.length > 0) {

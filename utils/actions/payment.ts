@@ -379,18 +379,17 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         }
     }
 
-    // 7. Update Marketing Stats (UTM Tracking)
+    // 7. Update Marketing Stats (UTM or Promo Code Tracking)
     try {
         for (const reservation of reservations) {
             const metadata = reservation.metadata
+            const amount = (reservation._calc.ticketTier.price * reservation.quantity)
+            const currency = reservation._calc.ticketTier.currency || 'GHS'
+
+            // Priority 1: Direct UTM attributes
             if (metadata && metadata.utm_source) {
                 const { utm_source, utm_medium, utm_campaign } = metadata
-                const amount = reservation._calc.ticketTier.price * reservation.quantity
-                const currency = reservation._calc.ticketTier.currency || 'GHS'
-
-                console.log(`[Marketing] Updating stats for Source: ${utm_source}, Amount: ${amount}`)
-
-                // Update marketing_stats table
+                console.log(`[Marketing] Updating UTM stats: ${utm_source}, Amount: ${amount}`)
                 await supabase.schema('gatepass').rpc('track_marketing_conversion', {
                     p_event_id: reservation.event_id,
                     p_utm_source: utm_source,
@@ -400,10 +399,47 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     p_currency: currency
                 })
             }
+
+            // Priority 2: Attribution via Promo Code (Affiliate)
+            if (reservation.discount_id) {
+                const { data: disc } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
+                if (disc?.code) {
+                    console.log(`[Marketing] Attributing sale to Promo Code: ${disc.code}`)
+                    await supabase.schema('gatepass').rpc('track_marketing_conversion', {
+                        p_event_id: reservation.event_id,
+                        p_utm_source: 'affiliate_code',
+                        p_utm_medium: 'promo_entry',
+                        p_utm_campaign: disc.code,
+                        p_revenue: amount,
+                        p_currency: currency
+                    })
+
+                    // Notify Affiliate if email exists
+                    if (disc.affiliate_email && disc.notify_affiliate_on_sale) {
+                        try {
+                            const { notifyAffiliateOfSale } = await import('@/utils/notifications')
+                            const commission = amount * (disc.affiliate_commission_percent || 10) / 100
+                            await notifyAffiliateOfSale({
+                                affiliateEmail: disc.affiliate_email,
+                                eventName: reservation.events?.title || 'Event',
+                                code: disc.code,
+                                commissionAmount: commission,
+                                currency: currency,
+                                quantity: reservation.quantity,
+                                ticketType: reservation._calc?.ticketTier?.name || 'Ticket'
+                            })
+                        } catch (e) {
+                            console.error('Failed to notify affiliate:', e)
+                        }
+                    }
+                }
+            }
+
         }
     } catch (err) {
         console.error('Marketing Stats Update Error:', err)
     }
+
 
     return { success: true, tickets: allTickets }
 }

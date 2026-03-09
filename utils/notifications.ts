@@ -154,3 +154,67 @@ export const notifyOrganizerOfSale = async (data: {
         console.error('Failed to send organizer notification:', err)
     }
 }
+
+/**
+ * Notify affiliate of a successful referral sale
+ */
+export const notifyAffiliateOfSale = async (data: {
+    affiliateEmail: string,
+    affiliateName?: string,
+    eventName: string,
+    code: string,
+    commissionAmount: number,
+    currency: string,
+    quantity: number,
+    ticketType: string
+}) => {
+    const resendApiKey = process.env.RESEND_API_KEY
+
+    if (!resendApiKey || !data.affiliateEmail) {
+        console.log('Skipping affiliate notification: Missing API key or email')
+        return
+    }
+
+    try {
+        const resend = new Resend(resendApiKey)
+        await resend.emails.send({
+            from: 'GatePass <referrals@updates.gatepass.so>',
+            to: data.affiliateEmail,
+            subject: `💸 Referral Sale! Your code ${data.code} was used`,
+            html: `
+                <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+                    <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px;">
+                        <h1 style="margin: 0 0 10px 0; font-size: 24px;">Nice Work! 💸</h1>
+                        <p style="margin: 0; opacity: 0.8; font-size: 14px;">Your promo code <strong>${data.code}</strong> just generated a new sale.</p>
+                    </div>
+                    
+                    <div style="background: #f9fafb; padding: 24px; border-radius: 12px; margin-bottom: 20px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Event</td>
+                                <td style="padding: 8px 0; text-align: right; font-weight: 600;">${data.eventName}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Quantity</td>
+                                <td style="padding: 8px 0; text-align: right; font-weight: 600;">${data.quantity}x ${data.ticketType}</td>
+                            </tr>
+                            <tr style="border-top: 1px solid #e5e7eb;">
+                                <td style="padding: 12px 0 8px 0; color: #6b7280; font-size: 14px;">Commission Earned</td>
+                                <td style="padding: 12px 0 8px 0; text-align: right; font-weight: 700; font-size: 18px; color: #2563eb;">${data.currency} ${data.commissionAmount.toFixed(2)}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 24px;">
+                        Your commission will be processed and sent to your registered account soon.<br/>
+                        Keep sharing your code to earn more!
+                    </p>
+                </div>
+            `
+        })
+        console.log(`Affiliate notification sent to ${data.affiliateEmail}`)
+    } catch (err) {
+        console.error('Failed to send affiliate notification:', err)
+    }
+}
+
