@@ -1655,7 +1655,7 @@ export function EventManageClient({
                                                 </button>
                                             </div>
                                             <p className="text-center text-xs text-gray-400 mt-4">
-                                                This color defines your event's primary buttons and accents.
+                                                This color defines your event&apos;s primary buttons and accents.
                                             </p>
                                         </div>
                                     </div>
@@ -1692,7 +1692,7 @@ export function EventManageClient({
                                             <option value="organizer">Absorb Fees</option>
                                         </select>
                                         <p className="text-xs text-gray-400 mt-2">
-                                            If 'Customer Pays', fees are added to the ticket price. If 'Absorb', fees are deducted from your earnings.
+                                            If &apos;Customer Pays&apos;, fees are added to the ticket price. If &apos;Absorb&apos;, fees are deducted from your earnings.
                                         </p>
                                     </div>
                                 </div>

@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import html2canvas from 'html2canvas'
 // import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
-import { Event, TicketTier, Discount, PaymentPlan } from '@/types/gatepass'
+import { Event, TicketTier, Discount, PaymentPlan, EventAddon } from '@/types/gatepass'
 import { cn, getContrastColor } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
@@ -190,9 +190,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 })
 
                 // Auto-Apply Logic
-                if (urlCode) {
+                if (urlCode && urlCode.toUpperCase() !== promoCode) {
                     applyPromoCode(urlCode, true)
-                } else if (searchParams.get('utm_campaign')) {
+                } else if (searchParams.get('utm_campaign') && !promoCode) {
                     // Auto-Apply Discount linked to UTM campaign if no direct code parameter
                     supabase.schema('gatepass').from('discounts')
                         .select('code')
@@ -1306,7 +1306,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                     placeholder="jane@example.com"
                     className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
                 />
-                <p className="text-[11px] text-gray-400 px-1">We'll send your tickets here.</p>
+                <p className="text-[11px] text-gray-400 px-1">We&apos;ll send your tickets here.</p>
             </div>
 
             <div className="space-y-2">
@@ -1342,7 +1342,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
 )
 
 const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue, onBack, primaryColor }: {
-    availableAddons: any[],
+    availableAddons: EventAddon[],
     selectedAddons: Record<string, number>,
     onAddonChange: (addonId: string, delta: number) => void,
     onContinue: () => void,
@@ -1544,7 +1544,7 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
     selectedTickets: Record<string, number>,
     timeLeft: { label: string, seconds: number },
     primaryColor?: string,
-    availableAddons?: any[],
+    availableAddons?: EventAddon[],
     selectedAddons?: Record<string, number>,
     instalmentPlans?: PaymentPlan[],
     paymentMode?: 'full' | 'instalment',

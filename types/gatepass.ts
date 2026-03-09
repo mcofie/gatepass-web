@@ -131,6 +131,9 @@ export interface Discount {
     used_count: number
     expires_at?: string
     tier_id?: string | null
+    affiliate_email?: string | null
+    affiliate_commission_percent?: number | null
+    notify_affiliate_on_sale?: boolean
 }
 
 export interface EventStaff {
