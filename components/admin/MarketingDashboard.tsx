@@ -23,7 +23,9 @@ import {
     Target,
     Search,
     Download,
+    Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface MarketingStat {
     id: string
@@ -58,6 +60,11 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
     const [search, setSearch] = useState('')
     const [selectedEventId, setSelectedEventId] = useState<string>('all')
     const [copied, setCopied] = useState(false)
+    const [stats, setStats] = useState<MarketingStat[]>(initialStats)
+
+    useEffect(() => {
+        setStats(initialStats)
+    }, [initialStats])
 
     // Tracking Link Generator State
     const [genEventId, setGenEventId] = useState('')
@@ -122,7 +129,7 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
 
     // Derived Data
     const filteredStats = useMemo(() => {
-        return initialStats.filter(stat => {
+        return stats.filter(stat => {
             const matchesSearch = stat.utm_source.toLowerCase().includes(search.toLowerCase()) ||
                 stat.events.title.toLowerCase().includes(search.toLowerCase()) ||
                 (stat.utm_campaign?.toLowerCase()?.includes(search.toLowerCase()) ?? false)
@@ -131,7 +138,7 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
 
             return matchesSearch && matchesEvent
         })
-    }, [initialStats, search, selectedEventId])
+    }, [stats, search, selectedEventId])
 
     const aggregates = useMemo(() => {
         const views = filteredStats.reduce((acc, curr) => acc + curr.views, 0)
@@ -200,6 +207,25 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
         navigator.clipboard.writeText(generatedLink)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
+    }
+
+    const handleDeleteStat = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this marketing record?')) return
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .schema('gatepass')
+            .from('marketing_stats')
+            .delete()
+            .eq('id', id)
+
+        if (error) {
+            toast.error('Failed to delete marketing record')
+            return
+        }
+
+        toast.success('Record deleted')
+        setStats(prev => prev.filter(s => s.id !== id))
     }
 
     return (
@@ -387,6 +413,7 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                                     <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Sales</th>
                                     <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Revenue</th>
                                     <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Yield</th>
+                                    <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -430,6 +457,15 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                                                     />
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <button
+                                                onClick={() => handleDeleteStat(stat.id)}
+                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
+                                                title="Delete Record"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { PLATFORM_FEE_PERCENT, PROCESSOR_FEE_PERCENT } from '@/utils/fees'
+import { notifyDiscord } from '@/utils/discord'
 
 export async function POST(req: Request) {
     try {
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
                 ticket_tiers ( price ),
                 discounts ( type, value ),
                 events (
+                    title,
                     fee_bearer,
                     platform_fee_percent,
                     organizers (
@@ -48,6 +50,21 @@ export async function POST(req: Request) {
         if (resError || !reservations || reservations.length === 0) {
             return NextResponse.json({ error: 'Reservations not found' }, { status: 404 })
         }
+
+        // Notify Discord
+        const firstReservation = reservations[0] as any
+        const eventData = Array.isArray(firstReservation.events) ? firstReservation.events[0] : firstReservation.events
+        const eventTitle = eventData?.title || 'Unknown Event'
+        
+        await notifyDiscord(
+            `🛒 **Ticket Checkout Started**\n` +
+            `**Event:** ${eventTitle}\n` +
+            `**Email:** ${email}\n` +
+            `**Amount:** ${currency} ${(amount / 100).toLocaleString()}\n` +
+            `**Items:** ${reservations.length} reservation(s)\n` +
+            `**Ref:** ${reservationIds[0]}`,
+            'info'
+        )
 
         let subaccountCode: string | null = null
         let totalTransactionCharge = 0
