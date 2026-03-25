@@ -2,6 +2,8 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { notifyDiscord } from '@/utils/discord'
+import { formatCurrency } from '@/utils/format'
 
 export async function requestPayout(eventId: string, amount: number, currency: string) {
     const supabase = await createClient()
@@ -24,7 +26,7 @@ export async function requestPayout(eventId: string, amount: number, currency: s
         const { data: orgMember } = await supabase
             .schema('gatepass')
             .from('organization_team')
-            .select('role')
+            .select('role, organizers(name)')
             .eq('organization_id', event.organization_id)
             .eq('user_id', user.id)
             .single()
@@ -32,7 +34,7 @@ export async function requestPayout(eventId: string, amount: number, currency: s
         const { data: orgOwner } = await supabase
             .schema('gatepass')
             .from('organizers')
-            .select('id')
+            .select('id, name')
             .eq('id', event.organization_id)
             .eq('user_id', user.id)
             .single()
@@ -68,6 +70,17 @@ export async function requestPayout(eventId: string, amount: number, currency: s
             })
 
         if (error) throw error
+
+        // 5. Notify Discord
+        const organizerName = orgOwner?.name || (orgMember?.organizers as any)?.name || 'Unknown'
+        await notifyDiscord(
+            `💰 **New Payout Request**\n` +
+            `**Organizer:** ${organizerName}\n` +
+            `**Amount:** ${formatCurrency(amount, currency)}\n` +
+            `**Event ID:** ${eventId}\n` +
+            `**User:** ${user.email}`,
+            'info'
+        )
 
         revalidatePath(`/dashboard/events/${eventId}`)
         return { success: true }

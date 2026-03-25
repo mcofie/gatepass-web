@@ -3,6 +3,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { createTransferRecipient, initiateTransfer } from '@/utils/paystack'
+import { notifyDiscord } from '@/utils/discord'
+import { sendPayoutEmail } from '@/utils/email'
+import { formatCurrency } from '@/utils/format'
 
 // Approve (Mark as Paid)
 export async function approvePayout(payoutId: string, reference?: string) {
@@ -35,8 +38,10 @@ export async function approvePayout(payoutId: string, reference?: string) {
                     account_number,
                     account_name,
                     paystack_recipient_code,
-                    paystack_bank_code
-                )
+                    paystack_bank_code,
+                    profiles:user_id (email)
+                ),
+                events:event_id (title)
             `)
             .eq('id', payoutId)
             .single()
@@ -116,6 +121,30 @@ export async function approvePayout(payoutId: string, reference?: string) {
             .eq('id', payoutId)
 
         if (updateError) throw updateError
+
+        // 6. Notify Discord & Email Organizer
+        const orgEmail = (organizer.profiles as any)?.email
+        const eventTitle = (payout.events as any)?.title || 'Your Event'
+
+        await notifyDiscord(
+            `💸 **Payout Sent**\n` +
+            `**Organizer:** ${organizer.name}\n` +
+            `**Amount:** ${formatCurrency(amountToTransfer, payout.currency)}\n` +
+            `**Event:** ${eventTitle}\n` +
+            `**Ref:** ${transfer.reference}`,
+            'success'
+        )
+
+        if (orgEmail) {
+            await sendPayoutEmail({
+                to: orgEmail,
+                organizerName: organizer.name,
+                amount: formatCurrency(amountToTransfer, payout.currency),
+                reference: transfer.reference,
+                eventName: eventTitle,
+                date: new Date().toLocaleDateString()
+            }).catch(err => console.error('Email failed:', err))
+        }
 
         revalidatePath('/admin/payouts')
         return { success: true, message: 'Transfer initiated successfully' }

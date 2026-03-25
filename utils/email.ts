@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import { TicketEmail } from '@/emails/TicketEmail'
 import { StaffAccessEmail } from '@/emails/StaffAccessEmail'
 import { TransferEmail } from '@/emails/TransferEmail'
+import { PayoutEmail } from '@/emails/PayoutEmail'
 
 interface TicketGroup {
     tierName: string
@@ -111,5 +112,31 @@ export const sendTransferEmail = async (props: SendTransferEmailProps) => {
         throw new Error(`Resend Error: ${error.message}`)
     }
 
+    return { messageId: data?.id }
+}
+
+interface SendPayoutEmailProps {
+    to: string
+    organizerName: string
+    amount: string
+    reference: string
+    eventName: string
+    date: string
+}
+
+export const sendPayoutEmail = async (props: SendPayoutEmailProps) => {
+    const resendApiKey = process.env.RESEND_API_KEY
+    if (!resendApiKey) throw new Error('RESEND_API_KEY is missing.')
+
+    const resend = new Resend(resendApiKey)
+
+    const { data, error } = await resend.emails.send({
+        from: 'GatePass <notifications@updates.gatepass.so>',
+        to: props.to,
+        subject: `Your Payout for ${props.eventName} is on the way!`,
+        react: PayoutEmail(props),
+    })
+
+    if (error) throw new Error(`Resend Error: ${error.message}`)
     return { messageId: data?.id }
 }

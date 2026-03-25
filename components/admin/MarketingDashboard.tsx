@@ -66,12 +66,35 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
     const [genCampaign, setGenCampaign] = useState('')
     const [genAffiliateCode, setGenAffiliateCode] = useState('')
     const [linkMode, setLinkMode] = useState<'standard' | 'simple'>('simple')
+    const [eventPromos, setEventPromos] = useState<{ id: string, code: string }[]>([])
 
     // Code Validation State
     const [isCodeValid, setIsCodeValid] = useState<boolean | null>(null)
     const [isValidating, setIsValidating] = useState(false)
 
-    // Debounced Code Validation
+    // Fetch promos for the selected event
+    useEffect(() => {
+        if (!genEventId) {
+            setEventPromos([])
+            return
+        }
+
+        const fetchPromos = async () => {
+            const supabase = createClient()
+            const { data } = await supabase
+                .schema('gatepass')
+                .from('discounts')
+                .select('id, code')
+                .eq('event_id', genEventId)
+                .order('code', { ascending: true })
+
+            if (data) setEventPromos(data)
+        }
+
+        fetchPromos()
+    }, [genEventId])
+
+    // Code Validation State (kept for safety, but dropdown makes value valid by default)
     useEffect(() => {
         if (!genAffiliateCode || !genEventId) {
             setIsCodeValid(null)
@@ -160,6 +183,7 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
         const params = new URLSearchParams()
 
         if (linkMode === 'simple' && genAffiliateCode) {
+            if (genSource) params.set('utm_source', genSource)
             params.set('code', genAffiliateCode.toUpperCase())
         } else {
             if (genSource) params.set('utm_source', genSource)
@@ -458,41 +482,51 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                             </div>
 
                             {linkMode === 'simple' ? (
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between ml-1">
-                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">Affiliate / Promo Code</label>
-                                        {genAffiliateCode && (
-                                            <div className="flex items-center gap-1.5 translate-y-[-2px]">
-                                                {isValidating ? (
-                                                    <div className="w-2.5 h-2.5 border border-white/20 border-t-white rounded-full animate-spin" />
-                                                ) : isCodeValid ? (
-                                                    <div className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-tighter">
-                                                        <Check className="w-2.5 h-2.5" />
-                                                        Verified
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">
-                                                        Code Missing
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Name</label>
+                                        <input
+                                            value={genSource}
+                                            onChange={(e) => setGenSource(e.target.value)}
+                                            placeholder="affiliate"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
+                                        />
                                     </div>
-                                    <input
-                                        value={genAffiliateCode}
-                                        onChange={(e) => setGenAffiliateCode(e.target.value)}
-                                        placeholder="RAVE10"
-                                        className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20 ${genAffiliateCode
-                                                ? isCodeValid === true ? 'border-emerald-500/50 focus:border-emerald-500'
-                                                    : isCodeValid === false ? 'border-rose-500/50 focus:border-rose-500'
-                                                        : 'border-white/10'
-                                                : 'border-white/10'
-                                            }`}
-                                    />
-                                    {isCodeValid === false && (
-                                        <p className="text-[9px] text-rose-400 font-bold px-1 mt-1">This code does not exist for the selected event.</p>
-                                    )}
-                                    <p className="text-[9px] text-white/30 font-medium px-1">Links directly to the discount code for auto-apply.</p>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between ml-1">
+                                            <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">Affiliate / Promo Code</label>
+                                            {genAffiliateCode && (
+                                                <div className="flex items-center gap-1.5 translate-y-[-2px]">
+                                                    {isValidating ? (
+                                                        <div className="w-2.5 h-2.5 border border-white/20 border-t-white rounded-full animate-spin" />
+                                                    ) : isCodeValid ? (
+                                                        <div className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-tighter">
+                                                            <Check className="w-2.5 h-2.5" />
+                                                            Verified
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">
+                                                            Code Missing
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <select
+                                            value={genAffiliateCode}
+                                            onChange={(e) => setGenAffiliateCode(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white appearance-none"
+                                        >
+                                            <option value="" className="text-black">No Promo Code</option>
+                                            {eventPromos.map(p => (
+                                                <option key={p.id} value={p.code} className="text-black">
+                                                    {p.code}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[9px] text-white/30 font-medium px-1">Links directly to the discount code for auto-apply.</p>
+                                    </div>
                                 </div>
                             ) : (
                                 <>
@@ -532,12 +566,18 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
 
                                     <div className="space-y-2 pt-2">
                                         <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Attach Promo Code</label>
-                                        <input
+                                        <select
                                             value={genAffiliateCode}
                                             onChange={(e) => setGenAffiliateCode(e.target.value)}
-                                            placeholder="RAVE10"
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white placeholder:text-white/20"
-                                        />
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:bg-white/10 transition-all text-white appearance-none"
+                                        >
+                                            <option value="" className="text-black">None</option>
+                                            {eventPromos.map(p => (
+                                                <option key={p.id} value={p.code} className="text-black">
+                                                    {p.code}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </>
                             )}
