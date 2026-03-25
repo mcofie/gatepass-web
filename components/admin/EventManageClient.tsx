@@ -94,6 +94,7 @@ export function EventManageClient({
     const [payoutPage, setPayoutPage] = useState(0)
     const [payoutCount, setPayoutCount] = useState(0)
     const [activePayout, setActivePayout] = useState<any>(null)
+    const [payoutRequests, setPayoutRequests] = useState<any[]>([])
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -487,15 +488,24 @@ export function EventManageClient({
                 .limit(1)
                 .maybeSingle()
 
-            const [statsRes, listRes, activePayoutRes] = await Promise.all([statsQuery, listQuery, activePayoutQuery])
+            const payoutRequestsQuery = supabase
+                .schema('gatepass')
+                .from('payouts')
+                .select('*')
+                .eq('event_id', event.id)
+                .order('created_at', { ascending: false })
+
+            const [statsRes, listRes, activePayoutRes, payoutRequestsRes] = await Promise.all([statsQuery, listQuery, activePayoutQuery, payoutRequestsQuery])
 
             if (statsRes.error) throw statsRes.error
             if (listRes.error) throw listRes.error
             if (activePayoutRes.error) throw activePayoutRes.error
+            if (payoutRequestsRes.error) throw payoutRequestsRes.error
 
             setTransactions(listRes.data || [])
             setPayoutCount(listRes.count || 0)
             setActivePayout(activePayoutRes.data)
+            setPayoutRequests(payoutRequestsRes.data || [])
 
             // Calculate exact payout stats from the FULL statsRes dataset
             let totalVolume = 0
@@ -586,10 +596,13 @@ export function EventManageClient({
                 totalOrganizerNet += netPayout
             })
 
+            const amountPaid = payoutRequestsRes.data?.filter((p: any) => p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0) || 0
+            const activeAmount = activePayoutRes.data ? activePayoutRes.data.amount : 0
+
             setPayoutStats({
                 totalCollected: totalVolume,
                 platformFee: totalPlatformFees,
-                organizerNet: totalOrganizerNet,
+                organizerNet: Math.max(0, totalOrganizerNet - amountPaid - activeAmount),
                 transactionCount: statsRes.data.length,
                 totalAddons: totalAddonsRevenue
             })
@@ -796,9 +809,17 @@ export function EventManageClient({
                                 <div className="space-y-4">
                                     <div className="p-4 rounded-xl bg-white/10 border border-white/5 backdrop-blur-sm">
                                         <p className="text-sm text-gray-300 leading-relaxed font-medium">
-                                            This is your net payout after fees. {event.fee_bearer === 'organizer' ? 'Fees are deducted from your earnings.' : 'Fees are paid by the customer.'}
+                                            This is your net payout after platform fees. {event.fee_bearer === 'organizer' ? 'Fees are deducted from your earnings.' : 'Fees are paid by the customer.'}
                                         </p>
                                     </div>
+                                    {!activePayout && (
+                                        <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                                            <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Paystack Transfer Fees</p>
+                                            <p className="text-xs text-gray-400">
+                                                GHS 1.00 for Mobile Money / GHS 8.00 for Bank transfers will be deducted from your final payout.
+                                            </p>
+                                        </div>
+                                    )}
                                     {activePayout ? (
                                         <div className="w-full bg-white/10 text-white py-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-white/10 cursor-not-allowed">
                                             <div className="flex items-center gap-2 text-yellow-500">
@@ -1043,6 +1064,76 @@ export function EventManageClient({
                                         Next
                                     </button>
                                 </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Payout Requests History */}
+                    <div className="bg-white dark:bg-[#111] rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+                        <div className="px-8 py-8 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/10 flex items-center justify-center border border-gray-100 dark:border-white/10">
+                                    <DollarSign className="w-5 h-5 text-gray-900 dark:text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-xl text-gray-900 dark:text-white">Payout Requests</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{payoutRequests.length} payout requests made</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {payoutRequests.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
+                                        <tr>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Date</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Amount</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
+                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                                        {payoutRequests.map((req: any) => (
+                                            <tr key={req.id} className="group hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                                <td className="px-8 py-5 text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
+                                                    {new Date(req.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-8 py-5 font-bold text-gray-900 dark:text-white">
+                                                    {formatCurrency(req.amount, req.currency)}
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <span className={clsx(
+                                                        "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                                        req.status === 'paid' ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
+                                                            req.status === 'pending' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400" :
+                                                                req.status === 'processing' ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
+                                                                    "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                                                    )}>
+                                                        {req.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5 text-gray-500 dark:text-gray-400 font-mono text-xs">
+                                                    {req.reference || '-'}
+                                                </td>
+                                                <td className="px-8 py-5 text-gray-500 dark:text-gray-400 max-w-xs truncate" title={req.notes}>
+                                                    {req.notes || '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="p-20 flex flex-col items-center justify-center text-center">
+                                <div className="w-16 h-16 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center mb-4">
+                                    <DollarSign className="w-8 h-8 text-gray-300 dark:text-gray-500" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No payout requests</h3>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
+                                    Your payout request history will appear here once you initiate a request.
+                                </p>
                             </div>
                         )}
                     </div>

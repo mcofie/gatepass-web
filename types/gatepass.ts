@@ -47,6 +47,9 @@ export interface Organizer {
     account_number?: string
     account_name?: string
     platform_fee_percent?: number
+    bank_code?: string
+    paystack_bank_code?: string
+    paystack_recipient_code?: string
 }
 
 export interface LineupItem {

@@ -4,9 +4,11 @@ import React, { useState, useMemo } from 'react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, getEffectiveFeeRates, FeeRates } from '@/utils/fees'
 import { Search, Download, DollarSign, ChevronRight, X, Clock, CreditCard, History, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { clsx } from 'clsx'
 import { exportToCSV } from '@/utils/export'
 import { toast } from 'sonner'
-import { approvePayout, rejectPayout } from '@/app/actions/admin/payouts'
+import { approvePayout, rejectPayout, resetPayoutSystem, settleBalances } from '@/app/actions/admin/payouts'
+import { Trash2, CheckCircle2 } from 'lucide-react'
 
 interface PayoutsTableProps {
     events: any[]
@@ -16,6 +18,7 @@ interface PayoutsTableProps {
 }
 
 export function PayoutsTable({ events, transactions, payouts, feeSettings }: PayoutsTableProps) {
+    const [view, setView] = useState<'events' | 'requests'>('events')
     const [search, setSearch] = useState('')
     const [selectedEvent, setSelectedEvent] = useState<any>(null)
 
@@ -88,6 +91,29 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
         }).sort((a, b) => (b.activeRequest ? 1 : 0) - (a.activeRequest ? 1 : 0) || b.stats.netPayout - a.stats.netPayout)
     }, [events, transactions, payouts, feeSettings])
 
+    const requests = useMemo(() => {
+        return payouts.map(p => {
+            const event = events.find(e => e.id === p.event_id)
+            return {
+                ...p,
+                eventTitle: event?.title || 'Unknown Event',
+                organizerName: event?.organizers?.name || 'Unknown Organizer',
+                bankDetails: event?.organizers ? {
+                    bank: event.organizers.bank_name,
+                    number: event.organizers.account_number,
+                    name: event.organizers.account_name
+                } : null
+            }
+        }).sort((a, b) => {
+            // Sort pending/processing first
+            const isAActive = a.status === 'pending' || a.status === 'processing'
+            const isBActive = b.status === 'pending' || b.status === 'processing'
+            if (isAActive && !isBActive) return -1
+            if (!isAActive && isBActive) return 1
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+    }, [payouts, events])
+
     const [processingId, setProcessingId] = useState<string | null>(null)
 
     const handleApprove = async (payoutId: string) => {
@@ -130,6 +156,12 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
 
     const totalDue = filteredEvents.reduce((acc, e) => acc + e.stats.remainingDue, 0)
 
+    const filteredRequests = requests.filter(r =>
+        r.eventTitle.toLowerCase().includes(search.toLowerCase()) ||
+        r.organizerName.toLowerCase().includes(search.toLowerCase()) ||
+        r.status.toLowerCase().includes(search.toLowerCase())
+    )
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -141,6 +173,68 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                         placeholder="Search events or organizers..."
                         className="w-full pl-10 pr-4 py-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all"
                     />
+                </div>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={async () => {
+                            if (!confirm('Are you sure you want to reset the payout system? This will delete all transactions and payout requests.')) return
+                            const res = await resetPayoutSystem()
+                            if (res.success) toast.success(res.message)
+                            else toast.error(res.message)
+                        }}
+                        className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all border border-red-100 dark:border-red-500/20 shadow-sm"
+                        title="Reset System"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={async () => {
+                            const dueEvents = eventStats.filter(e => e.stats.remainingDue > 0)
+                            if (dueEvents.length === 0) {
+                                toast.info('No outstanding balances to settle')
+                                return
+                            }
+                            if (!confirm(`Mark all event balances as settled? This will record ${dueEvents.length} manual payouts for events with balances.`)) return
+                            
+                            const settlements = dueEvents.map(e => ({
+                                event_id: e.id,
+                                organizer_id: e.organizers?.id,
+                                amount: e.stats.remainingDue,
+                                currency: (e.payouts && e.payouts.length > 0) ? e.payouts[0].currency : 'GHS'
+                            }))
+                            
+                            const res = await settleBalances(settlements as any)
+                            if (res.success) toast.success(res.message)
+                            else toast.error(res.message)
+                        }}
+                        className="p-2.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-xl transition-all border border-green-100 dark:border-green-500/20 shadow-sm flex items-center gap-2 font-bold text-sm"
+                        title="Settle All Balances"
+                    >
+                        <CheckCircle2 className="w-5 h-5" /> Settle All
+                    </button>
+                    <div className="flex bg-gray-100/50 dark:bg-white/5 p-1 rounded-2xl border border-gray-200 dark:border-white/10">
+                    <button
+                        onClick={() => setView('events')}
+                        className={clsx(
+                            "px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300",
+                            view === 'events' ? "bg-white dark:bg-white text-black dark:text-black shadow-md" : "text-gray-500 hover:text-black dark:hover:text-white"
+                        )}
+                    >
+                        Events
+                    </button>
+                    <button
+                        onClick={() => setView('requests')}
+                        className={clsx(
+                            "px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2",
+                            view === 'requests' ? "bg-white dark:bg-white text-black dark:text-black shadow-md" : "text-gray-500 hover:text-black dark:hover:text-white"
+                        )}
+                    >
+                        Requests
+                        {requests.filter(r => r.status === 'pending' || r.status === 'processing').length > 0 && (
+                            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                        )}
+                    </button>
+                </div>
                 </div>
                 <div className="flex items-center gap-4 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 px-6 py-3 rounded-2xl shadow-sm">
                     <div className="p-2 bg-green-500/10 rounded-full text-green-600 dark:text-green-400">
@@ -157,18 +251,29 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 dark:bg-white/5 border-b border-gray-100 dark:border-white/10">
-                            <tr>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">Event</th>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">Organizer</th>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Gross Sales</th>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Fees</th>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Paid</th>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right text-green-600 dark:text-green-400">Net Due</th>
-                                <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-center">Action</th>
-                            </tr>
+                            {view === 'events' ? (
+                                <tr>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">Event</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">Organizer</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Gross Sales</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Fees</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Paid</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right text-green-600 dark:text-green-400">Net Due</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-center">Action</th>
+                                </tr>
+                            ) : (
+                                <tr>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">Event</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">Organizer</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Amount</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-center">Status</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-right">Date</th>
+                                    <th className="px-6 py-4 font-bold text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider text-center">Action</th>
+                                </tr>
+                            )}
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-                            {filteredEvents.map(event => (
+                            {view === 'events' ? filteredEvents.map(event => (
                                 <tr key={event.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
@@ -207,6 +312,55 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                                     <td className="px-6 py-4 text-center">
                                         <button
                                             onClick={() => setSelectedEvent(event)}
+                                            className="p-2 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-all"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            )) : filteredRequests.map(req => (
+                                <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <p className="font-bold text-gray-900 dark:text-white">{req.eventTitle}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">REQ #{req.id.slice(0, 8)}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-[10px] font-bold">
+                                                {req.organizerName?.[0]}
+                                            </div>
+                                            <span className="text-gray-600 dark:text-gray-300">{req.organizerName}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-right font-bold text-gray-900 dark:text-white uppercase tracking-tight">
+                                        {formatCurrency(req.amount, req.currency)}
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={clsx(
+                                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                            req.status === 'paid' ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
+                                                (req.status === 'pending' || req.status === 'processing') ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400" :
+                                                    "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                                        )}>
+                                            <div className={clsx("w-1.5 h-1.5 rounded-full",
+                                                req.status === 'paid' ? "bg-green-500" :
+                                                    (req.status === 'pending' || req.status === 'processing') ? "bg-yellow-500 animate-pulse" :
+                                                        "bg-red-500"
+                                            )} />
+                                            {req.status === 'processing' ? 'Sending...' : req.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right whitespace-nowrap text-gray-500 font-medium">
+                                        {new Date(req.created_at).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <button
+                                            onClick={() => {
+                                                const event = events.find(e => e.id === req.event_id)
+                                                if (event) setSelectedEvent({ ...event, activeRequest: req.status !== 'paid' ? req : null, stats: { ...eventStats.find(es => es.id === req.event_id)?.stats } })
+                                            }}
                                             className="p-2 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-all"
                                         >
                                             <ChevronRight className="w-4 h-4" />
@@ -267,7 +421,7 @@ export function PayoutsTable({ events, transactions, payouts, feeSettings }: Pay
                                                 <Loader2 className="w-4 h-4 animate-spin" />
                                             ) : (
                                                 <>
-                                                    <CheckCircle className="w-4 h-4" /> Mark Paid
+                                                    <DollarSign className="w-4 h-4" /> Approve & Transfer
                                                 </>
                                             )}
                                         </button>
