@@ -24,7 +24,12 @@ import {
     Search,
     Download,
     Trash2,
+    MessageSquare,
+    Send,
+    AlertCircle,
+    Loader2
 } from 'lucide-react'
+import { sendSMSBlast } from '@/app/actions/communications'
 import { toast } from 'sonner'
 
 interface MarketingStat {
@@ -42,6 +47,7 @@ interface MarketingStat {
     events: {
         id: string
         title: string
+        organization_id: string
     }
 }
 
@@ -78,6 +84,8 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
     // Code Validation State
     const [isCodeValid, setIsCodeValid] = useState<boolean | null>(null)
     const [isValidating, setIsValidating] = useState(false)
+    const [smsMessage, setSmsMessage] = useState('')
+    const [isSendingSms, setIsSendingSms] = useState(false)
 
     // Fetch promos for the selected event
     useEffect(() => {
@@ -226,6 +234,42 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
 
         toast.success('Record deleted')
         setStats(prev => prev.filter(s => s.id !== id))
+    }
+    
+    const handleSendSMS = async () => {
+        if (!selectedEventId || selectedEventId === 'all') {
+            toast.error('Please select a specific event first')
+            return
+        }
+        if (!smsMessage.trim()) {
+            toast.error('Message cannot be empty')
+            return
+        }
+
+        // Get the actual org ID from the first event or initial stats
+        // In a real scenario, this should be passed as a prop
+        const orgId = initialStats[0]?.events?.organization_id 
+            || (document.cookie.match(/gatepass-org-id=([^;]+)/)?.[1]);
+
+        if (!orgId) {
+            toast.error('Organization context not found')
+            return
+        }
+
+        setIsSendingSms(true)
+        try {
+            const result = await sendSMSBlast(selectedEventId, smsMessage, orgId)
+            if (result.success) {
+                toast.success(result.message)
+                setSmsMessage('')
+            } else {
+                toast.error(result.message)
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to send SMS')
+        } finally {
+            setIsSendingSms(false)
+        }
     }
 
     return (
@@ -667,6 +711,89 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
                                     </p>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+                
+                {/* SMS Blast Tool */}
+                <div className="lg:col-span-12 bg-white dark:bg-[#111] rounded-3xl p-8 border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.02)]">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center">
+                            <MessageSquare className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold dark:text-white tracking-tight">Direct SMS Blast</h3>
+                            <p className="text-xs text-gray-400 font-medium">Broadcast messages to all confirmed attendees of the selected event</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Message Content</label>
+                                <textarea
+                                    value={smsMessage}
+                                    onChange={(e) => setSmsMessage(e.target.value)}
+                                    placeholder="e.g. Hello! Don't forget our event starts at 6 PM tonight. See you there!"
+                                    rows={5}
+                                    className="w-full p-4 bg-gray-50 dark:bg-white/5 border border-transparent rounded-2xl text-sm font-medium ring-blue-500/20 focus:ring-4 focus:bg-white dark:focus:bg-black transition-all outline-none resize-none dark:text-white"
+                                />
+                                <div className="flex justify-between items-center px-1">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                        {smsMessage.length} characters • {Math.ceil(smsMessage.length / 160)} segments
+                                    </p>
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${smsMessage.length > 160 ? 'text-amber-500' : 'text-gray-400'}`}>
+                                        {160 - (smsMessage.length % 160)} chars left in segment
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <button
+                                onClick={handleSendSMS}
+                                disabled={isSendingSms || !smsMessage.trim() || selectedEventId === 'all'}
+                                className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {isSendingSms ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Transmitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="w-4 h-4" />
+                                        Launch Blast
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-6 border border-gray-100 dark:border-white/10 flex flex-col justify-between">
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 text-amber-600">
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Blast Requirements</span>
+                                </div>
+                                <ul className="space-y-3">
+                                    <li className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Must have a carrier token connected in <strong>Settings</strong>.</p>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Messages are sent to <strong>confirmed</strong> guests only.</p>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Each 160 characters counts as 1 SMS segment.</p>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <div className="pt-6 border-t border-gray-200 dark:border-white/5 mt-6">
+                                <p className="text-[10px] text-gray-400 font-medium italic leading-relaxed text-center">
+                                    Broadcasts can take up to 5 minutes to complete depending on carrier throughput. Avoid closing this tab during transmission.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

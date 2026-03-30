@@ -7,7 +7,8 @@ import { TeamSettings } from '@/components/admin/settings/TeamSettings'
 import { SettlementSettings } from '@/components/admin/settings/SettlementSettings'
 import { NotificationSettings } from '@/components/admin/settings/NotificationSettings'
 import { MarketingSettings } from '@/components/admin/settings/MarketingSettings'
-import { Settings, Users, Shield, Wallet, User, Bell, Share2 } from 'lucide-react'
+import { Settings, Users, Shield, Wallet, User, Bell, Share2, MessageSquare } from 'lucide-react'
+import { SMSSettings } from '@/components/admin/settings/SMSSettings'
 
 export function SettingsClient({
     initialSettings,
@@ -22,7 +23,7 @@ export function SettingsClient({
     userRole: string,
     teamInfo: any
 }) {
-    const [activeTab, setActiveTab] = useState<'details' | 'profile' | 'team' | 'settlement' | 'notifications' | 'marketing'>('profile')
+    const [activeTab, setActiveTab] = useState<'details' | 'profile' | 'team' | 'settlement' | 'notifications' | 'marketing' | 'sms'>('profile')
 
     const canManageTeam = (userRole || '').trim().toLowerCase() === 'owner' || (userRole || '').trim().toLowerCase() === 'admin'
 
@@ -98,6 +99,16 @@ export function SettingsClient({
                                 <Share2 className="w-4 h-4" />
                                 Marketing
                             </button>
+                            <button
+                                onClick={() => setActiveTab('sms')}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'sms'
+                                    ? 'bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                                SMS Provider
+                            </button>
                         </>
                     )}
                 </div>
@@ -123,6 +134,9 @@ export function SettingsClient({
                             )}
                             {activeTab === 'marketing' && (
                                 <MarketingSettings organizer={initialOrganizer} userRole={userRole} />
+                            )}
+                            {activeTab === 'sms' && (
+                                <SMSSettings organizer={initialOrganizer} userRole={userRole} />
                             )}
                         </>
                     )}
