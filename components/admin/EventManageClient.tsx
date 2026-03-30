@@ -35,6 +35,7 @@ import { DeleteEventModal } from '@/components/admin/DeleteEventModal'
 import { LineupTab } from '@/components/admin/tabs/LineupTab'
 import { AddonsTab } from '@/components/admin/tabs/AddonsTab'
 import { WidgetsTab } from '@/components/admin/tabs/WidgetsTab'
+import { InstalmentsTab } from '@/components/admin/tabs/InstalmentsTab'
 
 
 interface EventManageClientProps {
@@ -59,7 +60,7 @@ export function EventManageClient({
     const isStaff = userRole === 'Staff'
     const isAdmin = userRole === 'Owner' || userRole === 'Admin' || isSuperAdmin
     const [event, setEvent] = useState(initialEvent)
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets'>('tickets')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments'>('tickets')
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
     const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -733,6 +734,9 @@ export function EventManageClient({
                     {isAdmin && (
                         <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
                     )}
+                    {isAdmin && (
+                        <button onClick={() => setActiveTab('instalments')} className={tabClass('instalments')}>Instalments</button>
+                    )}
 
                     {/* More Dropdown */}
                     <div className="relative">
@@ -1140,6 +1144,11 @@ export function EventManageClient({
                 </div>
             )
             }
+
+            {/* INSTALMENTS TAB */}
+            {activeTab === 'instalments' && (
+                <InstalmentsTab event={event} />
+            )}
 
             {/* LINEUP TAB */}
             {/* LINEUP TAB REMOVED - NOW EMBEDDED */}
