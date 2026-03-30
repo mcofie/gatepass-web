@@ -885,10 +885,16 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                     </div>
                 </div>
                 {cheapestTier && (
-                    <div className="text-right">
+                    <div className="text-right flex flex-col items-end gap-1">
                         <span className="block text-[16px] font-bold text-gray-400">
                             {formatCurrency(cheapestTier.price, cheapestTier.currency)}
                         </span>
+                        {event.payment_plans && event.payment_plans.some((p: any) => p.is_active) && (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-bold uppercase tracking-tight border border-amber-100 dark:border-amber-500/20 shadow-sm animate-in fade-in slide-in-from-right-1 duration-500">
+                                <CalendarClock className="w-2.5 h-2.5" />
+                                <span>Part-pay</span>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

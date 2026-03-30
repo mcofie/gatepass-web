@@ -29,6 +29,7 @@ export interface Event {
     logo_url?: string
     lineup?: LineupItem[]
     publish_at?: string
+    payment_plans?: PaymentPlan[]
 }
 
 export interface Organizer {

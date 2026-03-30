@@ -37,7 +37,8 @@ export default async function Home() {
     .select(`
       *,
       organizers(*),
-      ticket_tiers(*)
+      ticket_tiers(*, payment_plans(*)),
+      payment_plans(id, is_active)
     `)
     // .eq('status', 'published') // Temporarily removed for debugging
     .eq('is_featured', true)

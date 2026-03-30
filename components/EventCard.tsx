@@ -3,7 +3,7 @@
 import React from 'react'
 import Image from 'next/image'
 import { Event } from '@/types/gatepass'
-import { MapPin } from 'lucide-react'
+import { MapPin, CalendarClock } from 'lucide-react'
 
 
 interface EventCardProps {
@@ -40,8 +40,16 @@ export function EventCard({ event }: EventCardProps) {
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
 
-                <div className="absolute top-4 left-4 bg-white/95 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm border border-white/10">
-                    {formattedDate}
+                <div className="absolute top-4 left-4 flex gap-2">
+                    <div className="bg-white/95 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm border border-white/10">
+                        {formattedDate}
+                    </div>
+                    {event.payment_plans && event.payment_plans.some((p: any) => p.is_active) && (
+                        <div className="bg-amber-400 dark:bg-amber-500 text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5 border border-amber-300 dark:border-amber-600">
+                            <CalendarClock className="w-3.5 h-3.5" />
+                            Instalments
+                        </div>
+                    )}
                 </div>
             </div>
 
