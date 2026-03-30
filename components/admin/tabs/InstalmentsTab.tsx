@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Search, Download, Calendar, DollarSign, User, Mail, Phone, Clock, CheckCircle2, AlertCircle, X, ChevronRight, Hash, ArrowUpRight } from 'lucide-react'
+import { Search, Download, Calendar, DollarSign, User, Mail, Phone, Clock, CheckCircle2, AlertCircle, X, ChevronRight, Hash, ArrowUpRight, MessageSquare, Loader2, Send } from 'lucide-react'
 import { generateCSV, downloadCSV } from '@/utils/analytics'
+import { sendManualSMS } from '@/app/actions/communications'
+import { toast } from 'sonner'
 import clsx from 'clsx'
 import { formatCurrency } from '@/utils/format'
 import { Event, PaymentPlan, InstalmentReservation } from '@/types/gatepass'
@@ -19,6 +21,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
     const [selectedRes, setSelectedRes] = useState<any | null>(null)
     const [payments, setPayments] = useState<any[]>([])
     const [loadingPayments, setLoadingPayments] = useState(false)
+    const [isSending, setIsSending] = useState<string | null>(null)
     const ITEMS_PER_PAGE = 20
 
     const supabase = createClient()
@@ -88,6 +91,37 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
             setPayments([])
         }
     }, [selectedRes])
+
+    const handleSendReminder = async (phone: string, name: string, amount: number, paymentId: string, type: 'general' | 'specific') => {
+        if (!phone) {
+            toast.error('No phone number found for this customer')
+            return
+        }
+
+        setIsSending(type === 'specific' ? paymentId : 'general')
+        try {
+            const portalUrl = `https://gatepass.io/checkout/instalments/${selectedRes.id}`
+            const message = type === 'specific' 
+                ? `Gatepass: Hi ${name}, just a reminder for your installment payment of ${formatCurrency(amount, selectedRes.currency)} for "${event.title}". Pay here: ${portalUrl}`
+                : `Gatepass: Hi ${name}, you have a pending balance for "${event.title}". Please visit the portal to complete your payment: ${portalUrl}`
+
+            const result = await sendManualSMS({
+                to: phone,
+                message,
+                organizationId: event.organization_id!
+            })
+
+            if (result.success) {
+                toast.success('SMS reminder sent successfully')
+            } else {
+                toast.error(result.error || 'Failed to send SMS')
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'An error occurred')
+        } finally {
+            setIsSending(null)
+        }
+    }
 
     // Filtered reservations for local search (if we don't want to re-fetch)
     const displayReservations = searchQuery
@@ -427,6 +461,24 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                                                         )}
                                                     </div>
                                                 </div>
+
+                                                {p.status === 'pending' && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleSendReminder(selectedRes.contact_phone, selectedRes.contact_name, p.amount, p.id, 'specific')
+                                                        }}
+                                                        disabled={isSending === p.id}
+                                                        className="w-10 h-10 rounded-xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center hover:opacity-90 active:scale-95 transition-all disabled:opacity-30"
+                                                        title="Send SMS Reminder"
+                                                    >
+                                                        {isSending === p.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Send className="w-4 h-4" />
+                                                        )}
+                                                    </button>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -442,13 +494,18 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                             >
                                 Back
                             </button>
-                            <a 
-                                href={`mailto:${selectedRes.contact_email}`}
-                                className="flex-[2] py-3.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-sm font-bold hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            <button 
+                                onClick={() => handleSendReminder(selectedRes.contact_phone, selectedRes.contact_name, selectedRes.total_amount - selectedRes.amount_paid, selectedRes.id, 'general')}
+                                disabled={!!isSending || selectedRes.status === 'completed'}
+                                className="flex-[2] py-3.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-sm font-bold hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-30"
                             >
-                                <Mail className="w-4 h-4" />
-                                Send Reminder
-                            </a>
+                                {isSending === 'general' ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <MessageSquare className="w-4 h-4" />
+                                )}
+                                Send SMS Reminder
+                            </button>
                         </div>
                     </div>
                 </div>
