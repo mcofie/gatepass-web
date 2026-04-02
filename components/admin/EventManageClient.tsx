@@ -9,7 +9,7 @@ import { Event, TicketTier, Discount, EventStaff } from '@/types/gatepass'
 import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatCompactNumber, formatCompactCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import dynamic from 'next/dynamic'
 import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
@@ -806,8 +806,8 @@ export function EventManageClient({
                                         </div>
                                         <p className="text-sm font-bold uppercase tracking-widest text-white/60">Balance Due</p>
                                     </div>
-                                    <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60">
-                                        {formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
+                                    <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60 truncate" title={formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}>
+                                        {formatCompactCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
                                     </h2>
                                 </div>
                                 <div className="space-y-4">
@@ -1180,8 +1180,8 @@ export function EventManageClient({
                                         </div>
                                         <span className="text-[10px] font-bold uppercase tracking-widest">Gross Revenue</span>
                                     </div>
-                                    <p className="text-2xl xl:text-3xl font-black tracking-tight mt-1">
-                                        {formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}
+                                    <p className="text-2xl xl:text-3xl font-black tracking-tight mt-1 truncate" title={formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}>
+                                        {formatCompactCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}
                                     </p>
                                 </div>
                             </div>
@@ -1238,7 +1238,7 @@ export function EventManageClient({
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Discounts</p>
-                                    <p className="text-xl font-black text-gray-900 dark:text-white">{formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}</p>
+                                    <p className="text-xl font-black text-gray-900 dark:text-white truncate" title={formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}>{formatCompactCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}</p>
                                 </div>
                             </div>
                         </div>

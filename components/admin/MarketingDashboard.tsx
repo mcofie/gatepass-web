@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { sendSMSBlast } from '@/app/actions/communications'
 import { toast } from 'sonner'
+import { formatCompactNumber, formatCompactCurrency } from '@/utils/format'
 
 interface MarketingStat {
     id: string
@@ -291,7 +292,7 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <StatCard
                     label="Reach"
-                    value={aggregates.views.toLocaleString()}
+                    value={formatCompactNumber(aggregates.views)}
                     icon={Users}
                     trend="+12%"
                     description="Unique Impressions"
@@ -299,7 +300,7 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
                 />
                 <StatCard
                     label="Intent"
-                    value={aggregates.checkouts.toLocaleString()}
+                    value={formatCompactNumber(aggregates.checkouts)}
                     icon={Target}
                     trend="+8%"
                     description="Checkout Starts"
@@ -307,7 +308,7 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
                 />
                 <StatCard
                     label="Sales"
-                    value={aggregates.transactions.toLocaleString()}
+                    value={formatCompactNumber(aggregates.transactions)}
                     icon={ShoppingCart}
                     trend="+3%"
                     description="Completed Orders"
@@ -315,7 +316,7 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
                 />
                 <StatCard
                     label="Revenue"
-                    value={`GHS ${aggregates.revenue.toLocaleString()}`}
+                    value={formatCompactCurrency(aggregates.revenue, 'GHS')}
                     icon={DollarSign}
                     trend="+14%"
                     description="Campaign Gross"
@@ -830,8 +831,8 @@ function StatCard({ label, value, icon: Icon, trend, description, color }: StatC
                 </div>
             </div>
 
-            <div className="mt-4">
-                <h4 className="text-2xl font-black dark:text-white tracking-tight leading-none mb-1">{value}</h4>
+            <div className="mt-4 overflow-hidden">
+                <h4 className="text-2xl font-black dark:text-white tracking-tight leading-none mb-1 truncate" title={value}>{value}</h4>
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{description}</p>
             </div>
         </div>

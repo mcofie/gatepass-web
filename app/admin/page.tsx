@@ -3,7 +3,7 @@ import { Banknote, Calendar, Users, Activity } from 'lucide-react'
 import { PlatformPulse } from '@/components/admin/PlatformPulse'
 import { DashboardChart } from '@/components/admin/DashboardChart'
 import { DashboardFilter } from '@/components/admin/DashboardFilter'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatCompactNumber, formatCompactCurrency } from '@/utils/format'
 import { format, subDays, isSameDay, subMonths, startOfDay } from 'date-fns'
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
@@ -249,13 +249,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 }
 
 function StatCard({ title, value, currency, icon: Icon, color, subtitle, trend }: any) {
-    const formatter = new Intl.NumberFormat('en-GH', {
-        style: currency ? 'currency' : 'decimal',
-        currency: currency || 'GHS',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-    })
-
     const isPositive = trend > 0
     const isNegative = trend < 0
 
@@ -268,9 +261,9 @@ function StatCard({ title, value, currency, icon: Icon, color, subtitle, trend }
                 </div>
             </div>
 
-            <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
-                    {formatter.format(value)}
+            <div className="flex items-baseline gap-2 overflow-hidden">
+                <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight truncate" title={currency ? formatCurrency(value, currency) : value.toLocaleString()}>
+                    {currency ? formatCompactCurrency(value, currency) : formatCompactNumber(value)}
                 </p>
                 {trend !== undefined && (
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${isPositive ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
