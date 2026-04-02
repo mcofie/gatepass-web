@@ -131,12 +131,14 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
         <div className="w-full">
             <div className="w-full">
                 {/* Back */}
-                <button
-                    onClick={() => isGuest ? router.back() : router.push('/my-tickets')}
-                    className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-black dark:hover:text-white mb-6 transition-colors"
-                >
-                    <ArrowLeft className="w-4 h-4" /> {isGuest ? 'Back' : 'Back to My Tickets'}
-                </button>
+                {!isGuest && (
+                    <button
+                        onClick={() => router.push('/my-tickets')}
+                        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-black dark:hover:text-white mb-6 transition-colors"
+                    >
+                        <ArrowLeft className="w-4 h-4" /> Back to My Tickets
+                    </button>
+                )}
 
                 {/* Event Info */}
                 <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
