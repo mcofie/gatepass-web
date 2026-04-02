@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendManualSMS } from '@/app/actions/communications'
+import { notifyDiscord } from '@/utils/discord'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,6 +148,15 @@ export async function GET(request: Request) {
             }
         }
 
+        // Notify Discord of progress
+        if (sentReminders > 0) {
+            await notifyDiscord(
+                `🤖 **Instalment Reminders Dispatched**\n` +
+                `Successfully sent **${sentReminders}** SMS reminders to customers today.`,
+                'info'
+            )
+        }
+
         return NextResponse.json({ 
             success: true, 
             remindersSent: sentReminders,
@@ -154,6 +164,7 @@ export async function GET(request: Request) {
         })
 
     } catch (err: any) {
+        await notifyDiscord(`🔥 **CRITICAL CRON ERROR (Reminders)**\nError: ${err.message}`, 'warning')
         console.error('Cron Exception:', err.message)
         return NextResponse.json({ 
             success: false, 
