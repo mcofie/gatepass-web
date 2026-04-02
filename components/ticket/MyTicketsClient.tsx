@@ -171,50 +171,50 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                             </div>
                         ))}
                         {instalments.map((instalment: any) => (
-                            <div key={instalment.id} className="group relative bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 h-[280px]">
+                            <div key={instalment.id} className="group relative bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 h-[280px]">
                                 {/* Ticket Stub Effect: Dashed Line & Notches */}
                                 <div className="absolute top-[72%] left-0 right-0 h-px border-t-2 border-dashed border-gray-100 dark:border-white/10" />
                                 <div className="absolute top-[72%] -left-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border border-gray-100 dark:border-white/10 dark:border-l-transparent dark:border-t-transparent border-r-transparent border-b-transparent rotate-45 z-10" />
                                 <div className="absolute top-[72%] -right-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border border-gray-100 dark:border-white/10 dark:border-l-transparent dark:border-t-transparent border-l-transparent border-t-transparent -rotate-45 z-10" />
 
                                 {/* Upper Section: Info */}
-                                <div className="p-6 h-[72%] flex flex-col justify-between relative bg-yellow-50/50 dark:bg-yellow-500/[0.02]">
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-bl-[100px] pointer-events-none" />
+                                <div className="p-6 h-[72%] flex flex-col justify-between relative bg-amber-50/40 dark:bg-amber-500/[0.02]">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-[100px] pointer-events-none" />
                                     {/* Content */}
                                     <div>
                                         <div className="flex justify-between items-start mb-6">
                                             <div className="space-y-1.5 min-w-0 pr-2 z-10">
-                                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.15em] truncate">
+                                                <p className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.15em] truncate">
                                                     {instalment.reservations?.ticket_tiers?.name || 'General Access'} x{instalment.reservations?.quantity || 1}
                                                 </p>
-                                                <p className="text-[10px] font-mono font-bold text-gray-400 lowercase tracking-wide">
+                                                <p className="text-[10px] font-mono font-bold text-gray-500 dark:text-gray-400 lowercase tracking-wide">
                                                     Instalment Plan: #{instalment.id.slice(0, 8)}
                                                 </p>
                                             </div>
-                                            <div className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-yellow-50 text-yellow-600 border-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/20 z-10">
+                                            <div className="shrink-0 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 z-10">
                                                 {instalment.status === 'active' ? 'Paying' : instalment.status}
                                             </div>
                                         </div>
-                                        <div className="flex flex-col mt-4 opacity-100 z-10 relative">
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Paid Status</span>
-                                            <div className="text-xl font-bold font-mono text-gray-900 dark:text-white mt-1">
-                                                <span className="text-gray-900 dark:text-white">{formatCurrency(instalment.amount_paid)}</span>
-                                                <span className="text-xs text-gray-400 tracking-tighter"> / {formatCurrency(instalment.total_amount)}</span>
+                                        <div className="flex flex-col mt-4 z-10 relative">
+                                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">Paid Status</span>
+                                            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-white mt-1">
+                                                <span className="text-zinc-900 dark:text-white">{formatCurrency(instalment.amount_paid)}</span>
+                                                <span className="text-sm text-gray-400 dark:text-zinc-500 tracking-tighter"> / {formatCurrency(instalment.total_amount)}</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Lower Section: Actions */}
-                                <div className="absolute bottom-0 left-0 right-0 h-[28%] bg-white dark:bg-[#111] px-3 flex items-center gap-2 border-t border-dashed border-gray-100 dark:border-white/10">
-                                    <div className="flex-1 px-2 pt-1 text-[10px] font-mono text-gray-400">
-                                        Amount due <br />
-                                        <strong className="text-black dark:text-white">
+                                <div className="absolute bottom-0 left-0 right-0 h-[28%] bg-gray-50/50 dark:bg-[#111]/50 px-4 flex items-center gap-2 border-t border-dashed border-gray-100 dark:border-white/10 backdrop-blur-sm">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase tracking-wider leading-none mb-1">Due</p>
+                                        <strong className="text-base text-zinc-900 dark:text-white font-black font-mono leading-none">
                                             {formatCurrency(instalment.total_amount - instalment.amount_paid)}
                                         </strong>
                                     </div>
                                     <Button
-                                        className="h-9 rounded-xl text-xs font-bold bg-yellow-400 text-yellow-950 hover:bg-yellow-500 shadow-sm transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-[120px] px-3 border border-yellow-500"
+                                        className="h-10 rounded-xl text-xs font-bold bg-amber-400 text-amber-950 hover:bg-amber-500 shadow-sm transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-[110px] px-4 border border-amber-500/20 shadow-amber-500/10"
                                         onClick={() => window.location.href = `/my-tickets/instalments/${instalment.id}`}
                                     >
                                         <span className="truncate">Manage</span>

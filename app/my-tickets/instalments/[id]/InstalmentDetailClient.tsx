@@ -42,7 +42,7 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
 
         try {
             // Initialize Paystack for this instalment
-            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.io'
+            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.so'
             const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?instalment_payment_id=${payment.id}`
 
             const response = await fetch('/api/paystack/initialize', {
@@ -80,7 +80,7 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
         setPayingFull(true)
 
         try {
-            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.io'
+            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.so'
             const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?full_settlement=true`
 
             const response = await fetch('/api/paystack/initialize', {
@@ -142,10 +142,10 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
 
                 {/* Event Info */}
                 <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{event?.title}</h1>
-                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{event?.title}</h1>
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 {event?.venue_name && (
                                     <span className="flex items-center gap-1">
                                         <MapPin className="w-3 h-3" /> {event.venue_name}
@@ -161,7 +161,7 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                                 )}
                             </div>
                         </div>
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${instalment.status === 'completed' ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400' :
+                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${instalment.status === 'completed' ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400' :
                             instalment.status === 'forfeited' ? 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400' :
                                 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
                             }`}>
@@ -173,17 +173,17 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                     </div>
 
                     {/* Ticket Info */}
-                    <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 flex justify-between items-center">
-                        <div>
+                    <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 flex justify-between items-center gap-4">
+                        <div className="min-w-0">
                             <span className="text-xs text-gray-500 dark:text-gray-400">Ticket</span>
-                            <p className="font-bold text-gray-900 dark:text-white">
+                            <p className="font-bold text-gray-900 dark:text-white truncate">
                                 {reservation?.quantity || 1}x {typeof tier === 'object' && !Array.isArray(tier) ? tier.name : 'Ticket'}
                             </p>
                         </div>
                         {instalment.status === 'completed' && (
                             <Link
                                 href="/my-tickets"
-                                className="bg-green-500 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-600 transition-colors"
+                                className="bg-green-500 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-600 transition-colors whitespace-nowrap"
                             >
                                 View Tickets
                             </Link>
@@ -196,10 +196,10 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                     <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Payment Progress</h2>
 
                     {/* Progress Bar */}
-                    <div className="mb-4">
-                        <div className="flex justify-between text-sm mb-2">
+                    <div className="mb-6">
+                        <div className="flex flex-col sm:flex-row justify-between text-sm mb-2 gap-1">
                             <span className="font-bold text-gray-900 dark:text-white">{progressPct}% Complete</span>
-                            <span className="text-gray-500 dark:text-gray-400">
+                            <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-mono">
                                 {formatCurrency(instalment.amount_paid, instalment.currency)} / {formatCurrency(instalment.total_amount, instalment.currency)}
                             </span>
                         </div>
@@ -215,22 +215,22 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                     </div>
 
                     {/* Summary Grid */}
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center p-3 bg-green-50 dark:bg-green-500/5 rounded-xl">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="flex sm:flex-col justify-between p-3 px-4 sm:px-3 bg-green-50 dark:bg-green-500/5 rounded-xl">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Paid</span>
-                            <p className="font-bold text-green-700 dark:text-green-300 mt-1">
+                            <p className="font-bold text-green-700 dark:text-green-300 font-mono">
                                 {formatCurrency(instalment.amount_paid, instalment.currency)}
                             </p>
                         </div>
-                        <div className="text-center p-3 bg-amber-50 dark:bg-amber-500/5 rounded-xl">
+                        <div className="flex sm:flex-col justify-between p-3 px-4 sm:px-3 bg-amber-50 dark:bg-amber-500/5 rounded-xl">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Remaining</span>
-                            <p className="font-bold text-amber-700 dark:text-amber-300 mt-1">
+                            <p className="font-bold text-amber-700 dark:text-amber-300 font-mono">
                                 {formatCurrency(remaining, instalment.currency)}
                             </p>
                         </div>
-                        <div className="text-center p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
+                        <div className="flex sm:flex-col justify-between p-3 px-4 sm:px-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Total</span>
-                            <p className="font-bold text-gray-900 dark:text-white mt-1">
+                            <p className="font-bold text-gray-900 dark:text-white font-mono">
                                 {formatCurrency(instalment.total_amount, instalment.currency)}
                             </p>
                         </div>
@@ -241,10 +241,21 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                         <button
                             onClick={handlePayFullRemaining}
                             disabled={loading}
-                            className="w-full mt-6 bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/5 disabled:opacity-50"
+                            className="w-full mt-8 group relative overflow-hidden bg-zinc-900 dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-xl shadow-black/10 dark:shadow-white/5 border border-white/5 dark:border-black/5 disabled:opacity-50"
                         >
-                            {loading && payingFull ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
-                            Pay Remaining Balance ({formatCurrency(remaining, instalment.currency)})
+                            {/* Subtle glossy overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                            
+                            {loading && payingFull ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : null}
+                            
+                            <div className="flex flex-col items-center leading-none">
+                                <span className="text-[10px] opacity-60 font-bold uppercase tracking-widest mb-1.5 text-center">Pay Remaining Balance</span>
+                                <span className="text-xl font-black font-mono text-center">
+                                    {formatCurrency(remaining, instalment.currency)}
+                                </span>
+                            </div>
                         </button>
                     )}
                 </div>
@@ -252,7 +263,7 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                 {/* Payment Schedule */}
                 <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
                     <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Payment Schedule</h2>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         {payments.map((payment: any, index: number) => {
                             const config = getPaymentStatusConfig(payment.status)
                             const isNext = nextPayment?.id === payment.id
@@ -262,7 +273,7 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                             return (
                                 <div
                                     key={payment.id}
-                                    className={`rounded-xl border-2 p-4 transition-all ${isNext
+                                    className={`rounded-2xl border-2 p-5 transition-all ${isNext
                                         ? isOverdue
                                             ? 'border-red-300 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5'
                                             : 'border-amber-300 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5'
@@ -271,16 +282,16 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                                             : 'border-gray-100 dark:border-zinc-800'
                                         }`}
                                 >
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${config.bg}`}>
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${config.bg}`}>
                                                 {config.icon}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-sm text-gray-900 dark:text-white">
+                                                <p className="font-bold text-gray-900 dark:text-white">
                                                     Payment {payment.instalment_number}
                                                 </p>
-                                                <p className={`text-xs ${config.color}`}>
+                                                <p className={`text-xs font-medium ${config.color}`}>
                                                     {payment.status === 'paid'
                                                         ? `Paid ${payment.paid_at ? new Date(payment.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`
                                                         : `Due ${new Date(payment.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
@@ -288,18 +299,19 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="text-right flex items-center gap-3">
-                                            <span className="font-bold text-gray-900 dark:text-white">
+                                        
+                                        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-50 dark:border-zinc-800">
+                                            <span className="font-black text-gray-900 dark:text-white font-mono text-lg">
                                                 {formatCurrency(payment.amount, payment.currency)}
                                             </span>
                                             {isPayable && (
                                                 <button
                                                     onClick={() => handlePayInstalment(payment)}
                                                     disabled={loading}
-                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${isOverdue
+                                                    className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${isOverdue
                                                         ? 'bg-red-500 hover:bg-red-600 text-white'
                                                         : 'bg-amber-500 hover:bg-amber-600 text-white'
-                                                        } disabled:opacity-50`}
+                                                        } disabled:opacity-50 active:scale-95`}
                                                 >
                                                     {loading && payingInstalmentId === payment.id ? (
                                                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -312,10 +324,10 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                                         </div>
                                     </div>
 
-                                    {/* Timeline connector */}
+                                    {/* Timeline connector - only visible on desktop or if not stacking? No, hide on mobile for cleaner look */}
                                     {index < payments.length - 1 && (
-                                        <div className="ml-4 mt-2 mb-[-16px]">
-                                            <div className={`w-0.5 h-4 ${payment.status === 'paid' ? 'bg-green-200 dark:bg-green-500/20' : 'bg-gray-200 dark:bg-zinc-700'
+                                        <div className="hidden sm:block ml-5 mt-2 mb-[-24px]">
+                                            <div className={`w-0.5 h-6 ${payment.status === 'paid' ? 'bg-green-200 dark:bg-green-500/20' : 'bg-gray-200 dark:bg-zinc-700'
                                                 }`} />
                                         </div>
                                     )}

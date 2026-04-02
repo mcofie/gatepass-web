@@ -38,6 +38,8 @@ export async function GET(request: Request) {
                 due_at,
                 instalment_reservation_id,
                 instalment_reservations!inner (
+                    id,
+                    short_code,
                     contact_phone,
                     contact_name,
                     payment_plan_id,
@@ -64,8 +66,10 @@ export async function GET(request: Request) {
             const name = res.contact_name || 'Guest'
             const amount = payment.amount
             const dateStr = new Date(payment.due_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+            const code = res.short_code || res.id.substring(0, 8)
+            const portalUrl = `https://gatepass.so/i/${code}`
 
-            const message = `Gatepass: Hi ${name}, just a heads up that your installment of GHS ${amount} for "${event.title}" is due tomorrow, ${dateStr}. Please pay on time to secure your ticket.`
+            const message = `GatePass: Hi ${name}, just a heads up that your installment of GHS ${amount} for "${event.title}" is due tomorrow, ${dateStr}. Pay here: ${portalUrl}`
 
             const { success } = await sendManualSMS({
                 to: phone,
@@ -94,6 +98,8 @@ export async function GET(request: Request) {
                 due_at,
                 instalment_reservation_id,
                 instalment_reservations!inner (
+                    id,
+                    short_code,
                     contact_phone,
                     contact_name,
                     payment_plan_id,
@@ -120,9 +126,10 @@ export async function GET(request: Request) {
             const phone = res.contact_phone
             const name = res.contact_name || 'Guest'
             const amount = payment.amount
-            const portalUrl = `https://gatepass.io/checkout/instalments/${payment.instalment_reservation_id}`
+            const code = res.short_code || res.id.substring(0, 8)
+            const portalUrl = `https://gatepass.so/i/${code}`
 
-            const message = `Gatepass Alert: Hi ${name}, your final installment of GHS ${amount} for "${event.title}" is due TODAY. Pay here: ${portalUrl}`
+            const message = `GatePass Alert: Hi ${name}, your installment payment of GHS ${amount} for "${event.title}" is due TODAY. Pay here: ${portalUrl}`
 
             const { success } = await sendManualSMS({
                 to: phone,

@@ -55,7 +55,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         openGraph: {
             title: event.title,
             description: event.description || `Join us for ${event.title}.`,
-            url: `https://gatepass.io/events/${slug}`,
+            url: `https://gatepass.so/events/${slug}`,
             siteName: 'GatePass',
             images: event.poster_url ? [
                 {

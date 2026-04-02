@@ -48,7 +48,7 @@ export default async function GuestInstalmentDetailPage({ params }: { params: an
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 text-black dark:text-white pb-20">
             <LandingHeader showAccountMenu={false} />
-            <main className="max-w-4xl mx-auto px-4 pt-28 md:pt-32">
+            <main className="max-w-4xl mx-auto px-4 pt-24 sm:pt-32 min-h-screen">
                 <InstalmentDetailClient instalment={instalment} />
             </main>
         </div>
