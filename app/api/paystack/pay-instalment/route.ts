@@ -10,11 +10,11 @@ import { verifyPaystackTransaction } from '@/lib/paystack'
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { reference, instalmentPaymentId } = body
+        const { reference, instalmentPaymentId, instalmentReservationId, isFullPayment } = body
 
-        if (!reference || !instalmentPaymentId) {
+        if (!reference || (!instalmentPaymentId && !instalmentReservationId)) {
             return NextResponse.json(
-                { error: 'Missing required fields: reference, instalmentPaymentId' },
+                { error: 'Missing required fields: reference and either instalmentPaymentId or instalmentReservationId' },
                 { status: 400 }
             )
         }
@@ -26,8 +26,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Transaction not successful' }, { status: 400 })
         }
 
-        // Process the instalment
-        const result = await processInstalmentPayment(reference, instalmentPaymentId, transaction)
+        // Process the instalment (Single vs Full)
+        let result;
+        if (isFullPayment || body.fullSettlement) {
+            const { processFullInstalmentPayment } = await import('@/utils/actions/instalment')
+            result = await processFullInstalmentPayment(reference, instalmentReservationId, transaction)
+        } else {
+            result = await processInstalmentPayment(reference, instalmentPaymentId, transaction)
+        }
 
         if (!result.success) {
             return NextResponse.json({ error: result.error }, { status: 400 })
