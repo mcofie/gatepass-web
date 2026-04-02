@@ -100,10 +100,13 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
 
         setIsSending(type === 'specific' ? paymentId : 'general')
         try {
-            const portalUrl = `https://gatepass.io/checkout/instalments/${selectedRes.id}`
+            // Use short_code if available, otherwise fallback to 8-char ID prefix
+            const code = selectedRes.short_code || selectedRes.id.substring(0, 8)
+            const portalUrl = `gatepass.io/i/${code}`
+            
             const message = type === 'specific' 
-                ? `Gatepass: Hi ${name}, just a reminder for your installment payment of ${formatCurrency(amount, selectedRes.currency)} for "${event.title}". Pay here: ${portalUrl}`
-                : `Gatepass: Hi ${name}, you have a pending balance for "${event.title}". Please visit the portal to complete your payment: ${portalUrl}`
+                ? `GatePass: Hi ${name}, just a reminder for your installment payment of ${formatCurrency(amount, selectedRes.currency)} for "${event.title}". Pay here: ${portalUrl}`
+                : `GatePass: Hi ${name}, you have a pending balance for "${event.title}". Please visit the portal to complete your payment: ${portalUrl}`
 
             const result = await sendManualSMS({
                 to: phone,

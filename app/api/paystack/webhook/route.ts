@@ -31,7 +31,17 @@ export async function POST(req: NextRequest) {
 
             // Check if this is an instalment payment
             if (metadata.payment_type === 'instalment') {
-                if (metadata.instalment_payment_id) {
+                if (metadata.is_full_payment) {
+                    // Settle all remaining instalments at once
+                    const { processFullInstalmentPayment } = await import('@/utils/actions/instalment')
+                    const result = await processFullInstalmentPayment(reference, metadata.instalment_reservation_id, tx)
+
+                    if (!result.success) {
+                        console.error('[paystack-webhook] Full instalment processing failed:', result.error)
+                        return NextResponse.json({ ok: false }, { status: 500 })
+                    }
+                    console.log(`[paystack-webhook] Successfully processed FULL instalment for res: ${metadata.instalment_reservation_id}`)
+                } else if (metadata.instalment_payment_id) {
                     // Subsequent instalment payment
                     const { processInstalmentPayment } = await import('@/utils/actions/instalment')
                     const result = await processInstalmentPayment(reference, metadata.instalment_payment_id, tx)

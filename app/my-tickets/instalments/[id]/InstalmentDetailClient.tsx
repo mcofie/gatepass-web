@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
     ArrowLeft, CalendarClock, CheckCircle2, Clock, AlertCircle,
@@ -16,10 +16,11 @@ interface InstalmentDetailClientProps {
 
 export default function InstalmentDetailClient({ instalment }: InstalmentDetailClientProps) {
     const router = useRouter()
-    const pathname = typeof window !== 'undefined' ? window.location.pathname : ''
-    const isGuest = pathname.includes('/checkout/')
+    const pathname = usePathname()
+    const isGuest = pathname?.includes('/checkout/')
     const [loading, setLoading] = useState(false)
     const [payingInstalmentId, setPayingInstalmentId] = useState<string | null>(null)
+    const [payingFull, setPayingFull] = useState(false)
 
     const reservation = instalment.reservations
     const event = reservation?.events
@@ -71,6 +72,43 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
             toast.error(error.message || 'Failed to initialize payment')
             setLoading(false)
             setPayingInstalmentId(null)
+        }
+    }
+
+    const handlePayFullRemaining = async () => {
+        setLoading(true)
+        setPayingFull(true)
+
+        try {
+            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.io'
+            const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?full_settlement=true`
+
+            const response = await fetch('/api/paystack/initialize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    amount: Math.round(remaining * 100), // In kobo/pesewas
+                    currency: instalment.currency || 'GHS',
+                    reservationIds: [instalment.reservation_id],
+                    callbackUrl,
+                    metadata: {
+                        instalment_reservation_id: instalment.id,
+                        payment_type: 'instalment',
+                        is_full_payment: true
+                    }
+                })
+            })
+
+            const data = await response.json()
+            if (!response.ok) throw new Error(data.error || 'Full payment initialization failed')
+
+            window.location.href = data.authorization_url
+        } catch (error: any) {
+            console.error('Full Payment Error:', error)
+            toast.error(error.message || 'Failed to initialize full payment')
+            setLoading(false)
+            setPayingFull(false)
         }
     }
 
@@ -195,6 +233,18 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
                             </p>
                         </div>
                     </div>
+
+                    {/* Pay All Remaining Button */}
+                    {instalment.status === 'active' && remaining > 0 && payments.filter((p: any) => p.status !== 'paid').length > 1 && (
+                        <button
+                            onClick={handlePayFullRemaining}
+                            disabled={loading}
+                            className="w-full mt-6 bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/5 disabled:opacity-50"
+                        >
+                            {loading && payingFull ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                            Pay Remaining Balance ({formatCurrency(remaining, instalment.currency)})
+                        </button>
+                    )}
                 </div>
 
                 {/* Payment Schedule */}

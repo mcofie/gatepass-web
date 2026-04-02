@@ -147,15 +147,21 @@ export async function POST(req: Request) {
             totalTransactionCharge = 0
         }
 
+        // 3. Prepare Paystack Payload
+        // Unique Reference: Use first ID + unique suffix to avoid 'Duplicate Reference' on retries
+        const uniqueReference = `${reservationIds[0]}_${Date.now().toString(36)}`
+
         const payload: any = {
             email,
             amount, // in kobo/pesewas
             currency,
-            reference: reservationIds[0], // Use PRIMARY reservation ID as Paystack reference (simplifies webhook lookup)
+            reference: uniqueReference,
             callback_url: callbackUrl,
             metadata: {
-                reservation_ids: reservationIds, // Store ALL IDs
+                ...(body.metadata || {}), // MERGE existing metadata from client
+                reservation_ids: reservationIds, // Ensure these are still present
                 custom_fields: [
+                    ...(body.metadata?.custom_fields || []),
                     {
                         display_name: "Reservation IDs",
                         variable_name: "reservation_ids",

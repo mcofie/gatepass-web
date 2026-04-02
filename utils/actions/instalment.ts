@@ -183,6 +183,9 @@ export async function createInstalmentReservation(
     const finalDueDate = new Date(instalmentSchedule[instalmentSchedule.length - 1].due_at)
     finalDueDate.setHours(finalDueDate.getHours() + (plan.grace_period_hours || 48))
 
+    // 7.5. Generate a unique short code for SMS links
+    const shortCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+
     // 8. Create instalment reservation
     const { data: instalmentRes, error: irErr } = await supabase
         .schema('gatepass')
@@ -198,7 +201,8 @@ export async function createInstalmentReservation(
             next_instalment_due_at: instalmentSchedule[1]?.due_at || null,
             contact_email: reservation.guest_email || reservation.profiles?.email,
             contact_name: reservation.guest_name || reservation.profiles?.full_name,
-            contact_phone: reservation.guest_phone || reservation.profiles?.phone_number
+            contact_phone: reservation.guest_phone || reservation.profiles?.phone_number,
+            short_code: shortCode
         })
         .select()
         .single()
@@ -519,6 +523,122 @@ export async function processInstalmentPayment(
 }
 
 /**
+ * Processes a full payment for all remaining instalments.
+ */
+export async function processFullInstalmentPayment(
+    reference: string,
+    instalmentReservationId: string,
+    transactionData?: any
+): Promise<InstalmentResult> {
+    const supabase = getAdminClient()
+
+    // 1. Verify transaction
+    let tx = transactionData
+    if (!tx) {
+        try {
+            const { verifyPaystackTransaction } = await import('@/lib/paystack')
+            tx = await verifyPaystackTransaction(reference)
+        } catch (e) {
+            return { success: false, error: 'Payment verification failed' }
+        }
+    }
+
+    if (tx.status !== 'success') {
+        return { success: false, error: 'Payment was not successful' }
+    }
+
+    // 2. Fetch the instalment reservation
+    const { data: instalmentRes, error: irErr } = await supabase
+        .schema('gatepass')
+        .from('instalment_reservations')
+        .select('*, reservations(*, ticket_tiers(*), events(*, organizers(*)))')
+        .eq('id', instalmentReservationId)
+        .single()
+
+    if (irErr || !instalmentRes) {
+        return { success: false, error: 'Instalment reservation not found' }
+    }
+
+    if (instalmentRes.status === 'completed') {
+        return { success: true, message: 'Plan already fully paid' }
+    }
+
+    // 3. Mark ALL pending/overdue payments as paid
+    const { error: upErr } = await supabase
+        .schema('gatepass')
+        .from('instalment_payments')
+        .update({
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+            transaction_reference: reference
+        })
+        .eq('instalment_reservation_id', instalmentReservationId)
+        .in('status', ['pending', 'overdue'])
+
+    if (upErr) {
+        console.error('Full Instalment Payments Update Error:', upErr)
+    }
+
+    // 4. Update instalment reservation to completed
+    const { error: resUpErr } = await supabase
+        .schema('gatepass')
+        .from('instalment_reservations')
+        .update({
+            amount_paid: instalmentRes.total_amount,
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            next_instalment_due_at: null,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', instalmentReservationId)
+
+    if (resUpErr) {
+        console.error('Full Instalment Reservation Update Error:', resUpErr)
+    }
+
+    // 5. Log the overall transaction
+    const reservation = instalmentRes.reservations
+    const event = Array.isArray(reservation?.events) ? reservation.events[0] : reservation?.events
+    const ticketTier = Array.isArray(reservation?.ticket_tiers) ? reservation.ticket_tiers[0] : reservation?.ticket_tiers
+
+    const { getFeeSettings } = await import('@/utils/settings')
+    const globalSettings = await getFeeSettings()
+    const { getEffectiveFeeRates } = await import('@/utils/fees')
+    const effectiveRates = getEffectiveFeeRates(globalSettings, event, event?.organizers)
+    const { calculateFees } = await import('@/utils/fees')
+    const feeBearer = event?.fee_bearer || 'customer'
+    
+    const chargedAmount = tx.amount ? tx.amount / 100 : 0
+    const { platformFee, processorFee } = calculateFees(chargedAmount, 0, feeBearer, effectiveRates)
+
+    await supabase
+        .schema('gatepass')
+        .from('transactions')
+        .insert({
+            reservation_id: reservation?.id,
+            reference,
+            amount: chargedAmount,
+            currency: tx.currency,
+            channel: tx.channel,
+            status: tx.status,
+            paid_at: tx.paid_at || tx.paidAt,
+            metadata: {
+                ...tx,
+                instalment_reservation_id: instalmentRes.id,
+                payment_type: 'instalment',
+                is_full_payment: true
+            },
+            platform_fee: platformFee,
+            applied_fee_rate: effectiveRates.platformFeePercent,
+            applied_processor_fee: processorFee,
+            applied_processor_rate: effectiveRates.processorFeePercent
+        })
+
+    // 6. Create tickets!
+    return await finalizeInstalmentTickets(instalmentRes.id, reservation, ticketTier, event, reference)
+}
+
+/**
  * Creates the actual tickets once all instalments are paid.
  * Reuses pattern from processSuccessfulPayment.
  */
@@ -642,7 +762,8 @@ export async function getUserInstalmentReservations(userId: string) {
                 *,
                 ticket_tiers(*),
                 events(*, organizers(*))
-            )
+            ),
+            short_code
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
@@ -672,7 +793,8 @@ export async function getInstalmentReservation(instalmentReservationId: string) 
                 *,
                 ticket_tiers(*),
                 events(*, organizers(*))
-            )
+            ),
+            short_code
         `)
         .eq('id', instalmentReservationId)
         .single()
