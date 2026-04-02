@@ -17,8 +17,9 @@ function PaymentCallbackContent({ paramsPromise }: { paramsPromise: Promise<{ id
             setInstalmentReservationId(id)
             const reference = searchParams.get('reference') || searchParams.get('trxref')
             const instalmentPaymentId = searchParams.get('instalment_payment_id')
+            const isFullPayment = searchParams.get('full_settlement') === 'true'
 
-            if (!reference || !instalmentPaymentId) {
+            if (!reference || (!instalmentPaymentId && !isFullPayment)) {
                 setStatus('error')
                 setMessage('Missing payment information.')
                 return
@@ -28,7 +29,12 @@ function PaymentCallbackContent({ paramsPromise }: { paramsPromise: Promise<{ id
                 const response = await fetch('/api/paystack/pay-instalment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference, instalmentPaymentId })
+                    body: JSON.stringify({ 
+                        reference, 
+                        instalmentPaymentId: instalmentPaymentId || undefined,
+                        instalmentReservationId: id,
+                        isFullPayment 
+                    })
                 })
 
                 const data = await response.json()

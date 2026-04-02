@@ -51,6 +51,7 @@ export default async function MyTicketsPage() {
             )
         `)
         .eq('user_id', user.id)
+        .neq('status', 'completed')
         .order('created_at', { ascending: false })
 
     if (error) {
