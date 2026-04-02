@@ -6,11 +6,13 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { Loader2, Share2, Target, BarChart3 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export function MarketingSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
     if (!organizer) return null
 
     const [loading, setLoading] = React.useState(false)
+    const router = useRouter()
     const canEdit = userRole === 'Owner' || userRole === 'Admin'
     const [metaPixelId, setMetaPixelId] = React.useState(organizer?.meta_pixel_id || '')
     const [ga4Id, setGa4Id] = React.useState(organizer?.ga4_measurement_id || '')
@@ -33,6 +35,7 @@ export function MarketingSettings({ organizer, userRole }: { organizer: any, use
 
             if (error) throw error
             toast.success('Marketing settings saved')
+            router.refresh()
         } catch (error: any) {
             toast.error(error.message)
         } finally {

@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { toast } from 'sonner'
 import { Loader2, Bell, Mail } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export function NotificationSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
     if (!organizer) return null
 
     const [loading, setLoading] = useState(false)
+    const router = useRouter()
     const canEdit = userRole === 'Owner' || userRole === 'Admin'
 
     const [notifyOnSale, setNotifyOnSale] = useState(organizer?.notify_on_sale ?? false)
@@ -43,6 +45,7 @@ export function NotificationSettings({ organizer, userRole }: { organizer: any, 
 
             if (error) throw error
             toast.success('Notification preferences saved')
+            router.refresh()
         } catch (error: any) {
             toast.error(error.message)
         } finally {

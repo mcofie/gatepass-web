@@ -8,11 +8,13 @@ import { toast } from 'sonner'
 import { logActivity } from '@/app/actions/logger'
 import { Loader2 } from 'lucide-react'
 import { MediaUploader } from '@/components/admin/MediaUploader'
+import { useRouter } from 'next/navigation'
 
 export function OrganizationSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
     if (!organizer) return null
 
     const [loading, setLoading] = React.useState(false)
+    const router = useRouter()
     const canEdit = userRole === 'Owner' || userRole === 'Admin'
     const [name, setName] = React.useState(organizer?.name || '')
     const [website, setWebsite] = React.useState(organizer?.website || '')
@@ -61,6 +63,7 @@ export function OrganizationSettings({ organizer, userRole }: { organizer: any, 
 
             if (error) throw error
             toast.success('Organization saved')
+            router.refresh()
         } catch (error: any) {
             toast.error(error.message)
         } finally {

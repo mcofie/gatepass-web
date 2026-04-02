@@ -60,9 +60,10 @@ interface EventOption {
 interface MarketingDashboardProps {
     initialStats: MarketingStat[]
     events: EventOption[]
+    organizationId: string
 }
 
-export function MarketingDashboard({ initialStats, events }: MarketingDashboardProps) {
+export function MarketingDashboard({ initialStats, events, organizationId }: MarketingDashboardProps) {
     const [search, setSearch] = useState('')
     const [selectedEventId, setSelectedEventId] = useState<string>('all')
     const [copied, setCopied] = useState(false)
@@ -246,19 +247,14 @@ export function MarketingDashboard({ initialStats, events }: MarketingDashboardP
             return
         }
 
-        // Get the actual org ID from the first event or initial stats
-        // In a real scenario, this should be passed as a prop
-        const orgId = initialStats[0]?.events?.organization_id 
-            || (document.cookie.match(/gatepass-org-id=([^;]+)/)?.[1]);
-
-        if (!orgId) {
+        if (!organizationId) {
             toast.error('Organization context not found')
             return
         }
 
         setIsSendingSms(true)
         try {
-            const result = await sendSMSBlast(selectedEventId, smsMessage, orgId)
+            const result = await sendSMSBlast(selectedEventId, smsMessage, organizationId)
             if (result.success) {
                 toast.success(result.message)
                 setSmsMessage('')

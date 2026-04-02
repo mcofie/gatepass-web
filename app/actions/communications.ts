@@ -35,7 +35,8 @@ export async function sendManualSMS(params: {
 
     try {
         let success = false
-        if (org.sms_provider === 'hubtel') {
+        const provider = org.sms_provider?.toLowerCase()
+        if (provider === 'hubtel') {
             success = await sendViaHubtel(
                 org.hubtel_client_id!,
                 org.hubtel_client_secret!,
@@ -43,13 +44,15 @@ export async function sendManualSMS(params: {
                 params.to,
                 params.message
             )
-        } else if (org.sms_provider === 'zend') {
-            success = await sendViaZend(
+        } else if (provider === 'zend') {
+            const zendResult = await sendViaZend(
                 org.zend_api_key!,
                 org.sms_sender_id || 'GATEPASS',
                 params.to,
                 params.message
             )
+            success = zendResult.success
+            if (!success) console.error('Zend error:', zendResult.error)
         }
         return { success }
     } catch (err: any) {
@@ -100,13 +103,14 @@ export async function sendSMSBlast(
 
     const phoneNumbers = Array.from(new Set(guests.map(g => g.guest_phone).filter(Boolean))) as string[]
 
-    let sentCount = 0
+    const provider = org.sms_provider?.toLowerCase()
     let lastError = ''
+    let sentCount = 0
 
     for (const phone of phoneNumbers) {
         try {
             let success = false
-            if (org.sms_provider === 'hubtel') {
+            if (provider === 'hubtel') {
                 success = await sendViaHubtel(
                     org.hubtel_client_id!,
                     org.hubtel_client_secret!,
@@ -114,16 +118,22 @@ export async function sendSMSBlast(
                     phone,
                     message
                 )
-            } else if (org.sms_provider === 'zend') {
-                success = await sendViaZend(
+            } else if (provider === 'zend') {
+                const zendResult = await sendViaZend(
                     org.zend_api_key!,
                     org.sms_sender_id || 'GATEPASS',
                     phone,
                     message
                 )
+                success = zendResult.success
+                if (!success) lastError = zendResult.error || 'Unknown Zend Error'
             }
 
-            if (success) sentCount++
+            if (success) {
+                sentCount++
+            } else {
+                console.error(`SMS Provider failed to send to ${phone}`)
+            }
         } catch (err: any) {
             console.error(`Failed to send SMS to ${phone}:`, err.message)
             lastError = err.message
@@ -134,7 +144,7 @@ export async function sendSMSBlast(
 
     return {
         success: sentCount > 0,
-        message: `Successfully sent ${sentCount} of ${phoneNumbers.length} messages.`,
+        message: sentCount > 0 ? `Successfully sent ${sentCount} of ${phoneNumbers.length} messages.` : `Failed to send blast: ${lastError || 'No messages were delivered.'}`,
         sentCount,
         error: lastError
     }
@@ -171,27 +181,45 @@ async function sendViaHubtel(clientId: string, clientSecret: string, from: strin
     }
 }
 
-async function sendViaZend(apiKey: string, senderId: string, to: string, message: string): Promise<boolean> {
+async function sendViaZend(apiKey: string, senderId: string, to: string, message: string): Promise<{ success: boolean; error?: string }> {
     let recipient = to.trim().replace(/\D/g, '')
-    if (recipient.startsWith('0') && recipient.length === 10) recipient = '233' + recipient.substring(1)
-    
+    // Normalize to +233...
+    if (recipient.startsWith('0') && recipient.length === 10) recipient = '+233' + recipient.substring(1)
+    if (recipient.startsWith('233')) recipient = '+' + recipient
+    if (!recipient.startsWith('+')) recipient = '+' + recipient
+
+    // Normalize API Key (remove 'Bearer ' if already present to avoid duplication)
+    const cleanKey = apiKey.trim().startsWith('Bearer ') ? apiKey.trim().split(' ')[1] : apiKey.trim()
+
     try {
-        const response = await fetch('https://api.tryzend.com/v1/sms/send', {
+        const response = await fetch('https://api.tryzend.com/messages', {
             method: 'POST',
             headers: {
-                'x-api-key': apiKey,
+                'Authorization': `Bearer ${cleanKey}`,
+                'x-api-key': cleanKey, // Some versions use this header
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                sender_id: senderId.substring(0, 11),
-                recipient: recipient,
-                message: message
+                to: recipient,
+                body: message,
+                sender_id: senderId.substring(0, 11), // TryZend specific field
+                preferred_channels: ['sms']
             })
         })
 
         const data = await response.json()
-        return response.ok && data.status === 'success'
-    } catch (e) {
-        return false
+        const success = response.ok && (
+            data.status === 'success' || 
+            data.success === true || 
+            String(data.status).toLowerCase().includes('queued') ||
+            String(data.message).toLowerCase().includes('queued')
+        )
+        return { 
+            success, 
+            error: success ? undefined : (data.message || data.error || JSON.stringify(data))
+        }
+    } catch (e: any) {
+        console.error('Zend API exception:', e)
+        return { success: false, error: e.message }
     }
 }

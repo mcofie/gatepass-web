@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -8,6 +9,7 @@ import { createPaystackSubaccount, getPaystackBanks, verifyPaystackAccount } fro
 import { PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
 export function SettlementSettings({ organizer }: { organizer: any }) {
+    const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [banks, setBanks] = useState<{ name: string, code: string }[]>([])
     const [verifying, setVerifying] = useState(false)
@@ -85,6 +87,7 @@ export function SettlementSettings({ organizer }: { organizer: any }) {
             if (result.success) {
                 setPaystackCode(result.subaccount_code)
                 toast.success('Settlement account connected successfully!')
+                router.refresh()
             }
 
         } catch (error: any) {

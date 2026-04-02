@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { logActivity } from '@/app/actions/logger'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 import { Loader2, User, Building2, ShieldCheck, Mail, ImageIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export function ProfileSettings({
     profile,
@@ -19,6 +20,7 @@ export function ProfileSettings({
     teamInfo?: any
 }) {
     const [loading, setLoading] = React.useState(false)
+    const router = useRouter()
     const [fullName, setFullName] = React.useState(profile?.full_name || '')
     const [username, setUsername] = React.useState(profile?.username || '')
     const [email, setEmail] = React.useState(profile?.email || teamInfo?.email || '')
@@ -54,6 +56,7 @@ export function ProfileSettings({
             await logActivity('', 'update_profile', 'profile', user.id, { full_name: fullName })
 
             toast.success('Profile updated successfully')
+            router.refresh()
         } catch (error: any) {
             toast.error(error.message)
         } finally {

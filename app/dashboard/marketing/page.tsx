@@ -145,7 +145,7 @@ export default async function MarketingPage() {
                 <p className="text-gray-500 font-medium dark:text-gray-400">Track your ad performance and conversion rates across Instagram, Facebook, and more.</p>
             </div>
 
-            <MarketingDashboard initialStats={stats || []} events={events || []} />
+            <MarketingDashboard initialStats={stats || []} events={events || []} organizationId={resolvedOrgId} />
         </div>
     )
 }

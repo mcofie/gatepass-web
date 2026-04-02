@@ -6,11 +6,13 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { Loader2, MessageSquare, Zap, ShieldCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export function SMSSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
     if (!organizer) return null
 
     const [loading, setLoading] = React.useState(false)
+    const router = useRouter()
     const canEdit = userRole === 'Owner' || userRole === 'Admin'
     
     // Form State
@@ -41,6 +43,7 @@ export function SMSSettings({ organizer, userRole }: { organizer: any, userRole:
 
             if (error) throw error
             toast.success('SMS settings updated successfully')
+            router.refresh()
         } catch (error: any) {
             toast.error(error.message)
         } finally {

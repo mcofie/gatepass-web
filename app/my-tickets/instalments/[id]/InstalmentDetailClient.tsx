@@ -16,6 +16,8 @@ interface InstalmentDetailClientProps {
 
 export default function InstalmentDetailClient({ instalment }: InstalmentDetailClientProps) {
     const router = useRouter()
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : ''
+    const isGuest = pathname.includes('/checkout/')
     const [loading, setLoading] = useState(false)
     const [payingInstalmentId, setPayingInstalmentId] = useState<string | null>(null)
 
@@ -39,8 +41,8 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
 
         try {
             // Initialize Paystack for this instalment
-            const email = instalment.contact_email || 'customer@gatepass.com'
-            const callbackUrl = `${window.location.protocol}//${window.location.host}/my-tickets/instalments/${instalment.id}/payment-callback?instalment_payment_id=${payment.id}`
+            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.io'
+            const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?instalment_payment_id=${payment.id}`
 
             const response = await fetch('/api/paystack/initialize', {
                 method: 'POST',
@@ -91,12 +93,12 @@ export default function InstalmentDetailClient({ instalment }: InstalmentDetailC
         <div className="w-full">
             <div className="w-full">
                 {/* Back */}
-                <Link
-                    href="/my-tickets"
+                <button
+                    onClick={() => isGuest ? router.back() : router.push('/my-tickets')}
                     className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-black dark:hover:text-white mb-6 transition-colors"
                 >
-                    <ArrowLeft className="w-4 h-4" /> Back to My Tickets
-                </Link>
+                    <ArrowLeft className="w-4 h-4" /> {isGuest ? 'Back' : 'Back to My Tickets'}
+                </button>
 
                 {/* Event Info */}
                 <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
