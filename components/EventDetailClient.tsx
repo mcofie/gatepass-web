@@ -91,7 +91,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
     // Modular Discount Application Logic
     const applyPromoCode = React.useCallback(async (codeOverride?: string, isAutoApply = false) => {
-        const codeToUse = (codeOverride || promoCode).trim().toUpperCase()
+        const codeToUse = (typeof codeOverride === 'string' ? codeOverride : promoCode).trim().toUpperCase()
         if (!codeToUse) return
 
         if (!isAutoApply) setApplyingDiscount(true)
@@ -1279,73 +1279,135 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     loading: boolean,
     primaryColor?: string,
     hasTicketsSelected: boolean
-}) => (
-    <div className="flex flex-col h-auto animate-fade-in relative">
-        <div className="flex justify-between items-center mb-8 px-1 flex-shrink-0 pt-2">
-            <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Your Details</h2>
-            <button
-                onClick={onBack}
-                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
-            >
-                <ArrowLeft className="w-5 h-5" />
-            </button>
-        </div>
+}) => {
+    const [touched, setTouched] = React.useState<Record<string, boolean>>({})
+    const [submitted, setSubmitted] = React.useState(false)
 
-        <div className="space-y-5 px-1 pb-4">
-            <div className="space-y-2">
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Name</label>
-                <input
-                    type="text"
-                    value={guestName}
-                    onChange={e => setGuestName(e.target.value)}
-                    placeholder="Jane Smith"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
-                />
-            </div>
+    // Validators
+    const validateName = (v: string) => {
+        if (!v.trim()) return 'Name is required'
+        if (v.trim().length < 2) return 'Name must be at least 2 characters'
+        return ''
+    }
+    const validateEmail = (v: string) => {
+        if (!v.trim()) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) return 'Enter a valid email address'
+        return ''
+    }
+    const validatePhone = (v: string) => {
+        if (!v.trim()) return 'Phone number is required'
+        const digits = v.replace(/\D/g, '')
+        if (digits.length < 7) return 'Enter a valid phone number'
+        return ''
+    }
 
-            <div className="space-y-2">
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Email Address</label>
-                <input
-                    type="email"
-                    value={guestEmail}
-                    onChange={e => setGuestEmail(e.target.value)}
-                    placeholder="jane@example.com"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
-                />
-                <p className="text-[11px] text-gray-400 px-1">We&apos;ll send your tickets here.</p>
-            </div>
+    const nameError = validateName(guestName)
+    const emailError = validateEmail(guestEmail)
+    const phoneError = validatePhone(guestPhone)
+    const isFormValid = !nameError && !emailError && !phoneError && hasTicketsSelected
 
-            <div className="space-y-2">
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Phone Number</label>
-                <input
-                    type="tel"
-                    value={guestPhone}
-                    onChange={e => setGuestPhone(e.target.value)}
-                    placeholder="+233"
-                    className="w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
-                />
-            </div>
-        </div>
+    const showError = (field: string, error: string) => (touched[field] || submitted) && error
 
-        {/* Sticky Footer for Form */}
-        <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
-            <div className="max-w-md mx-auto md:max-w-none">
+    const handleSubmit = () => {
+        setSubmitted(true)
+        if (!isFormValid) return
+        onContinue()
+    }
+
+    const inputBaseClass = "w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
+    const inputValidClass = "focus:ring-black/10 dark:focus:ring-white/10"
+    const inputErrorClass = "ring-2 ring-red-400/60 focus:ring-red-500"
+
+    return (
+        <div className="flex flex-col h-auto animate-fade-in relative">
+            <div className="flex justify-between items-center mb-8 px-1 flex-shrink-0 pt-2">
+                <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Your Details</h2>
                 <button
-                    onClick={onContinue}
-                    disabled={loading || !guestName || !guestEmail || !hasTicketsSelected}
-                    style={{
-                        backgroundColor: (guestName && guestEmail) ? (primaryColor || '#000000') : undefined,
-                        color: (guestName && guestEmail && primaryColor) ? getContrastColor(primaryColor) : '#ffffff'
-                    }}
-                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 group"
+                    onClick={onBack}
+                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
                 >
-                    {loading ? 'Processing...' : 'Continue to Payment'}
-                    {!loading && <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
+                    <ArrowLeft className="w-5 h-5" />
                 </button>
             </div>
+
+            <div className="space-y-5 px-1 pb-4">
+                <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Name</label>
+                    <input
+                        type="text"
+                        value={guestName}
+                        onChange={e => setGuestName(e.target.value)}
+                        onBlur={() => setTouched(p => ({ ...p, name: true }))}
+                        placeholder="Jane Smith"
+                        className={`${inputBaseClass} ${showError('name', nameError) ? inputErrorClass : inputValidClass}`}
+                    />
+                    {showError('name', nameError) && (
+                        <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
+                            <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            {nameError}
+                        </p>
+                    )}
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Email Address</label>
+                    <input
+                        type="email"
+                        value={guestEmail}
+                        onChange={e => setGuestEmail(e.target.value)}
+                        onBlur={() => setTouched(p => ({ ...p, email: true }))}
+                        placeholder="jane@example.com"
+                        className={`${inputBaseClass} ${showError('email', emailError) ? inputErrorClass : inputValidClass}`}
+                    />
+                    {showError('email', emailError) ? (
+                        <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
+                            <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            {emailError}
+                        </p>
+                    ) : (
+                        <p className="text-[11px] text-gray-400 px-1">We&apos;ll send your tickets here.</p>
+                    )}
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Phone Number</label>
+                    <input
+                        type="tel"
+                        value={guestPhone}
+                        onChange={e => setGuestPhone(e.target.value)}
+                        onBlur={() => setTouched(p => ({ ...p, phone: true }))}
+                        placeholder="+233"
+                        className={`${inputBaseClass} ${showError('phone', phoneError) ? inputErrorClass : inputValidClass}`}
+                    />
+                    {showError('phone', phoneError) && (
+                        <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
+                            <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            {phoneError}
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            {/* Sticky Footer for Form */}
+            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
+                <div className="max-w-md mx-auto md:max-w-none">
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading || (submitted && !isFormValid)}
+                        style={{
+                            backgroundColor: isFormValid ? (primaryColor || '#000000') : undefined,
+                            color: (isFormValid && primaryColor) ? getContrastColor(primaryColor) : '#ffffff'
+                        }}
+                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 group"
+                    >
+                        {loading ? 'Processing...' : 'Continue to Payment'}
+                        {!loading && <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
-)
+    )
+}
 
 const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue, onBack, primaryColor }: {
     availableAddons: EventAddon[],
