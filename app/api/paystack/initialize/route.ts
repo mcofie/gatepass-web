@@ -33,7 +33,10 @@ export async function POST(req: Request) {
                 quantity,
                 addons,
                 event_id,
-                ticket_tiers ( price ),
+                guest_name,
+                guest_phone,
+                guest_email,
+                ticket_tiers ( name, price ),
                 discounts ( type, value ),
                 events (
                     title,
@@ -56,12 +59,25 @@ export async function POST(req: Request) {
         const eventData = Array.isArray(firstReservation.events) ? firstReservation.events[0] : firstReservation.events
         const eventTitle = eventData?.title || 'Unknown Event'
         
+        const guestName = firstReservation.guest_name || 'Not provided'
+        const guestPhone = firstReservation.guest_phone || 'Not provided'
+        
+        const itemsList = reservations.map((res: any) => {
+            const qty = res.quantity || 1
+            const tier = Array.isArray(res.ticket_tiers) ? res.ticket_tiers[0] : res.ticket_tiers
+            const tierName = tier?.name || 'Unknown Tier'
+            const price = Number(tier?.price) || 0
+            return `- ${qty}x ${tierName} (${currency} ${price.toLocaleString()})`
+        }).join('\n')
+        
         await notifyDiscord(
             `🛒 **Ticket Checkout Started**\n` +
             `**Event:** ${eventTitle}\n` +
+            `**Name:** ${guestName}\n` +
             `**Email:** ${email}\n` +
+            `**Phone:** ${guestPhone}\n` +
             `**Amount:** ${currency} ${(amount / 100).toLocaleString()}\n` +
-            `**Items:** ${reservations.length} reservation(s)\n` +
+            `**Items:**\n${itemsList}\n` +
             `**Ref:** ${reservationIds[0]}`,
             'info'
         )
