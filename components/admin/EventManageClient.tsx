@@ -1909,6 +1909,7 @@ export function EventManageClient({
                     eventId={event.id}
                     organizationId={event.organization_id || ''}
                     onUpdate={refreshAddons}
+                    tiers={tiers}
                 />
             )}
 

@@ -241,7 +241,8 @@ export default function CreateEventPage() {
                     description: tier.description,
                     currency: tier.currency || 'GHS',
                     quantity_sold: 0,
-                    perks: tier.perks || []
+                    perks: tier.perks || [],
+                    tags: tier.tags || []
                 }))
 
                 const { error: ticketsError } = await supabase

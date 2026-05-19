@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Plus, X, Image as ImageIcon, Trash2, Edit2, Loader2, Package, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
-import { EventAddon } from '@/types/gatepass'
+import { EventAddon, TicketTier } from '@/types/gatepass'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 import { formatCurrency } from '@/utils/format'
 import { cn } from '@/lib/utils'
@@ -12,9 +12,10 @@ interface AddonsTabProps {
     eventId: string
     organizationId: string
     onUpdate: () => void
+    tiers: TicketTier[]
 }
 
-export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsTabProps) {
+export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: AddonsTabProps) {
     const supabase = createClient()
     const [isCreating, setIsCreating] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -27,7 +28,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
         currency: 'GHS',
         image_url: '',
         is_active: true,
-        selection_type: 'quantity'
+        selection_type: 'quantity',
+        tier_id: null
     })
 
     const resetForm = () => {
@@ -38,7 +40,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
             currency: 'GHS',
             image_url: '',
             is_active: true,
-            selection_type: 'quantity'
+            selection_type: 'quantity',
+            tier_id: null
         })
         setIsCreating(false)
         setEditingId(null)
@@ -72,7 +75,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                         price: form.price,
                         image_url: form.image_url,
                         is_active: form.is_active,
-                        selection_type: form.selection_type
+                        selection_type: form.selection_type,
+                        tier_id: form.tier_id || null
                     })
                     .eq('id', editingId)
 
@@ -90,7 +94,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                         currency: 'GHS', // Default to GHS for now
                         image_url: form.image_url,
                         is_active: true,
-                        selection_type: form.selection_type || 'quantity'
+                        selection_type: form.selection_type || 'quantity',
+                        tier_id: form.tier_id || null
                     })
 
                 if (error) throw error
@@ -179,6 +184,28 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                                 className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white min-h-[100px]"
                                 placeholder="Describe the item..."
                             />
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Applies To Ticket Tier</label>
+                            <div className="relative">
+                                <select
+                                    value={form.tier_id || ''}
+                                    onChange={e => setForm({ ...form, tier_id: e.target.value || null })}
+                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium appearance-none text-gray-900 dark:text-white"
+                                >
+                                    <option value="">All Tiers (General Add-on)</option>
+                                    {tiers.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+                                If selected, this add-on will only show up when the buyer selects this specific ticket tier.
+                            </p>
                         </div>
                     </div>
 
@@ -323,6 +350,11 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate }: AddonsT
                                         )}>
                                             {addon.selection_type === 'toggle' ? 'Single Choice' : 'Multi-Quantity'}
                                         </span>
+                                        {addon.tier_id && (
+                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
+                                                Tied to: {tiers.find(t => t.id === addon.tier_id)?.name || 'Ticket Tier'}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {addon.description && (

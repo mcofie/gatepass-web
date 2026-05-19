@@ -72,6 +72,7 @@ export interface TicketTier {
     max_per_order?: number
     description?: string
     perks?: string[]
+    tags?: string[]
     is_visible?: boolean
     sort_order?: number
     allow_instalments?: boolean
@@ -166,6 +167,7 @@ export interface EventAddon {
     quantity_sold: number
     is_active: boolean
     selection_type: 'quantity' | 'toggle'
+    tier_id?: string | null
 }
 
 // ============ INSTALMENT PAYMENT TYPES ============

@@ -19,7 +19,9 @@ export function TicketManager({ tiers, onChange, currency = 'GHS' }: TicketManag
             total_quantity: 100,
             description: '',
             currency: currency,
-            quantity_sold: 0
+            quantity_sold: 0,
+            perks: [],
+            tags: []
         }
         onChange([...tiers, newTier])
     }
@@ -60,6 +62,43 @@ export function TicketManager({ tiers, onChange, currency = 'GHS' }: TicketManag
                         }
                     }}
                     placeholder="Add a perk..."
+                    className="flex-1 px-3 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none font-medium text-sm transition-all text-gray-900 dark:text-white dark:placeholder-gray-600"
+                />
+                <button
+                    type="button"
+                    onClick={handleAdd}
+                    className="bg-black dark:bg-white text-white dark:text-black p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+                >
+                    <Plus className="w-5 h-5" />
+                </button>
+            </div>
+        )
+    }
+
+    // Helper component for adding tags
+    const TagInput = ({ onAdd }: { onAdd: (tag: string) => void }) => {
+        const [value, setValue] = useState('')
+
+        const handleAdd = () => {
+            if (value.trim()) {
+                onAdd(value.trim())
+                setValue('')
+            }
+        }
+
+        return (
+            <div className="flex gap-2">
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAdd()
+                        }
+                    }}
+                    placeholder="Add a tag (e.g. VIP, Early Bird)..."
                     className="flex-1 px-3 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none font-medium text-sm transition-all text-gray-900 dark:text-white dark:placeholder-gray-600"
                 />
                 <button
@@ -155,6 +194,36 @@ export function TicketManager({ tiers, onChange, currency = 'GHS' }: TicketManag
                                 onAdd={(perk) => {
                                     const newPerks = [...(tier.perks || []), perk]
                                     updateTier(index, 'perks', newPerks)
+                                }}
+                            />
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Tags (e.g. VIP, Early Bird)</label>
+                            {/* Display existing tags */}
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                {(tier.tags || []).map((tag, tagIndex) => (
+                                    <div key={tagIndex} className="flex items-center gap-1.5 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100/50 dark:border-indigo-500/20 px-2.5 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                        <span>{tag}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newTags = [...(tier.tags || [])]
+                                                newTags.splice(tagIndex, 1)
+                                                updateTier(index, 'tags', newTags)
+                                            }}
+                                            className="text-indigo-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Add new tag input */}
+                            <TagInput
+                                onAdd={(tag) => {
+                                    const newTags = [...(tier.tags || []), tag]
+                                    updateTier(index, 'tags', newTags)
                                 }}
                             />
                         </div>

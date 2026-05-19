@@ -39,9 +39,11 @@ export function TicketTierCard({
         max_per_order: tier.max_per_order || 10,
         description: tier.description || '',
         perks: tier.perks || [],
+        tags: tier.tags || [],
         allow_instalments: tier.allow_instalments || false
     })
     const [editPerk, setEditPerk] = useState('')
+    const [editTag, setEditTag] = useState('')
     const [instalmentConfig, setInstalmentConfig] = useState({
         num_instalments: 2,
         initial_percent: 50,
@@ -57,6 +59,7 @@ export function TicketTierCard({
             max_per_order: tier.max_per_order || 10,
             description: tier.description || '',
             perks: tier.perks || [],
+            tags: tier.tags || [],
             allow_instalments: tier.allow_instalments || false
         })
         // Load plan config if exists
@@ -232,6 +235,52 @@ export function TicketTierCard({
                         </div>
                     </div>
                     <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tags (e.g. VIP, Early Bird)</label>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                            {editForm.tags?.map((tag: string, i: number) => (
+                                <div key={i} className="flex items-center gap-1.5 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100/50 dark:border-indigo-500/20 px-2.5 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                    <span>{tag}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditForm({ ...editForm, tags: editForm.tags.filter((_, idx) => idx !== i) })}
+                                        className="text-indigo-400 hover:text-red-500 transition-colors"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <input
+                                value={editTag}
+                                onChange={e => setEditTag(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        if (editTag.trim()) {
+                                            setEditForm({ ...editForm, tags: [...(editForm.tags || []), editTag.trim()] })
+                                            setEditTag('')
+                                        }
+                                    }
+                                }}
+                                className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                placeholder="Add a tag..."
+                            />
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (editTag.trim()) {
+                                        setEditForm({ ...editForm, tags: [...(editForm.tags || []), editTag.trim()] })
+                                        setEditTag('')
+                                    }
+                                }}
+                                className="bg-black dark:bg-white text-white dark:text-black p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                    <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Description</label>
                         <textarea
                             value={editForm.description}
@@ -345,6 +394,11 @@ export function TicketTierCard({
                                         }
                                     </span>
                                 )}
+                                {tier.tags && tier.tags.map((tag, idx) => (
+                                    <span key={idx} className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">
+                                        {tag}
+                                    </span>
+                                ))}
                             </div>
                             <p className={`text-sm max-w-md ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{tier.description}</p>
                         </div>

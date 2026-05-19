@@ -49,6 +49,7 @@ export const ticketTierSchema = z.object({
         .max(500, 'Description must be under 500 characters')
         .optional(),
     perks: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
 })
 
 export type TicketTierFormData = z.infer<typeof ticketTierSchema>

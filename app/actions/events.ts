@@ -94,6 +94,7 @@ export async function duplicateEvent(eventId: string) {
             max_per_order: tier.max_per_order,
             description: tier.description,
             perks: tier.perks,
+            tags: tier.tags,
             is_visible: tier.is_visible,
             sort_order: tier.sort_order,
         }))

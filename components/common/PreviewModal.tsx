@@ -57,6 +57,8 @@ export function PreviewModal({ isOpen, onClose, formData, tiers }: PreviewModalP
         total_quantity: tier.total_quantity || 100,
         quantity_sold: 0,
         description: tier.description,
+        perks: tier.perks || [],
+        tags: tier.tags || [],
         max_per_order: 10
     }))
 

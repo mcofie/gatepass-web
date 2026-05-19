@@ -211,6 +211,29 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         }
     }, [event.id, isFeedItem, searchParams, supabase, applyPromoCode])
 
+    // Filter addons: only show general addons or ones tied to currently selected ticket tiers
+    const activeTierIds = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
+    const filteredAddons = availableAddons.filter(addon => {
+        return !addon.tier_id || activeTierIds.includes(addon.tier_id)
+    })
+
+    // Cleanup addons if their required tier is no longer in selectedTickets
+    useEffect(() => {
+        const activeTiers = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
+        setSelectedAddons(prev => {
+            let changed = false
+            const next = { ...prev }
+            for (const addonId of Object.keys(next)) {
+                const addon = availableAddons.find(a => a.id === addonId)
+                if (addon?.tier_id && !activeTiers.includes(addon.tier_id)) {
+                    delete next[addonId]
+                    changed = true
+                }
+            }
+            return changed ? next : prev
+        })
+    }, [selectedTickets, availableAddons])
+
     // Mobile Expansion State
     const [isExpanded, setIsExpanded] = useState(false)
 
@@ -222,8 +245,8 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         if (newView !== 'details') setIsExpanded(true)
 
         // Auto-select first addon if none selected when moving to addons
-        if (newView === 'addons' && Object.keys(selectedAddons).length === 0 && availableAddons.length > 0) {
-            setSelectedAddons({ [availableAddons[0].id]: 1 })
+        if (newView === 'addons' && Object.keys(selectedAddons).length === 0 && filteredAddons.length > 0) {
+            setSelectedAddons({ [filteredAddons[0].id]: 1 })
         }
 
         // Track Checkout Initiated
@@ -337,7 +360,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const handleAddonQuantityChange = (addonId: string, delta: number) => {
         setSelectedAddons(prev => {
             const current = prev[addonId] || 0
-            const addon = availableAddons.find(a => a.id === addonId)
+            const addon = filteredAddons.find(a => a.id === addonId)
 
             if (!addon) return prev
 
@@ -366,7 +389,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
     // 2. Calculate Addon Subtotal
     const addonSubtotal = Object.entries(selectedAddons).reduce((sum, [id, qty]) => {
-        const addon = availableAddons.find(a => a.id === id)
+        const addon = filteredAddons.find(a => a.id === id)
         return sum + ((addon?.price || 0) * qty)
     }, 0)
 
@@ -407,7 +430,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const calculatedTotal = ticketSubtotal + addonSubtotal
 
     const handleContinueToCheckout = () => {
-        if (availableAddons && availableAddons.length > 0) {
+        if (filteredAddons && filteredAddons.length > 0) {
             navigate('addons', 'forward')
         } else {
             navigate('checkout', 'forward')
@@ -729,7 +752,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 {view === 'addons' && (
                     <div className="animate-fade-in h-full">
                         <AddonsView
-                            availableAddons={availableAddons}
+                            availableAddons={filteredAddons}
                             selectedAddons={selectedAddons}
                             onAddonChange={handleAddonQuantityChange}
                             onContinue={() => navigate('checkout', 'forward')}
@@ -745,7 +768,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             guestEmail={guestEmail} setGuestEmail={setGuestEmail}
                             guestPhone={guestPhone} setGuestPhone={setGuestPhone}
                             onBack={() => {
-                                if (availableAddons && availableAddons.length > 0) {
+                                if (filteredAddons && filteredAddons.length > 0) {
                                     navigate('addons', 'back')
                                 } else {
                                     navigate('tickets', 'back')
@@ -778,7 +801,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             discountError={discountError}
                             applyingDiscount={applyingDiscount}
                             primaryColor={event.primary_color}
-                            availableAddons={availableAddons}
+                            availableAddons={filteredAddons}
                             selectedAddons={selectedAddons}
                             addonSubtotal={addonSubtotal}
                             instalmentPlans={availableInstalmentPlans}
@@ -1131,6 +1154,22 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                         {formatCurrency(tier.price, tier.currency)}
                     </div>
                     <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-white/90' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
+                    {tier.tags && tier.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                            {tier.tags.map((tag, idx) => (
+                                <span
+                                    key={idx}
+                                    className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                        isSelected
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100/50 dark:border-indigo-500/20'
+                                    }`}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {tier.description && (

@@ -20,13 +20,12 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
     const [creatingTier, setCreatingTier] = useState(false)
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
 
-    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[] }>({
-        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: []
+    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[], tags: string[] }>({
+        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: []
     })
 
-
-
     const [newPerk, setNewPerk] = useState('')
+    const [newTag, setNewTag] = useState('')
 
     // DnD Sensors
     const sensors = useSensors(
@@ -61,7 +60,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
             if (data) {
                 // Optimistic update or refetch
                 onTiersUpdate([...tiers, data])
-                setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [] })
+                setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [] })
                 toast.success('Ticket tier created')
             } else {
                 toast.error(error?.message)
@@ -319,6 +318,54 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                             if (newPerk.trim()) {
                                                 setTierForm({ ...tierForm, perks: [...tierForm.perks, newPerk.trim()] })
                                                 setNewPerk('')
+                                            }
+                                        }}
+                                        className="bg-black dark:bg-white text-white dark:text-black p-3 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Tags */}
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tags (e.g. VIP, Early Bird)</label>
+                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {tierForm.tags.map((tag, i) => (
+                                        <div key={i} className="flex items-center gap-1.5 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100/50 dark:border-indigo-500/20 px-2.5 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                            <span>{tag}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setTierForm({ ...tierForm, tags: tierForm.tags.filter((_, idx) => idx !== i) })}
+                                                className="text-indigo-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    <input
+                                        value={newTag}
+                                        onChange={e => setNewTag(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault()
+                                                if (newTag.trim()) {
+                                                    setTierForm({ ...tierForm, tags: [...tierForm.tags, newTag.trim()] })
+                                                    setNewTag('')
+                                                }
+                                            }
+                                        }}
+                                        className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                        placeholder="Add a tag..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (newTag.trim()) {
+                                                setTierForm({ ...tierForm, tags: [...tierForm.tags, newTag.trim()] })
+                                                setNewTag('')
                                             }
                                         }}
                                         className="bg-black dark:bg-white text-white dark:text-black p-3 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200"

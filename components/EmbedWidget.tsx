@@ -74,6 +74,25 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor, isDark }: { tie
                         {formatCurrency(tier.price, tier.currency)}
                     </div>
                     <div className={cn("text-[15px] font-bold leading-tight", isSelected ? 'text-white/90' : isDark ? 'text-zinc-300' : 'text-gray-900')}>{tier.name}</div>
+                    {tier.tags && tier.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                            {tier.tags.map((tag, idx) => (
+                                <span
+                                    key={idx}
+                                    className={cn(
+                                        "text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full",
+                                        isSelected
+                                            ? 'bg-white/20 text-white'
+                                            : isDark
+                                                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                                                : 'bg-indigo-50 text-indigo-600 border border-indigo-100/50'
+                                    )}
+                                >
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {tier.description && (
@@ -321,6 +340,29 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
     const [applyingDiscount, setApplyingDiscount] = useState(false)
     const [showPromo, setShowPromo] = useState(false)
 
+    // Filter addons: only show general addons or ones tied to currently selected ticket tiers
+    const activeTierIds = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
+    const filteredAddons = availableAddons.filter(addon => {
+        return !addon.tier_id || activeTierIds.includes(addon.tier_id)
+    })
+
+    // Cleanup addons if their required tier is no longer in selectedTickets
+    useEffect(() => {
+        const activeTiers = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
+        setSelectedAddons(prev => {
+            let changed = false
+            const next = { ...prev }
+            for (const addonId of Object.keys(next)) {
+                const addon = availableAddons.find(a => a.id === addonId)
+                if (addon?.tier_id && !activeTiers.includes(addon.tier_id)) {
+                    delete next[addonId]
+                    changed = true
+                }
+            }
+            return changed ? next : prev
+        })
+    }, [selectedTickets, availableAddons])
+
     // Timer Effect
     useEffect(() => {
         if (view === 'summary' && timeLeft > 0) {
@@ -430,7 +472,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             if (intent < 0) return prev
 
             // Check inventory limit
-            const addon = availableAddons.find(a => a.id === addonId)
+            const addon = filteredAddons.find(a => a.id === addonId)
             if (addon && addon.total_quantity !== null && addon.total_quantity !== undefined) {
                 const remaining = Math.max(0, addon.total_quantity - addon.quantity_sold)
                 if (intent > remaining) {
@@ -456,15 +498,10 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 .select('*')
                 .eq('code', promoCode.toUpperCase())
                 .eq('event_id', event.id)
-                .single()
+                .maybeSingle()
 
-            if (error || !data) throw new Error('Invalid code')
-
-            // Check expiry
-            if (data.expires_at && new Date(data.expires_at) < new Date()) {
-                throw new Error('Code expired')
-            }
-            // Check usage
+            if (error) throw error
+            if (!data) throw new Error('Invalid code')
             if (data.max_uses && data.used_count >= data.max_uses) {
                 throw new Error('Code limit reached')
             }
@@ -496,7 +533,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
         const addonItems = Object.entries(selectedAddons).filter(([_, qty]) => qty > 0)
         let addonSubtotal = 0
         addonItems.forEach(([id, qty]) => {
-            const addon = availableAddons.find(a => a.id === id)
+            const addon = filteredAddons.find(a => a.id === id)
             if (addon) addonSubtotal += addon.price * qty
         })
 
@@ -934,14 +971,14 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                     <motion.button
                         whileTap={{ scale: 0.98 }}
                         disabled={!hasSelection}
-                        onClick={() => availableAddons.length > 0 ? setView('addons') : setView('checkout')}
+                        onClick={() => filteredAddons.length > 0 ? setView('addons') : setView('checkout')}
                         style={{
                             backgroundColor: hasSelection ? primaryColor : undefined,
                             color: hasSelection ? getContrastColor(primaryColor!) : undefined
                         }}
                         className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg flex items-center justify-between px-4 disabled:opacity-50 disabled:cursor-not-allowed bg-black text-white"
                     >
-                        <span>{availableAddons.length > 0 ? 'Continue to Add-ons' : 'Checkout'}</span>
+                        <span>{filteredAddons.length > 0 ? 'Continue to Add-ons' : 'Checkout'}</span>
                         <span>{formatCurrency(total, tiers[0]?.currency)}</span>
                     </motion.button>
                     <div className="flex justify-center mt-3">
@@ -978,8 +1015,8 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-4 no-scrollbar">
-                    {availableAddons.length > 0 ? (
-                        availableAddons.map((addon, idx) => (
+                    {filteredAddons.length > 0 ? (
+                        filteredAddons.map((addon, idx) => (
                             <AddonCard
                                 key={addon.id}
                                 addon={addon}
@@ -1028,7 +1065,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             <div className="flex justify-between items-center mb-6 px-6 pt-6 flex-shrink-0">
                 <h2 className={cn("text-[18px] font-bold tracking-tight", isDark ? "text-white" : "text-black")}>Guest Details</h2>
                 <button
-                    onClick={() => availableAddons.length > 0 ? setView('addons') : setView('tickets')}
+                    onClick={() => filteredAddons.length > 0 ? setView('addons') : setView('tickets')}
                     className={cn("w-10 h-10 flex items-center justify-center transition-all rounded-full", isDark ? "text-zinc-400 hover:text-white bg-zinc-900" : "text-gray-400 hover:text-black bg-gray-50")}
                 >
                     <ArrowLeft className="w-5 h-5" />
@@ -1236,7 +1273,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
                                 {/* Add-ons */}
                                 {Object.entries(selectedAddons).filter(([_, q]) => q > 0).map(([id, qty]) => {
-                                    const addon = availableAddons.find(a => a.id === id)
+                                    const addon = filteredAddons.find(a => a.id === id)
                                     return (
                                         <div key={id} className={cn("flex justify-between items-center text-[13px]", isDark ? "text-zinc-400" : "text-gray-500")}>
                                             <span>{addon?.name} <span className="text-[11px] ml-1">x{qty}</span></span>
