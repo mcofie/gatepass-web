@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { cn, getContrastColor } from '@/lib/utils'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 
 // --- Animation Variants ---
 const pageVariants: Variants = {
@@ -1068,16 +1069,15 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                     </div>
                     <div className="space-y-1.5">
                         <label className={cn("text-[11px] font-bold uppercase tracking-wider ml-1", isDark ? "text-zinc-400" : "text-gray-500")}>Phone Number</label>
-                        <input
-                            type="tel"
+                        <PhoneInput
                             value={guestPhone}
-                            onChange={(e) => setGuestPhone(e.target.value)}
-                            placeholder="+1 (555) 000-0000"
+                            onChange={setGuestPhone}
+                            placeholder="20 123 4567"
                             className={cn(
-                                "w-full h-12 px-4 rounded-xl outline-none transition-all text-[14px] font-medium placeholder:text-gray-400",
+                                "h-12 rounded-xl outline-none transition-all text-[14px]",
                                 isDark
-                                    ? "bg-zinc-900 text-white border-2 border-transparent focus:border-zinc-700"
-                                    : "bg-gray-50 text-black border-2 border-transparent focus:border-black/5 focus:bg-white"
+                                    ? "bg-zinc-900 border-zinc-800 text-white focus-within:border-zinc-700 focus-within:ring-zinc-700"
+                                    : "bg-gray-50 border-gray-100 text-black focus-within:border-black/5 focus-within:bg-white focus-within:ring-black/5"
                             )}
                         />
                     </div>

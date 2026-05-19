@@ -8,6 +8,7 @@ import { Event, TicketTier } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency } from '@/utils/format'
 import { Input } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { toast } from 'sonner'
 
 function GuestCheckoutContent() {
@@ -192,13 +193,11 @@ function GuestCheckoutContent() {
 
                             <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-gray-400 uppercase tracking-wide ml-1">Phone</label>
-                                <Input
-                                    required
-                                    type="tel"
-                                    placeholder="+233 20 123 4567"
+                                <PhoneInput
                                     value={guestDetails.phone}
-                                    onChange={e => setGuestDetails({ ...guestDetails, phone: e.target.value })}
-                                    className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
+                                    onChange={phone => setGuestDetails({ ...guestDetails, phone })}
+                                    placeholder="20 123 4567"
+                                    className="bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus-within:border-amber-500/50 focus-within:ring-amber-500/20"
                                 />
                             </div>
 

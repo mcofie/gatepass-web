@@ -19,6 +19,7 @@ import { createReservation } from '@/utils/gatepass'
 import { trackConversion } from '@/components/TrackingScripts'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { toast } from 'sonner'
 import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
@@ -1252,8 +1253,12 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
                         backgroundColor: hasSelection ? (primaryColor || '#000000') : undefined,
                         color: hasSelection ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
                     }}
-                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-between px-4"
-
+                    className={cn(
+                        "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-between px-4",
+                        !hasSelection
+                            ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
+                            : "bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 hover:opacity-90"
+                    )}
                 >
                     <span>Checkout</span>
                     <span>{formatCurrency(total, tiers[0]?.currency)}</span>
@@ -1371,13 +1376,13 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
 
                 <div className="space-y-2">
                     <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Phone Number</label>
-                    <input
-                        type="tel"
+                    <PhoneInput
                         value={guestPhone}
-                        onChange={e => setGuestPhone(e.target.value)}
+                        onChange={setGuestPhone}
                         onBlur={() => setTouched(p => ({ ...p, phone: true }))}
-                        placeholder="+233"
-                        className={`${inputBaseClass} ${showError('phone', phoneError) ? inputErrorClass : inputValidClass}`}
+                        placeholder="20 123 4567"
+                        error={!!showError('phone', phoneError)}
+                        id="guest-phone"
                     />
                     {showError('phone', phoneError) && (
                         <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
@@ -1396,9 +1401,14 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                         disabled={loading || (submitted && !isFormValid)}
                         style={{
                             backgroundColor: isFormValid ? (primaryColor || '#000000') : undefined,
-                            color: (isFormValid && primaryColor) ? getContrastColor(primaryColor) : '#ffffff'
+                            color: isFormValid ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
                         }}
-                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 group"
+                        className={cn(
+                            "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 group",
+                            (loading || (submitted && !isFormValid))
+                                ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
+                                : "bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 hover:opacity-90"
+                        )}
                     >
                         {loading ? 'Processing...' : 'Continue to Payment'}
                         {!loading && <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
@@ -1932,10 +1942,15 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                         onClick={onPay}
                         disabled={loading || timeLeft.label === 'EXPIRED'}
                         style={{
-                            backgroundColor: primaryColor || undefined,
-                            color: primaryColor ? getContrastColor(primaryColor) : '#ffffff'
+                            backgroundColor: timeLeft.label !== 'EXPIRED' ? (primaryColor || '#000000') : undefined,
+                            color: timeLeft.label !== 'EXPIRED' ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
                         }}
-                        className="w-full bg-black dark:bg-white text-white dark:text-black h-10 rounded-lg text-[13px] font-bold tracking-wide hover:bg-gray-900 dark:hover:bg-gray-200 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-black/10 flex items-center justify-center gap-2"
+                        className={cn(
+                            "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2",
+                            (loading || timeLeft.label === 'EXPIRED')
+                                ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
+                                : "bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 hover:opacity-90"
+                        )}
                     >
                         {loading ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>

@@ -38,6 +38,7 @@ const useTimer = (expiresAt: string | undefined) => {
 import { Reservation, Event, TicketTier, EventAddon } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates, PLATFORM_FEE_PERCENT, PROCESSOR_FEE_PERCENT } from '@/utils/fees'
 import { toast } from 'sonner'
@@ -316,12 +317,11 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                                             onChange={e => setGuestForm({ ...guestForm, email: e.target.value })}
                                             className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
                                         />
-                                        <Input
-                                            placeholder="Phone Number"
-                                            type="tel"
+                                        <PhoneInput
                                             value={guestForm.phone}
-                                            onChange={e => setGuestForm({ ...guestForm, phone: e.target.value })}
-                                            className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus:border-amber-500/50 focus:ring-amber-500/20"
+                                            onChange={phone => setGuestForm({ ...guestForm, phone })}
+                                            placeholder="20 123 4567"
+                                            className="col-span-2 bg-black/50 border-white/10 text-white placeholder:text-gray-600 focus-within:border-amber-500/50 focus-within:ring-amber-500/20"
                                         />
                                     </div>
                                 </div>
