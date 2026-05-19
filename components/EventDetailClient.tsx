@@ -965,7 +965,7 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                         {/* Slide 2: Dynamic Content (Host OR Lineup) */}
                         <div className="w-1/2 pl-1 pr-4">
                             {activeSlide === 'host' && (
-                                <div ref={hostInfoRef} className="mt-2 mb-4 animate-fade-in">
+                                <div ref={hostInfoRef} className="mt-2 pb-6 animate-fade-in">
                                     <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
                                     <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
                                         {event.organizers?.description || 'No bio available.'}
@@ -1006,20 +1006,22 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                                         </button>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-2.5">
                                         {(event.lineup || []).map((item, i) => (
-                                            <div key={i} className="flex flex-col items-center text-center">
-                                                <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-gray-100 dark:bg-white/10 overflow-hidden mb-2 relative">
+                                            <div key={i} className="flex items-center gap-3 p-2 rounded-xl bg-gray-50/50 dark:bg-zinc-900/30 border border-gray-100/50 dark:border-zinc-800/40 transition-all hover:bg-gray-100/40 dark:hover:bg-zinc-800/50">
+                                                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden relative flex-shrink-0 border border-gray-200/50 dark:border-zinc-700/50">
                                                     {item.image_url ? (
                                                         <Image src={item.image_url} alt={item.name} fill className="object-cover" />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-400">
+                                                        <div className="w-full h-full flex items-center justify-center text-[12px] font-bold text-gray-400">
                                                             {item.name.charAt(0)}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="text-[11px] font-bold leading-tight text-black dark:text-white w-full break-words">{item.name}</div>
-                                                <div className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">{item.role}</div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[12.5px] font-bold text-gray-900 dark:text-white truncate">{item.name}</span>
+                                                    <span className="text-[9.5px] font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wide mt-0.5 leading-snug">{item.role}</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
