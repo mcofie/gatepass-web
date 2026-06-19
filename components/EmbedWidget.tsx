@@ -527,7 +527,17 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
         let ticketSubtotal = 0
         ticketItems.forEach(([id, qty]) => {
             const tier = tiers.find(t => t.id === id)
-            if (tier) ticketSubtotal += tier.price * qty
+            if (tier) {
+                let tierSubtotal = tier.price * qty
+                if (tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
+                    if (tier.discount_type === 'percentage') {
+                        tierSubtotal = tierSubtotal - (tierSubtotal * (tier.discount_value / 100))
+                    } else if (tier.discount_type === 'fixed') {
+                        tierSubtotal = Math.max(0, tierSubtotal - tier.discount_value)
+                    }
+                }
+                ticketSubtotal += tierSubtotal
+            }
         })
 
         const addonItems = Object.entries(selectedAddons).filter(([_, qty]) => qty > 0)
@@ -1263,10 +1273,30 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                             <div className="space-y-3">
                                 {Object.entries(selectedTickets).filter(([_, q]) => q > 0).map(([id, qty]) => {
                                     const tier = tiers.find(t => t.id === id)
+                                    let tierSubtotal = (tier?.price || 0) * qty
+                                    const hasQtyDiscount = !!(tier && tier.min_quantity && qty >= tier.min_quantity && tier.discount_value)
+                                    let discountLabel = ''
+                                    if (hasQtyDiscount && tier) {
+                                        const discountValue = tier.discount_value || 0
+                                        if (tier.discount_type === 'percentage') {
+                                            discountLabel = `${discountValue}% off bulk discount`
+                                            tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+                                        } else if (tier.discount_type === 'fixed') {
+                                            discountLabel = `${formatCurrency(discountValue, tier.currency)} off bulk discount`
+                                            tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+                                        }
+                                    }
                                     return (
-                                        <div key={id} className={cn("flex justify-between items-center text-[13px]", isDark ? "text-zinc-400" : "text-gray-500")}>
-                                            <span>{tier?.name} <span className="text-[11px] ml-1">x{qty}</span></span>
-                                            <span className={cn("font-medium", isDark ? "text-white" : "text-black")}>{formatCurrency((tier?.price || 0) * qty, tier?.currency)}</span>
+                                        <div key={id} className={cn("flex justify-between items-start text-[13px]", isDark ? "text-zinc-400" : "text-gray-500")}>
+                                            <div className="flex flex-col">
+                                                <span>{tier?.name} <span className="text-[11px] ml-1">x{qty}</span></span>
+                                                {hasQtyDiscount && (
+                                                    <span className="text-[10px] text-green-500 font-semibold mt-0.5 animate-in fade-in slide-in-from-left-1">
+                                                        ✓ {discountLabel} applied
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className={cn("font-medium", isDark ? "text-white" : "text-black")}>{formatCurrency(tierSubtotal, tier?.currency)}</span>
                                         </div>
                                     )
                                 })}

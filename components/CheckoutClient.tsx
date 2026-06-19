@@ -87,8 +87,25 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
 
 
 
-    const price = reservation.ticket_tiers?.price || 0
+    const basePrice = reservation.ticket_tiers?.price || 0
     const quantity = reservation.quantity
+    const tier = reservation.ticket_tiers
+    const hasQtyDiscount = !!(tier && tier.min_quantity && quantity >= tier.min_quantity && tier.discount_value)
+    let discountLabel = ''
+    let ticketSubtotal = basePrice * quantity
+
+    if (tier && tier.min_quantity && quantity >= tier.min_quantity && tier.discount_value) {
+        const discountValue = tier.discount_value || 0
+        if (tier.discount_type === 'percentage') {
+            discountLabel = `${discountValue}% off bulk discount`
+            ticketSubtotal = ticketSubtotal - (ticketSubtotal * (discountValue / 100))
+        } else if (tier.discount_type === 'fixed') {
+            discountLabel = `${formatCurrency(discountValue, tier.currency || 'GHS')} off bulk discount`
+            ticketSubtotal = Math.max(0, ticketSubtotal - discountValue)
+        }
+    }
+
+    const price = quantity > 0 ? (ticketSubtotal / quantity) : basePrice
     const currency = reservation.ticket_tiers?.currency || 'GHS'
     const feeBearer = (reservation.events?.fee_bearer as 'customer' | 'organizer') || 'customer'
     // const platformFeePercent = reservation.events?.platform_fee_percent || 0 // Deprecated in favor of global constant
@@ -96,7 +113,6 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
 
 
     // Calculate Subtotals
-    const ticketSubtotal = price * quantity
 
     let addonsTotal = 0
     availableAddons.forEach(addon => {
@@ -445,9 +461,16 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                                     <span className="text-gray-400 text-sm">Event</span>
                                     <span className="font-bold text-right max-w-[200px] text-white">{reservation.events?.title}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
+                                <div className="flex justify-between items-start text-sm">
                                     <span className="text-gray-400">Details</span>
-                                    <span className="font-medium text-white">{reservation.ticket_tiers?.name} <span className="text-gray-500">x {reservation.quantity}</span></span>
+                                    <div className="text-right flex flex-col items-end">
+                                        <span className="font-medium text-white">{reservation.ticket_tiers?.name} <span className="text-gray-500">x {reservation.quantity}</span></span>
+                                        {hasQtyDiscount && (
+                                            <span className="text-[10px] text-green-500 font-semibold mt-0.5 animate-in fade-in slide-in-from-left-1">
+                                                ✓ {discountLabel} applied
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Addon Summary Line */}

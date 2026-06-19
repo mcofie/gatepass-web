@@ -444,7 +444,7 @@ export function EventManageClient({
                         tier_id,
                         quantity,
                         discounts ( type, value ),
-                        ticket_tiers ( price ),
+                        ticket_tiers ( price, min_quantity, discount_value, discount_type ),
                         addons
                     )
                 `)
@@ -469,7 +469,7 @@ export function EventManageClient({
                         guest_email,
                         discounts ( type, value, code ),
                         profiles ( full_name, email ),
-                        ticket_tiers ( price ),
+                        ticket_tiers ( price, min_quantity, discount_value, discount_type ),
                         addons
                     )
                 `, { count: 'exact' })
@@ -524,8 +524,20 @@ export function EventManageClient({
                 totalVolume += (tx.amount || 0)
 
                 // Find tier price directly from relation if available, else fallback
-                const price = tx.reservations?.ticket_tiers?.price || tiers.find(t => t.id === tx.reservations?.tier_id)?.price || 0
+                const ticketTier = tx.reservations?.ticket_tiers || tiers.find(t => t.id === tx.reservations?.tier_id)
+                const basePrice = ticketTier?.price || 0
                 const quantity = tx.reservations?.quantity || 1
+                let tierSubtotal = basePrice * quantity
+
+                if (ticketTier && ticketTier.min_quantity && quantity >= ticketTier.min_quantity && ticketTier.discount_value) {
+                    const discountValue = ticketTier.discount_value || 0
+                    if (ticketTier.discount_type === 'percentage') {
+                        tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+                    } else if (ticketTier.discount_type === 'fixed') {
+                        tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+                    }
+                }
+                let price = quantity > 0 ? (tierSubtotal / quantity) : basePrice
 
                 // Calculate Addon Revenue for this TX
                 const resAddons = tx.reservations?.addons

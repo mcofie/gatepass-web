@@ -77,6 +77,9 @@ export interface TicketTier {
     sort_order?: number
     allow_instalments?: boolean
     payment_plans?: PaymentPlan[]
+    min_quantity?: number | null
+    discount_value?: number | null
+    discount_type?: 'percentage' | 'fixed' | null
 }
 
 export interface Ticket {

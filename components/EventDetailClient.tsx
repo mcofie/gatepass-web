@@ -382,7 +382,18 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         let total = 0
         Object.entries(selectedTickets).forEach(([tierId, qty]) => {
             const tier = tiers.find(t => t.id === tierId)
-            if (tier) total += tier.price * qty
+            if (tier) {
+                let tierSubtotal = tier.price * qty
+                if (tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
+                    const discountValue = tier.discount_value || 0
+                    if (tier.discount_type === 'percentage') {
+                        tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+                    } else if (tier.discount_type === 'fixed') {
+                        tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+                    }
+                }
+                total += tierSubtotal
+            }
         })
         return total
     }, [selectedTickets, tiers])
@@ -393,7 +404,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         return sum + ((addon?.price || 0) * qty)
     }, 0)
 
-    // 3. Discount Calculation
+    // 3. Discount Calculation (Coupon Code)
     const discountAmount = React.useMemo(() => {
         if (!discount) return 0
 
@@ -405,7 +416,17 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             const qty = selectedTickets[discount.tier_id] || 0
             const tier = tiers.find(t => t.id === discount.tier_id)
             if (!tier || qty === 0) return 0
-            targetAmount = tier.price * qty
+            
+            let tierSubtotal = tier.price * qty
+            if (tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
+                const discountValue = tier.discount_value || 0
+                if (tier.discount_type === 'percentage') {
+                    tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+                } else if (tier.discount_type === 'fixed') {
+                    tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+                }
+            }
+            targetAmount = tierSubtotal
         }
 
         return discount.type === 'fixed'
@@ -1170,6 +1191,17 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                             ))}
                         </div>
                     )}
+                    {tier.min_quantity && tier.discount_value && (
+                        <div className="mt-2.5">
+                            <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                isSelected
+                                    ? 'bg-white/25 text-white'
+                                    : 'bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 border border-green-100/50 dark:border-green-500/20'
+                            }`}>
+                                Buy {tier.min_quantity}+ get {tier.discount_type === 'percentage' ? `${tier.discount_value}%` : formatCurrency(tier.discount_value, tier.currency)} off
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {tier.description && (
@@ -1724,10 +1756,32 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                             {tiers.map(tier => {
                                 const qty = selectedTickets[tier.id] || 0
                                 if (qty === 0) return null
+
+                                let tierSubtotal = tier.price * qty
+                                const hasQtyDiscount = !!(tier.min_quantity && qty >= tier.min_quantity && tier.discount_value)
+                                let discountLabel = ''
+                                if (hasQtyDiscount) {
+                                    const discountValue = tier.discount_value || 0
+                                    if (tier.discount_type === 'percentage') {
+                                        discountLabel = `${discountValue}% off bulk discount`
+                                        tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+                                    } else if (tier.discount_type === 'fixed') {
+                                        discountLabel = `${formatCurrency(discountValue, tier.currency)} off bulk discount`
+                                        tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+                                    }
+                                }
+
                                 return (
-                                    <div key={tier.id} className="flex justify-between items-center text-[13px] text-gray-500 dark:text-gray-400">
-                                        <span>{tier.name} <span className="text-[11px] ml-1">x{qty}</span></span>
-                                        <span className="font-medium text-black dark:text-white">{formatCurrency(tier.price * qty, tier.currency)}</span>
+                                    <div key={tier.id} className="flex justify-between items-start text-[13px] text-gray-500 dark:text-gray-400">
+                                        <div className="flex flex-col">
+                                            <span>{tier.name} <span className="text-[11px] ml-1">x{qty}</span></span>
+                                            {hasQtyDiscount && (
+                                                <span className="text-[10px] text-green-500 font-semibold mt-0.5 animate-in fade-in slide-in-from-left-1">
+                                                    ✓ {discountLabel} applied
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="font-medium text-black dark:text-white">{formatCurrency(tierSubtotal, tier.currency)}</span>
                                     </div>
                                 )
                             })}

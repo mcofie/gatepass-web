@@ -36,7 +36,7 @@ export async function POST(req: Request) {
                 guest_name,
                 guest_phone,
                 guest_email,
-                ticket_tiers ( name, price ),
+                ticket_tiers ( name, price, min_quantity, discount_value, discount_type ),
                 discounts ( type, value ),
                 events (
                     title,
@@ -118,7 +118,18 @@ export async function POST(req: Request) {
             // 2. Calculate Platform Fee for this Reservation
             if (subaccountCode) { // Only relevant if splitting
                 const ticketTier = Array.isArray((reservation as any).ticket_tiers) ? (reservation as any).ticket_tiers[0] : (reservation as any).ticket_tiers
-                let price = Number(ticketTier?.price) || 0
+                const quantity = reservation.quantity || 1
+                const basePrice = Number(ticketTier?.price) || 0
+                let ticketSubtotal = basePrice * quantity
+
+                if (ticketTier && ticketTier.min_quantity && quantity >= ticketTier.min_quantity && ticketTier.discount_value) {
+                    if (ticketTier.discount_type === 'percentage') {
+                        ticketSubtotal = ticketSubtotal - (ticketSubtotal * (ticketTier.discount_value / 100))
+                    } else if (ticketTier.discount_type === 'fixed') {
+                        ticketSubtotal = Math.max(0, ticketSubtotal - ticketTier.discount_value)
+                    }
+                }
+                let price = quantity > 0 ? (ticketSubtotal / quantity) : basePrice
 
                 // Rate Logic
                 let platformRate = PLATFORM_FEE_PERCENT
@@ -136,8 +147,6 @@ export async function POST(req: Request) {
                     // We skip fee calc for this specific broken item or assume 0 fee.
                     console.warn(`Price missing for reservation ${reservation.id}, skipping fee calc`)
                 }
-
-                const quantity = reservation.quantity || 1
 
                 // Discount
                 let discountAmount = 0

@@ -128,11 +128,23 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         const effectiveRates = getEffectiveFeeRates(globalSettings, event, event.organizers)
         const feeBearer = event?.fee_bearer || 'customer'
 
-        const price = ticketTier?.price || 0
+        const basePrice = ticketTier?.price || 0
         const qty = reservation.quantity || 1
+        let ticketSubtotal = basePrice * qty
+
+        if (ticketTier && ticketTier.min_quantity && qty >= ticketTier.min_quantity && ticketTier.discount_value) {
+            const discountValue = ticketTier.discount_value || 0
+            if (ticketTier.discount_type === 'percentage') {
+                ticketSubtotal = ticketSubtotal - (ticketSubtotal * (discountValue / 100))
+            } else if (ticketTier.discount_type === 'fixed') {
+                ticketSubtotal = Math.max(0, ticketSubtotal - discountValue)
+            }
+        }
+
+        const price = qty > 0 ? (ticketSubtotal / qty) : basePrice
 
         // Discount
-        let subtotal = price * qty
+        let subtotal = ticketSubtotal
         if (reservation.discount_id) {
             const { data: disc } = await supabase.schema('gatepass').from('discounts').select('*').eq('id', reservation.discount_id).single()
             if (disc) {
@@ -169,7 +181,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
             effectiveRates,
             finalAddons: currentAddons,
             platformFee, // Per reservation fee
-            processorFee
+            processorFee,
+            price
         }
         reservation.events = event // Updated with organizer
     }
@@ -207,7 +220,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     const ticketGroupsForEmail: { tierName: string; tickets: { id: string; qrCodeUrl: string }[] }[] = []
 
     for (const reservation of reservations) {
-        const { ticketTier, effectiveRates, finalAddons } = reservation._calc
+        const { ticketTier, effectiveRates, finalAddons, price } = reservation._calc
         const event = reservation.events
         let ticketsToProcess: Ticket[] = []
         let ticketsCreatedThisReservation = false
@@ -304,7 +317,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 await notifyAdminOfSale({
                     eventName: event?.title,
                     customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                    amount: (ticketTier.price * quantity),
+                    amount: (price * quantity),
                     currency: tx.currency || 'GHS',
                     quantity: quantity,
                     ticketType: ticketTier?.name || 'Ticket'
@@ -324,7 +337,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                         organizerName: organizer.name || 'Organizer',
                         eventName: event?.title,
                         customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-                        amount: (ticketTier.price * quantity),
+                        amount: (price * quantity),
                         currency: tx.currency || 'GHS',
                         quantity: quantity,
                         ticketType: ticketTier?.name || 'Ticket',
@@ -383,7 +396,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     try {
         for (const reservation of reservations) {
             const metadata = reservation.metadata
-            const amount = (reservation._calc.ticketTier.price * reservation.quantity)
+            const amount = (reservation._calc.price * reservation.quantity)
             const currency = reservation._calc.ticketTier.currency || 'GHS'
 
             // Priority 1: Direct UTM attributes

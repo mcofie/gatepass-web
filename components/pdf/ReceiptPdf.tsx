@@ -110,9 +110,18 @@ export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: R
     const r = reservation
     const quantity = r.quantity || 1
 
-    // Logic Mirror from TransactionDetailModal to ensure consistency
-    const ticketBasePrice = r.ticket_tiers?.price || 0
-    const ticketRevenueRaw = ticketBasePrice * quantity
+    const basePrice = r.ticket_tiers?.price || 0
+    const tier = r.ticket_tiers
+    let ticketRevenueRaw = basePrice * quantity
+    if (tier && tier.min_quantity && quantity >= tier.min_quantity && tier.discount_value) {
+        const discountValue = tier.discount_value || 0
+        if (tier.discount_type === 'percentage') {
+            ticketRevenueRaw = ticketRevenueRaw - (ticketRevenueRaw * (discountValue / 100))
+        } else if (tier.discount_type === 'fixed') {
+            ticketRevenueRaw = Math.max(0, ticketRevenueRaw - discountValue)
+        }
+    }
+    const ticketBasePrice = quantity > 0 ? (ticketRevenueRaw / quantity) : basePrice
 
     // Discount
     const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts

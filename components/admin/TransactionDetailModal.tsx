@@ -117,9 +117,20 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
 
     reservations.forEach(r => {
         const qty = r.quantity || 1
-        const price = r.ticket_tiers?.price || 0
+        const basePrice = r.ticket_tiers?.price || 0
+        const tier = r.ticket_tiers
+        let tierSubtotal = basePrice * qty
+        if (tier && tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
+            const discountValue = tier.discount_value || 0
+            if (tier.discount_type === 'percentage') {
+                tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+            } else if (tier.discount_type === 'fixed') {
+                tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+            }
+        }
         totalQuantity += qty
-        totalTicketRevenueRaw += (price * qty)
+        totalTicketRevenueRaw += tierSubtotal
+        const price = qty > 0 ? (tierSubtotal / qty) : basePrice
 
         // Discount
         const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
@@ -237,12 +248,26 @@ export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeB
                         {/* Detail of Tiers if multiple */}
                         {reservations.length > 1 && (
                             <div className="pl-4 border-l-2 border-gray-200 dark:border-white/10 space-y-1 mb-2">
-                                {reservations.map(r => (
-                                    <div key={r.id} className="flex justify-between text-xs text-gray-400">
-                                        <span>{r.ticket_tiers?.name} ({r.quantity}x)</span>
-                                        <span>{formatCurrency((r.ticket_tiers?.price || 0) * (r.quantity || 1), transaction.currency)}</span>
-                                    </div>
-                                ))}
+                                {reservations.map(r => {
+                                    const basePrice = r.ticket_tiers?.price || 0
+                                    const qty = r.quantity || 1
+                                    const tier = r.ticket_tiers
+                                    let tierSubtotal = basePrice * qty
+                                    if (tier && tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
+                                        const discountValue = tier.discount_value || 0
+                                        if (tier.discount_type === 'percentage') {
+                                            tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
+                                        } else if (tier.discount_type === 'fixed') {
+                                            tierSubtotal = Math.max(0, tierSubtotal - discountValue)
+                                        }
+                                    }
+                                    return (
+                                        <div key={r.id} className="flex justify-between text-xs text-gray-400">
+                                            <span>{r.ticket_tiers?.name} ({qty}x)</span>
+                                            <span>{formatCurrency(tierSubtotal, transaction.currency)}</span>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         )}
 

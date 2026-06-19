@@ -20,8 +20,19 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
     const [creatingTier, setCreatingTier] = useState(false)
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
 
-    const [tierForm, setTierForm] = useState<{ name: string, price: number, total_quantity: number, max_per_order: number, description: string, perks: string[], tags: string[] }>({
-        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: []
+    const [tierForm, setTierForm] = useState<{
+        name: string,
+        price: number,
+        total_quantity: number,
+        max_per_order: number,
+        description: string,
+        perks: string[],
+        tags: string[],
+        min_quantity: number | '',
+        discount_value: number | '',
+        discount_type: 'percentage' | 'fixed' | ''
+    }>({
+        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: ''
     })
 
     const [newPerk, setNewPerk] = useState('')
@@ -52,7 +63,16 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                 .from('ticket_tiers')
                 .insert({
                     event_id: event.id,
-                    ...tierForm
+                    name: tierForm.name,
+                    price: tierForm.price,
+                    total_quantity: tierForm.total_quantity,
+                    max_per_order: tierForm.max_per_order,
+                    description: tierForm.description,
+                    perks: tierForm.perks,
+                    tags: tierForm.tags,
+                    min_quantity: tierForm.min_quantity === '' ? null : tierForm.min_quantity,
+                    discount_value: tierForm.discount_value === '' ? null : tierForm.discount_value,
+                    discount_type: tierForm.discount_type === '' ? null : tierForm.discount_type
                 })
                 .select()
                 .single()
@@ -60,7 +80,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
             if (data) {
                 // Optimistic update or refetch
                 onTiersUpdate([...tiers, data])
-                setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [] })
+                setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: '' })
                 toast.success('Ticket tier created')
             } else {
                 toast.error(error?.message)
@@ -276,6 +296,54 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                         className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
                                         placeholder="10"
                                     />
+                                </div>
+                            </div>
+
+                            {/* Quantity Discount */}
+                            <div className="border-t border-gray-100 dark:border-white/10 pt-4">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Quantity Discount (Optional)</label>
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Min Qty</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={tierForm.min_quantity}
+                                                onChange={e => setTierForm({ ...tierForm, min_quantity: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                                placeholder="e.g. 5"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Discount Type</label>
+                                            <select
+                                                value={tierForm.discount_type}
+                                                onChange={e => setTierForm({ ...tierForm, discount_type: e.target.value as any })}
+                                                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                            >
+                                                <option value="">None</option>
+                                                <option value="percentage">Percentage (%)</option>
+                                                <option value="fixed">Fixed Amount</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {tierForm.discount_type && (
+                                        <div className="animate-in fade-in duration-200">
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                                                {tierForm.discount_type === 'percentage' ? 'Discount Percentage (%)' : `Discount Value (${event.currency || 'GHS'})`}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={0.01}
+                                                step="any"
+                                                value={tierForm.discount_value}
+                                                onChange={e => setTierForm({ ...tierForm, discount_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                                placeholder={tierForm.discount_type === 'percentage' ? 'e.g. 10 for 10%' : 'e.g. 20'}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

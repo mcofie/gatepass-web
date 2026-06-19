@@ -97,6 +97,9 @@ export async function duplicateEvent(eventId: string) {
             tags: tier.tags,
             is_visible: tier.is_visible,
             sort_order: tier.sort_order,
+            min_quantity: tier.min_quantity,
+            discount_value: tier.discount_value,
+            discount_type: tier.discount_type,
         }))
 
         await supabase

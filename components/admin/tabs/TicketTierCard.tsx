@@ -40,7 +40,10 @@ export function TicketTierCard({
         description: tier.description || '',
         perks: tier.perks || [],
         tags: tier.tags || [],
-        allow_instalments: tier.allow_instalments || false
+        allow_instalments: tier.allow_instalments || false,
+        min_quantity: tier.min_quantity || '',
+        discount_value: tier.discount_value || '',
+        discount_type: tier.discount_type || ''
     })
     const [editPerk, setEditPerk] = useState('')
     const [editTag, setEditTag] = useState('')
@@ -60,7 +63,10 @@ export function TicketTierCard({
             description: tier.description || '',
             perks: tier.perks || [],
             tags: tier.tags || [],
-            allow_instalments: tier.allow_instalments || false
+            allow_instalments: tier.allow_instalments || false,
+            min_quantity: tier.min_quantity || '',
+            discount_value: tier.discount_value || '',
+            discount_type: tier.discount_type || ''
         })
         // Load plan config if exists
         if (tier.payment_plans && tier.payment_plans.length > 0) {
@@ -132,6 +138,9 @@ export function TicketTierCard({
 
         await onUpdate(tier.id, {
             ...editForm,
+            min_quantity: editForm.min_quantity === '' ? null : editForm.min_quantity,
+            discount_value: editForm.discount_value === '' ? null : editForm.discount_value,
+            discount_type: editForm.discount_type === '' ? null : editForm.discount_type,
             _instalmentConfig: editForm.allow_instalments ? instalmentConfig : null
         })
         onEditCancel()
@@ -290,6 +299,54 @@ export function TicketTierCard({
                         />
                     </div>
 
+                    {/* Quantity Discount Section */}
+                    <div className="border-t border-gray-100 dark:border-white/10 pt-4 mt-2">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Quantity Discount (Optional)</label>
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Min Qty</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={editForm.min_quantity}
+                                        onChange={e => setEditForm({ ...editForm, min_quantity: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                        placeholder="e.g. 5"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Discount Type</label>
+                                    <select
+                                        value={editForm.discount_type}
+                                        onChange={e => setEditForm({ ...editForm, discount_type: e.target.value as any })}
+                                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                    >
+                                        <option value="">None</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                </div>
+                            </div>
+                            {editForm.discount_type && (
+                                <div className="animate-in fade-in duration-200">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                                        {editForm.discount_type === 'percentage' ? 'Discount Percentage (%)' : `Discount Value (${event.currency || 'GHS'})`}
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0.01}
+                                        step="any"
+                                        value={editForm.discount_value}
+                                        onChange={e => setEditForm({ ...editForm, discount_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                        placeholder={editForm.discount_type === 'percentage' ? 'e.g. 10' : 'e.g. 20'}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Instalment Plan Section */}
                     <div className="border-t border-gray-100 dark:border-white/10 pt-4 mt-2">
                         <div className="flex items-center justify-between mb-3">
@@ -392,6 +449,11 @@ export function TicketTierCard({
                                             ? `Pay in ${tier.payment_plans.find((p: any) => p.is_active)!.num_instalments} · ${tier.payment_plans.find((p: any) => p.is_active)!.initial_percent}% upfront`
                                             : 'Instalments'
                                         }
+                                    </span>
+                                )}
+                                {tier.min_quantity && tier.discount_value && (
+                                    <span className="px-2.5 py-0.5 bg-green-50 dark:bg-green-500/10 rounded-full text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-wide flex items-center gap-1">
+                                        Buy {tier.min_quantity}+ get {tier.discount_type === 'percentage' ? `${tier.discount_value}%` : formatCurrency(tier.discount_value, event.currency)} off
                                     </span>
                                 )}
                                 {tier.tags && tier.tags.map((tag, idx) => (
