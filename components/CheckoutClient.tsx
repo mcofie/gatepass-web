@@ -226,8 +226,8 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                     }
 
                     // Success
-                    router.push('/')
-                    toast.success('Payment successful! Check your email for tickets.')
+                    router.push(`/checkout/${reservation.id}/success`)
+                    toast.success('Payment successful!')
                 }
 
                 processPayment().catch(err => {

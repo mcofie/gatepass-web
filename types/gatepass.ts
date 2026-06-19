@@ -142,6 +142,7 @@ export interface Discount {
     affiliate_email?: string | null
     affiliate_commission_percent?: number | null
     notify_affiliate_on_sale?: boolean
+    linked_utm_campaign?: string | null
 }
 
 export interface EventStaff {
@@ -230,3 +231,25 @@ export interface InstalmentPayment {
     processor_fee: number
     created_at: string
 }
+
+// ============ CUSTOM FORM TYPES ============
+
+export interface EventFormQuestion {
+    id: string
+    event_id: string
+    label: string
+    type: 'text' | 'select' | 'checkbox'
+    options?: string[] | null
+    required: boolean
+    sort_order: number
+    created_at: string
+}
+
+export interface EventFormResponse {
+    id: string
+    reservation_id: string
+    question_id: string
+    answer: string
+    created_at: string
+}
+

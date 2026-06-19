@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2, CopyPlus, ChevronDown } from 'lucide-react'
-import { Event, TicketTier, Discount, EventStaff } from '@/types/gatepass'
+import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2, CopyPlus, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Event, TicketTier, Discount, EventStaff, EventFormQuestion, EventFormResponse } from '@/types/gatepass'
 import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -60,10 +60,28 @@ export function EventManageClient({
     const isStaff = userRole === 'Staff'
     const isAdmin = userRole === 'Owner' || userRole === 'Admin' || isSuperAdmin
     const [event, setEvent] = useState(initialEvent)
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments'>('tickets')
+    const supabase = createClient()
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments' | 'forms'>('tickets')
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
     const [showMoreMenu, setShowMoreMenu] = useState(false)
+
+    // Custom Forms State
+    const [questions, setQuestions] = useState<EventFormQuestion[]>([])
+    const [fetchingQuestions, setFetchingQuestions] = useState(false)
+    const [questionForm, setQuestionForm] = useState({
+        label: '',
+        type: 'text' as 'text' | 'select' | 'checkbox',
+        options: '',
+        required: false
+    })
+    const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null)
+    const [savingQuestion, setSavingQuestion] = useState(false)
+
+    const [formResponses, setFormResponses] = useState<any[]>([])
+    const [fetchingResponses, setFetchingResponses] = useState(false)
+    const [formsSubTab, setFormsSubTab] = useState<'builder' | 'responses'>('builder')
+    const [responseSearchQuery, setResponseSearchQuery] = useState('')
 
     // Tickets State
     const [tiers, setTiers] = useState<TicketTier[]>(initialTiers) // Kept initialTiers from props
@@ -73,6 +91,13 @@ export function EventManageClient({
 
     // Discounts State
     const [discounts, setDiscounts] = useState<Discount[]>([])
+    const [discountPage, setDiscountPage] = useState(0)
+
+    React.useEffect(() => {
+        if (discountPage > 0 && discountPage * 5 >= discounts.length) {
+            setDiscountPage(Math.max(0, Math.ceil(discounts.length / 5) - 1))
+        }
+    }, [discounts.length, discountPage])
     const [discountForm, setDiscountForm] = useState({
         code: '',
         type: 'percentage' as 'percentage' | 'fixed',
@@ -119,7 +144,6 @@ export function EventManageClient({
     // Fetch data on load
     useEffect(() => {
         const fetchDeepData = async () => {
-            const supabase = createClient()
 
             // Fetch Addons
             const { data: addonsData } = await supabase
@@ -170,7 +194,6 @@ export function EventManageClient({
 
     // Callback to refresh addons
     const refreshAddons = async () => {
-        const supabase = createClient()
         const { data: addonsData } = await supabase
             .schema('gatepass')
             .from('event_addons')
@@ -236,7 +259,6 @@ export function EventManageClient({
         }
     }
 
-    const supabase = createClient()
     const router = useRouter()
 
     // Stats Calculation
@@ -302,6 +324,198 @@ export function EventManageClient({
         } finally {
             setLoading(false)
         }
+    }
+
+    // ---------------- CUSTOM FORMS LOGIC ----------------
+    const fetchQuestions = async () => {
+        setFetchingQuestions(true)
+        const { data } = await supabase
+            .schema('gatepass')
+            .from('event_form_questions')
+            .select('*')
+            .eq('event_id', event.id)
+            .order('sort_order', { ascending: true })
+        if (data) {
+            setQuestions(data as EventFormQuestion[])
+        }
+        setFetchingQuestions(false)
+    }
+
+    const fetchResponses = async () => {
+        setFetchingResponses(true)
+        const { data } = await supabase
+            .schema('gatepass')
+            .from('event_form_responses')
+            .select(`
+                id,
+                created_at,
+                answer,
+                question_id,
+                event_form_questions!inner(
+                    label,
+                    type,
+                    event_id
+                ),
+                reservations!inner(
+                    guest_name,
+                    guest_email,
+                    id
+                )
+            `)
+            .eq('event_form_questions.event_id', event.id)
+            .order('created_at', { ascending: false })
+
+        if (data) {
+            setFormResponses(data)
+        }
+        setFetchingResponses(false)
+    }
+
+    const handleSaveQuestion = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!questionForm.label.trim()) {
+            toast.error('Question text is required')
+            return
+        }
+
+        setSavingQuestion(true)
+        try {
+            const optionsArray = questionForm.type === 'select'
+                ? questionForm.options.split(',').map(s => s.trim()).filter(Boolean)
+                : null
+
+            if (editingQuestionId) {
+                const { error } = await supabase
+                    .schema('gatepass')
+                    .from('event_form_questions')
+                    .update({
+                        label: questionForm.label.trim(),
+                        type: questionForm.type,
+                        options: optionsArray,
+                        required: questionForm.required
+                    })
+                    .eq('id', editingQuestionId)
+
+                if (error) throw new Error(error.message)
+                toast.success('Question updated!')
+                setEditingQuestionId(null)
+            } else {
+                const nextSortOrder = questions.length > 0
+                    ? Math.max(...questions.map(q => q.sort_order)) + 1
+                    : 0
+
+                const { error } = await supabase
+                    .schema('gatepass')
+                    .from('event_form_questions')
+                    .insert({
+                        event_id: event.id,
+                        label: questionForm.label.trim(),
+                        type: questionForm.type,
+                        options: optionsArray,
+                        required: questionForm.required,
+                        sort_order: nextSortOrder
+                    })
+
+                if (error) throw new Error(error.message)
+                toast.success('Question created!')
+            }
+
+            setQuestionForm({
+                label: '',
+                type: 'text',
+                options: '',
+                required: false
+            })
+            await fetchQuestions()
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to save question')
+        } finally {
+            setSavingQuestion(false)
+        }
+    }
+
+    const startEditingQuestion = (q: EventFormQuestion) => {
+        setEditingQuestionId(q.id)
+        setQuestionForm({
+            label: q.label,
+            type: q.type,
+            options: q.options ? q.options.join(', ') : '',
+            required: q.required
+        })
+    }
+
+    const handleDeleteQuestion = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this question? Any submitted answers to this question will also be deleted.')) return
+        const { error } = await supabase
+            .schema('gatepass')
+            .from('event_form_questions')
+            .delete()
+            .eq('id', id)
+        if (error) {
+            toast.error(error.message)
+        } else {
+            toast.success('Question deleted')
+            await fetchQuestions()
+        }
+    }
+
+    const handleMoveQuestion = async (index: number, direction: 'up' | 'down') => {
+        if (direction === 'up' && index === 0) return
+        if (direction === 'down' && index === questions.length - 1) return
+
+        const targetIndex = direction === 'up' ? index - 1 : index + 1
+        const currentQ = questions[index]
+        const targetQ = questions[targetIndex]
+
+        const { error: err1 } = await supabase
+            .schema('gatepass')
+            .from('event_form_questions')
+            .update({ sort_order: targetQ.sort_order })
+            .eq('id', currentQ.id)
+
+        const { error: err2 } = await supabase
+            .schema('gatepass')
+            .from('event_form_questions')
+            .update({ sort_order: currentQ.sort_order })
+            .eq('id', targetQ.id)
+
+        if (err1 || err2) {
+            toast.error('Failed to reorder questions')
+        } else {
+            await fetchQuestions()
+        }
+    }
+
+    const handleExportResponses = () => {
+        if (formResponses.length === 0) {
+            toast.error('No responses to export')
+            return
+        }
+
+        const headers = ['Guest Name', 'Guest Email', 'Question', 'Answer', 'Submitted At']
+        const rows = formResponses.map(r => [
+            r.reservations?.guest_name || '',
+            r.reservations?.guest_email || '',
+            r.event_form_questions?.label || '',
+            r.answer || '',
+            new Date(r.created_at).toLocaleString()
+        ])
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(val => `"${val.replace(/"/g, '""')}"`).join(','))
+        ].join('\n')
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.setAttribute('href', url)
+        link.setAttribute('download', `${event.slug}-form-responses.csv`)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        toast.success('Responses exported!')
     }
 
     // ---------------- DISCOUNTS LOGIC ----------------
@@ -381,9 +595,9 @@ export function EventManageClient({
             max_uses: discount.max_uses || 0,
             tier_id: discount.tier_id || '',
             expires_at: discount.expires_at || '',
-            linked_utm_campaign: (discount as any).linked_utm_campaign || '',
-            affiliate_email: (discount as any).affiliate_email || '',
-            affiliate_commission_percent: (discount as any).affiliate_commission_percent || 10
+            linked_utm_campaign: discount.linked_utm_campaign || '',
+            affiliate_email: discount.affiliate_email || '',
+            affiliate_commission_percent: discount.affiliate_commission_percent || 10
         })
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -662,6 +876,10 @@ export function EventManageClient({
         if (activeTab === 'discounts') {
             fetchDiscounts()
         }
+        if (activeTab === 'forms') {
+            fetchQuestions()
+            fetchResponses()
+        }
     }, [activeTab])
 
     const tabClass = (tab: string) => clsx(
@@ -748,6 +966,9 @@ export function EventManageClient({
                     )}
                     {isAdmin && (
                         <button onClick={() => setActiveTab('instalments')} className={tabClass('instalments')}>Instalments</button>
+                    )}
+                    {isAdmin && (
+                        <button onClick={() => setActiveTab('forms')} className={tabClass('forms')}>Forms</button>
                     )}
 
                     {/* More Dropdown */}
@@ -2071,7 +2292,7 @@ export function EventManageClient({
                         </div>
 
                         <div className="grid gap-4">
-                            {discounts.map(discount => (
+                            {discounts.slice(discountPage * 5, (discountPage + 1) * 5).map(discount => (
                                 <div key={discount.id} className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 flex items-center justify-between hover:shadow-md transition-shadow">
                                     <div className="flex items-center gap-6">
                                         <div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center font-bold text-xl border border-green-100 dark:border-green-500/10">
@@ -2087,14 +2308,14 @@ export function EventManageClient({
                                                 >
                                                     {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                                                 </button>
-                                                {(discount as any).linked_utm_campaign && (
+                                                {discount.linked_utm_campaign && (
                                                     <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
-                                                        Linked to UTM: {(discount as any).linked_utm_campaign}
+                                                        Linked to UTM: {discount.linked_utm_campaign}
                                                     </span>
                                                 )}
-                                                {(discount as any).affiliate_email && (
+                                                {discount.affiliate_email && (
                                                     <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-500/20">
-                                                        Affiliate: {(discount as any).affiliate_email} ({(discount as any).affiliate_commission_percent}%)
+                                                        Affiliate: {discount.affiliate_email} ({discount.affiliate_commission_percent}%)
                                                     </span>
                                                 )}
                                             </div>
@@ -2154,12 +2375,295 @@ export function EventManageClient({
                                     <p className="font-medium">No discount codes created yet.</p>
                                 </div>
                             )}
+
+                            {discounts.length > 5 && (
+                                <div className="px-8 py-4 bg-gray-50/30 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-3xl flex items-center justify-between mt-4">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Showing <span className="font-medium">{discountPage * 5 + 1}</span> to <span className="font-medium">{Math.min((discountPage + 1) * 5, discounts.length)}</span> of <span className="font-medium">{discounts.length}</span>
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDiscountPage(p => Math.max(0, p - 1))}
+                                            disabled={discountPage === 0}
+                                            className="px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            Previous
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDiscountPage(p => p + 1)}
+                                            disabled={(discountPage + 1) * 5 >= discounts.length}
+                                            className="px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )
             }
 
 
+
+            {/* FORMS TAB */}
+            {activeTab === 'forms' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="bg-white dark:bg-[#111] p-8 rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-sm">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-white/10 pb-6 mb-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Custom Forms & Questionnaire</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Collect additional attendee details post-checkout</p>
+                            </div>
+                            <div className="flex gap-2 bg-gray-100 dark:bg-white/5 p-1 rounded-xl">
+                                <button
+                                    onClick={() => setFormsSubTab('builder')}
+                                    className={clsx(
+                                        "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                                        formsSubTab === 'builder'
+                                            ? "bg-white dark:bg-white/10 text-black dark:text-white shadow-sm"
+                                            : "text-gray-500 hover:text-black dark:hover:text-white"
+                                    )}
+                                >
+                                    Question Builder
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setFormsSubTab('responses');
+                                        fetchResponses();
+                                    }}
+                                    className={clsx(
+                                        "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                                        formsSubTab === 'responses'
+                                            ? "bg-white dark:bg-white/10 text-black dark:text-white shadow-sm"
+                                            : "text-gray-500 hover:text-black dark:hover:text-white"
+                                    )}
+                                >
+                                    Responses ({formResponses.length})
+                                </button>
+                            </div>
+                        </div>
+
+                        {formsSubTab === 'builder' && (
+                            <div className="space-y-8">
+                                {/* Form to create/edit question */}
+                                <div className="bg-gray-50/50 dark:bg-white/5 p-6 rounded-2xl border border-gray-100 dark:border-white/5">
+                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-4">
+                                        {editingQuestionId ? 'Edit Question' : 'Add New Question'}
+                                    </h4>
+                                    <form onSubmit={handleSaveQuestion} className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-2">
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Question Label</label>
+                                                <input
+                                                    required
+                                                    value={questionForm.label}
+                                                    onChange={e => setQuestionForm({ ...questionForm, label: e.target.value })}
+                                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none text-gray-900 dark:text-white text-sm"
+                                                    placeholder="e.g. What is your T-shirt size?"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Input Type</label>
+                                                <select
+                                                    value={questionForm.type}
+                                                    onChange={e => setQuestionForm({ ...questionForm, type: e.target.value as 'text' | 'select' | 'checkbox' })}
+                                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none text-gray-900 dark:text-white text-sm"
+                                                >
+                                                    <option value="text">Free Text</option>
+                                                    <option value="select">Multiple Choice (Dropdown)</option>
+                                                    <option value="checkbox">Checkbox (Yes/No)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {questionForm.type === 'select' && (
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Options</label>
+                                                <input
+                                                    required
+                                                    value={questionForm.options}
+                                                    onChange={e => setQuestionForm({ ...questionForm, options: e.target.value })}
+                                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none text-gray-900 dark:text-white text-sm"
+                                                    placeholder="e.g. Small, Medium, Large"
+                                                />
+                                                <span className="text-[10px] text-gray-400 mt-1 block font-medium">Enter multiple choices separated by commas</span>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between pt-2">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={questionForm.required}
+                                                    onChange={e => setQuestionForm({ ...questionForm, required: e.target.checked })}
+                                                    className="rounded border border-gray-200 bg-white checked:bg-black focus:ring-0 cursor-pointer"
+                                                />
+                                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Required Question</span>
+                                            </label>
+                                            <div className="flex gap-2">
+                                                {editingQuestionId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEditingQuestionId(null);
+                                                            setQuestionForm({ label: '', type: 'text', options: '', required: false });
+                                                        }}
+                                                        className="px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="submit"
+                                                    disabled={savingQuestion}
+                                                    className="bg-black dark:bg-white text-white dark:text-black px-6 py-2.5 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all text-xs"
+                                                >
+                                                    {savingQuestion ? 'Saving...' : (editingQuestionId ? 'Update' : 'Add Question')}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                {/* Questions List */}
+                                <div className="space-y-3">
+                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-2">Question List</h4>
+                                    {questions.map((q, idx) => (
+                                        <div key={q.id} className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-gray-100 dark:border-white/10 flex items-center justify-between hover:shadow-sm transition-shadow">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-gray-900 dark:text-white">{q.label}</span>
+                                                    {q.required && (
+                                                        <span className="text-[10px] bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 font-bold uppercase px-1.5 py-0.5 rounded">Required</span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-gray-500 font-medium">
+                                                    Type: <span className="uppercase text-gray-700 dark:text-zinc-300 font-bold">{q.type}</span>
+                                                    {q.options && q.options.length > 0 && (
+                                                        <span className="ml-2 font-normal">({q.options.join(', ')})</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => handleMoveQuestion(idx, 'up')}
+                                                    disabled={idx === 0}
+                                                    className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-30"
+                                                    title="Move Up"
+                                                >
+                                                    <ArrowUp className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleMoveQuestion(idx, 'down')}
+                                                    disabled={idx === questions.length - 1}
+                                                    className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-30"
+                                                    title="Move Down"
+                                                >
+                                                    <ArrowDown className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => startEditingQuestion(q)}
+                                                    className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-white/5 dark:hover:bg-white/10 text-xs font-bold rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteQuestion(q.id)}
+                                                    className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                                                    title="Delete Question"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {questions.length === 0 && (
+                                        <div className="text-center py-12 text-gray-400 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl">
+                                            No custom questions configured.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {formsSubTab === 'responses' && (
+                            <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                    <div className="relative w-full sm:w-72">
+                                        <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search responses..."
+                                            value={responseSearchQuery}
+                                            onChange={e => setResponseSearchQuery(e.target.value)}
+                                            className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl text-sm outline-none focus:ring-1 focus:ring-zinc-400 transition-all text-gray-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleExportResponses}
+                                        className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-xl text-xs font-bold shadow-md hover:-translate-y-0.5 transition-all"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        Export CSV
+                                    </button>
+                                </div>
+
+                                <div className="border border-gray-100 dark:border-white/10 rounded-2xl overflow-hidden overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-bold uppercase text-[10px] tracking-wider border-b border-gray-100 dark:border-white/10">
+                                            <tr>
+                                                <th className="px-6 py-4">Attendee</th>
+                                                <th className="px-6 py-4">Question</th>
+                                                <th className="px-6 py-4">Answer</th>
+                                                <th className="px-6 py-4">Submitted At</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 dark:divide-white/5 text-gray-900 dark:text-white">
+                                            {formResponses
+                                                .filter(r => {
+                                                    const q = responseSearchQuery.toLowerCase()
+                                                    return (
+                                                        r.reservations?.guest_name?.toLowerCase().includes(q) ||
+                                                        r.reservations?.guest_email?.toLowerCase().includes(q) ||
+                                                        r.answer?.toLowerCase().includes(q) ||
+                                                        r.event_form_questions?.label?.toLowerCase().includes(q)
+                                                    )
+                                                })
+                                                .map(r => (
+                                                    <tr key={r.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-bold">{r.reservations?.guest_name || 'N/A'}</div>
+                                                            <div className="text-xs text-gray-400 font-normal">{r.reservations?.guest_email || 'N/A'}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 font-medium text-gray-600 dark:text-gray-300">
+                                                            {r.event_form_questions?.label}
+                                                        </td>
+                                                        <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">
+                                                            {r.answer}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs text-gray-400 font-mono">
+                                                            {new Date(r.created_at).toLocaleDateString()}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            {formResponses.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="text-center py-12 text-gray-400">
+                                                        No custom form responses found.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* TEAM TAB */}
             {

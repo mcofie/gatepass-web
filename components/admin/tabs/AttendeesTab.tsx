@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Search, Download, ScanLine, QrCode, Upload } from 'lucide-react'
+import { Search, Download, ScanLine, QrCode, Upload, FileText, X, Loader2 } from 'lucide-react'
 import { generateCSV, downloadCSV } from '@/utils/analytics'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -23,6 +23,7 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
     const [ticketCount, setTicketCount] = useState(0)
     const [selectedTicketForQR, setSelectedTicketForQR] = useState<any>(null)
     const [showImportModal, setShowImportModal] = useState(false)
+    const [selectedReservationForForms, setSelectedReservationForForms] = useState<string | null>(null)
     const TICKETS_PER_PAGE = 20
 
     const supabase = createClient()
@@ -36,7 +37,7 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
             .schema('gatepass')
             .from('tickets')
             .select(`
-                id, status, order_reference, created_at,
+                id, status, order_reference, created_at, reservation_id,
                 ticket_tiers ( name, price, currency ),
                 reservations ( guest_name, guest_email ),
                 profiles ( full_name, id, email )
@@ -193,6 +194,13 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                     <td className="px-8 py-5 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
+                                                onClick={() => setSelectedReservationForForms(ticket.reservation_id)}
+                                                className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                                                title="View Form Answers"
+                                            >
+                                                <FileText className="w-4 h-4" />
+                                            </button>
+                                            <button
                                                 onClick={() => setSelectedTicketForQR(ticket)}
                                                 className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                                                 title="View QR Code"
@@ -270,6 +278,118 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                 tiers={tiers}
                 onImportComplete={() => fetchTickets(0)}
             />
+
+            {/* Form Answers Modal */}
+            <FormAnswersModal
+                isOpen={!!selectedReservationForForms}
+                onClose={() => setSelectedReservationForForms(null)}
+                reservationId={selectedReservationForForms || ''}
+            />
+        </div>
+    )
+}
+
+interface FormAnswersModalProps {
+    isOpen: boolean
+    onClose: () => void
+    reservationId: string
+}
+
+interface FormResponseItem {
+    id: string
+    answer: string
+    event_form_questions: {
+        label: string
+    } | null
+}
+
+export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswersModalProps) {
+    const [responses, setResponses] = useState<FormResponseItem[]>([])
+    const [loading, setLoading] = useState(false)
+    const supabase = createClient()
+
+    useEffect(() => {
+        const fetchAnswers = async () => {
+            if (!reservationId) return
+            setLoading(true)
+            const { data } = await supabase
+                .schema('gatepass')
+                .from('event_form_responses')
+                .select(`
+                    id,
+                    answer,
+                    event_form_questions(label)
+                `)
+                .eq('reservation_id', reservationId)
+            
+            if (data) {
+                const mapped: FormResponseItem[] = (data as {
+                    id: string
+                    answer: string
+                    event_form_questions: { label: string } | { label: string }[] | null
+                }[]).map(item => {
+                    const q = item.event_form_questions
+                    return {
+                        id: item.id,
+                        answer: item.answer,
+                        event_form_questions: Array.isArray(q) ? (q[0] || null) : q
+                    }
+                })
+                setResponses(mapped)
+            }
+            setLoading(false)
+        }
+
+        if (isOpen) {
+            fetchAnswers()
+        }
+    }, [isOpen, reservationId])
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50/50 dark:bg-white/5">
+                    <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-gray-400" />
+                        Form Responses
+                    </h3>
+                    <button onClick={onClose} className="p-1 text-gray-400 hover:text-black dark:hover:text-white rounded-lg transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    {loading ? (
+                        <div className="py-8 flex flex-col items-center justify-center text-zinc-500">
+                            <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                            <p className="text-sm">Loading responses...</p>
+                        </div>
+                    ) : responses.length > 0 ? (
+                        <div className="space-y-4">
+                            {responses.map((r) => (
+                                <div key={r.id} className="space-y-1 bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5">
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        {r.event_form_questions?.label || 'Question'}
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900 dark:text-white mt-1">
+                                        {r.answer}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-8 text-center text-gray-400">
+                            No form responses submitted for this order.
+                        </div>
+                    )}
+                </div>
+                <div className="px-6 py-4 bg-gray-50/50 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex justify-end">
+                    <button onClick={onClose} className="bg-black dark:bg-white text-white dark:text-black px-6 py-2 rounded-xl text-xs font-bold transition-all">
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
     )
 }
