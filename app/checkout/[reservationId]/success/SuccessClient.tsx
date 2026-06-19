@@ -19,8 +19,44 @@ export function SuccessClient({ reservation, tickets = [], questions = [] }: Suc
     const [formSubmitted, setFormSubmitted] = useState(false)
     const [answers, setAnswers] = useState<Record<string, string | boolean>>({})
     const [errors, setErrors] = useState<Record<string, string>>({})
+    const [localTickets, setLocalTickets] = useState<TicketType[]>(tickets)
+    const [verifyingPayment, setVerifyingPayment] = useState(false)
 
     const event = reservation?.events
+
+    // Verify payment from query parameters if returned via hosted redirect
+    useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search)
+        const reference = searchParams.get('reference') || searchParams.get('trxref')
+        
+        if (reference) {
+            const verifyPayment = async () => {
+                setVerifyingPayment(true)
+                try {
+                    const response = await fetch('/api/paystack/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reference, reservationId: reservation.id })
+                    })
+                    const result = await response.json()
+                    
+                    // Clean URL query parameters
+                    window.history.replaceState({}, '', window.location.pathname)
+                    
+                    if (!result.success) throw new Error(result.error || 'Verification failed')
+                    
+                    if (result.tickets) {
+                        setLocalTickets(result.tickets)
+                    }
+                } catch (error) {
+                    console.error('Redirect verification error:', error)
+                } finally {
+                    setVerifyingPayment(false)
+                }
+            }
+            verifyPayment()
+        }
+    }, [reservation.id])
 
     useEffect(() => {
         const checkExistingResponses = async () => {
@@ -128,11 +164,13 @@ export function SuccessClient({ reservation, tickets = [], questions = [] }: Suc
 
     const primaryColor = event?.primary_color || '#f59e0b'
 
-    if (checkingResponses) {
+    if (verifyingPayment || checkingResponses) {
         return (
             <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
                 <Loader2 className="w-10 h-10 animate-spin text-zinc-500 mb-4" />
-                <p className="text-sm text-zinc-400">Loading checkout success details...</p>
+                <p className="text-sm text-zinc-400">
+                    {verifyingPayment ? 'Verifying payment...' : 'Loading checkout success details...'}
+                </p>
             </div>
         )
     }
@@ -299,7 +337,7 @@ export function SuccessClient({ reservation, tickets = [], questions = [] }: Suc
                         </div>
 
                         <div className="divide-y divide-zinc-800">
-                            {tickets.map((t) => (
+                            {localTickets.map((t) => (
                                 <div key={t.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between">
                                     <div>
                                         <h4 className="font-bold text-sm text-zinc-200">

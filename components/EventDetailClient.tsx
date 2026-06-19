@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import html2canvas from 'html2canvas'
 // import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
-import { Event, TicketTier, Discount, PaymentPlan, EventAddon } from '@/types/gatepass'
+import { Event, TicketTier, Discount, PaymentPlan, EventAddon, EventFormQuestion } from '@/types/gatepass'
 import { cn, getContrastColor } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { toast } from 'sonner'
-import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft } from 'lucide-react'
+import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft, ArrowRight } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl } from '@/utils/social'
@@ -2072,8 +2072,128 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
 }
 
 const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[], tierName: string | undefined }) => {
+    const supabase = createClient()
     const [downloading, setDownloading] = useState(false)
-    const activeTicket = tickets[0] // Primary ticket for QR (or handle multiple via swipe if needed, for now sticking to order summary style with first QR)
+    const [questions, setQuestions] = useState<EventFormQuestion[]>([])
+    const [fetchingQuestions, setFetchingQuestions] = useState(true)
+    const [formSubmitted, setFormSubmitted] = useState(false)
+    const [answers, setAnswers] = useState<Record<string, string | boolean>>({})
+    const [errors, setErrors] = useState<Record<string, string>>({})
+    const [submittingForm, setSubmittingForm] = useState(false)
+
+    const activeTicket = tickets[0] // Primary ticket for QR
+
+    useEffect(() => {
+        const loadQuestionsAndResponses = async () => {
+            if (!activeTicket || !activeTicket.reservation_id) {
+                setFetchingQuestions(false)
+                return
+            }
+
+            try {
+                // 1. Fetch questions for this event
+                const { data: qData, error: qError } = await supabase
+                    .schema('gatepass')
+                    .from('event_form_questions')
+                    .select('*')
+                    .eq('event_id', event.id)
+                    .order('sort_order', { ascending: true })
+
+                if (qError) throw qError
+
+                if (qData && qData.length > 0) {
+                    setQuestions(qData)
+                    
+                    // 2. Fetch responses for this reservation
+                    const { data: rData, error: rError } = await supabase
+                        .schema('gatepass')
+                        .from('event_form_responses')
+                        .select('*')
+                        .eq('reservation_id', activeTicket.reservation_id)
+
+                    if (rError) throw rError
+
+                    if (rData && rData.length > 0) {
+                        setFormSubmitted(true)
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading questions/responses:', err)
+            } finally {
+                setFetchingQuestions(false)
+            }
+        }
+
+        loadQuestionsAndResponses()
+    }, [event.id, activeTicket, supabase])
+
+    const handleInputChange = (questionId: string, value: string | boolean) => {
+        setAnswers(prev => ({
+            ...prev,
+            [questionId]: value
+        }))
+        if (errors[questionId]) {
+            setErrors(prev => {
+                const updated = { ...prev }
+                delete updated[questionId]
+                return updated
+            })
+        }
+    }
+
+    const validateForm = () => {
+        const newErrors: Record<string, string> = {}
+        questions.forEach(q => {
+            const answer = answers[q.id]
+            if (q.required) {
+                if (q.type === 'checkbox' && !answer) {
+                    newErrors[q.id] = 'This field is required'
+                } else if (q.type !== 'checkbox' && (answer === undefined || answer === null || String(answer).trim() === '')) {
+                    newErrors[q.id] = 'This field is required'
+                }
+            }
+        })
+        setErrors(newErrors)
+        return Object.keys(newErrors).length === 0
+    }
+
+    const handleFormSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!validateForm()) return
+
+        setSubmittingForm(true)
+        try {
+            const responseData = questions.map(q => {
+                let answerStr = ''
+                if (q.type === 'checkbox') {
+                    answerStr = answers[q.id] ? 'Yes' : 'No'
+                } else {
+                    answerStr = String(answers[q.id] || '').trim()
+                }
+
+                return {
+                    reservation_id: activeTicket.reservation_id,
+                    question_id: q.id,
+                    answer: answerStr
+                }
+            })
+
+            const { error } = await supabase
+                .schema('gatepass')
+                .from('event_form_responses')
+                .insert(responseData)
+
+            if (error) throw error
+
+            setFormSubmitted(true)
+            toast.success('Information submitted successfully!')
+        } catch (err: any) {
+            console.error('Error submitting form responses:', err)
+            toast.error(err.message || 'Failed to submit details')
+        } finally {
+            setSubmittingForm(false)
+        }
+    }
 
     const handleDownloadPDF = async () => {
         if (!tickets || tickets.length === 0) return
@@ -2084,15 +2204,14 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
         }
 
         setDownloading(true)
-        // Redirect to API
         window.location.href = `/api/reservations/${reservationId}/download`
-
-        // Reset loading state
         setTimeout(() => setDownloading(false), 2000)
     }
 
     // Confetti Effect
     useEffect(() => {
+        if (fetchingQuestions || (questions.length > 0 && !formSubmitted)) return;
+
         const runConfetti = async () => {
             const confetti = (await import('canvas-confetti')).default
             const end = Date.now() + 1000;
@@ -2120,7 +2239,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
             }());
         }
         runConfetti()
-    }, [])
+    }, [fetchingQuestions, questions.length, formSubmitted])
 
     const handleShare = async () => {
         const shareData = {
@@ -2145,26 +2264,19 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
         }
     }
 
-    // Enhanced Utilities
     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue_name} ${event.venue_address}`)}`
 
-    // Generate Google Calendar Link
     const getGoogleCalendarUrl = () => {
         const start = new Date(event.starts_at)
-        // Assume 2 hour duration if no end time (fixme: real end time if available)
         const end = new Date(start.getTime() + (2 * 60 * 60 * 1000))
-
         const formatTime = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "")
-
         return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${formatTime(start)}/${formatTime(end)}&details=${encodeURIComponent(`Tickets: ${window.location.href}`)}&location=${encodeURIComponent(event.venue_name)}`
     }
 
-    // Countdown Logic
     const getCountdown = () => {
         const diff = new Date(event.starts_at).getTime() - Date.now()
         const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-
-        if (days < 0) return null // Event started/past
+        if (days < 0) return null
         if (days === 0) return "Starts Today!"
         if (days === 1) return "Starts Tomorrow!"
         return `Starts in ${days} Days`
@@ -2172,13 +2284,131 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
 
     const countdownText = getCountdown()
 
-    // Aggregate Ticket Counts
     const ticketCounts = tickets.reduce((acc, ticket) => {
-        // Access nested tier name properly if available, or use the passed tierName prop as fallback
         const name = ticket.ticket_tiers?.name || tierName || 'General Admission'
         acc[name] = (acc[name] || 0) + 1
         return acc
     }, {} as Record<string, number>)
+
+    if (fetchingQuestions) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-zinc-900 rounded-[24px]">
+                <Loader2 className="w-8 h-8 animate-spin text-zinc-400 dark:text-zinc-500 mb-3" />
+                <p className="text-sm font-medium">Checking reservation details...</p>
+            </div>
+        )
+    }
+
+    if (questions.length > 0 && !formSubmitted) {
+        return (
+            <div className="flex flex-col h-full bg-white dark:bg-zinc-900 rounded-[24px] overflow-hidden relative animate-fade-in">
+                {/* Header */}
+                <div className="flex-shrink-0 px-5 pt-5 pb-2 flex justify-between items-start">
+                    <div className="space-y-1">
+                        <h2 className="text-[18px] leading-tight font-extrabold tracking-tight text-black dark:text-white">
+                            Attendee Info Required
+                        </h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Please answer the questions below to access your tickets.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="p-1.5 -mr-1.5 -mt-1.5 text-black dark:text-white hover:opacity-70 transition-opacity"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Scrollable Form Content */}
+                <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto no-scrollbar px-5 pb-5 space-y-4 my-4 flex flex-col justify-between">
+                    <div className="space-y-4">
+                        {questions.map((q) => (
+                            <div key={q.id} className="space-y-1">
+                                <label className="block text-[13px] font-bold text-gray-700 dark:text-gray-300">
+                                    {q.label}
+                                    {q.required && <span className="text-red-500 ml-1">*</span>}
+                                </label>
+
+                                {q.type === 'text' && (
+                                    <input
+                                        type="text"
+                                        value={(answers[q.id] as string) || ''}
+                                        onChange={(e) => handleInputChange(q.id, e.target.value)}
+                                        className="w-full bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 text-black dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-600 transition-all placeholder:text-gray-400 dark:placeholder:text-zinc-500"
+                                        placeholder="Your answer..."
+                                    />
+                                )}
+
+                                {q.type === 'select' && (
+                                    <div className="relative">
+                                        <select
+                                            value={(answers[q.id] as string) || ''}
+                                            onChange={(e) => handleInputChange(q.id, e.target.value)}
+                                            className="w-full bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 text-black dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-600 transition-all appearance-none"
+                                        >
+                                            <option value="" className="text-gray-500">Select an option...</option>
+                                            {q.options?.map((opt, oIdx) => (
+                                                <option key={oIdx} value={opt} className="text-black dark:text-white">
+                                                    {opt}
+                                                    {/* Standard HTML Option styling is fine */}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                                            <ChevronDown className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {q.type === 'checkbox' && (
+                                    <label className="flex items-center gap-3 cursor-pointer group mt-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={!!answers[q.id]}
+                                            onChange={(e) => handleInputChange(q.id, e.target.checked)}
+                                            className="w-5 h-5 rounded border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50 checked:bg-black dark:checked:bg-white focus:ring-0 cursor-pointer animate-none"
+                                        />
+                                        <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white transition-colors">
+                                            Yes, I agree / confirm
+                                        </span>
+                                    </label>
+                                )}
+
+                                {errors[q.id] && (
+                                    <p className="text-[11px] text-red-500 font-medium">{errors[q.id]}</p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="pt-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-white/5 mt-4">
+                        <button
+                            type="submit"
+                            disabled={submittingForm}
+                            className="w-full h-14 text-[15px] font-bold tracking-tight rounded-[20px] transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                            style={{ backgroundColor: event.primary_color || '#f59e0b', color: getContrastColor(event.primary_color || '#f59e0b') }}
+                        >
+                            {submittingForm ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin animate-infinite" />
+                                    Submitting Details...
+                                </>
+                            ) : (
+                                <>
+                                    Submit & Get Tickets
+                                    <ArrowRight className="w-4 h-4" />
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-zinc-900 rounded-[24px] overflow-hidden relative animate-fade-in">
@@ -2341,8 +2571,6 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                     <p className="text-[9px] font-bold text-gray-300 dark:text-zinc-600 uppercase tracking-[0.2em]">GatePass Digital Protection</p>
                 </div>
             </div>
-
-
         </div>
     )
 }
