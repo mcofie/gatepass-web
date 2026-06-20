@@ -62,7 +62,7 @@ export default async function Home() {
           */}
       <EventFeed events={eventsWithSortedTiers} />
 
-      <LandingHeader />
+      <LandingHeader showAccountMenu={true} />
     </main>
   )
 }

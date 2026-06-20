@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
 import { Event, TicketTier, Discount, PaymentPlan, EventAddon, EventFormQuestion } from '@/types/gatepass'
-import { cn, getContrastColor } from '@/lib/utils'
+import { cn, getContrastColor, getComplementaryColor } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 
@@ -1150,6 +1150,8 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
     const isLowStock = remaining > 0 && remaining <= 10
     const hasPerks = tier.perks && tier.perks.length > 0
     const themeColor = primaryColor || '#000000'
+    const compColor = getComplementaryColor(themeColor)
+    const knobColor = getContrastColor(compColor)
 
     return (
         <div
@@ -1261,23 +1263,55 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                 )}
             </div>
 
-            <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-black/20' : 'bg-gray-50 dark:bg-zinc-800'}`}>
+            {tier.is_virtual ? (
                 <button
-                    onClick={() => onQuantityChange(tier.id, -1)}
-                    disabled={qty === 0}
-                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                    type="button"
+                    onClick={() => onQuantityChange(tier.id, qty === 1 ? -1 : 1)}
+                    disabled={isSoldOut}
+                    className={`mt-6 w-full h-12 rounded-full flex items-center justify-between px-5 font-bold text-sm transition-all duration-300 cursor-pointer ${
+                        isSelected
+                            ? 'bg-white text-zinc-950 shadow-md hover:bg-white/90'
+                            : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                    -
+                    <span>{isSoldOut ? 'Sold Out' : isSelected ? 'Selected' : 'Select Ticket'}</span>
+                    {!isSoldOut && (
+                        <div 
+                            style={isSelected ? { backgroundColor: compColor } : {}}
+                            className={`w-8 h-5 rounded-full p-0.5 transition-colors duration-300 relative ${
+                                isSelected
+                                    ? ''
+                                    : 'bg-zinc-300 dark:bg-zinc-600'
+                            }`}
+                        >
+                            <div 
+                                style={{ backgroundColor: isSelected ? knobColor : '#ffffff' }}
+                                className={`w-4 h-4 rounded-full shadow-sm transition-transform duration-300 ${
+                                    isSelected ? 'translate-x-3' : 'translate-x-0'
+                                }`} 
+                            />
+                        </div>
+                    )}
                 </button>
-                <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>{qty}</span>
-                <button
-                    onClick={() => onQuantityChange(tier.id, 1)}
-                    disabled={isSoldOut || (tier.is_virtual && qty >= 1)}
-                    className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
-                >
-                    +
-                </button>
-            </div>
+            ) : (
+                <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-black/20' : 'bg-gray-50 dark:bg-zinc-800'}`}>
+                    <button
+                        onClick={() => onQuantityChange(tier.id, -1)}
+                        disabled={qty === 0}
+                        className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                    >
+                        -
+                    </button>
+                    <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>{qty}</span>
+                    <button
+                        onClick={() => onQuantityChange(tier.id, 1)}
+                        disabled={isSoldOut}
+                        className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                    >
+                        +
+                    </button>
+                </div>
+            )}
         </div>
     )
 }
@@ -1303,7 +1337,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
             </button>
         </div>
 
-        <div className="-mx-4 px-5 overflow-x-auto flex gap-4 items-stretch pb-4 no-scrollbar snap-x snap-mandatory">
+        <div className="-mx-4 px-5 pt-3 overflow-x-auto flex gap-4 items-stretch pb-4 no-scrollbar snap-x snap-mandatory">
             {tiers.map((tier) => (
                 <TicketCard
                     key={tier.id}

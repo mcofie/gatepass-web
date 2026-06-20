@@ -104,8 +104,8 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                 </div>
 
                 {/* RIGHT PILL */}
-                {(showAccountMenu || true) && (
-                    <div className={`flex flex-col items-end gap-4 ${!showAccountMenu ? 'md:hidden' : ''}`}>
+                {showAccountMenu && (
+                    <div className="flex flex-col items-end gap-4">
                         <div className="pointer-events-auto animate-fade-in flex items-center bg-gray-100/80 dark:bg-black/20 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-full shadow-lg transition-all duration-300 hover:bg-white/90 dark:hover:bg-black/30">
                             {user ? (
                                 <button
