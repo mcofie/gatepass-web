@@ -104,8 +104,8 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                 </div>
 
                 {/* RIGHT PILL */}
-                {showAccountMenu && (
-                    <div className="flex flex-col items-end gap-4">
+                {(showAccountMenu || true) && (
+                    <div className={`flex flex-col items-end gap-4 ${!showAccountMenu ? 'md:hidden' : ''}`}>
                         <div className="pointer-events-auto animate-fade-in flex items-center bg-gray-100/80 dark:bg-black/20 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-full shadow-lg transition-all duration-300 hover:bg-white/90 dark:hover:bg-black/30">
                             {user ? (
                                 <button
@@ -115,7 +115,7 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                                     }}
                                     className="pl-4 md:pl-5 pr-2 md:pr-3 py-2 md:py-2.5 text-[13px] md:text-[14px] font-bold tracking-tight text-black dark:text-white leading-none hover:opacity-80 transition-opacity flex items-center gap-2 md:gap-2.5"
                                 >
-                                    <div className="hidden xs:flex w-5 md:w-6 h-5 md:h-6 rounded-full bg-black/5 dark:bg-white/10 items-center justify-center">
+                                    <div className="flex w-5 md:w-6 h-5 md:h-6 rounded-full bg-black/5 dark:bg-white/10 items-center justify-center">
                                         <User className="w-3 h-3 md:w-3.5 md:h-3.5 text-black/70 dark:text-white/70" />
                                     </div>
                                     Account

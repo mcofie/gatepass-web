@@ -12,6 +12,26 @@ export async function createTransfer(ticketId: string, recipientEmail?: string) 
         return { success: false, message: 'Unauthorized' }
     }
 
+    // Check if the ticket is virtual and restrict transfer
+    const { data: ticket, error: ticketError } = await supabase
+        .schema('gatepass')
+        .from('tickets')
+        .select(`
+            ticket_tiers (
+                is_virtual
+            )
+        `)
+        .eq('id', ticketId)
+        .single()
+
+    if (ticketError || !ticket) {
+        return { success: false, message: 'Ticket not found' }
+    }
+
+    if ((ticket.ticket_tiers as any)?.is_virtual) {
+        return { success: false, message: 'Virtual tickets cannot be transferred' }
+    }
+
     // 1. Generate Secure Token
     const token = randomBytes(32).toString('hex')
 

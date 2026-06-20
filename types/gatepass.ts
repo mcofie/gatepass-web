@@ -213,6 +213,7 @@ export interface InstalmentReservation {
     updated_at: string
     // Relations
     reservation?: Reservation
+    reservations?: Reservation
     payment_plan?: PaymentPlan
     instalment_payments?: InstalmentPayment[]
     // Joined from reservation
