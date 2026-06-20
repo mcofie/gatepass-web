@@ -20,10 +20,16 @@ interface TicketItem {
     id: string
     qrCodeUrl: string
     type: string
+    isVirtual?: boolean
+    virtualLink?: string | null
+    virtualInstructions?: string | null
 }
 
 interface TicketGroup {
     tierName: string
+    isVirtual?: boolean
+    virtualLink?: string | null
+    virtualInstructions?: string | null
     tickets: {
         id: string
         qrCodeUrl: string
@@ -38,6 +44,9 @@ interface TicketEmailProps {
     ticketType?: string;
     qrCodeUrl?: string;
     ticketId?: string;
+    isVirtual?: boolean;
+    virtualLink?: string | null;
+    virtualInstructions?: string | null;
     // Prop for multiple tickets (flat list)
     tickets?: TicketItem[];
     // NEW: Grouped tickets by tier (for multi-tier orders)
@@ -55,6 +64,9 @@ export const TicketEmail = ({
     qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=GATEPASS-DEMO",
     customerName = "Guest",
     ticketId = "GP-123456",
+    isVirtual,
+    virtualLink,
+    virtualInstructions,
     tickets = [],
     ticketGroups = [],
     posterUrl,
@@ -72,7 +84,7 @@ export const TicketEmail = ({
     const useGroupedView = ticketGroups.length > 0;
 
     // Normalize flat tickets for legacy compatibility
-    const allTickets = tickets.length > 0 ? tickets : [{ id: ticketId, qrCodeUrl, type: ticketType }];
+    const allTickets = tickets.length > 0 ? tickets : [{ id: ticketId, qrCodeUrl, type: ticketType, isVirtual, virtualLink, virtualInstructions }];
     const primaryTicket = allTickets[0];
     const guestTickets = allTickets.slice(1);
 
@@ -155,6 +167,7 @@ export const TicketEmail = ({
                                         </Column>
                                     </Row>
                                 </Section>
+
                                 {/* CONDITIONAL: Grouped View vs Legacy Single Ticket View */}
                                 {useGroupedView ? (
                                     /* GROUPED TICKETS VIEW - Show each tier as a section */
@@ -168,21 +181,69 @@ export const TicketEmail = ({
                                                         {group.tierName} ({group.tickets.length})
                                                     </Text>
 
-                                                    {/* QR Code for primary ticket of this tier */}
-                                                    <Section className="text-center mb-4">
-                                                        <div className="bg-white p-2 border-2 border-dashed border-gray-200 rounded-xl inline-block">
-                                                            <Img
-                                                                src={primaryOfGroup.qrCodeUrl}
-                                                                width="120"
-                                                                height="120"
-                                                                alt={`QR Code - ${group.tierName}`}
-                                                                className="rounded-lg mix-blend-multiply"
-                                                            />
-                                                        </div>
-                                                        <Text className="text-[10px] font-mono text-gray-400 mt-2 tracking-[0.15em] uppercase m-0">
-                                                            {primaryOfGroup.id.substring(0, 8).toUpperCase()}
-                                                        </Text>
-                                                    </Section>
+                                                    {/* QR Code or Virtual View for primary ticket of this tier */}
+                                                    {group.isVirtual ? (
+                                                        /* Virtual View */
+                                                        <Section className="text-center mb-6">
+                                                            {group.virtualLink ? (
+                                                                <>
+                                                                    <Button
+                                                                        href={group.virtualLink}
+                                                                        className="bg-purple-600 text-white text-sm font-bold no-underline text-center block w-full py-3.5 rounded-xl shadow-lg hover:bg-purple-700 transition-colors"
+                                                                    >
+                                                                        Join Livestream
+                                                                    </Button>
+                                                                    {group.virtualInstructions && (
+                                                                        <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
+                                                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
+                                                                                Access Instructions
+                                                                            </Text>
+                                                                            <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap">
+                                                                                {group.virtualInstructions}
+                                                                            </Text>
+                                                                        </Section>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Section className="bg-amber-50 rounded-2xl p-5 border border-amber-100 text-center">
+                                                                        <Text className="text-xs font-bold text-amber-800 m-0 mb-1">
+                                                                            Livestream Link Coming Soon
+                                                                        </Text>
+                                                                        <Text className="text-[11px] leading-[16px] text-amber-700 m-0">
+                                                                            The organizer hasn&apos;t set the livestream link yet. You will be notified via email & SMS as soon as it goes live.
+                                                                        </Text>
+                                                                    </Section>
+                                                                    {group.virtualInstructions && (
+                                                                        <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
+                                                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
+                                                                                Pre-event Instructions
+                                                                            </Text>
+                                                                            <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap">
+                                                                                {group.virtualInstructions}
+                                                                            </Text>
+                                                                        </Section>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </Section>
+                                                    ) : (
+                                                        /* Physical QR Code View */
+                                                        <Section className="text-center mb-4">
+                                                            <div className="bg-white p-2 border-2 border-dashed border-gray-200 rounded-xl inline-block">
+                                                                <Img
+                                                                    src={primaryOfGroup.qrCodeUrl}
+                                                                    width="120"
+                                                                    height="120"
+                                                                    alt={`QR Code - ${group.tierName}`}
+                                                                    className="rounded-lg mix-blend-multiply"
+                                                                />
+                                                            </div>
+                                                            <Text className="text-[10px] font-mono text-gray-400 mt-2 tracking-[0.15em] uppercase m-0">
+                                                                {primaryOfGroup.id.substring(0, 8).toUpperCase()}
+                                                            </Text>
+                                                        </Section>
+                                                    )}
 
                                                     {/* Additional tickets in this tier */}
                                                     {additionalOfGroup.length > 0 && (
@@ -204,20 +265,70 @@ export const TicketEmail = ({
                                     </>
                                 ) : (
                                     /* LEGACY: Single Ticket / Flat List View */
-                                    <Section className="text-center mb-8">
-                                        <div className="bg-white p-3 border-2 border-dashed border-gray-200 rounded-2xl inline-block">
-                                            <Img
-                                                src={primaryTicket.qrCodeUrl}
-                                                width="160"
-                                                height="160"
-                                                alt="QR Code"
-                                                className="rounded-lg mix-blend-multiply"
-                                            />
-                                        </div>
-                                        <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
-                                            {primaryTicket.id.substring(0, 8).toUpperCase()}
-                                        </Text>
-                                    </Section>
+                                    <>
+                                        {primaryTicket.isVirtual ? (
+                                            /* Virtual View */
+                                            <Section className="text-center mb-8">
+                                                {primaryTicket.virtualLink ? (
+                                                    <>
+                                                        <Button
+                                                            href={primaryTicket.virtualLink}
+                                                            className="bg-purple-600 text-white text-sm font-bold no-underline text-center block w-full py-3.5 rounded-xl shadow-lg hover:bg-purple-700 transition-colors"
+                                                        >
+                                                            Join Livestream
+                                                        </Button>
+                                                        {primaryTicket.virtualInstructions && (
+                                                            <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
+                                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
+                                                                    Access Instructions
+                                                                </Text>
+                                                                <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap font-medium">
+                                                                    {primaryTicket.virtualInstructions}
+                                                                </Text>
+                                                            </Section>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Section className="bg-amber-50 rounded-2xl p-5 border border-amber-100 text-center">
+                                                            <Text className="text-xs font-bold text-amber-800 m-0 mb-1 text-center">
+                                                                Livestream Link Coming Soon
+                                                            </Text>
+                                                            <Text className="text-[11px] leading-[16px] text-amber-700 m-0 text-center">
+                                                                The organizer hasn&apos;t set the livestream link yet. You will be notified via email & SMS as soon as it goes live.
+                                                            </Text>
+                                                        </Section>
+                                                        {primaryTicket.virtualInstructions && (
+                                                            <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
+                                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
+                                                                    Pre-event Instructions
+                                                                </Text>
+                                                                <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap font-medium">
+                                                                    {primaryTicket.virtualInstructions}
+                                                                </Text>
+                                                            </Section>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </Section>
+                                        ) : (
+                                            /* Physical QR Code View */
+                                            <Section className="text-center mb-8">
+                                                <div className="bg-white p-3 border-2 border-dashed border-gray-200 rounded-2xl inline-block">
+                                                    <Img
+                                                        src={primaryTicket.qrCodeUrl}
+                                                        width="160"
+                                                        height="160"
+                                                        alt="QR Code"
+                                                        className="rounded-lg mix-blend-multiply"
+                                                    />
+                                                </div>
+                                                <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
+                                                    {primaryTicket.id.substring(0, 8).toUpperCase()}
+                                                </Text>
+                                            </Section>
+                                        )}
+                                    </>
                                 )}
 
                                 {/* CTAs */}

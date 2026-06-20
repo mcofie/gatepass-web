@@ -7,6 +7,9 @@ import { VirtualLinkEmail } from '@/emails/VirtualLinkEmail'
 
 interface TicketGroup {
     tierName: string
+    isVirtual?: boolean
+    virtualLink?: string | null
+    virtualInstructions?: string | null
     tickets: {
         id: string
         qrCodeUrl: string
@@ -27,6 +30,9 @@ interface SendTicketEmailProps {
         id: string
         qrCodeUrl: string
         type: string
+        isVirtual?: boolean
+        virtualLink?: string | null
+        virtualInstructions?: string | null
     }[]
     ticketGroups?: TicketGroup[] // NEW: For consolidated multi-tier emails
     reservationId?: string

@@ -217,7 +217,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     let primaryPosterUrl: string | null = null
 
     // Collect tickets grouped by tier for consolidated email
-    const ticketGroupsForEmail: { tierName: string; tickets: { id: string; qrCodeUrl: string }[] }[] = []
+    const ticketGroupsForEmail: { tierName: string; isVirtual?: boolean; virtualLink?: string | null; virtualInstructions?: string | null; tickets: { id: string; qrCodeUrl: string }[] }[] = []
 
     for (const reservation of reservations) {
         const { ticketTier, effectiveRates, finalAddons, price } = reservation._calc
@@ -242,13 +242,13 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
         // Idempotency: Check Status
         if (reservation.status === 'confirmed') {
-            const { data: existing } = await supabase.schema('gatepass').from('tickets').select('*').eq('reservation_id', reservation.id)
+            const { data: existing } = await supabase.schema('gatepass').from('tickets').select('*, ticket_tiers(*)').eq('reservation_id', reservation.id)
             if (existing && existing.length > 0) {
                 ticketsToProcess = existing as Ticket[]
             }
         } else {
             // Also check by ID if status pending
-            const { data: existing } = await supabase.schema('gatepass').from('tickets').select('*').eq('reservation_id', reservation.id)
+            const { data: existing } = await supabase.schema('gatepass').from('tickets').select('*, ticket_tiers(*)').eq('reservation_id', reservation.id)
             if (existing && existing.length > 0) {
                 ticketsToProcess = existing as Ticket[]
             }
@@ -276,7 +276,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                     .select()
                     .single()
 
-                if (ticket) ticketsToProcess.push({ ...ticket as Ticket, reservations: reservation })
+                if (ticket) ticketsToProcess.push({ ...ticket as Ticket, reservations: reservation, ticket_tiers: ticketTier })
                 else if (tErr) console.error('Ticket Insert Error:', tErr)
             }
 
@@ -353,6 +353,9 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         if (ticketsToProcess.length > 0) {
             ticketGroupsForEmail.push({
                 tierName: ticketTier?.name || 'Ticket',
+                isVirtual: ticketTier?.is_virtual || false,
+                virtualLink: ticketTier?.virtual_link || null,
+                virtualInstructions: ticketTier?.virtual_instructions || null,
                 tickets: ticketsToProcess.map((t) => ({
                     id: t.id,
                     qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`
@@ -382,7 +385,13 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 // Use ticketGroups for multi-tier orders, tickets for single-tier
                 ticketGroups: ticketGroupsForEmail.length > 1 ? ticketGroupsForEmail : undefined,
                 tickets: ticketGroupsForEmail.length === 1
-                    ? ticketGroupsForEmail[0].tickets.map(t => ({ ...t, type: ticketGroupsForEmail[0].tierName }))
+                    ? ticketGroupsForEmail[0].tickets.map(t => ({
+                        ...t,
+                        type: ticketGroupsForEmail[0].tierName,
+                        isVirtual: ticketGroupsForEmail[0].isVirtual,
+                        virtualLink: ticketGroupsForEmail[0].virtualLink,
+                        virtualInstructions: ticketGroupsForEmail[0].virtualInstructions
+                    }))
                     : undefined,
                 ticketType: ticketGroupsForEmail.length === 1 ? ticketGroupsForEmail[0].tierName : undefined,
                 reservationId: reservations[0]?.id

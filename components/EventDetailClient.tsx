@@ -2441,22 +2441,62 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-5">
 
-                {/* QR Code */}
-                <div className="flex flex-col items-center my-6">
-                    <div className="bg-white p-2 rounded-xl border border-gray-100 dark:border-zinc-800 shadow-sm mb-3">
-                        <Image
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${activeTicket.qr_code_hash}&color=000000`}
-                            alt="QR Code"
-                            width={160}
-                            height={160}
-                            className="w-32 h-32 object-contain mix-blend-multiply"
-                            unoptimized
-                        />
+                {/* QR Code or Virtual Streaming card */}
+                {activeTicket.ticket_tiers?.is_virtual ? (
+                    <div className="w-full text-center space-y-4 my-6">
+                        {activeTicket.ticket_tiers.virtual_link ? (
+                            <div className="w-full text-center space-y-4">
+                                <a
+                                    href={activeTicket.ticket_tiers.virtual_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block w-full py-4 bg-purple-600 text-white rounded-[24px] font-bold text-sm hover:bg-purple-700 active:scale-95 transition-all shadow-lg shadow-purple-500/20"
+                                >
+                                    Join Livestream Now
+                                </a>
+                                {activeTicket.ticket_tiers.virtual_instructions && (
+                                    <div className="w-full bg-zinc-50 dark:bg-zinc-800/30 p-5 rounded-3xl border border-black/5 dark:border-white/5 text-left">
+                                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-2">Instructions</span>
+                                        <p className="text-xs text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap leading-relaxed">{activeTicket.ticket_tiers.virtual_instructions}</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="w-full bg-amber-500/10 border border-amber-500/20 p-6 rounded-[32px] text-center space-y-3">
+                                <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                                    <Clock className="w-6 h-6 text-amber-500" />
+                                </div>
+                                <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Livestream Link Coming Soon</h3>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                    The livestream link hasn&apos;t been published by the organizer yet. As soon as the link goes live, it will activate here and you will be notified via email & SMS.
+                                </p>
+                                {activeTicket.ticket_tiers.virtual_instructions && (
+                                    <div className="w-full bg-zinc-50 dark:bg-zinc-800/30 p-4 rounded-2xl border border-black/5 dark:border-white/5 text-left mt-2">
+                                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1">Pre-event Instructions</span>
+                                        <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium whitespace-pre-wrap leading-relaxed">{activeTicket.ticket_tiers.virtual_instructions}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                    <span className="text-[10px] uppercase font-mono tracking-widest text-gray-400 dark:text-gray-500 select-all">
-                        {activeTicket.qr_code_hash}
-                    </span>
-                </div>
+                ) : (
+                    /* QR Code */
+                    <div className="flex flex-col items-center my-6">
+                        <div className="bg-white p-2 rounded-xl border border-gray-100 dark:border-zinc-800 shadow-sm mb-3">
+                            <Image
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${activeTicket.qr_code_hash}&color=000000`}
+                                alt="QR Code"
+                                width={160}
+                                height={160}
+                                className="w-32 h-32 object-contain mix-blend-multiply"
+                                unoptimized
+                            />
+                        </div>
+                        <span className="text-[10px] uppercase font-mono tracking-widest text-gray-400 dark:text-gray-500 select-all">
+                            {activeTicket.qr_code_hash}
+                        </span>
+                    </div>
+                )}
 
                 {/* Ticket Details Card */}
                 <div className="bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 rounded-[20px] p-3 space-y-3">
