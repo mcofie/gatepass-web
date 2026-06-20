@@ -1,18 +1,19 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Ticket, Edit2, Check, Trash2, X, Eye, EyeOff, Plus, GripVertical, CalendarClock } from 'lucide-react'
-import { TicketTier, Event } from '@/types/gatepass'
+import { Edit2, Check, Trash2, X, Eye, EyeOff, Plus, GripVertical, CalendarClock } from 'lucide-react'
+import { TicketTier, Event, PaymentPlan } from '@/types/gatepass'
 import { formatCurrency } from '@/utils/format'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
+import { notifyAttendeesOfVirtualLink } from '@/app/actions/communications'
 
 interface TicketTierCardProps {
     tier: TicketTier
     event: Event
     isStaff?: boolean
-    onUpdate: (tierId: string, data: any) => Promise<void>
+    onUpdate: (tierId: string, data: Partial<TicketTier> & { _instalmentConfig?: Partial<PaymentPlan> | null }) => Promise<void>
     onDelete: (tierId: string) => void
     onToggleVisibility: (tierId: string, currentVisibility: boolean) => void
     isEditing: boolean
@@ -32,7 +33,22 @@ export function TicketTierCard({
     onEditCancel
 }: TicketTierCardProps) {
     // Local form state for editing
-    const [editForm, setEditForm] = useState({
+    const [editForm, setEditForm] = useState<{
+        name: string
+        price: number
+        total_quantity: number
+        max_per_order: number
+        description: string
+        perks: string[]
+        tags: string[]
+        allow_instalments: boolean
+        min_quantity: number | ''
+        discount_value: number | ''
+        discount_type: 'percentage' | 'fixed' | ''
+        is_virtual: boolean
+        virtual_link: string
+        virtual_instructions: string
+    }>({
         name: tier.name,
         price: tier.price,
         total_quantity: tier.total_quantity,
@@ -43,7 +59,10 @@ export function TicketTierCard({
         allow_instalments: tier.allow_instalments || false,
         min_quantity: tier.min_quantity || '',
         discount_value: tier.discount_value || '',
-        discount_type: tier.discount_type || ''
+        discount_type: tier.discount_type || '',
+        is_virtual: tier.is_virtual || false,
+        virtual_link: tier.virtual_link || '',
+        virtual_instructions: tier.virtual_instructions || ''
     })
     const [editPerk, setEditPerk] = useState('')
     const [editTag, setEditTag] = useState('')
@@ -66,7 +85,10 @@ export function TicketTierCard({
             allow_instalments: tier.allow_instalments || false,
             min_quantity: tier.min_quantity || '',
             discount_value: tier.discount_value || '',
-            discount_type: tier.discount_type || ''
+            discount_type: tier.discount_type || '',
+            is_virtual: tier.is_virtual || false,
+            virtual_link: tier.virtual_link || '',
+            virtual_instructions: tier.virtual_instructions || ''
         })
         // Load plan config if exists
         if (tier.payment_plans && tier.payment_plans.length > 0) {
@@ -136,13 +158,43 @@ export function TicketTierCard({
             }
         }
 
+        const isLinkNewlySet = !tier.virtual_link && editForm.virtual_link.trim();
+        const isLinkUpdated = tier.virtual_link && editForm.virtual_link.trim() && tier.virtual_link.trim() !== editForm.virtual_link.trim();
+        const shouldNotify = editForm.is_virtual && (isLinkNewlySet || isLinkUpdated);
+
         await onUpdate(tier.id, {
             ...editForm,
+            max_per_order: editForm.is_virtual ? 1 : editForm.max_per_order,
             min_quantity: editForm.min_quantity === '' ? null : editForm.min_quantity,
             discount_value: editForm.discount_value === '' ? null : editForm.discount_value,
             discount_type: editForm.discount_type === '' ? null : editForm.discount_type,
-            _instalmentConfig: editForm.allow_instalments ? instalmentConfig : null
+            _instalmentConfig: editForm.allow_instalments ? instalmentConfig : null,
+            virtual_link: editForm.is_virtual ? (editForm.virtual_link.trim() || null) : null,
+            virtual_instructions: editForm.is_virtual ? (editForm.virtual_instructions.trim() || null) : null
         })
+
+        if (shouldNotify) {
+            toast.promise(
+                notifyAttendeesOfVirtualLink({
+                    tierId: tier.id,
+                    eventId: event.id,
+                    virtualLink: editForm.virtual_link.trim(),
+                    virtualInstructions: editForm.virtual_instructions.trim() || null
+                }),
+                {
+                    loading: 'Notifying virtual ticket holders...',
+                    success: (res) => {
+                        if (res.success) {
+                            return `Notified ${res.sentEmailCount} attendee(s) via email and ${res.sentSMSCount} via SMS.`;
+                        } else {
+                            return `Failed to notify attendees: ${res.error}`;
+                        }
+                    },
+                    error: 'Failed to notify attendees.'
+                }
+            )
+        }
+
         onEditCancel()
     }
 
@@ -190,12 +242,51 @@ export function TicketTierCard({
                             <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Max / Order</label>
                             <input
                                 type="number"
-                                value={editForm.max_per_order}
+                                disabled={editForm.is_virtual}
+                                value={editForm.is_virtual ? 1 : editForm.max_per_order}
                                 onChange={e => setEditForm({ ...editForm, max_per_order: parseInt(e.target.value) })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white disabled:opacity-50"
                                 placeholder="10"
                             />
                         </div>
+                    </div>
+
+                    {/* Virtual Ticket / Livestream Options */}
+                    <div className="border-t border-gray-100 dark:border-white/10 pt-4 space-y-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={editForm.is_virtual}
+                                onChange={e => setEditForm({ ...editForm, is_virtual: e.target.checked })}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-indigo-600 focus:ring-indigo-500/20"
+                            />
+                            <span className="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white">
+                                Virtual / Remote Access Ticket
+                            </span>
+                        </label>
+
+                        {editForm.is_virtual && (
+                            <div className="space-y-3 bg-zinc-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Livestream URL</label>
+                                    <input
+                                        value={editForm.virtual_link}
+                                        onChange={e => setEditForm({ ...editForm, virtual_link: e.target.value })}
+                                        className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-xs text-gray-900 dark:text-white placeholder:font-medium"
+                                        placeholder="e.g. YouTube Live, Zoom link"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Streaming Instructions</label>
+                                    <textarea
+                                        value={editForm.virtual_instructions}
+                                        onChange={e => setEditForm({ ...editForm, virtual_instructions: e.target.value })}
+                                        className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-medium text-xs text-gray-900 dark:text-white min-h-[60px] resize-none"
+                                        placeholder="e.g. Zoom passcode, access start times..."
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Perks</label>
@@ -319,7 +410,7 @@ export function TicketTierCard({
                                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Discount Type</label>
                                     <select
                                         value={editForm.discount_type}
-                                        onChange={e => setEditForm({ ...editForm, discount_type: e.target.value as any })}
+                                        onChange={e => setEditForm({ ...editForm, discount_type: e.target.value as 'percentage' | 'fixed' | '' })}
                                         className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
                                     >
                                         <option value="">None</option>
@@ -437,6 +528,11 @@ export function TicketTierCard({
                                 <span className="px-2.5 py-0.5 bg-gray-100 dark:bg-white/10 rounded-full text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                                     {tier.quantity_sold} / {tier.total_quantity} Sold
                                 </span>
+                                {tier.is_virtual && (
+                                    <span className="px-2.5 py-0.5 bg-purple-50 dark:bg-purple-500/10 rounded-full text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+                                        Virtual
+                                    </span>
+                                )}
                                 {tier.is_visible === false && (
                                     <span className="px-2.5 py-0.5 bg-red-50 dark:bg-red-500/10 rounded-full text-xs font-bold text-red-500 uppercase tracking-wide flex items-center gap-1">
                                         <EyeOff className="w-3 h-3" /> Hidden
@@ -445,8 +541,8 @@ export function TicketTierCard({
                                 {tier.allow_instalments && (
                                     <span className="px-2.5 py-0.5 bg-amber-50 dark:bg-amber-500/10 rounded-full text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1">
                                         <CalendarClock className="w-3 h-3" />
-                                        {tier.payment_plans && tier.payment_plans.length > 0 && tier.payment_plans.find((p: any) => p.is_active)
-                                            ? `Pay in ${tier.payment_plans.find((p: any) => p.is_active)!.num_instalments} · ${tier.payment_plans.find((p: any) => p.is_active)!.initial_percent}% upfront`
+                                        {tier.payment_plans && tier.payment_plans.length > 0 && tier.payment_plans.find((p: PaymentPlan) => p.is_active)
+                                            ? `Pay in ${tier.payment_plans.find((p: PaymentPlan) => p.is_active)!.num_instalments} · ${tier.payment_plans.find((p: PaymentPlan) => p.is_active)!.initial_percent}% upfront`
                                             : 'Instalments'
                                         }
                                     </span>

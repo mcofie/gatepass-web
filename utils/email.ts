@@ -3,6 +3,7 @@ import { TicketEmail } from '@/emails/TicketEmail'
 import { StaffAccessEmail } from '@/emails/StaffAccessEmail'
 import { TransferEmail } from '@/emails/TransferEmail'
 import { PayoutEmail } from '@/emails/PayoutEmail'
+import { VirtualLinkEmail } from '@/emails/VirtualLinkEmail'
 
 interface TicketGroup {
     tierName: string
@@ -135,6 +136,32 @@ export const sendPayoutEmail = async (props: SendPayoutEmailProps) => {
         to: props.to,
         subject: `Your Payout for ${props.eventName} is on the way!`,
         react: PayoutEmail(props),
+    })
+
+    if (error) throw new Error(`Resend Error: ${error.message}`)
+    return { messageId: data?.id }
+}
+
+interface SendVirtualLinkEmailProps {
+    to: string
+    eventName: string
+    customerName: string
+    virtualLink: string
+    virtualInstructions?: string | null
+    posterUrl?: string | null
+}
+
+export const sendVirtualLinkEmail = async (props: SendVirtualLinkEmailProps) => {
+    const resendApiKey = process.env.RESEND_API_KEY
+    if (!resendApiKey) throw new Error('RESEND_API_KEY is missing.')
+
+    const resend = new Resend(resendApiKey)
+
+    const { data, error } = await resend.emails.send({
+        from: 'GatePass <notifications@updates.gatepass.so>',
+        to: props.to,
+        subject: `Livestream Details: ${props.eventName}`,
+        react: VirtualLinkEmail(props),
     })
 
     if (error) throw new Error(`Resend Error: ${error.message}`)

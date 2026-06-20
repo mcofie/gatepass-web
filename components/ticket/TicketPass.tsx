@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { MapPin, Calendar, Clock, User, Ticket as TicketIcon, CheckCircle2, CalendarPlus, ChevronRight } from 'lucide-react'
+import { MapPin, Calendar, Clock, User, CheckCircle2, CalendarPlus, ChevronRight } from 'lucide-react'
 import { format, addHours } from 'date-fns'
 import { motion } from 'framer-motion'
 
@@ -29,6 +29,9 @@ interface TicketPassProps {
     tierName?: string
     logoUrl?: string | null
     isPrint?: boolean
+    isVirtual?: boolean
+    virtualLink?: string | null
+    virtualInstructions?: string | null
 }
 
 export const TicketPass = ({
@@ -37,7 +40,10 @@ export const TicketPass = ({
     ticket,
     tierName = "General Admission",
     logoUrl,
-    isPrint = false
+    isPrint = false,
+    isVirtual = false,
+    virtualLink = null,
+    virtualInstructions = null
 }: TicketPassProps) => {
     const attendeeName = ticket.reservations?.guest_name || ticket.reservations?.profiles?.full_name || 'Guest'
     const eventDate = new Date(event.starts_at)
@@ -61,7 +67,7 @@ export const TicketPass = ({
                 staggerChildren: 0.1,
                 delayChildren: 0.2,
                 duration: 0.8,
-                ease: [0.16, 1, 0.3, 1] as any
+                ease: [0.16, 1, 0.3, 1] as const
             }
         }
     }
@@ -79,14 +85,29 @@ export const TicketPass = ({
                     {logoUrl && <Image src={logoUrl} width={50} height={50} alt="Logo" style={{ borderRadius: '8px' }} />}
                 </div>
 
-                <div className="flex flex-col items-center mb-8">
-                    <div style={{ padding: '16px', border: '1px solid #e5e7eb', borderRadius: '16px' }}>
-                        <Image src={qrCodeUrl} width={160} height={160} alt="QR" unoptimized style={{ mixBlendMode: 'multiply' }} />
+                {isVirtual ? (
+                    <div className="flex flex-col items-center mb-8 text-center w-full">
+                        <div className="p-5 rounded-2xl w-full" style={{ backgroundColor: '#f9fafb', border: '1px solid #f3f4f6' }}>
+                            <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#9ca3af' }}>Livestream URL</p>
+                            <p className="text-xs font-bold break-all text-indigo-600 mb-4">{virtualLink || 'Link Coming Soon (Sent via Email/SMS)'}</p>
+                            {virtualInstructions && (
+                                <>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#9ca3af' }}>Instructions</p>
+                                    <p className="text-[11px] text-gray-600 whitespace-pre-wrap">{virtualInstructions}</p>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.2em]" style={{ color: '#9ca3af' }}>
-                        {ticket.id.toUpperCase()}
-                    </p>
-                </div>
+                ) : (
+                    <div className="flex flex-col items-center mb-8">
+                        <div style={{ padding: '16px', border: '1px solid #e5e7eb', borderRadius: '16px' }}>
+                            <Image src={qrCodeUrl} width={160} height={160} alt="QR" unoptimized style={{ mixBlendMode: 'multiply' }} />
+                        </div>
+                        <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.2em]" style={{ color: '#9ca3af' }}>
+                            {ticket.id.toUpperCase()}
+                        </p>
+                    </div>
+                )}
 
                 <div className="space-y-6">
                     <div className="p-5 rounded-2xl" style={{ backgroundColor: '#f9fafb', border: '1px solid #f3f4f6' }}>
@@ -180,30 +201,71 @@ export const TicketPass = ({
                         )}
                     </motion.div>
 
-                    {/* QR Code Deep Content */}
-                    <motion.div variants={item} className="flex flex-col items-center">
-                        <div className="p-1 rounded-[32px] bg-gradient-to-br from-zinc-200 via-white to-zinc-200 dark:from-zinc-800 dark:via-zinc-700 dark:to-zinc-800 shadow-xl">
-                            <div className="bg-white p-5 rounded-[28px] overflow-hidden">
-                                <Image
-                                    src={qrCodeUrl}
-                                    width={160}
-                                    height={160}
-                                    alt="QR"
-                                    className="w-40 h-40 mix-blend-multiply"
-                                    unoptimized
-                                />
+                    {/* QR Code / Virtual Livestream Access */}
+                    {isVirtual ? (
+                        virtualLink ? (
+                            <motion.div variants={item} className="flex flex-col items-center w-full space-y-4">
+                                <a
+                                    href={virtualLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-4 px-6 rounded-3xl font-bold text-sm text-center shadow-lg transition duration-300 transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                                >
+                                    <div className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                    </div>
+                                    Join Livestream Now
+                                </a>
+                                {virtualInstructions && (
+                                    <div className="w-full bg-zinc-100 dark:bg-white/5 p-5 rounded-3xl border border-black/5 dark:border-white/5 text-left">
+                                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-2">Instructions</span>
+                                        <p className="text-xs text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap leading-relaxed">{virtualInstructions}</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div variants={item} className="w-full bg-amber-500/10 border border-amber-500/20 p-6 rounded-[32px] text-center space-y-3">
+                                <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                                    <Clock className="w-6 h-6 text-amber-500" />
+                                </div>
+                                <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Livestream Link Coming Soon</h3>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                    The livestream link hasn&apos;t been published by the organizer yet. As soon as the link goes live, it will activate here and you will be notified via email & SMS.
+                                </p>
+                                {virtualInstructions && (
+                                    <div className="w-full bg-zinc-100 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5 text-left mt-2">
+                                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1">Pre-event Instructions</span>
+                                        <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium whitespace-pre-wrap leading-relaxed">{virtualInstructions}</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )
+                    ) : (
+                        <motion.div variants={item} className="flex flex-col items-center">
+                            <div className="p-1 rounded-[32px] bg-gradient-to-br from-zinc-200 via-white to-zinc-200 dark:from-zinc-800 dark:via-zinc-700 dark:to-zinc-800 shadow-xl">
+                                <div className="bg-white p-5 rounded-[28px] overflow-hidden">
+                                    <Image
+                                        src={qrCodeUrl}
+                                        width={160}
+                                        height={160}
+                                        alt="QR"
+                                        className="w-40 h-40 mix-blend-multiply"
+                                        unoptimized
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <div className="mt-5 text-center px-4">
-                            <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.4em] mb-3">
-                                {ticket.id.substring(0, 12).toUpperCase()}
-                            </p>
-                            <div className="bg-zinc-100 dark:bg-white/5 px-4 py-2 rounded-2xl inline-flex items-center gap-2">
-                                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                                <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">Entry Verified</span>
+                            <div className="mt-5 text-center px-4">
+                                <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.4em] mb-3">
+                                    {ticket.id.substring(0, 12).toUpperCase()}
+                                </p>
+                                <div className="bg-zinc-100 dark:bg-white/5 px-4 py-2 rounded-2xl inline-flex items-center gap-2">
+                                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                    <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">Entry Verified</span>
+                                </div>
                             </div>
-                        </div>
-                    </motion.div>
+                        </motion.div>
+                    )}
 
                     {/* Timeline & Location */}
                     <motion.div variants={item} className="space-y-4 pt-2 border-t border-zinc-100 dark:border-white/5">

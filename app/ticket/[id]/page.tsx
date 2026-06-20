@@ -120,6 +120,9 @@ export default async function PublicTicketPage({ params }: Props) {
                     tierName={tier.name}
                     logoUrl={event.organizers?.logo_url}
                     isPrint={false}
+                    isVirtual={tier.is_virtual}
+                    virtualLink={tier.virtual_link}
+                    virtualInstructions={tier.virtual_instructions}
                 />
 
                 {/* 2. Hidden Ticket for Print */}
@@ -139,6 +142,9 @@ export default async function PublicTicketPage({ params }: Props) {
                             tierName={tier.name}
                             logoUrl={event.organizers?.logo_url}
                             isPrint={true}
+                            isVirtual={tier.is_virtual}
+                            virtualLink={tier.virtual_link}
+                            virtualInstructions={tier.virtual_instructions}
                         />
                     </div>
                 </div>

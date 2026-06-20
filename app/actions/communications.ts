@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { sendVirtualLinkEmail } from '@/utils/email'
 
 interface SMSResponse {
     success: boolean
@@ -221,5 +222,142 @@ async function sendViaZend(apiKey: string, senderId: string, to: string, message
     } catch (e: any) {
         console.error('Zend API exception:', e)
         return { success: false, error: e.message }
+    }
+}
+
+export async function notifyAttendeesOfVirtualLink(params: {
+    tierId: string
+    eventId: string
+    virtualLink: string
+    virtualInstructions?: string | null
+}): Promise<{ success: boolean; sentEmailCount: number; sentSMSCount: number; error?: string }> {
+    const supabase = await createClient()
+
+    // 1. Verify caller is authorized (Admin of event or creator)
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+        return { success: false, sentEmailCount: 0, sentSMSCount: 0, error: 'Unauthorized' }
+    }
+
+    // Get event and organization details
+    const { data: event, error: eventError } = await supabase
+        .schema('gatepass')
+        .from('events')
+        .select('title, poster_url, organization_id, organizer_id')
+        .eq('id', params.eventId)
+        .single()
+
+    if (eventError || !event) {
+        return { success: false, sentEmailCount: 0, sentSMSCount: 0, error: eventError?.message || 'Event not found' }
+    }
+
+    // Verify creator or staff check
+    const isOwner = event.organizer_id === user.id
+    if (!isOwner) {
+        // Check if super admin
+        const { data: profile } = await supabase
+            .schema('gatepass')
+            .from('profiles')
+            .select('is_super_admin')
+            .eq('id', user.id)
+            .single()
+
+        if (!profile?.is_super_admin) {
+            // Check if organization staff
+            const { data: staff } = await supabase
+                .schema('gatepass')
+                .from('organization_team')
+                .select('id')
+                .eq('organization_id', event.organization_id)
+                .eq('user_id', user.id)
+                .maybeSingle()
+
+            if (!staff) {
+                return { success: false, sentEmailCount: 0, sentSMSCount: 0, error: 'Forbidden: You do not manage this event' }
+            }
+        }
+    }
+
+    // 2. Fetch all confirmed reservations for this tier
+    const { data: reservations, error: resError } = await supabase
+        .schema('gatepass')
+        .from('reservations')
+        .select(`
+            id,
+            guest_name,
+            guest_email,
+            guest_phone,
+            profiles:user_id (
+                full_name,
+                email
+            )
+        `)
+        .eq('tier_id', params.tierId)
+        .eq('status', 'confirmed')
+
+    if (resError) {
+        return { success: false, sentEmailCount: 0, sentSMSCount: 0, error: resError.message }
+    }
+
+    if (!reservations || reservations.length === 0) {
+        return { success: true, sentEmailCount: 0, sentSMSCount: 0 }
+    }
+
+    let sentEmailCount = 0
+    let sentSMSCount = 0
+
+    // Loop through reservations and dispatch email / SMS
+    for (const res of reservations) {
+        const profile = res.profiles as any
+        const customerName = profile?.full_name || res.guest_name || 'Attendee'
+        const targetEmail = profile?.email || res.guest_email
+        const targetPhone = res.guest_phone
+
+        // Send Email
+        if (targetEmail) {
+            try {
+                await sendVirtualLinkEmail({
+                    to: targetEmail,
+                    eventName: event.title,
+                    customerName,
+                    virtualLink: params.virtualLink,
+                    virtualInstructions: params.virtualInstructions,
+                    posterUrl: event.poster_url
+                })
+                sentEmailCount++
+            } catch (err: any) {
+                console.error(`Failed to send email to ${targetEmail}:`, err.message)
+            }
+        }
+
+        // Send SMS (if phone present and organization SMS settings are configured)
+        if (targetPhone && event.organization_id) {
+            try {
+                // Formatting custom SMS message for the livestream link
+                let smsMsg = `Your livestream link for ${event.title} is ready! Join here: ${params.virtualLink}`
+                if (params.virtualInstructions) {
+                    const passSnippet = ` Passcode: ${params.virtualInstructions}`
+                    if ((smsMsg.length + passSnippet.length) <= 160) {
+                        smsMsg += passSnippet
+                    }
+                }
+                const smsResult = await sendManualSMS({
+                    to: targetPhone,
+                    message: smsMsg,
+                    organizationId: event.organization_id
+                })
+                if (smsResult.success) {
+                    sentSMSCount++
+                }
+            } catch (err: any) {
+                console.error(`Failed to send SMS to ${targetPhone}:`, err.message)
+            }
+        }
+    }
+
+    return {
+        success: true,
+        sentEmailCount,
+        sentSMSCount
     }
 }

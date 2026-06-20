@@ -344,6 +344,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             if (intent < 0) return prev
 
             const tier = tiers.find(t => t.id === tierId)
+            if (tier?.is_virtual && intent > 1) {
+                toast.error('Virtual / Remote access tickets are limited to 1 per order')
+                return prev
+            }
             if (tier?.max_per_order && intent > tier.max_per_order) {
                 toast.error(`Limit of ${tier.max_per_order} tickets per order`)
                 return prev
@@ -1268,7 +1272,7 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                 <span className={`font-bold text-lg min-w-[20px] text-center ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>{qty}</span>
                 <button
                     onClick={() => onQuantityChange(tier.id, 1)}
-                    disabled={isSoldOut}
+                    disabled={isSoldOut || (tier.is_virtual && qty >= 1)}
                     className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                 >
                     +

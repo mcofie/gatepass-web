@@ -4,9 +4,8 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { TicketTierCard } from './TicketTierCard'
 import { toast } from 'sonner'
-import { TicketTier, Event } from '@/types/gatepass'
+import { TicketTier, Event, PaymentPlan } from '@/types/gatepass'
 import { createClient } from '@/utils/supabase/client'
-import { formatCurrency } from '@/utils/format'
 
 interface TicketsTabProps {
     event: Event
@@ -30,9 +29,12 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
         tags: string[],
         min_quantity: number | '',
         discount_value: number | '',
-        discount_type: 'percentage' | 'fixed' | ''
+        discount_type: 'percentage' | 'fixed' | '',
+        is_virtual: boolean,
+        virtual_link: string,
+        virtual_instructions: string
     }>({
-        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: ''
+        name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: '', is_virtual: false, virtual_link: '', virtual_instructions: ''
     })
 
     const [newPerk, setNewPerk] = useState('')
@@ -66,13 +68,16 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                     name: tierForm.name,
                     price: tierForm.price,
                     total_quantity: tierForm.total_quantity,
-                    max_per_order: tierForm.max_per_order,
+                    max_per_order: tierForm.is_virtual ? 1 : tierForm.max_per_order,
                     description: tierForm.description,
                     perks: tierForm.perks,
                     tags: tierForm.tags,
                     min_quantity: tierForm.min_quantity === '' ? null : tierForm.min_quantity,
                     discount_value: tierForm.discount_value === '' ? null : tierForm.discount_value,
-                    discount_type: tierForm.discount_type === '' ? null : tierForm.discount_type
+                    discount_type: tierForm.discount_type === '' ? null : tierForm.discount_type,
+                    is_virtual: tierForm.is_virtual,
+                    virtual_link: tierForm.is_virtual ? (tierForm.virtual_link.trim() || null) : null,
+                    virtual_instructions: tierForm.is_virtual ? (tierForm.virtual_instructions.trim() || null) : null
                 })
                 .select()
                 .single()
@@ -80,19 +85,19 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
             if (data) {
                 // Optimistic update or refetch
                 onTiersUpdate([...tiers, data])
-                setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: '' })
+                setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: '', is_virtual: false, virtual_link: '', virtual_instructions: '' })
                 toast.success('Ticket tier created')
             } else {
                 toast.error(error?.message)
             }
-        } catch (e: any) {
-            toast.error(e.message)
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : 'An error occurred')
         } finally {
             setCreatingTier(false)
         }
     }
 
-    const handleUpdateTier = async (tierId: string, updatedData: any) => {
+    const handleUpdateTier = async (tierId: string, updatedData: Partial<TicketTier> & { _instalmentConfig?: Partial<PaymentPlan> | null }) => {
         // Extract instalment config (not a DB column on ticket_tiers)
         const { _instalmentConfig, ...tierData } = updatedData
 
@@ -159,9 +164,9 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                             console.log('[Payment Plan] Created successfully')
                         }
                     }
-                } catch (e: any) {
+                } catch (e: unknown) {
                     console.error('[Payment Plan] Exception:', e)
-                    toast.error(`Payment plan error: ${e.message}`)
+                    toast.error(`Payment plan error: ${e instanceof Error ? e.message : 'Unknown error'}`)
                 }
             } else if (tierData.allow_instalments === false) {
                 // Deactivate existing plans if instalments are turned off
@@ -291,12 +296,51 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                     <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Max / Order</label>
                                     <input
                                         type="number"
-                                        value={tierForm.max_per_order}
+                                        disabled={tierForm.is_virtual}
+                                        value={tierForm.is_virtual ? 1 : tierForm.max_per_order}
                                         onChange={e => setTierForm({ ...tierForm, max_per_order: parseInt(e.target.value) })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white disabled:opacity-50"
                                         placeholder="10"
                                     />
                                 </div>
+                            </div>
+
+                            {/* Virtual Ticket / Livestream Options */}
+                            <div className="border-t border-gray-100 dark:border-white/10 pt-4 space-y-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={tierForm.is_virtual}
+                                        onChange={e => setTierForm({ ...tierForm, is_virtual: e.target.checked })}
+                                        className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-indigo-600 focus:ring-indigo-500/20"
+                                    />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white">
+                                        Virtual / Remote Access Ticket
+                                    </span>
+                                </label>
+
+                                {tierForm.is_virtual && (
+                                    <div className="space-y-3 bg-zinc-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Livestream URL</label>
+                                            <input
+                                                value={tierForm.virtual_link}
+                                                onChange={e => setTierForm({ ...tierForm, virtual_link: e.target.value })}
+                                                className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white placeholder:font-medium"
+                                                placeholder="e.g. YouTube Live, Zoom link"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Streaming Instructions</label>
+                                            <textarea
+                                                value={tierForm.virtual_instructions}
+                                                onChange={e => setTierForm({ ...tierForm, virtual_instructions: e.target.value })}
+                                                className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-medium text-gray-900 dark:text-white min-h-[60px] resize-none"
+                                                placeholder="e.g. Zoom passcode, access start times..."
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Quantity Discount */}
@@ -319,7 +363,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                             <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Discount Type</label>
                                             <select
                                                 value={tierForm.discount_type}
-                                                onChange={e => setTierForm({ ...tierForm, discount_type: e.target.value as any })}
+                                                onChange={e => setTierForm({ ...tierForm, discount_type: e.target.value as 'percentage' | 'fixed' | '' })}
                                                 className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
                                             >
                                                 <option value="">None</option>

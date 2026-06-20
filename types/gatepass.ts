@@ -80,6 +80,9 @@ export interface TicketTier {
     min_quantity?: number | null
     discount_value?: number | null
     discount_type?: 'percentage' | 'fixed' | null
+    is_virtual?: boolean
+    virtual_link?: string | null
+    virtual_instructions?: string | null
 }
 
 export interface Ticket {
@@ -125,7 +128,7 @@ export interface Reservation {
     guest_name?: string
     guest_email?: string
     addons?: Record<string, number> // Map of AddonID -> Quantity
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
 }
 
 export interface Discount {
