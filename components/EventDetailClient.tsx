@@ -16,7 +16,6 @@ import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 
 import { createReservation } from '@/utils/gatepass'
-import { WaitlistModal } from '@/components/WaitlistModal'
 import { trackConversion } from '@/components/TrackingScripts'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -84,7 +83,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
     const [reservations, setReservations] = useState<any[]>([])
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
-    const [isWaitlistOpen, setIsWaitlistOpen] = useState(false)
 
     // Discount State
     const [promoCode, setPromoCode] = useState('')
@@ -861,14 +859,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         />
                     </div>
                 )}
-
-                <WaitlistModal
-                    isOpen={isWaitlistOpen}
-                    onClose={() => setIsWaitlistOpen(false)}
-                    eventId={event.id}
-                    tierId={null}
-                    tierName={null}
-                />
             </motion.div>
         </>
     )
@@ -1139,13 +1129,14 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                 </div>
             </div>
 
-            <button
-                disabled={event.sales_enabled === false}
-                onClick={onGetTickets}
-                style={event.sales_enabled === false ? { backgroundColor: '#3f3f46', color: '#a1a1aa' } : { backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
-                className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'} ${event.sales_enabled === false ? 'cursor-not-allowed opacity-75' : ''}`}>
-                {event.sales_enabled === false ? 'Ticketing Closed' : 'Get Tickets'}
-            </button>
+            {event.sales_enabled !== false && (
+                <button
+                    onClick={onGetTickets}
+                    style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
+                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                    Get Tickets
+                </button>
+            )}
             <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
                 <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
             </div>

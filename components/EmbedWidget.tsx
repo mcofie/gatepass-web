@@ -924,20 +924,18 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
             {/* Footer Action */}
             <div>
-                <motion.button
-                    disabled={event.sales_enabled === false}
-                    whileTap={event.sales_enabled === false ? undefined : { scale: 0.98 }}
-                    onClick={() => {
-                        setView('tickets')
-                    }}
-                    style={event.sales_enabled === false ? { backgroundColor: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#71717a' : '#a1a1aa' } : { backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
-                    className={cn(
-                        "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg",
-                        event.sales_enabled === false && "cursor-not-allowed opacity-60"
-                    )}
-                >
-                    {event.sales_enabled === false ? 'Ticketing Closed' : 'Get Tickets'}
-                </motion.button>
+                {event.sales_enabled !== false && (
+                    <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                            setView('tickets')
+                        }}
+                        style={{ backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
+                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg"
+                    >
+                        Get Tickets
+                    </motion.button>
+                )}
                 <div className="flex justify-end mt-3">
                     <span className={cn("text-[10px] font-medium", isDark ? "text-zinc-600" : "text-gray-500")}>Powered by GatePass</span>
                 </div>
