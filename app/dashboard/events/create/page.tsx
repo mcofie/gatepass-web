@@ -47,6 +47,8 @@ export default function CreateEventPage() {
         longitude: null as number | null,
         slug: '',
         fee_bearer: 'customer' as 'customer' | 'organizer',
+        payment_gateway: 'paystack' as 'paystack',
+        sales_enabled: true,
         platform_fee_percent: PLATFORM_FEE_PERCENT,
         organization_id: '',
         primary_color: '#000000',

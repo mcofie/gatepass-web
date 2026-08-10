@@ -48,9 +48,10 @@ interface CheckoutClientProps {
     feeRates?: FeeRates
     discount?: any
     availableAddons?: EventAddon[]
+    paymentGateway?: 'paystack'
 }
 
-export function CheckoutClient({ reservation, feeRates, discount, availableAddons = [] }: CheckoutClientProps) {
+export function CheckoutClient({ reservation, feeRates, discount, availableAddons = [], paymentGateway = 'paystack' }: CheckoutClientProps) {
     const router = useRouter()
     const supabase = createClient()
     const [paying, setPaying] = useState(false)
@@ -155,7 +156,7 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
     const calculatedFee = clientFees
     const paymentTotal = customerTotal
 
-    const handlePaystack = async () => {
+    const handlePayment = async () => {
         if (isGuest) {
             if (!guestForm.firstName || !guestForm.lastName || !guestForm.email || !guestForm.phone) {
                 toast.error('Please fill in all guest details.')
@@ -190,6 +191,11 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
             toast.error('Failed to save order details. Please try again.')
             return
         }
+
+        await handlePaystackPayment()
+    }
+
+    const handlePaystackPayment = async () => {
         // @ts-ignore
         const PaystackPop = window.PaystackPop
 
@@ -524,7 +530,7 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
 
                             <div className="mt-8">
                                 <Button
-                                    onClick={handlePaystack}
+                                    onClick={handlePayment}
                                     disabled={paying}
                                     className="w-full h-14 text-lg bg-white text-black hover:bg-gray-200 font-bold shadow-xl shadow-white/10 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
                                 >

@@ -17,9 +17,11 @@ export interface Event {
     social_twitter?: string
     social_facebook?: string
     is_published: boolean
+    sales_enabled?: boolean
     organizer_id: string // This is the user_id (Creator)
     organization_id?: string // This is the profile/brand
     fee_bearer: 'customer' | 'organizer'
+    payment_gateway?: 'paystack'
     platform_fee_percent: number
     organizers?: Organizer
     is_featured?: boolean

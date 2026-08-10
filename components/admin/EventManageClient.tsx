@@ -309,7 +309,8 @@ export function EventManageClient({
                 platform_fee_percent: event.platform_fee_percent,
                 primary_color: event.primary_color,
                 lineup: event.lineup,
-                publish_at: event.publish_at || null
+                publish_at: event.publish_at || null,
+                sales_enabled: event.sales_enabled ?? true
             }).eq('id', event.id)
 
             if (error) throw error
@@ -1857,6 +1858,27 @@ export function EventManageClient({
                                         </div>
                                     </div>
 
+                                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
+                                        <div className="flex flex-col">
+                                            <span className="font-medium text-gray-300">Ticket Sales</span>
+                                            <span className="text-[10px] text-gray-500 font-normal">Enable checkout or show waitlist</span>
+                                        </div>
+                                        <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
+                                            <input
+                                                type="checkbox"
+                                                name="sales_toggle"
+                                                id="sales"
+                                                checked={event.sales_enabled ?? true}
+                                                onChange={e => {
+                                                    setEvent({ ...event, sales_enabled: e.target.checked })
+                                                }}
+                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
+                                                style={{ right: (event.sales_enabled ?? true) ? '0' : 'auto', left: (event.sales_enabled ?? true) ? 'auto' : '0' }}
+                                            />
+                                            <label htmlFor="sales" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${(event.sales_enabled ?? true) ? 'bg-green-500' : 'bg-gray-600'}`}></label>
+                                        </div>
+                                    </div>
+
                                     {/* Scheduled Publishing */}
                                     {!event.is_published && (
                                         <div className="mt-4 pt-4 border-t border-white/10">
@@ -2028,7 +2050,7 @@ export function EventManageClient({
                                             If &apos;Customer Pays&apos;, fees are added to the ticket price. If &apos;Absorb&apos;, fees are deducted from your earnings.
                                         </p>
                                     </div>
-                                </div>
+                                    </div>
 
                                 {/* Socials */}
                                 <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">

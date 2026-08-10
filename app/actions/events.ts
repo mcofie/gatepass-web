@@ -66,8 +66,10 @@ export async function duplicateEvent(eventId: string) {
             social_facebook: originalEvent.social_facebook,
             primary_color: originalEvent.primary_color,
             fee_bearer: originalEvent.fee_bearer,
+            payment_gateway: originalEvent.payment_gateway || 'paystack',
             platform_fee_percent: originalEvent.platform_fee_percent,
             lineup: originalEvent.lineup,
+            sales_enabled: originalEvent.sales_enabled ?? true,
         })
         .select()
         .single()

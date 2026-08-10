@@ -419,10 +419,11 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             const verifyPayment = async () => {
                 setVerifying(true)
                 try {
-                    const response = await fetch('/api/paystack/verify', {
+                    const gateway = event.payment_gateway || 'paystack'
+                    const response = await fetch('/api/payments/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ reference, reservationId: reference })
+                        body: JSON.stringify({ reference, reservationId: reference, gateway })
                     })
                     const result = await response.json()
 
@@ -619,10 +620,11 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
     const handlePaymentSuccess = async (reference: string) => {
         setLoading(true)
         try {
-            const response = await fetch('/api/paystack/verify', {
+            const gateway = event.payment_gateway || 'paystack'
+            const response = await fetch('/api/payments/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference, reservationId: reference })
+                body: JSON.stringify({ reference, reservationId: reference, gateway })
             })
             const result = await response.json()
 
@@ -656,7 +658,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
             const primaryTier = tiers.find(t => t.id === reservations[0].ticket_tier_id)
 
-            const response = await fetch('/api/paystack/initialize', {
+            const response = await fetch('/api/payments/initialize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -672,7 +674,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
 
             // POPUP CHECKOUT
-            if (typeof window !== 'undefined' && (window as any).PaystackPop) {
+            if (typeof window !== 'undefined' && (window as any).PaystackPop && (event.payment_gateway || 'paystack') === 'paystack') {
                 const handler = (window as any).PaystackPop.setup({
                     key: process.env.NEXT_PUBLIC_PAYSTACK_KEY,
                     email: guestEmail,
@@ -923,12 +925,18 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             {/* Footer Action */}
             <div>
                 <motion.button
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setView('tickets')}
-                    style={{ backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
-                    className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg"
+                    disabled={event.sales_enabled === false}
+                    whileTap={event.sales_enabled === false ? undefined : { scale: 0.98 }}
+                    onClick={() => {
+                        setView('tickets')
+                    }}
+                    style={event.sales_enabled === false ? { backgroundColor: isDark ? '#27272a' : '#f4f4f5', color: isDark ? '#71717a' : '#a1a1aa' } : { backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
+                    className={cn(
+                        "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all shadow-lg",
+                        event.sales_enabled === false && "cursor-not-allowed opacity-60"
+                    )}
                 >
-                    Get Tickets
+                    {event.sales_enabled === false ? 'Ticketing Closed' : 'Get Tickets'}
                 </motion.button>
                 <div className="flex justify-end mt-3">
                     <span className={cn("text-[10px] font-medium", isDark ? "text-zinc-600" : "text-gray-500")}>Powered by GatePass</span>
@@ -936,6 +944,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             </div>
         </motion.div>
     )
+
 
     const renderTickets = () => {
         const { total } = calculateFinancials()
@@ -1532,6 +1541,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 {view === 'checkout' && renderCheckout()}
                 {view === 'summary' && renderSummary()}
                 {view === 'success' && renderSuccess()}
+
             </AnimatePresence>
             <Toaster position="bottom-center" richColors closeButton />
         </div>

@@ -12,7 +12,7 @@ export type PaymentResult = {
     error?: string
 }
 
-export async function processSuccessfulPayment(reference: string, reservationId?: string | string[], transactionData?: any, addons?: Record<string, number>): Promise<PaymentResult> {
+export async function processSuccessfulPayment(reference: string, reservationId?: string | string[], transactionData?: any, addons?: Record<string, number>, gateway?: 'paystack'): Promise<PaymentResult> {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!serviceRoleKey) {
         console.error('CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing.')

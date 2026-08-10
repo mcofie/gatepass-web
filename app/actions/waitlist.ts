@@ -5,21 +5,27 @@ import { createClient } from '@/utils/supabase/server'
 /**
  * Add a user to the waitlist for a sold-out tier
  */
-export async function joinWaitlist(eventId: string, tierId: string, email: string, name: string) {
+export async function joinWaitlist(eventId: string, tierId: string | undefined, email: string, name: string) {
     const supabase = await createClient()
 
     // Check if already on waitlist
-    const { data: existing } = await supabase
+    let query = supabase
         .schema('gatepass')
         .from('waitlist')
         .select('id')
         .eq('event_id', eventId)
-        .eq('tier_id', tierId)
         .eq('email', email.toLowerCase())
-        .single()
+
+    if (tierId) {
+        query = query.eq('tier_id', tierId)
+    } else {
+        query = query.is('tier_id', null)
+    }
+
+    const { data: existing } = await query.maybeSingle()
 
     if (existing) {
-        return { error: 'You are already on the waitlist for this ticket' }
+        return { error: tierId ? 'You are already on the waitlist for this ticket' : 'You are already on the waitlist for this event' }
     }
 
     // Add to waitlist
@@ -28,7 +34,7 @@ export async function joinWaitlist(eventId: string, tierId: string, email: strin
         .from('waitlist')
         .insert({
             event_id: eventId,
-            tier_id: tierId,
+            tier_id: tierId || null,
             email: email.toLowerCase(),
             name: name
         })

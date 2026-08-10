@@ -8,8 +8,8 @@ interface WaitlistModalProps {
     isOpen: boolean
     onClose: () => void
     eventId: string
-    tierId: string
-    tierName: string
+    tierId?: string | null
+    tierName?: string | null
 }
 
 export function WaitlistModal({ isOpen, onClose, eventId, tierId, tierName }: WaitlistModalProps) {
@@ -24,7 +24,7 @@ export function WaitlistModal({ isOpen, onClose, eventId, tierId, tierName }: Wa
         setLoading(true)
         setError('')
 
-        const result = await joinWaitlist(eventId, tierId, email, name)
+        const result = await joinWaitlist(eventId, tierId || undefined, email, name)
 
         if (result.error) {
             setError(result.error)
@@ -62,7 +62,7 @@ export function WaitlistModal({ isOpen, onClose, eventId, tierId, tierName }: Wa
                         <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">You&apos;re on the list!</h3>
                         <p className="text-gray-500 dark:text-gray-400 mb-6">
-                            We&apos;ll notify you at <strong>{email}</strong> when more tickets become available.
+                            We&apos;ll notify you at <strong>{email}</strong> {tierId ? 'when more tickets become available.' : 'when sales go live.'}
                         </p>
                         <button
                             onClick={handleClose}
@@ -79,7 +79,11 @@ export function WaitlistModal({ isOpen, onClose, eventId, tierId, tierName }: Wa
                             </div>
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Join the Waitlist</h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                <strong>{tierName}</strong> tickets are sold out. Get notified when more become available.
+                                {tierId ? (
+                                    <><strong>{tierName}</strong> tickets are sold out. Get notified when more become available.</>
+                                ) : (
+                                    <>Ticket sales are currently paused. Get notified immediately when sales resume!</>
+                                )}
                             </p>
                         </div>
 
