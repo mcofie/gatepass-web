@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Sparkles, ArrowRight, ArrowLeft, Globe, Twitter, Instagram, Building2, CreditCard, CheckCircle2, Upload } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MediaUploader } from '@/components/admin/MediaUploader'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 
 export default function OnboardingPage() {
     const [step, setStep] = useState(1)
@@ -108,9 +109,7 @@ export default function OnboardingPage() {
             {/* Minimal Header */}
             <div className="p-6 flex justify-between items-center z-10">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-black dark:bg-white rounded-lg flex items-center justify-center text-white dark:text-black font-bold text-xs">
-                        GP
-                    </div>
+                    <GatePassMark className="size-8" />
                 </div>
                 <button onClick={handleLogout} className="text-sm font-medium text-gray-500 hover:text-foreground transition-colors">
                     Log out

@@ -81,13 +81,15 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
             {!forcePause && videoUrl && (
                 <button
                     onClick={toggleAudio}
-                    className="absolute top-6 right-6 z-20 w-10 h-10 bg-black/30 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white/90 hover:bg-black/50 hover:scale-105 transition-all active:scale-95 group"
+                    type="button"
+                    aria-pressed={!isMuted}
+                    className="absolute top-4 right-4 md:top-8 md:right-8 z-20 w-9 h-9 bg-white/95 backdrop-blur-md border border-black/5 rounded-full shadow-sm flex items-center justify-center text-black hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
                     aria-label={isMuted ? "Unmute video" : "Mute video"}
                 >
                     {isMuted ? (
-                        <VolumeX className="w-4 h-4" />
+                        <VolumeX aria-hidden="true" className="w-4 h-4" />
                     ) : (
-                        <Volume2 className="w-4 h-4" />
+                        <Volume2 aria-hidden="true" className="w-4 h-4" />
                     )}
                 </button>
             )}

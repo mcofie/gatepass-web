@@ -26,6 +26,7 @@ import type { User } from '@supabase/supabase-js'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrgSwitchOverlay } from '@/components/ui/OrgSwitchOverlay'
 import { AnimatePresence } from 'framer-motion'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 
 export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
     const pathname = usePathname()
@@ -240,9 +241,11 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             {/* Mobile Header Trigger */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a0a0a] z-40 flex items-center justify-between px-6 border-b border-[#1a1a1a]">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black font-bold">
-                        {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
-                    </div>
+                    {orgDetails?.name ? (
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black font-bold">
+                            {orgDetails.name.charAt(0).toUpperCase()}
+                        </div>
+                    ) : <GatePassMark className="size-8 invert" invertOnDark={false} />}
                     <span className="font-bold text-white tracking-tight">GatePass</span>
                 </div>
                 <button
@@ -286,9 +289,11 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     ) : (
                         <div className="flex items-center gap-2">
                             <Link href="/dashboard" className="flex items-center gap-3 group flex-1">
-                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
-                                    {orgDetails?.name ? orgDetails.name.charAt(0).toUpperCase() : 'G'}
-                                </div>
+                                {orgDetails?.name ? (
+                                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
+                                        {orgDetails.name.charAt(0).toUpperCase()}
+                                    </div>
+                                ) : <GatePassMark className="size-10 invert transition-transform group-hover:scale-105" invertOnDark={false} />}
                                 <div>
                                     <h1 className="font-bold tracking-tight text-lg leading-tight">
                                         {orgDetails?.name || 'GatePass.'}

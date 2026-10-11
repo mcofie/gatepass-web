@@ -3,6 +3,8 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* A neutral, compact sans stack inspired by X Money's Chirp typography. */
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   /* Colors - Modern Premium Palette */
   --color-background-light: #ffffff;
   --color-background-dark: #09090b;
@@ -131,7 +133,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

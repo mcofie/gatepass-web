@@ -12,6 +12,8 @@ export interface PhoneInputProps {
     error?: boolean
     disabled?: boolean
     id?: string
+    'aria-describedby'?: string
+    variant?: 'default' | 'minimal'
 }
 
 export const COUNTRIES = [
@@ -88,7 +90,7 @@ export function parsePhoneNumber(value: string | undefined | null) {
     }
 }
 
-export function PhoneInput({ value, onChange, onBlur, placeholder, className, error, disabled, id }: PhoneInputProps) {
+export function PhoneInput({ value, onChange, onBlur, placeholder, className, error, disabled, id, variant = 'default', 'aria-describedby': ariaDescribedBy }: PhoneInputProps) {
     const { countryCode, localNumber } = parsePhoneNumber(value)
     
     const hasCountry = COUNTRIES.some(c => c.code === countryCode)
@@ -116,18 +118,26 @@ export function PhoneInput({ value, onChange, onBlur, placeholder, className, er
     
     return (
         <div className={cn(
-            "flex w-full rounded-2xl border border-input bg-transparent text-sm shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring focus-within:outline-none focus-within:ring-foreground/5",
-            "border-border bg-surface/50 focus-within:bg-background focus-within:border-foreground",
-            error && "border-red-400/60 ring-2 ring-red-400/20 focus-within:border-red-500 focus-within:ring-red-500",
+            "flex w-full text-sm transition-colors focus-within:outline-none",
+            variant === 'minimal'
+                ? "h-11 rounded-lg border border-gray-200 bg-white focus-within:border-black focus-within:ring-2 focus-within:ring-black/5 dark:border-zinc-700 dark:bg-zinc-900 dark:focus-within:border-white dark:focus-within:ring-white/10"
+                : "rounded-2xl border border-input bg-transparent shadow-sm focus-within:ring-1 focus-within:ring-ring focus-within:ring-foreground/5 border-border bg-surface/50 focus-within:bg-background focus-within:border-foreground",
+            error && (variant === 'minimal'
+                ? "border-red-400 focus-within:border-red-500 focus-within:ring-red-500/10"
+                : "border-red-400/60 ring-2 ring-red-400/20 focus-within:border-red-500 focus-within:ring-red-500"),
             disabled && "opacity-50 cursor-not-allowed",
             className
         )}>
             {/* Country Selector dropdown */}
-            <div className="flex items-center px-3 border-r border-border bg-black/5 dark:bg-white/5 rounded-l-2xl shrink-0">
+            <div className={cn(
+                "flex items-center px-3 border-r border-border bg-black/5 dark:bg-white/5 shrink-0",
+                variant === 'minimal' ? "rounded-l-lg border-gray-200 dark:border-zinc-700 bg-transparent" : "rounded-l-2xl"
+            )}>
                 <select
                     value={countryCode}
                     onChange={handleCountryChange}
                     disabled={disabled}
+                    aria-label="Country calling code"
                     className="bg-transparent border-0 text-sm font-semibold text-foreground focus:ring-0 focus:outline-none cursor-pointer pr-1"
                     style={{ WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none' }}
                 >
@@ -150,8 +160,13 @@ export function PhoneInput({ value, onChange, onBlur, placeholder, className, er
                 onChange={handlePhoneChange}
                 onBlur={onBlur}
                 disabled={disabled}
+                aria-describedby={ariaDescribedBy}
+                aria-invalid={error}
                 placeholder={placeholder || "20 123 4567"}
-                className="flex-1 h-12 px-4 bg-transparent border-0 text-foreground text-[16px] placeholder:text-muted-foreground font-medium focus:ring-0 focus:outline-none rounded-r-2xl"
+                className={cn(
+                    "flex-1 px-3 bg-transparent border-0 text-foreground placeholder:text-muted-foreground focus:ring-0 focus:outline-none",
+                    variant === 'minimal' ? "h-full rounded-r-lg text-[15px] font-normal" : "h-12 px-4 rounded-r-2xl text-[16px] font-medium"
+                )}
             />
         </div>
     )

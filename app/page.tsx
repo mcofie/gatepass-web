@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'GatePass | The Operating System for Modern Events',
     description: 'Discover and book exclusive events, parties, and experiences.',
+    url: '/',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'GatePass — discover events and get tickets' }],
     type: 'website',
     locale: 'en_US',
     siteName: 'GatePass',
@@ -22,6 +24,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'GatePass | The Operating System for Modern Events',
     description: 'Discover and book exclusive events, parties, and experiences.',
+    images: ['/opengraph-image'],
     creator: '@gatepass_io',
   }
 }

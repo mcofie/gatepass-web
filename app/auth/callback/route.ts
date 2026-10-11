@@ -20,9 +20,6 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/auth/auth-code-error?${params.toString()}`)
     }
 
-    // if "next" is in param, use it as the redirect URL
-    const next = searchParams.get('next') ?? '/dashboard'
-
     const supabase = await createClient()
 
     let session = null
@@ -48,8 +45,8 @@ export async function GET(request: Request) {
         console.log(`[Auth Callback] User logged in: ${user.email}`)
 
         // 1. Check for explicit path first
-        const explicitNext = searchParams.get('next') || searchParams.get('redirect')
-        if (explicitNext && explicitNext !== '/') {
+        const explicitNext = searchParams.get('next') || searchParams.get('redirect') || ''
+        if (explicitNext.startsWith('/') && !explicitNext.startsWith('//') && !explicitNext.includes('\\') && explicitNext !== '/') {
             console.log(`[Auth Callback] Honoring explicit return path: ${explicitNext}`)
             return NextResponse.redirect(`${origin}${explicitNext}`)
         }

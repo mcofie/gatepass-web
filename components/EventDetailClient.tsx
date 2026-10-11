@@ -11,9 +11,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
 import { Event, TicketTier, Discount, PaymentPlan, EventAddon, EventFormQuestion } from '@/types/gatepass'
-import { cn, getContrastColor, getComplementaryColor } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 
 import { createReservation } from '@/utils/gatepass'
 import { trackConversion } from '@/components/TrackingScripts'
@@ -25,7 +26,7 @@ import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronR
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl } from '@/utils/social'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 
 interface EventDetailClientProps {
     event: Event
@@ -77,6 +78,13 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [activePaymentPlan, setActivePaymentPlan] = useState<PaymentPlan | null>(null)
 
     const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+    const prefersReducedMotion = useReducedMotion()
+    const viewVariants = {
+        enter: (navDirection: 'forward' | 'back') => ({ opacity: 0, x: prefersReducedMotion ? 0 : navDirection === 'forward' ? 8 : -8 }),
+        center: { opacity: 1, x: 0 },
+        exit: (navDirection: 'forward' | 'back') => ({ opacity: 0, x: prefersReducedMotion ? 0 : navDirection === 'forward' ? -8 : 8 }),
+    }
+    const viewTransition = { duration: prefersReducedMotion ? 0.01 : 0.18, ease: 'easeOut' as const }
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
@@ -670,22 +678,26 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
 
     const hasTicketsSelected = Object.values(selectedTickets).some(q => q > 0)
-    const cheapestTier = tiers.length > 0 ? tiers[0] : null
+    const availableTiers = tiers.filter(tier => tier.quantity_sold < tier.total_quantity)
+    const priceTiers = availableTiers.length > 0 ? availableTiers : tiers
+    const cheapestTier = priceTiers.length > 0
+        ? priceTiers.reduce((cheapest, tier) => tier.price < cheapest.price ? tier : cheapest)
+        : null
     const isModalExpanded = view !== 'details'
 
     // Mobile Expansion Logic
-    const toggleExpand = () => {
-        if (view === 'details') {
+    const expandCard = () => {
+        if (view === 'details' && !isExpanded) {
             // Haptic Feedback
             if (typeof navigator !== 'undefined' && navigator.vibrate) {
                 navigator.vibrate(10) // Taptic-like light impact
             }
-            setIsExpanded(!isExpanded)
+            setIsExpanded(true)
         }
     }
 
     const cardHeightClass = (view === 'details' && !isExpanded)
-        ? 'max-h-[160px]' // Collapsed height: Compact for 1 line
+        ? 'max-h-[148px]'
         : 'max-h-[85vh]'     // Expanded height
 
     if (verifying) {
@@ -719,7 +731,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
                     onClick={() => {
-                        if (view === 'success') window.location.reload()
+                        if (view === 'success') {
+                            navigate('details', 'back')
+                            setIsExpanded(false)
+                        }
                         else if (view !== 'details') navigate('details', 'back')
                         else setIsExpanded(false) // Dismiss focus mode on mobile
                     }}
@@ -729,16 +744,13 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             {/* Floating Card / Modal Container */}
             <motion.div
                 layoutId={layoutId}
-                onClick={() => {
-                    // Always toggle expand, never navigate away
-                    toggleExpand()
-                }}
+                onClick={expandCard}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={`
                 ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl ${(view === 'details' || view === 'success') ? 'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]' : ''} font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
-                rounded-2xl flex flex-col ${(view === 'details' && !isExpanded) || view === 'summary' ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
+                rounded-[28px] flex flex-col ${(view === 'details' && !isExpanded) || view === 'summary' ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
                 ${cardHeightClass}
                 md:translate-x-0 md:translate-y-0 md:top-auto md:left-auto md:w-[360px] md:mb-0 md:max-h-[85vh]
                 md:bottom-12 md:right-12 p-4
@@ -746,22 +758,27 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 ${view === 'success' ? 'md:bottom-8 md:right-8 md:w-[380px]' : ''}
                 ${(view === 'details' && !isExpanded) ? 'cursor-pointer active:scale-[0.98]' : ''}
             `}>
+                <AnimatePresence mode="wait" initial={false} custom={direction}>
                 {view === 'details' && (
-                    <div className="animate-fade-in h-full">
-                        <DetailsView
-                            event={event}
-                            cheapestTier={cheapestTier}
-                            onGetTickets={(e: React.MouseEvent) => {
-                                e.stopPropagation(); // Prevent toggling when clicking button
-                                navigate('tickets', 'forward')
-                            }}
-                            isExpanded={isExpanded}
-                            isFeedItem={isFeedItem}
-                        />
-                    </div>
+                    <motion.div key="details" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                        {!isExpanded && <EventMobilePreview event={event} cheapestTier={cheapestTier} onExpand={expandCard} />}
+                        <div className={!isExpanded ? 'hidden md:block' : 'block'}>
+                            <DetailsView
+                                event={event}
+                                cheapestTier={cheapestTier}
+                                hasPartPay={tiers.some(tier => tier.allow_instalments && tier.payment_plans?.some(plan => plan.is_active))}
+                                onGetTickets={(e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    navigate('tickets', 'forward')
+                                }}
+                                isExpanded={isExpanded}
+                                isFeedItem={isFeedItem}
+                            />
+                        </div>
+                    </motion.div>
                 )}
                 {view === 'tickets' && (
-                    <div className="animate-fade-in h-full">
+                    <motion.div key="tickets" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <TicketsView
                             tiers={tiers}
                             selectedTickets={selectedTickets}
@@ -770,24 +787,22 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             onBack={() => navigate('details', 'back')}
                             total={calculatedTotal}
                             hasSelection={hasTicketsSelected}
-                            primaryColor={event.primary_color}
                         />
-                    </div>
+                    </motion.div>
                 )}
                 {view === 'addons' && (
-                    <div className="animate-fade-in h-full">
+                    <motion.div key="addons" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <AddonsView
                             availableAddons={filteredAddons}
                             selectedAddons={selectedAddons}
                             onAddonChange={handleAddonQuantityChange}
                             onContinue={() => navigate('checkout', 'forward')}
                             onBack={() => navigate('tickets', 'back')}
-                            primaryColor={event.primary_color}
                         />
-                    </div>
+                    </motion.div>
                 )}
                 {view === 'checkout' && (
-                    <div className="animate-fade-in h-full">
+                    <motion.div key="checkout" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <CheckoutFormView
                             guestName={guestName} setGuestName={setGuestName}
                             guestEmail={guestEmail} setGuestEmail={setGuestEmail}
@@ -801,13 +816,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             }}
                             onContinue={handleCreateReservation}
                             loading={loading}
-                            primaryColor={event.primary_color}
                             hasTicketsSelected={hasTicketsSelected}
                         />
-                    </div>
+                    </motion.div>
                 )}
                 {view === 'summary' && (
-                    <div className="animate-fade-in flex-1 min-h-0 flex flex-col h-full">
+                    <motion.div key="summary" className="flex-1 min-h-0 flex flex-col h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <SummaryView
                             event={event}
                             tiers={tiers}
@@ -825,7 +839,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             discount={discount}
                             discountError={discountError}
                             applyingDiscount={applyingDiscount}
-                            primaryColor={event.primary_color}
                             availableAddons={filteredAddons}
                             selectedAddons={selectedAddons}
                             addonSubtotal={addonSubtotal}
@@ -839,26 +852,23 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             feeBearer={event.fee_bearer as 'customer' | 'organizer'}
                             hasMultiTierInstalmentConflict={hasMultiTierInstalmentConflict}
                         />
-                    </div>
+                    </motion.div>
                 )}
-
-                {/* Tap Hint for Mobile Collapsed - Moved to main container for better visibility */}
-                {view === 'details' && !isExpanded && (
-                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-900 dark:via-zinc-900/95 flex flex-col justify-end items-center pb-6 md:hidden pointer-events-none z-20">
-                        <span className="text-[12px] font-bold text-black dark:text-white mb-1 tracking-wide uppercase shadow-sm">Tap for details</span>
-                        <ChevronDown className="w-5 h-5 text-black dark:text-white animate-bounce" />
-                    </div>
-                )}
-
                 {view === 'success' && purchasedTickets.length > 0 && (
-                    <div className="animate-scale-in">
+                    <motion.div key="success" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <SuccessView
                             event={event}
                             tickets={purchasedTickets}
                             tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
+                            onClose={() => {
+                                navigate('details', 'back')
+                                setIsExpanded(false)
+                            }}
                         />
-                    </div>
+                    </motion.div>
                 )}
+                </AnimatePresence>
+
             </motion.div>
         </>
     )
@@ -866,12 +876,83 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
 // Sub-components
 
-const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem }: { event: Event, cheapestTier: TicketTier | null, onGetTickets: (e: any) => void, isExpanded: boolean, isFeedItem?: boolean }) => {
+const EventMobilePreview = ({ event, cheapestTier, onExpand }: { event: Event, cheapestTier: TicketTier | null, onExpand: () => void }) => {
+    const startDate = new Date(event.starts_at)
+    const endDate = event.ends_at ? new Date(event.ends_at) : null
+    const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const dateLabel = endDate && startDate.toDateString() !== endDate.toDateString()
+        ? startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()
+            ? `${startLabel}–${endDate.getDate()}`
+            : `${startLabel}–${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        : startLabel
+    const venueLabel = event.venue_name || event.venue_address || 'Location to be announced'
+
+    return (
+        <div className="md:hidden">
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 flex-shrink-0 overflow-hidden relative">
+                        {event.logo_url ? (
+                            <Image src={event.logo_url} alt="" fill className="object-cover" />
+                        ) : (
+                            <span className="flex h-full items-center justify-center text-[10px] font-semibold text-gray-500">{event.title?.substring(0, 2).toUpperCase() || 'GP'}</span>
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-[16px] font-semibold leading-tight tracking-[-0.03em] text-black dark:text-white line-clamp-2">{event.title}</h2>
+                        <p className="text-[12px] leading-tight text-gray-500 dark:text-gray-400 truncate mt-0.5">{event.organizers?.name || 'GatePass Event'}</p>
+                    </div>
+                </div>
+                {cheapestTier && (
+                    <div className="flex-shrink-0 text-right">
+                        <span className="block text-[10px] leading-none text-gray-500 dark:text-gray-400">From</span>
+                        <span className="block mt-0.5 text-[16px] leading-tight font-semibold tracking-tight text-black dark:text-white tabular-nums">{formatCurrency(cheapestTier.price, cheapestTier.currency)}</span>
+                    </div>
+                )}
+            </div>
+            <div className="flex items-center justify-between gap-3 mt-3 pt-2.5 border-t border-gray-100 dark:border-zinc-800">
+                <span className="min-w-0 truncate text-[11px] text-gray-500 dark:text-gray-400">{dateLabel} · {venueLabel}</span>
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onExpand() }}
+                    aria-label={`View details for ${event.title}`}
+                    className="flex-shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold text-black dark:text-white rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white"
+                >
+                    View details <ChevronUp aria-hidden="true" className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </div>
+    )
+}
+
+const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded, isFeedItem }: { event: Event, cheapestTier: TicketTier | null, hasPartPay: boolean, onGetTickets: (e: any) => void, isExpanded: boolean, isFeedItem?: boolean }) => {
     const [activeSlide, setActiveSlide] = useState<'description' | 'host' | 'lineup'>('description')
+    const [showFullDescription, setShowFullDescription] = useState(false)
     const [contentHeight, setContentHeight] = useState<number | 'auto'>('auto')
     const descriptionRef = React.useRef<HTMLDivElement>(null)
     const hostInfoRef = React.useRef<HTMLDivElement>(null)
     const lineupRef = React.useRef<HTMLDivElement>(null)
+    const descriptionText = (event.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    const canExpandDescription = descriptionText.length > 145
+    const startDate = new Date(event.starts_at)
+    const endDate = event.ends_at ? new Date(event.ends_at) : null
+    const sameDay = endDate !== null && startDate.toDateString() === endDate.toDateString()
+    const sameMonth = endDate !== null && startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()
+    const sameYear = endDate !== null && startDate.getFullYear() === endDate.getFullYear()
+    const shortDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const time = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+    const dateLabel = !endDate || sameDay
+        ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : sameMonth
+            ? `${shortDate(startDate)}–${endDate.getDate()}, ${startDate.getFullYear()}`
+            : sameYear
+                ? `${shortDate(startDate)} – ${shortDate(endDate)}, ${startDate.getFullYear()}`
+                : `${shortDate(startDate)}, ${startDate.getFullYear()} – ${shortDate(endDate)}, ${endDate.getFullYear()}`
+    const timeLabel = !endDate
+        ? time(startDate)
+        : sameDay
+            ? `${time(startDate)} – ${time(endDate)}`
+            : `${startDate.toLocaleDateString('en-US', { weekday: 'short' })} ${time(startDate)} – ${endDate.toLocaleDateString('en-US', { weekday: 'short' })} ${time(endDate)}`
 
     // Dynamic Height Calculation
     useEffect(() => {
@@ -896,25 +977,25 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
         if (lineupRef.current) observer.observe(lineupRef.current)
 
         return () => observer.disconnect()
-    }, [activeSlide, event.description, isExpanded])
+    }, [activeSlide, event.description, isExpanded, showFullDescription])
 
     return (
-        <div className="animate-fade-in flex flex-col h-full">
+        <div className="animate-fade-in flex flex-col">
             {/* Header: Logo, Title, Host Name + Toggle, Price */}
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-3">
+            <div className="flex justify-between items-start gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                     {/* Organizer Logo */}
                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700 relative">
                         {event.logo_url ? (
-                            <Image src={event.logo_url} alt="Logo" fill className="object-cover" />
+                            <Image src={event.logo_url} alt="" fill className="object-cover" />
                         ) : (
                             <span className="text-[10px]">{event.title?.substring(0, 2).toUpperCase() || 'GP'}</span>
                         )}
                     </div>
 
                     {/* Title & Host Toggle */}
-                    <div>
-                        <h2 className="text-[17px] font-bold text-black dark:text-white leading-none tracking-tight mb-0.5">{event.title}</h2>
+                    <div className="min-w-0">
+                        <h2 className="text-[18px] font-semibold text-black dark:text-white leading-[1.12] tracking-[-0.035em] mb-1">{event.title}</h2>
 
                         {/* Interactive Host Name */}
                         <button
@@ -922,119 +1003,96 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                                 e.stopPropagation();
                                 setActiveSlide(activeSlide === 'host' ? 'description' : 'host');
                             }}
-                            className="flex items-center gap-0.5 group outline-none"
+                            className="flex items-center gap-0.5 group outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-sm"
+                            aria-label={`About ${event.organizers?.name || 'the organizer'}`}
+                            aria-expanded={activeSlide === 'host'}
                         >
-                            <p className="text-[12px] text-gray-500 dark:text-gray-400 font-medium group-hover:text-black dark:group-hover:text-white transition-colors">
+                            <p className="text-[13px] text-gray-500 dark:text-gray-400 font-medium group-hover:text-black dark:group-hover:text-white transition-colors">
                                 {event.organizers?.name || 'GatePass Event'}
                             </p>
                             <ChevronRight
-                                className={`w-3 h-3 text-gray-400 group-hover:text-black dark:group-hover:text-white transition-transform duration-300 ${activeSlide === 'host' ? 'rotate-90' : ''}`}
+                                className={`w-3.5 h-3.5 text-gray-400 group-hover:text-black dark:group-hover:text-white transition-transform duration-300 ${activeSlide === 'host' ? 'rotate-90' : ''}`}
                             />
                         </button>
                     </div>
                 </div>
                 {cheapestTier && (
-                    <div className="text-right flex flex-col items-end gap-1">
-                        <span className="block text-[16px] font-bold text-gray-400">
+                    <div className="text-right flex flex-col items-end gap-0.5 flex-shrink-0">
+                        <span className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-none">From</span>
+                        <span className="block text-[17px] font-semibold tracking-tight text-black dark:text-white leading-tight">
                             {formatCurrency(cheapestTier.price, cheapestTier.currency)}
                         </span>
-                        {event.payment_plans && event.payment_plans.some((p: any) => p.is_active) && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px] font-bold uppercase tracking-tight border border-amber-100 dark:border-amber-500/20 shadow-sm animate-in fade-in slide-in-from-right-1 duration-500">
-                                <CalendarClock className="w-2.5 h-2.5" />
-                                <span>Part-pay</span>
-                            </div>
+                        {hasPartPay && (
+                            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Part-pay available</span>
                         )}
                     </div>
                 )}
             </div>
 
             {/* Sliding Content Container */}
-            <div className={`transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${!isExpanded ? 'md:h-auto md:opacity-100' : 'opacity-100 h-auto'}`}>
+            <div className="overflow-hidden">
                 <div
-                    className="relative overflow-hidden w-full transition-[height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                    className="relative overflow-hidden w-full transition-[height] duration-300 ease-out motion-reduce:transition-none"
                     style={{ height: contentHeight === 'auto' ? 'auto' : `${contentHeight}px` }}
                 >
-                    {/* The Rail: Width 200% to hold both views side-by-side */}
                     <div
-                        className="flex transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform w-[200%] items-start"
+                        className="flex transition-transform duration-300 ease-out motion-reduce:transition-none w-[200%] items-start"
                         style={{ transform: activeSlide !== 'description' ? 'translateX(-50%)' : 'translateX(0)' }}
                     >
-                        {/* Slide 1: Event Description */}
-                        <div className="w-1/2 pr-4" ref={descriptionRef}>
-                            <div
-                                className={`text-[13px] font-normal text-black dark:text-gray-300 leading-relaxed mb-4 mt-2 prose prose-sm dark:prose-invert max-w-none ${!isExpanded ? 'overflow-hidden text-ellipsis line-clamp-3' : ''}`}
-                                style={!isExpanded ? {
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 3,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
-                                } : {}}
-                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(event.description || '') }}
-                            />
-
-                            {/* Lineup Toggle Button */}
-                            {event.lineup && event.lineup.length > 0 && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setActiveSlide('lineup');
-                                    }}
-                                    className="mt-5 mb-2 flex items-center gap-3 group outline-none transition-all active:scale-[0.98]"
-                                >
-                                    <div className="flex -space-x-2 overflow-hidden py-1">
-                                        {event.lineup.slice(0, 3).map((item, i) => (
-                                            <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gray-100 dark:bg-zinc-800 overflow-hidden relative z-[1]">
-                                                {item.image_url ? (
-                                                    <Image src={item.image_url} alt={item.name} fill className="object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-gray-400">
-                                                        {item.name.charAt(0)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {event.lineup.length > 3 && (
-                                            <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gray-50 dark:bg-zinc-800 flex items-center justify-center relative z-0">
-                                                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400">+{event.lineup.length - 3}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <span className="text-[13px] font-medium text-black dark:text-white group-hover:underline decoration-gray-300 underline-offset-4 decoration-2">
-                                        Lineup
-                                    </span>
-                                </button>
-                            )}
-
-                            {!isExpanded && activeSlide === 'description' && (
-                                <span className="text-[11px] font-bold text-gray-400 block -mt-3 mb-2 md:hidden">Read more...</span>
+                        <div className="w-1/2 pr-4" ref={descriptionRef} aria-hidden={activeSlide !== 'description'} inert={activeSlide !== 'description'}>
+                            {descriptionText && (
+                                <div className="pt-5 pb-4">
+                                    <div
+                                        className={`text-[13px] font-normal text-gray-700 dark:text-gray-300 leading-[1.5] prose prose-sm dark:prose-invert max-w-none [&_p]:my-0 [&_p+p]:mt-2 ${canExpandDescription && !showFullDescription ? 'line-clamp-3 overflow-hidden' : ''}`}
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(event.description || '') }}
+                                    />
+                                    {canExpandDescription && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setShowFullDescription(value => !value) }}
+                                            className={`${!isExpanded ? 'hidden md:inline-flex' : 'inline-flex'} mt-2 text-[12px] font-semibold text-black dark:text-white underline underline-offset-4 decoration-gray-300 dark:decoration-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-sm`}
+                                            aria-expanded={showFullDescription}
+                                        >
+                                            {showFullDescription ? 'Show less' : 'Read full description'}
+                                        </button>
+                                    )}
+                                </div>
                             )}
                         </div>
 
-                        {/* Slide 2: Dynamic Content (Host OR Lineup) */}
-                        <div className="w-1/2 pl-1 pr-4">
+                        {/* Organizer and lineup details share the second panel. */}
+                        <div className="w-1/2 pl-1 pr-4" aria-hidden={activeSlide === 'description'} inert={activeSlide === 'description'}>
                             {activeSlide === 'host' && (
-                                <div ref={hostInfoRef} className="mt-2 pb-6 animate-fade-in">
-                                    <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-2">About the Host</h3>
-                                    <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+                                <div ref={hostInfoRef} className="pt-5 pb-4 animate-fade-in">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-[12px] font-semibold text-black dark:text-white">About the organizer</h3>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setActiveSlide('description') }}
+                                            className="text-[11px] font-medium text-gray-500 hover:text-black dark:hover:text-white flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-sm"
+                                        >
+                                            <ArrowLeft className="w-3 h-3" /> Overview
+                                        </button>
+                                    </div>
+                                    <p className="text-[13px] text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
                                         {event.organizers?.description || 'No bio available.'}
                                     </p>
 
-                                    {/* Organizer Socials */}
                                     {event.organizers && (
                                         <div className="flex items-center gap-3">
                                             {formatWebsiteUrl(event.organizers.website) && (
-                                                <a href={formatWebsiteUrl(event.organizers.website)!} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                    <Globe className="w-3.5 h-3.5" />
+                                                <a href={formatWebsiteUrl(event.organizers.website)!} target="_blank" rel="noopener noreferrer" aria-label="Organizer website" className="text-gray-500 hover:text-black dark:hover:text-white transition-colors">
+                                                    <Globe className="w-4 h-4" />
                                                 </a>
                                             )}
                                             {formatInstagramUrl(event.organizers.instagram) && (
-                                                <a href={formatInstagramUrl(event.organizers.instagram)!} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" display="none" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
+                                                <a href={formatInstagramUrl(event.organizers.instagram)!} target="_blank" rel="noopener noreferrer" aria-label="Organizer Instagram" className="text-gray-500 hover:text-black dark:hover:text-white transition-colors">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" /><rect x="2" y="2" width="20" height="20" rx="5" ry="5" strokeWidth="2" /></svg>
                                                 </a>
                                             )}
                                             {formatTwitterUrl(event.organizers.twitter) && (
-                                                <a href={formatTwitterUrl(event.organizers.twitter)!} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                                <a href={formatTwitterUrl(event.organizers.twitter)!} target="_blank" rel="noopener noreferrer" aria-label="Organizer X profile" className="text-gray-500 hover:text-black dark:hover:text-white transition-colors">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
                                                 </a>
                                             )}
                                         </div>
@@ -1043,32 +1101,33 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                             )}
 
                             {activeSlide === 'lineup' && (
-                                <div ref={lineupRef} className="mt-2 mb-4 pb-8 animate-fade-in">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-[11px] font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest">Lineup</h3>
+                                <div ref={lineupRef} className="pt-5 pb-4 animate-fade-in">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-[12px] font-semibold text-black dark:text-white">Lineup</h3>
                                         <button
+                                            type="button"
                                             onClick={(e) => { e.stopPropagation(); setActiveSlide('description') }}
-                                            className="text-[10px] font-bold text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-1"
+                                            className="text-[11px] font-medium text-gray-500 hover:text-black dark:hover:text-white flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-sm"
                                         >
-                                            <ArrowLeft className="w-3 h-3" /> Back
+                                            <ArrowLeft className="w-3 h-3" /> Overview
                                         </button>
                                     </div>
 
-                                    <div className="space-y-2.5">
+                                    <div className="divide-y divide-gray-100 dark:divide-zinc-800">
                                         {(event.lineup || []).map((item, i) => (
-                                            <div key={i} className="flex items-center gap-3 p-2 rounded-xl bg-gray-50/50 dark:bg-zinc-900/30 border border-gray-100/50 dark:border-zinc-800/40 transition-all hover:bg-gray-100/40 dark:hover:bg-zinc-800/50">
-                                                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden relative flex-shrink-0 border border-gray-200/50 dark:border-zinc-700/50">
+                                            <div key={i} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                                                <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden relative flex-shrink-0">
                                                     {item.image_url ? (
                                                         <Image src={item.image_url} alt={item.name} fill className="object-cover" />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-[12px] font-bold text-gray-400">
+                                                        <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-gray-500">
                                                             {item.name.charAt(0)}
                                                         </div>
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="text-[12.5px] font-bold text-gray-900 dark:text-white truncate">{item.name}</span>
-                                                    <span className="text-[9.5px] font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wide mt-0.5 leading-snug">{item.role}</span>
+                                                    <span className="text-[12px] font-semibold text-black dark:text-white truncate">{item.name}</span>
+                                                    {item.role && <span className="text-[11px] text-gray-500 dark:text-zinc-400 truncate">{item.role}</span>}
                                                 </div>
                                             </div>
                                         ))}
@@ -1080,136 +1139,125 @@ const DetailsView = ({ event, cheapestTier, onGetTickets, isExpanded, isFeedItem
                 </div>
             </div>
 
-            {/* Persistent Date/Location */}
-            <div className="flex flex-col gap-3 mb-5 mt-auto">
+            {/* Date and place stay visible while viewing the organizer or lineup. */}
+            <div className="border-t border-gray-100 dark:border-zinc-800 py-3 space-y-3">
                 <div className="flex items-start gap-3">
-                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M16 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 2V6" strokeLinecap="round" strokeLinejoin="round" /><path d="M3 10H21" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    <span className="text-[13px] font-medium text-black dark:text-white leading-tight">
-                        {(() => {
-                            const startDate = new Date(event.starts_at)
-                            const endDate = event.ends_at ? new Date(event.ends_at) : null
-
-                            let dateString = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                            const startTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
-
-                            if (endDate) {
-                                const isSameDay = startDate.getDate() === endDate.getDate() &&
-                                    startDate.getMonth() === endDate.getMonth() &&
-                                    startDate.getFullYear() === endDate.getFullYear()
-
-                                const endTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
-
-                                if (isSameDay) {
-                                    return `${dateString} • ${startTime} - ${endTime}`
-                                } else {
-                                    const endDateString = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-                                    // Calculate number of days
-                                    const s = new Date(startDate)
-                                    s.setHours(0, 0, 0, 0)
-                                    const e = new Date(endDate)
-                                    e.setHours(0, 0, 0, 0)
-                                    const diffTime = Math.abs(e.getTime() - s.getTime())
-                                    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-
-                                    return `${dateString}, ${startTime} - ${endDateString}, ${endTime} (${days} Days)`
-                                }
-                            }
-
-                            return `${dateString} • ${startTime}`
-                        })()}
-                    </span>
+                    <Calendar aria-hidden="true" className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                    <div className="min-w-0 flex flex-col">
+                        <span className="text-[13px] font-semibold text-black dark:text-white leading-snug">{dateLabel}</span>
+                        <span className="text-[12px] text-gray-500 dark:text-gray-400 leading-snug">{timeLabel}</span>
+                    </div>
                 </div>
-                <div className={`flex items-start gap-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 h-0 overflow-hidden md:opacity-100 md:h-auto' : 'opacity-100'}`}>
-                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    <div className="flex flex-col">
-                        <span className="text-[13px] font-medium text-black dark:text-white leading-tight mb-0.5">{event.venue_name}</span>
-                        <span className="text-[12px] text-gray-500 dark:text-gray-400 leading-tight">{event.venue_address}</span>
+                <div className={`flex items-start gap-3 ${!isExpanded ? 'hidden md:flex' : 'flex'}`}>
+                    <MapPin aria-hidden="true" className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                    <div className="min-w-0 flex flex-col">
+                        <span className="text-[13px] font-semibold text-black dark:text-white leading-snug">{event.venue_name || event.venue_address || 'Location to be announced'}</span>
+                        {event.venue_address && event.venue_address !== event.venue_name && (
+                            <span className="text-[12px] text-gray-500 dark:text-gray-400 leading-snug">{event.venue_address}</span>
+                        )}
                     </div>
                 </div>
             </div>
 
+            {event.lineup && event.lineup.length > 0 && activeSlide === 'description' && (
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setActiveSlide('lineup') }}
+                    className={`${!isExpanded ? 'hidden md:flex' : 'flex'} w-full items-center gap-3 border-t border-gray-100 dark:border-zinc-800 py-3 text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-sm`}
+                    aria-label={`View lineup of ${event.lineup.length}`}
+                >
+                    <div className="flex -space-x-2 flex-shrink-0">
+                        {event.lineup.slice(0, 3).map((item, i) => (
+                            <div key={i} className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gray-100 dark:bg-zinc-800 overflow-hidden relative">
+                                {item.image_url ? <Image src={item.image_url} alt="" fill className="object-cover" /> : <span className="flex h-full items-center justify-center text-[9px] font-semibold text-gray-500">{item.name.charAt(0)}</span>}
+                            </div>
+                        ))}
+                    </div>
+                    <span className="text-[12px] font-semibold text-black dark:text-white">View lineup</span>
+                    <ChevronRight aria-hidden="true" className="w-4 h-4 ml-auto text-gray-400 group-hover:text-black dark:group-hover:text-white transition-colors" />
+                </button>
+            )}
+
             {event.sales_enabled !== false && (
                 <button
                     onClick={onGetTickets}
-                    style={{ backgroundColor: event.primary_color || '#000000', color: '#ffffff' }}
-                    className={`w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                    className={`w-full h-12 rounded-full bg-[#111111] text-white text-[13px] font-semibold tracking-tight transition-colors active:scale-[0.98] hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black dark:focus-visible:ring-white ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
                     Get Tickets
                 </button>
             )}
             <div className={`flex justify-end mt-3 transition-opacity duration-300 ${!isExpanded ? 'opacity-0 md:opacity-100' : 'opacity-100'}`}>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Powered by GatePass</span>
+                <div className="flex items-center gap-1.5" aria-label="Powered by GatePass">
+                    <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Powered by</span>
+                    <GatePassMark className="size-4" />
+                    <span className="text-[11px] font-semibold tracking-tight text-black dark:text-white">GatePass</span>
+                </div>
             </div>
         </div >
     )
 }
 
-const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void, primaryColor?: string }) => {
+const displayTicketName = (name: string) =>
+    /^pay[\s-]*what[\s-]*you[\s-]*want\s*\/\s*pay[\s-]*what[\s-]*you[\s-]*can$/i.test(name)
+        ? 'Pay what you want'
+        : name
+
+const TicketCard = ({ tier, qty, onQuantityChange }: { tier: TicketTier, qty: number, onQuantityChange: (id: string, delta: number) => void }) => {
     const [showPerks, setShowPerks] = useState(false)
     const isSelected = qty > 0
     const isSoldOut = tier.quantity_sold >= tier.total_quantity
     const remaining = tier.total_quantity - tier.quantity_sold
     const isLowStock = remaining > 0 && remaining <= 10
     const hasPerks = tier.perks && tier.perks.length > 0
-    const themeColor = primaryColor || '#000000'
-    const compColor = getComplementaryColor(themeColor)
-    const knobColor = getContrastColor(compColor)
+    const themeColor = '#111111'
 
     return (
         <div
             style={isSelected ? { backgroundColor: themeColor, color: '#ffffff' } : {}}
             className={`
-                relative flex-shrink-0 w-[85%] md:w-[280px] rounded-2xl p-5 flex flex-col justify-between
-                transition-all duration-300 snap-center min-h-[320px]
+                relative w-full rounded-[20px] p-4 flex flex-col justify-between
+                transition-all duration-300 min-h-[164px] border
                 ${isSelected
-                    ? 'scale-[1.02] ring-0 shadow-xl'
-                    : 'bg-white text-black dark:bg-zinc-900 dark:text-white ring-1 ring-black/5 dark:ring-white/10'
+                    ? 'shadow-sm border-zinc-900 dark:border-white'
+                    : 'bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800'
                 }
             `}
         >
-            {isLowStock && (
-                <div className="absolute top-3 right-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 z-10 shadow-sm">
-                    <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-                    </span>
-                    Only {remaining} left
-                </div>
-            )}
-
-            <div className="space-y-4">
+            <div className="space-y-3">
                 <div>
-                    <div className={`text-[24px] font-bold leading-none mb-2 tracking-tighter ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>
-                        {formatCurrency(tier.price, tier.currency)}
+                    <div className="flex items-start justify-between gap-3">
+                        <div className={`text-[22px] font-semibold leading-none tracking-[-0.04em] ${isSelected ? 'text-white' : 'text-black dark:text-white'}`}>
+                            {formatCurrency(tier.price, tier.currency)}
+                        </div>
+                        {isLowStock && (
+                            <span role="status" aria-label={`Only ${remaining} tickets remaining`} className={`flex-shrink-0 pt-1 text-[11px] font-medium ${isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {remaining} left
+                            </span>
+                        )}
                     </div>
-                    <div className={`text-[15px] font-bold leading-tight ${isSelected ? 'text-white/90' : 'text-gray-900 dark:text-white'}`}>{tier.name}</div>
-                    {tier.tags && tier.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                            {tier.tags.map((tag, idx) => (
+                    <div className={`mt-1.5 text-[14px] font-medium leading-tight ${isSelected ? 'text-white/90' : 'text-gray-900 dark:text-white'}`}>{displayTicketName(tier.name)}</div>
+                    {(tier.tags?.length || (tier.min_quantity && tier.discount_value)) ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium">
+                            {tier.tags?.map((tag, idx) => (
                                 <span
                                     key={idx}
-                                    className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    className={`px-2 py-0.5 rounded-full ${
                                         isSelected
-                                            ? 'bg-white/20 text-white'
-                                            : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100/50 dark:border-indigo-500/20'
+                                            ? 'bg-white/15 text-white/80'
+                                            : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300'
                                     }`}
                                 >
                                     {tag}
                                 </span>
                             ))}
+                            {tier.min_quantity && tier.discount_value && (
+                                <span className={isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}>
+                                {tier.discount_type === 'percentage'
+                                        ? `${tier.discount_value}% off · ${tier.min_quantity}+ tickets`
+                                        : `${formatCurrency(tier.discount_value, tier.currency)} off · ${tier.min_quantity}+ tickets`}
+                                </span>
+                            )}
                         </div>
-                    )}
-                    {tier.min_quantity && tier.discount_value && (
-                        <div className="mt-2.5">
-                            <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                                isSelected
-                                    ? 'bg-white/25 text-white'
-                                    : 'bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 border border-green-100/50 dark:border-green-500/20'
-                            }`}>
-                                Buy {tier.min_quantity}+ get {tier.discount_type === 'percentage' ? `${tier.discount_value}%` : formatCurrency(tier.discount_value, tier.currency)} off
-                            </span>
-                        </div>
-                    )}
+                    ) : null}
                 </div>
 
                 {tier.description && (
@@ -1218,18 +1266,15 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                     </p>
                 )}
 
-                {/* Instalment Badge */}
+                {/* Payment plan detail */}
                 {tier.allow_instalments && tier.payment_plans && tier.payment_plans.length > 0 && (() => {
                     const plan = tier.payment_plans.find((p: any) => p.is_active)
                     if (!plan) return null
                     const firstPayment = tier.price * plan.initial_percent / 100
                     return (
-                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-bold ${isSelected
-                            ? 'bg-white/15 text-white'
-                            : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                            }`}>
-                            <CalendarClock className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span>Pay in {plan.num_instalments} from {formatCurrency(firstPayment, tier.currency)}</span>
+                        <div className={`flex items-center gap-1.5 text-[11px] font-medium ${isSelected ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                            <CalendarClock aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{plan.num_instalments} payments · {formatCurrency(firstPayment, tier.currency)} today</span>
                         </div>
                     )
                 })()}
@@ -1270,7 +1315,7 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                     type="button"
                     onClick={() => onQuantityChange(tier.id, qty === 1 ? -1 : 1)}
                     disabled={isSoldOut}
-                    className={`mt-6 w-full h-12 rounded-full flex items-center justify-between px-5 font-bold text-sm transition-all duration-300 cursor-pointer ${
+                    className={`mt-4 w-full h-11 rounded-full flex items-center justify-between px-4 font-semibold text-[13px] transition-all duration-300 cursor-pointer ${
                         isSelected
                             ? 'bg-white text-zinc-950 shadow-md hover:bg-white/90'
                             : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700'
@@ -1278,16 +1323,14 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                 >
                     <span>{isSoldOut ? 'Sold Out' : isSelected ? 'Selected' : 'Select Ticket'}</span>
                     {!isSoldOut && (
-                        <div 
-                            style={isSelected ? { backgroundColor: compColor } : {}}
+                        <div
                             className={`w-8 h-5 rounded-full p-0.5 transition-colors duration-300 relative ${
                                 isSelected
-                                    ? ''
+                                    ? 'bg-zinc-900'
                                     : 'bg-zinc-300 dark:bg-zinc-600'
                             }`}
                         >
-                            <div 
-                                style={{ backgroundColor: isSelected ? knobColor : '#ffffff' }}
+                            <div
                                 className={`w-4 h-4 rounded-full shadow-sm transition-transform duration-300 ${
                                     isSelected ? 'translate-x-3' : 'translate-x-0'
                                 }`} 
@@ -1296,11 +1339,11 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                     )}
                 </button>
             ) : (
-                <div className={`mt-6 flex items-center justify-between px-1 py-1 rounded-full ${isSelected ? 'bg-black/20' : 'bg-gray-50 dark:bg-zinc-800'}`}>
+                <div className={`mt-3 flex items-center justify-between px-1 py-1 rounded-full border ${isSelected ? 'bg-white/10 border-white/15' : 'bg-zinc-50 border-zinc-100 dark:bg-zinc-800 dark:border-zinc-700'}`}>
                     <button
                         onClick={() => onQuantityChange(tier.id, -1)}
                         disabled={qty === 0}
-                        className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                        className={`w-9 h-9 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                     >
                         -
                     </button>
@@ -1308,7 +1351,7 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
                     <button
                         onClick={() => onQuantityChange(tier.id, 1)}
                         disabled={isSoldOut}
-                        className={`w-10 h-10 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-black/20 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
+                        className={`w-9 h-9 flex items-center justify-center text-lg leading-none rounded-full transition-colors ${isSelected ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black dark:text-white dark:hover:bg-zinc-700'}`}
                     >
                         +
                     </button>
@@ -1318,62 +1361,60 @@ const TicketCard = ({ tier, qty, onQuantityChange, primaryColor }: { tier: Ticke
     )
 }
 
-const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection, primaryColor }: {
+const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onBack, total, hasSelection }: {
     tiers: TicketTier[],
     selectedTickets: Record<string, number>,
     onQuantityChange: (tierId: string, delta: number) => void,
     onContinue: () => void,
     onBack: () => void,
     total: number,
-    hasSelection: boolean,
-    primaryColor?: string
+    hasSelection: boolean
 }) => (
-    <div className="flex flex-col h-auto animate-fade-in relative">
-        <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
-            <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Select Tickets</h2>
+    <div className="flex flex-col h-full min-h-0 animate-fade-in relative">
+        <div className="flex justify-between items-center mb-4 px-1 flex-shrink-0 pt-2">
+            <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-1">Ticket selection</p>
+                <h2 className="text-[20px] font-semibold tracking-tight text-black dark:text-white">Choose your pass</h2>
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Select a ticket to continue</p>
+            </div>
             <button
                 onClick={onBack}
-                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
+                aria-label="Back to event details"
+                className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-black dark:hover:text-white transition-all bg-gray-100/80 hover:bg-gray-100 dark:bg-white/5 rounded-full"
             >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft aria-hidden="true" className="w-5 h-5" />
             </button>
         </div>
 
-        <div className="-mx-4 px-5 pt-3 overflow-x-auto flex gap-4 items-stretch pb-4 no-scrollbar snap-x snap-mandatory">
+        <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto px-1 pb-3 no-scrollbar">
             {tiers.map((tier) => (
                 <TicketCard
                     key={tier.id}
                     tier={tier}
                     qty={selectedTickets[tier.id] || 0}
                     onQuantityChange={onQuantityChange}
-                    primaryColor={primaryColor}
                 />
             ))}
         </div>
 
         {/* Sticky Footer with Total */}
-        <div className={`
-                sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10
-                md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0
-                transition-transform duration-300
-                ${hasSelection ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
-            `}>
+        <div className="flex-shrink-0 -mx-4 -mb-4 mt-2 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10">
             <div className="max-w-md mx-auto md:max-w-none">
                 <button
                     onClick={onContinue}
                     disabled={!hasSelection}
                     style={{
-                        backgroundColor: hasSelection ? (primaryColor || '#000000') : undefined,
-                        color: hasSelection ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
+                        backgroundColor: hasSelection ? '#111111' : undefined,
+                        color: hasSelection ? '#ffffff' : undefined
                     }}
                     className={cn(
-                        "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-between px-4",
+                        "w-full h-12 rounded-full text-[13px] font-semibold tracking-tight transition-all active:scale-[0.98] flex items-center justify-between px-5",
                         !hasSelection
                             ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
                             : "bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 hover:opacity-90"
                     )}
                 >
-                    <span>Checkout</span>
+                    <span>Continue</span>
                     <span>{formatCurrency(total, tiers[0]?.currency)}</span>
                 </button>
                 <div className="flex justify-center mt-3 md:hidden">
@@ -1388,14 +1429,13 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
 
 )
 
-const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading, primaryColor, hasTicketsSelected }: {
+const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, guestPhone, setGuestPhone, onBack, onContinue, loading, hasTicketsSelected }: {
     guestName: string, setGuestName: (name: string) => void,
     guestEmail: string, setGuestEmail: (email: string) => void,
     guestPhone: string, setGuestPhone: (phone: string) => void,
     onBack: () => void,
     onContinue: () => void,
     loading: boolean,
-    primaryColor?: string,
     hasTicketsSelected: boolean
 }) => {
     const [touched, setTouched] = React.useState<Record<string, boolean>>({})
@@ -1432,63 +1472,73 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
         onContinue()
     }
 
-    const inputBaseClass = "w-full h-10 px-3 rounded-lg border-0 bg-gray-50 dark:bg-zinc-800 focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 transition-all text-black dark:text-white text-[16px] placeholder:text-gray-400 font-medium"
-    const inputValidClass = "focus:ring-black/10 dark:focus:ring-white/10"
-    const inputErrorClass = "ring-2 ring-red-400/60 focus:ring-red-500"
+    const inputBaseClass = "w-full h-11 px-3 rounded-lg border border-gray-200 bg-white dark:bg-zinc-900 dark:border-zinc-700 focus:border-black dark:focus:border-white focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 transition-colors text-black dark:text-white text-[15px] placeholder:text-gray-400 font-normal shadow-none"
+    const inputValidClass = ""
+    const inputErrorClass = "border-red-400 focus:border-red-500 focus:ring-red-500/10"
 
     return (
-        <div className="flex flex-col h-auto animate-fade-in relative">
-            <div className="flex justify-between items-center mb-8 px-1 flex-shrink-0 pt-2">
-                <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Your Details</h2>
+        <div className="flex flex-col h-full min-h-0 animate-fade-in relative">
+            <div className="flex justify-between items-center mb-5 px-1 flex-shrink-0 pt-2">
+                <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-1">Checkout</p>
+                    <h2 className="text-[20px] font-semibold tracking-tight text-black dark:text-white">Your details</h2>
+                </div>
                 <button
                     onClick={onBack}
+                    aria-label="Back to previous step"
                     className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
                 >
-                    <ArrowLeft className="w-5 h-5" />
+                    <ArrowLeft aria-hidden="true" className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="space-y-5 px-1 pb-4">
-                <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Name</label>
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-4 px-1 pb-5">
+                <div className="space-y-1.5">
+                    <label htmlFor="guest-name" className="text-[12px] font-medium text-gray-600 dark:text-gray-300">Full name</label>
                     <input
+                        id="guest-name"
                         type="text"
                         value={guestName}
                         onChange={e => setGuestName(e.target.value)}
                         onBlur={() => setTouched(p => ({ ...p, name: true }))}
                         placeholder="Jane Smith"
+                        aria-invalid={!!showError('name', nameError)}
+                        aria-describedby={showError('name', nameError) ? 'guest-name-error' : undefined}
                         className={`${inputBaseClass} ${showError('name', nameError) ? inputErrorClass : inputValidClass}`}
                     />
                     {showError('name', nameError) && (
-                        <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
+                    <p id="guest-name-error" role="alert" className="text-red-500 text-[11px] font-medium flex items-center gap-1 animate-fade-in">
                             <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             {nameError}
                         </p>
                     )}
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Email Address</label>
+                <div className="space-y-1.5">
+                    <label htmlFor="guest-email" className="text-[12px] font-medium text-gray-600 dark:text-gray-300">Email address</label>
                     <input
+                        id="guest-email"
                         type="email"
                         value={guestEmail}
                         onChange={e => setGuestEmail(e.target.value)}
                         onBlur={() => setTouched(p => ({ ...p, email: true }))}
                         placeholder="jane@example.com"
+                        aria-invalid={!!showError('email', emailError)}
+                        aria-describedby={showError('email', emailError) ? 'guest-email-error' : 'guest-email-hint'}
                         className={`${inputBaseClass} ${showError('email', emailError) ? inputErrorClass : inputValidClass}`}
                     />
                     {showError('email', emailError) ? (
-                        <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
+                        <p id="guest-email-error" role="alert" className="text-red-500 text-[11px] font-medium flex items-center gap-1 animate-fade-in">
                             <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             {emailError}
                         </p>
                     ) : (
-                        <p className="text-[11px] text-gray-400 px-1">We&apos;ll send your tickets here.</p>
+                        <p id="guest-email-hint" className="text-[11px] text-gray-400">We&apos;ll send your tickets here.</p>
                     )}
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Phone Number</label>
+                <div className="space-y-1.5">
+                    <label htmlFor="guest-phone" className="text-[12px] font-medium text-gray-600 dark:text-gray-300">Phone number</label>
                     <PhoneInput
                         value={guestPhone}
                         onChange={setGuestPhone}
@@ -1496,9 +1546,11 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
                         placeholder="20 123 4567"
                         error={!!showError('phone', phoneError)}
                         id="guest-phone"
+                        aria-describedby={showError('phone', phoneError) ? 'guest-phone-error' : undefined}
+                        variant="minimal"
                     />
                     {showError('phone', phoneError) && (
-                        <p className="text-red-500 text-[11px] font-medium ml-1 flex items-center gap-1 animate-fade-in">
+                        <p id="guest-phone-error" role="alert" className="text-red-500 text-[11px] font-medium flex items-center gap-1 animate-fade-in">
                             <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             {phoneError}
                         </p>
@@ -1507,17 +1559,17 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
             </div>
 
             {/* Sticky Footer for Form */}
-            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-8 md:mx-0 md:mb-0">
+            <div className="flex-shrink-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10">
                 <div className="max-w-md mx-auto md:max-w-none">
                     <button
                         onClick={handleSubmit}
                         disabled={loading || (submitted && !isFormValid)}
                         style={{
-                            backgroundColor: isFormValid ? (primaryColor || '#000000') : undefined,
-                            color: isFormValid ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
+                            backgroundColor: isFormValid ? '#111111' : undefined,
+                            color: isFormValid ? '#ffffff' : undefined
                         }}
                         className={cn(
-                            "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 group",
+                            "w-full h-12 rounded-full text-[13px] font-semibold tracking-tight transition-all active:scale-[0.98] flex items-center justify-center gap-2 group",
                             (loading || (submitted && !isFormValid))
                                 ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
                                 : "bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 hover:opacity-90"
@@ -1532,35 +1584,36 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     )
 }
 
-const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue, onBack, primaryColor }: {
+const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue, onBack }: {
     availableAddons: EventAddon[],
     selectedAddons: Record<string, number>,
     onAddonChange: (addonId: string, delta: number) => void,
     onContinue: () => void,
-    onBack: () => void,
-    primaryColor?: string
+    onBack: () => void
 }) => {
     const hasSelection = Object.values(selectedAddons).some(qty => qty > 0)
 
     return (
-        <div className="flex flex-col h-full animate-fade-in relative bg-white dark:bg-zinc-900">
+        <div className="flex flex-col h-full min-h-0 animate-fade-in relative bg-white dark:bg-zinc-900">
             {/* Cleaner Header */}
             <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
                 <div className="space-y-0.5">
-                    <h2 className="text-[22px] font-bold tracking-tight text-black dark:text-white leading-tight">Enhance Experience</h2>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-1">Optional add-ons</p>
+                    <h2 className="text-[20px] font-semibold tracking-tight text-black dark:text-white leading-tight">Add something extra</h2>
                     <p className="text-[13px] text-gray-400 dark:text-gray-500 font-medium tracking-tight">Select optional extras for your order</p>
                 </div>
                 <button
                     onClick={onBack}
+                    aria-label="Back to ticket selection"
                     className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
                 >
-                    <ArrowLeft className="w-5 h-5" />
+                    <ArrowLeft aria-hidden="true" className="w-5 h-5" />
                 </button>
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto no-scrollbar -mx-2 px-2 pb-24">
-                <div className="space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar -mx-2 px-2 pb-4">
+                <div className="space-y-3">
                     {availableAddons.map((addon) => {
                         const qty = selectedAddons[addon.id] || 0
                         const isSelected = qty > 0
@@ -1576,20 +1629,16 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                             <div
                                 key={addon.id}
                                 className={cn(
-                                    "group relative overflow-hidden rounded-[24px] border transition-all duration-500",
-                                    isSoldOut ? "bg-gray-50/50 dark:bg-white/5 border-gray-100 dark:border-white/5 opacity-60" :
+                                    "group relative overflow-hidden rounded-[18px] border transition-all duration-200",
+                                    isSoldOut ? "bg-gray-50 dark:bg-zinc-800/40 border-gray-100 dark:border-white/5 opacity-60" :
                                         isSelected
-                                            ? "border-transparent shadow-2xl scale-[1.01]"
-                                            : "bg-gray-50/50 dark:bg-white/5 border-transparent hover:bg-gray-100 dark:hover:bg-white/10 shadow-sm"
+                                            ? "bg-gray-50 dark:bg-zinc-800/70 border-black dark:border-white"
+                                            : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-500"
                                 )}
-                                style={isSelected && !isSoldOut ? {
-                                    backgroundColor: primaryColor || '#000000',
-                                    color: getContrastColor(primaryColor || '#000000'),
-                                } : {}}
                             >
-                                <div className="flex p-4 gap-4">
+                                <div className="flex p-3 gap-3">
                                     {/* Elevated Image Container */}
-                                    <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 relative bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5">
+                                    <div className="w-[68px] h-[68px] rounded-xl overflow-hidden flex-shrink-0 relative bg-gray-100 dark:bg-zinc-800 border border-black/5 dark:border-white/5">
                                         {addon.image_url ? (
                                             <Image src={addon.image_url} alt={addon.name} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
                                         ) : (
@@ -1610,11 +1659,11 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                             <div className="flex justify-between items-start mb-0.5">
                                                 <h4 className={cn(
                                                     "text-[15px] font-extrabold leading-tight line-clamp-1 tracking-tight",
-                                                    isSelected ? "text-current" : "text-black dark:text-white"
+                                                    "text-black dark:text-white"
                                                 )}>{addon.name}</h4>
                                                 <span className={cn(
                                                     "font-bold text-[14px] tabular-nums",
-                                                    isSelected ? "opacity-80" : "text-gray-400 dark:text-gray-500"
+                                                    "text-gray-600 dark:text-gray-300"
                                                 )}>
                                                     {formatCurrency(addon.price, addon.currency)}
                                                 </span>
@@ -1622,7 +1671,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                             {addon.description && (
                                                 <p className={cn(
                                                     "text-[12px] line-clamp-2 leading-snug font-medium",
-                                                    isSelected ? "opacity-60" : "text-gray-500 dark:text-gray-400"
+                                                    "text-gray-500 dark:text-gray-400"
                                                 )}>{addon.description}</p>
                                             )}
                                         </div>
@@ -1631,7 +1680,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                         <div className="flex items-center justify-between mt-3">
                                             <div className={cn(
                                                 "text-[9px] font-black uppercase tracking-[0.15em]",
-                                                isSelected ? "opacity-40" : "text-gray-400 dark:text-gray-500"
+                                                "text-gray-400 dark:text-gray-500"
                                             )}>
                                                 {isSoldOut ? "Unavailable" : isSelected ? "In Cart" : "Optional"}
                                             </div>
@@ -1644,7 +1693,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                                             className={cn(
                                                                 "h-8 px-4 rounded-full transition-all text-[12px] font-bold flex items-center justify-center gap-1.5",
                                                                 isSelected
-                                                                    ? "bg-white/20 text-current hover:bg-white/30"
+                                                                    ? "bg-black text-white dark:bg-white dark:text-black hover:opacity-85"
                                                                     : "bg-black dark:bg-white text-white dark:text-black hover:opacity-90 shadow-sm"
                                                             )}
                                                         >
@@ -1658,28 +1707,28 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                                     ) : (
                                                         <div className={cn(
                                                             "flex items-center gap-1.5 p-1 rounded-full",
-                                                            isSelected ? "bg-white/10 dark:bg-black/10" : "bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5"
+                                                            "bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700"
                                                         )}>
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, -1); }}
                                                                 disabled={qty === 0}
                                                                 className={cn(
                                                                     "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                                    isSelected ? "hover:bg-white/10 text-current" : "hover:bg-gray-100 text-black dark:text-white"
+                                                                    "hover:bg-gray-100 dark:hover:bg-zinc-700 text-black dark:text-white"
                                                                 )}
                                                             >
                                                                 -
                                                             </button>
                                                             <span className={cn(
                                                                 "text-[14px] font-extrabold tabular-nums w-4 text-center",
-                                                                isSelected ? "text-current" : "text-black dark:text-white"
+                                                                "text-black dark:text-white"
                                                             )}>{qty}</span>
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, 1); }}
                                                                 disabled={isMaxed}
                                                                 className={cn(
                                                                     "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                                    isSelected ? "hover:bg-white/10 text-current" : "hover:bg-gray-100 text-black dark:text-white"
+                                                                    "hover:bg-gray-100 dark:hover:bg-zinc-700 text-black dark:text-white"
                                                                 )}
                                                             >
                                                                 +
@@ -1698,15 +1747,15 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
             </div>
 
             {/* Standard Sticky Footer */}
-            <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10 md:static md:bg-transparent md:border-0 md:backdrop-filter-none md:p-0 md:mt-4 md:mx-0 md:mb-0">
+            <div className="flex-shrink-0 -mx-4 -mb-4 p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 z-10">
                 <div className="max-w-md mx-auto md:max-w-none">
                     <button
                         onClick={onContinue}
                         style={{
-                            backgroundColor: primaryColor || '#000000',
-                            color: primaryColor ? getContrastColor(primaryColor) : '#ffffff'
+                            backgroundColor: '#111111',
+                            color: '#ffffff'
                         }}
-                        className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 group"
+                        className="w-full h-12 rounded-full text-[13px] font-semibold tracking-tight transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2 group"
                     >
                         <span>{hasSelection ? 'Continue with Add-ons' : 'No Thanks, Continue'}</span>
                         <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -1716,7 +1765,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
         </div>
     )
 }
-const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, primaryColor, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
+const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number, // Ticket Subtotal
@@ -1734,7 +1783,6 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
     applyingDiscount: boolean,
     selectedTickets: Record<string, number>,
     timeLeft: { label: string, seconds: number },
-    primaryColor?: string,
     availableAddons?: EventAddon[],
     selectedAddons?: Record<string, number>,
     instalmentPlans?: PaymentPlan[],
@@ -1746,51 +1794,45 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
 }) => {
     const [showPromo, setShowPromo] = useState(false)
 
-    // Dynamic Timer Color
-    // Default: Black
-    // < 5 mins (300s): Yellow
-    // < 2.5 mins (150s): Red
-    let timerColor = "bg-black/80 backdrop-blur-md text-white border-white/10"
-    let dotColor = "bg-green-400 animate-pulse"
-
-    if (timeLeft.seconds <= 150) {
-        timerColor = "bg-red-500 text-white border-red-400"
-        dotColor = "bg-white animate-pulse"
-    } else if (timeLeft.seconds <= 300) {
-        timerColor = "bg-yellow-400 text-black border-yellow-300"
-        dotColor = "bg-black animate-pulse"
-    }
+    const timerIsUrgent = timeLeft.label === 'EXPIRED' || (timeLeft.seconds > 0 && timeLeft.seconds <= 120)
+    const currency = tiers[0]?.currency
+    const promoReduction = discount ? (discount.type === 'fixed' ? discount.value : subtotal * discount.value / 100) : 0
+    const orderValue = Math.max(0, subtotal + addonSubtotal - promoReduction)
+    const selectedPlan = paymentMode === 'instalment' ? instalmentPlans[0] : null
+    const firstShare = selectedPlan ? Math.round(orderValue * selectedPlan.initial_percent) / 100 : 0
+    const amountDue = selectedPlan
+        ? calculateFees(firstShare, 0, feeBearer, effectiveRates).customerTotal
+        : total
 
     return (
         <div className="flex flex-col h-full flex-1 min-h-0 animate-fade-in relative">
             {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto no-scrollbar -mx-4 px-4 pb-4">
-                {/* Immersive Timer */}
-                <div className="flex justify-center mb-4 sticky top-4 z-20 pointer-events-none">
-                    <div className={`${timerColor} py-2 px-4 rounded-full text-[12px] font-medium shadow-xl flex items-center gap-2 border animate-fade-in-down transition-colors duration-500`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${timeLeft.label === 'EXPIRED' ? 'bg-red-500' : dotColor}`} />
-                        <span>Reservation expires in <span className="font-mono tracking-wider font-bold">{timeLeft.label}</span></span>
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
-                    <h2 className="text-[18px] font-bold tracking-tight text-black dark:text-white">Order Summary</h2>
+                <div className="flex items-center gap-3 mb-4 px-1 flex-shrink-0">
                     <button
                         onClick={onBack}
-                        className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-black dark:hover:text-white transition-all bg-gray-50 dark:bg-white/5 rounded-full"
+                        aria-label="Back to attendee details"
+                        className="w-8 h-8 -ml-1 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft aria-hidden="true" className="w-4 h-4" />
                     </button>
+                    <h2 className="text-[19px] font-semibold tracking-tight text-black dark:text-white">Review order</h2>
                 </div>
 
-                {/* Receipt Card */}
-                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-0 border border-gray-100 dark:border-zinc-800 overflow-hidden shadow-sm relative mx-1">
-                    {/* Visual Header */}
-                    <div className="bg-gray-50 dark:bg-zinc-800/50 p-6 border-b border-gray-100 dark:border-zinc-800">
-                        <h3 className="text-[16px] font-bold leading-tight text-black dark:text-white">{event.title}</h3>
+                {timeLeft.label !== '...' && (
+                    <div className={`sticky top-0 z-20 flex items-center gap-2 bg-white dark:bg-zinc-900 px-1 pb-3 mb-1 border-b border-gray-100 dark:border-zinc-800 text-[12px] font-medium ${timerIsUrgent ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                        <Clock aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>{timeLeft.label === 'EXPIRED' ? 'Reservation expired' : <>Reservation expires in <span className="font-semibold tabular-nums">{timeLeft.label}</span></>}</span>
+                    </div>
+                )}
+
+                {/* Order details */}
+                <div className="mx-1 py-4 border-b border-gray-200 dark:border-zinc-800">
+                    <div className="pb-3">
+                        <h3 className="text-[15px] font-semibold leading-tight text-black dark:text-white">{event.title}</h3>
                     </div>
 
-                    <div className="p-6 space-y-4">
+                    <div className="space-y-4">
                         {/* Ticket Breakdown */}
                         <div className="space-y-3">
                             {tiers.map(tier => {
@@ -1812,31 +1854,31 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                                 }
 
                                 return (
-                                    <div key={tier.id} className="flex justify-between items-start text-[13px] text-gray-500 dark:text-gray-400">
-                                        <div className="flex flex-col">
-                                            <span>{tier.name} <span className="text-[11px] ml-1">x{qty}</span></span>
+                                    <div key={tier.id} className="flex justify-between items-start gap-3 text-[13px]">
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="text-gray-800 dark:text-gray-200">{displayTicketName(tier.name)} <span className="text-[11px] text-gray-500 dark:text-gray-400 ml-1">×{qty}</span></span>
                                             {hasQtyDiscount && (
-                                                <span className="text-[10px] text-green-500 font-semibold mt-0.5 animate-in fade-in slide-in-from-left-1">
+                                                <span className="text-[10px] text-green-700 dark:text-green-400 font-medium mt-0.5">
                                                     ✓ {discountLabel} applied
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="font-medium text-black dark:text-white">{formatCurrency(tierSubtotal, tier.currency)}</span>
+                                        <span className="font-medium text-black dark:text-white whitespace-nowrap tabular-nums">{formatCurrency(tierSubtotal, tier.currency)}</span>
                                     </div>
                                 )
                             })}
 
                             {/* Addons Breakdown */}
                             {selectedAddons && Object.keys(selectedAddons).length > 0 && availableAddons && (
-                                <div className="pt-2 mt-2 border-t border-dashed border-gray-100 dark:border-zinc-800 space-y-2">
+                                <div className="pt-3 mt-3 border-t border-gray-100 dark:border-zinc-800 space-y-2">
                                     {Object.entries(selectedAddons).map(([addonId, qty]) => {
                                         if (qty === 0) return null
                                         const addon = availableAddons.find(a => a.id === addonId)
                                         if (!addon) return null
                                         return (
-                                            <div key={addonId} className="flex justify-between items-center text-[13px] text-gray-500 dark:text-gray-400">
-                                                <span>{addon.name} <span className="text-[11px] ml-1">x{qty}</span></span>
-                                                <span className="font-medium text-black dark:text-white">{formatCurrency(addon.price * qty, addon.currency)}</span>
+                                            <div key={addonId} className="flex justify-between items-center gap-3 text-[13px]">
+                                                <span className="text-gray-800 dark:text-gray-200">{addon.name} <span className="text-[11px] text-gray-500 dark:text-gray-400 ml-1">×{qty}</span></span>
+                                                <span className="font-medium text-black dark:text-white whitespace-nowrap tabular-nums">{formatCurrency(addon.price * qty, addon.currency)}</span>
                                             </div>
                                         )
                                     })}
@@ -1850,18 +1892,18 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                         <div className="space-y-2 text-[13px]">
                             <div className="flex justify-between items-center">
                                 <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
-                                <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
+                                <span className="font-medium text-gray-900 dark:text-white tabular-nums">{formatCurrency(subtotal, tiers[0]?.currency)}</span>
                             </div>
 
                             {addonSubtotal > 0 && (
                                 <div className="flex justify-between items-center text-[13px] text-gray-500 dark:text-gray-400">
                                     <span>Add-ons</span>
-                                    <span>{formatCurrency(addonSubtotal, tiers[0]?.currency)}</span>
+                                    <span className="tabular-nums">{formatCurrency(addonSubtotal, tiers[0]?.currency)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-500 dark:text-gray-400">Fees</span>
-                                <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(fees, tiers[0]?.currency)}</span>
+                                <span className="text-gray-500 dark:text-gray-400">Service & payment fees</span>
+                                <span className="font-medium text-gray-900 dark:text-white tabular-nums">{formatCurrency(fees, tiers[0]?.currency)}</span>
                             </div>
 
                             {/* Discount Row */}
@@ -1878,27 +1920,27 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                             )}
                         </div>
 
-                        {/* Promo Input */}
+                        {/* Promo code */}
                         {!discount && (
-                            <div className="pt-1">
+                            <div>
                                 {!showPromo ? (
                                     <button
                                         onClick={() => setShowPromo(true)}
-                                        className="text-[13px] text-gray-500 dark:text-gray-400 font-medium hover:text-black dark:hover:text-white transition-colors flex items-center gap-2 group"
+                                        className="text-[12px] text-black dark:text-white font-semibold hover:underline underline-offset-4 transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-sm"
                                     >
-                                        <div className="w-5 h-5 rounded-full border border-dashed border-gray-300 dark:border-zinc-700 flex items-center justify-center group-hover:border-gray-400 dark:group-hover:border-zinc-500 transition-colors">
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                                        </div>
+                                        <span aria-hidden="true" className="text-[16px] font-normal leading-none">+</span>
                                         Add promo code
                                     </button>
                                 ) : (
-                                    <div className="animate-fade-in">
+                                    <div className="animate-fade-in space-y-1.5">
+                                        <label htmlFor="summary-promo-code" className="block text-[12px] font-medium text-gray-600 dark:text-gray-300">Promo code</label>
                                         <div className="flex gap-2">
                                             <input
+                                                id="summary-promo-code"
                                                 value={promoCode}
                                                 onChange={(e) => setPromoCode(e.target.value)}
-                                                placeholder="Enter promo code"
-                                                className="flex-1 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-lg text-[13px] px-3 py-2 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-all text-black dark:text-white"
+                                                placeholder="Enter code"
+                                                className="min-w-0 flex-1 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl text-[13px] px-3 py-2 uppercase placeholder:normal-case focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white outline-none transition-colors text-black dark:text-white"
                                                 autoFocus
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -1913,13 +1955,14 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                                             <button
                                                 onClick={onApplyDiscount}
                                                 disabled={!promoCode || applyingDiscount}
-                                                className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 disabled:opacity-50 transition-all shadow-sm"
+                                                className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-full text-[12px] font-semibold hover:opacity-90 disabled:opacity-50 transition-colors"
                                             >
-                                                {applyingDiscount ? '...' : 'Apply'}
+                                                {applyingDiscount ? 'Applying…' : 'Apply'}
                                             </button>
                                             <button
                                                 onClick={() => setShowPromo(false)}
-                                                className="p-2 text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                                aria-label="Close promo code field"
+                                                className="p-2 text-gray-500 hover:text-black dark:hover:text-white transition-colors rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white"
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                             </button>
@@ -1930,12 +1973,12 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                             </div>
                         )}
 
-                        <div className="border-t border-dashed border-gray-200 dark:border-zinc-800 pt-2" />
+                        <div className="border-t border-gray-100 dark:border-zinc-800" />
 
                         {hasMultiTierInstalmentConflict && (
-                            <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 dark:border-amber-500/10 rounded-xl p-3 space-y-2 mt-2 mb-4 text-[12px] text-amber-800 dark:text-amber-300 animate-in fade-in slide-in-from-top-1 duration-200">
-                                <p className="font-bold flex items-center gap-1.5"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Instalments Unavailable</p>
-                                <p className="text-amber-700/80 dark:text-amber-300/80">Instalment plans cannot be applied when purchasing multiple ticket types at once. Please checkout each type separately to use a payment plan.</p>
+                            <div className="border border-gray-200 dark:border-zinc-700 rounded-xl p-3 space-y-1 text-[12px] animate-in fade-in slide-in-from-top-1 duration-200">
+                                <p className="font-semibold text-black dark:text-white">Part-pay unavailable for this order</p>
+                                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">To use part-pay, purchase one ticket type at a time.</p>
                             </div>
                         )}
 
@@ -1943,44 +1986,46 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                         {instalmentPlans.length > 0 && onPaymentModeChange && (() => {
                             const plan = instalmentPlans[0]
                             // Split the ORDER VALUE (tickets + addons - discount), NOT the total with fees
-                            const orderVal = subtotal + addonSubtotal - (discount ? (discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100)) : 0)
-                            const firstShare = Math.round(orderVal * plan.initial_percent / 100 * 100) / 100
-                            const remainingVal = Math.round((orderVal - firstShare) * 100) / 100
+                            const planFirstShare = Math.round(orderValue * plan.initial_percent) / 100
+                            const planFirstDue = calculateFees(planFirstShare, 0, feeBearer, effectiveRates).customerTotal
+                            const remainingVal = Math.round((orderValue - planFirstShare) * 100) / 100
                             const perInstalment = Math.round(remainingVal / (plan.num_instalments - 1) * 100) / 100
 
                             return (
                                 <div className="space-y-3">
-                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Payment Method</p>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <p className="text-[12px] font-semibold text-gray-900 dark:text-white">Payment option</p>
+                                    <div className="grid grid-cols-2 gap-1 rounded-2xl bg-gray-100 dark:bg-zinc-800 p-1">
                                         <button
                                             onClick={() => onPaymentModeChange('full')}
-                                            className={`p-3 rounded-xl border-2 transition-all text-left ${paymentMode === 'full'
-                                                ? 'border-black dark:border-white bg-black/5 dark:bg-white/5'
-                                                : 'border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700'
+                                            aria-pressed={paymentMode === 'full'}
+                                            className={`p-2.5 rounded-xl transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white ${paymentMode === 'full'
+                                                ? 'bg-white dark:bg-zinc-700 shadow-sm'
+                                                : 'hover:bg-white/50 dark:hover:bg-zinc-700/50'
                                                 }`}
                                         >
-                                            <span className="text-[12px] font-bold text-gray-900 dark:text-white block">Pay in Full</span>
+                                            <span className="text-[12px] font-semibold text-gray-900 dark:text-white block">Pay in full</span>
                                             <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatCurrency(total, tiers[0]?.currency)} now</span>
                                         </button>
                                         <button
                                             onClick={() => onPaymentModeChange('instalment', plan)}
-                                            className={`p-3 rounded-xl border-2 transition-all text-left relative overflow-hidden ${paymentMode === 'instalment'
-                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/5'
-                                                : 'border-gray-100 dark:border-zinc-800 hover:border-amber-300 dark:hover:border-amber-500/30'
+                                            aria-pressed={paymentMode === 'instalment'}
+                                            className={`p-2.5 rounded-xl transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white ${paymentMode === 'instalment'
+                                                ? 'bg-white dark:bg-zinc-700 shadow-sm'
+                                                : 'hover:bg-white/50 dark:hover:bg-zinc-700/50'
                                                 }`}
                                         >
-                                            <span className="text-[12px] font-bold text-gray-900 dark:text-white block">Pay in {plan.num_instalments}</span>
-                                            <span className="text-[11px] text-amber-600 dark:text-amber-400">From {formatCurrency(firstShare, tiers[0]?.currency)}</span>
+                                            <span className="text-[12px] font-semibold text-gray-900 dark:text-white block">Pay in {plan.num_instalments}</span>
+                                            <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatCurrency(planFirstDue, currency)} today</span>
                                         </button>
                                     </div>
 
                                     {/* Instalment Schedule Preview */}
                                     {paymentMode === 'instalment' && (
-                                        <div className="bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 dark:border-amber-500/10 rounded-xl p-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Payment Schedule</p>
+                                        <div className="rounded-xl border border-gray-200 dark:border-zinc-700 p-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <p className="text-[12px] font-semibold text-gray-900 dark:text-white">Payment schedule <span className="font-normal text-gray-500 dark:text-gray-400">· before fees</span></p>
                                             {(() => {
                                                 const schedule = []
-                                                schedule.push({ num: 1, amount: firstShare, label: 'Today' })
+                                                schedule.push({ num: 1, amount: planFirstShare, label: 'Today' })
                                                 for (let i = 2; i <= plan.num_instalments; i++) {
                                                     const daysFromNow = plan.deadline_days * (i - 1)
                                                     const amt = i === plan.num_instalments
@@ -1991,29 +2036,22 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                                                 return (
                                                     <>
                                                         {schedule.map(s => (
-                                                            <div key={s.num} className="flex justify-between items-center text-[12px]">
-                                                                <span className="text-amber-800 dark:text-amber-300">
-                                                                    {s.num === 1 ? '⚡' : '📅'} Payment {s.num} · {s.label}
-                                                                </span>
-                                                                <span className="font-bold text-amber-900 dark:text-amber-200">
+                                                            <div key={s.num} className="flex justify-between items-center gap-3 text-[12px]">
+                                                                <span className="text-gray-600 dark:text-gray-300">Payment {s.num} · {s.label}</span>
+                                                                <span className="font-medium text-black dark:text-white tabular-nums">
                                                                     {formatCurrency(s.amount, tiers[0]?.currency)}
                                                                 </span>
                                                             </div>
                                                         ))}
-                                                        <div className="flex justify-between items-center text-[12px] pt-1 border-t border-amber-200/30 dark:border-amber-500/10 font-bold">
-                                                            <span className="text-amber-900 dark:text-amber-200">Order Total</span>
-                                                            <span className="text-amber-900 dark:text-amber-200">{formatCurrency(orderVal, tiers[0]?.currency)}</span>
-                                                        </div>
                                                     </>
                                                 )
                                             })()}
-                                            <div className="space-y-1.5 pt-1 border-t border-amber-200/30 dark:border-amber-500/10 mt-1">
-                                                <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
-                                                    🔒 Ticket is reserved immediately. Issued after final payment. Fees apply per transaction.
+                                            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-zinc-800 mt-1">
+                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                                                    Your ticket is reserved today and issued after the final payment. Fees apply to each payment.
                                                 </p>
-                                                <p className="text-[10.5px] font-medium text-red-600/90 dark:text-red-400/90 flex items-start gap-1 p-1.5 bg-red-50 dark:bg-red-500/10 rounded-md border border-red-100 dark:border-red-500/20">
-                                                    <span className="mt-0.5">⚠️</span>
-                                                    <span>By proceeding, you agree that there are <strong>no refunds</strong> if your reservation is forfeited due to missed payments.</span>
+                                                <p className="text-[11px] text-red-700 dark:text-red-400 leading-relaxed">
+                                                    Missed payments may forfeit your reservation without a refund.
                                                 </p>
                                             </div>
                                         </div>
@@ -2022,96 +2060,52 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                             )
                         })()}
 
-                        <div className="flex justify-between items-end">
-                            <span className="text-[15px] font-bold text-gray-900 dark:text-white">
-                                {paymentMode === 'instalment' && instalmentPlans[0] ? 'Due Today' : 'Total Due'}
-                            </span>
-                            <div className="text-right">
-                                {(() => {
-                                    if (paymentMode === 'instalment' && instalmentPlans[0]) {
-                                        const plan = instalmentPlans[0]
-                                        const orderVal = subtotal + addonSubtotal - (discount ? (discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100)) : 0)
-                                        const firstShare = Math.round(orderVal * plan.initial_percent / 100 * 100) / 100
-                                        // Calculate fees on the first instalment share
-                                        const { customerTotal: firstInstalmentTotal } = calculateFees(
-                                            firstShare, 0,
-                                            feeBearer,
-                                            effectiveRates
-                                        )
-                                        return (
-                                            <>
-                                                <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">
-                                                    {formatCurrency(firstInstalmentTotal, tiers[0]?.currency)}
-                                                </span>
-                                                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-                                                    of {formatCurrency(orderVal, tiers[0]?.currency)} order · incl. fees
-                                                </span>
-                                            </>
-                                        )
-                                    }
-                                    return (
-                                        <>
-                                            <span className="text-[24px] font-bold text-black dark:text-white leading-none tracking-tight block">
-                                                {formatCurrency(total, tiers[0]?.currency)}
-                                            </span>
-                                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Incl. taxes & fees</span>
-                                        </>
-                                    )
-                                })()}
-                            </div>
-                        </div>
                     </div>
                 </div>
 
                 {/* Terms */}
-                <p className="text-center text-[10px] text-gray-400 mt-4 px-8 leading-relaxed mb-4">
-                    By purchasing, you agree to the <a href="#" className="underline hover:text-gray-500">Terms of Service</a> and <a href="#" className="underline hover:text-gray-500">Privacy Policy</a>.
+                <p className="text-center text-[11px] text-gray-500 dark:text-gray-400 mt-4 px-4 leading-relaxed mb-2">
+                    By purchasing, you agree to the <Link href="/terms-of-service" className="underline underline-offset-2 hover:text-black dark:hover:text-white">Terms of Service</Link> and <Link href="/privacy-policy" className="underline underline-offset-2 hover:text-black dark:hover:text-white">Privacy Policy</Link>.
                     All sales are final.
                 </p>
             </div>
 
-            {/* Static Footer (Flex Item) */}
+            {/* Payment action remains visible while reviewing longer orders. */}
             <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-zinc-800 p-4 -mx-4 -mb-4 z-30 flex-shrink-0">
                 <div className="max-w-md mx-auto md:max-w-none">
+                    <div className="flex items-end justify-between gap-3 pb-3">
+                        <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{selectedPlan ? 'Due today' : 'Total due'}</span>
+                        <div className="text-right">
+                            <span className="block text-[21px] leading-none font-semibold tracking-[-0.04em] tabular-nums text-black dark:text-white">{formatCurrency(amountDue, currency)}</span>
+                            {selectedPlan && <span className="block mt-1 text-[11px] text-gray-500 dark:text-gray-400">of {formatCurrency(orderValue, currency)} order · fees included today</span>}
+                        </div>
+                    </div>
                     <button
+                        type="button"
                         onClick={onPay}
                         disabled={loading || timeLeft.label === 'EXPIRED'}
-                        style={{
-                            backgroundColor: timeLeft.label !== 'EXPIRED' ? (primaryColor || '#000000') : undefined,
-                            color: timeLeft.label !== 'EXPIRED' ? (primaryColor ? getContrastColor(primaryColor) : '#ffffff') : undefined
-                        }}
                         className={cn(
-                            "w-full h-10 rounded-lg text-[13px] font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2",
+                            "w-full h-12 rounded-full text-[13px] font-semibold tracking-tight transition-colors active:scale-[0.98] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black dark:focus-visible:ring-white",
                             (loading || timeLeft.label === 'EXPIRED')
                                 ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
-                                : "bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 hover:opacity-90"
+                                : "bg-[#111111] dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-gray-100"
                         )}
                     >
                         {loading ? (
                             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
-                        ) : paymentMode === 'instalment' && instalmentPlans && instalmentPlans[0] ? (() => {
-                            const plan = instalmentPlans[0]
-                            const orderVal = subtotal + addonSubtotal - (discount ? (discount.type === 'fixed' ? discount.value : (subtotal * discount.value / 100)) : 0)
-                            const firstShare = Math.round(orderVal * plan.initial_percent / 100 * 100) / 100
-                            const { customerTotal: firstTotal } = calculateFees(firstShare, 0, feeBearer, effectiveRates)
-                            return <>Pay {formatCurrency(firstTotal, tiers[0]?.currency)} (1st Instalment)</>
-                        })() : (
-                            <>Pay {formatCurrency(total, tiers[0]?.currency)}</>
+                        ) : selectedPlan ? (
+                            <>Pay {formatCurrency(amountDue, currency)} today</>
+                        ) : (
+                            <>Pay {formatCurrency(amountDue, currency)}</>
                         )}
                     </button>
-                    <div className="flex justify-center mt-3 md:hidden">
-                        <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" /></svg>
-                            Secure Payment by GatePass
-                        </span>
-                    </div>
                 </div>
             </div>
         </div>
     )
 }
 
-const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[], tierName: string | undefined }) => {
+const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tickets: any[], tierName: string | undefined, onClose: () => void }) => {
     const supabase = createClient()
     const [downloading, setDownloading] = useState(false)
     const [questions, setQuestions] = useState<EventFormQuestion[]>([])
@@ -2345,15 +2339,17 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                 {/* Header */}
                 <div className="flex-shrink-0 px-5 pt-5 pb-2 flex justify-between items-start">
                     <div className="space-y-1">
-                        <h2 className="text-[18px] leading-tight font-extrabold tracking-tight text-black dark:text-white">
-                            Attendee Info Required
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">Order complete</p>
+                        <h2 className="text-[20px] leading-tight font-semibold tracking-tight text-black dark:text-white">
+                            A few more details
                         </h2>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                             Please answer the questions below to access your tickets.
                         </p>
                     </div>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={onClose}
+                        aria-label="Close attendee details"
                         className="p-1.5 -mr-1.5 -mt-1.5 text-black dark:text-white hover:opacity-70 transition-opacity"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
@@ -2366,28 +2362,34 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                 <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto no-scrollbar px-5 pb-5 space-y-4 my-4 flex flex-col justify-between">
                     <div className="space-y-4">
                         {questions.map((q) => (
-                            <div key={q.id} className="space-y-1">
-                                <label className="block text-[13px] font-bold text-gray-700 dark:text-gray-300">
+                            <div key={q.id} className="space-y-1.5">
+                                <label htmlFor={`attendee-${q.id}`} className="block text-[12px] font-medium text-gray-600 dark:text-gray-300">
                                     {q.label}
                                     {q.required && <span className="text-red-500 ml-1">*</span>}
                                 </label>
 
                                 {q.type === 'text' && (
                                     <input
+                                        id={`attendee-${q.id}`}
                                         type="text"
                                         value={(answers[q.id] as string) || ''}
                                         onChange={(e) => handleInputChange(q.id, e.target.value)}
-                                        className="w-full bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 text-black dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-600 transition-all placeholder:text-gray-400 dark:placeholder:text-zinc-500"
+                                        className="w-full h-11 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-black dark:text-white rounded-lg px-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 focus:border-black dark:focus:border-white transition-colors placeholder:text-gray-400 dark:placeholder:text-zinc-500"
                                         placeholder="Your answer..."
+                                        aria-invalid={!!errors[q.id]}
+                                        aria-describedby={errors[q.id] ? `attendee-${q.id}-error` : undefined}
                                     />
                                 )}
 
                                 {q.type === 'select' && (
                                     <div className="relative">
                                         <select
+                                            id={`attendee-${q.id}`}
                                             value={(answers[q.id] as string) || ''}
                                             onChange={(e) => handleInputChange(q.id, e.target.value)}
-                                            className="w-full bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-800 text-black dark:text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-600 transition-all appearance-none"
+                                            className="w-full h-11 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-black dark:text-white rounded-lg px-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 focus:border-black dark:focus:border-white transition-colors appearance-none"
+                                            aria-invalid={!!errors[q.id]}
+                                            aria-describedby={errors[q.id] ? `attendee-${q.id}-error` : undefined}
                                         >
                                             <option value="" className="text-gray-500">Select an option...</option>
                                             {q.options?.map((opt, oIdx) => (
@@ -2404,11 +2406,14 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                 )}
 
                                 {q.type === 'checkbox' && (
-                                    <label className="flex items-center gap-3 cursor-pointer group mt-2">
+                                    <label htmlFor={`attendee-${q.id}`} className="flex items-center gap-3 cursor-pointer group mt-2">
                                         <input
+                                            id={`attendee-${q.id}`}
                                             type="checkbox"
                                             checked={!!answers[q.id]}
                                             onChange={(e) => handleInputChange(q.id, e.target.checked)}
+                                            aria-invalid={!!errors[q.id]}
+                                            aria-describedby={errors[q.id] ? `attendee-${q.id}-error` : undefined}
                                             className="w-5 h-5 rounded border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50 checked:bg-black dark:checked:bg-white focus:ring-0 cursor-pointer animate-none"
                                         />
                                         <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white transition-colors">
@@ -2418,7 +2423,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                 )}
 
                                 {errors[q.id] && (
-                                    <p className="text-[11px] text-red-500 font-medium">{errors[q.id]}</p>
+                                    <p id={`attendee-${q.id}-error`} role="alert" className="text-[11px] text-red-500 font-medium">{errors[q.id]}</p>
                                 )}
                             </div>
                         ))}
@@ -2429,8 +2434,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                         <button
                             type="submit"
                             disabled={submittingForm}
-                            className="w-full h-14 text-[15px] font-bold tracking-tight rounded-[20px] transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                            style={{ backgroundColor: event.primary_color || '#f59e0b', color: getContrastColor(event.primary_color || '#f59e0b') }}
+                            className="w-full h-12 text-[13px] font-semibold tracking-tight rounded-full transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 bg-black dark:bg-white text-white dark:text-black"
                         >
                             {submittingForm ? (
                                 <>
@@ -2459,13 +2463,14 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                         See you at {event.title}!🎉
                     </h2>
                     {countdownText && (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold tracking-wide">
+                        <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 text-[10px] font-semibold tracking-wide">
                             {countdownText}
                         </div>
                     )}
                 </div>
                 <button
-                    onClick={() => window.location.reload()}
+                    onClick={onClose}
+                    aria-label="Close ticket details"
                     className="p-1.5 -mr-1.5 -mt-1.5 text-black dark:text-white hover:opacity-70 transition-opacity"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
@@ -2486,7 +2491,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                     href={activeTicket.ticket_tiers.virtual_link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="block w-full py-4 bg-purple-600 text-white rounded-[24px] font-bold text-sm hover:bg-purple-700 active:scale-95 transition-all shadow-lg shadow-purple-500/20"
+                                    className="block w-full h-12 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-full font-semibold text-[13px] hover:opacity-90 active:scale-[0.98] transition-all"
                                 >
                                     Join Livestream Now
                                 </a>
@@ -2498,9 +2503,9 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                                 )}
                             </div>
                         ) : (
-                            <div className="w-full bg-amber-500/10 border border-amber-500/20 p-6 rounded-[32px] text-center space-y-3">
-                                <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                                    <Clock className="w-6 h-6 text-amber-500" />
+                            <div className="w-full bg-gray-50 dark:bg-zinc-800/40 border border-gray-200 dark:border-zinc-700 p-5 rounded-[20px] text-center space-y-3">
+                                <div className="mx-auto w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 flex items-center justify-center">
+                                    <Clock className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                                 </div>
                                 <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Livestream Link Coming Soon</h3>
                                 <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
@@ -2518,7 +2523,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                 ) : (
                     /* QR Code */
                     <div className="flex flex-col items-center my-6">
-                        <div className="bg-white p-2 rounded-xl border border-gray-100 dark:border-zinc-800 shadow-sm mb-3">
+                        <div className="bg-white p-2 rounded-2xl border border-gray-200 dark:border-zinc-700 mb-3">
                             <Image
                                 src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${activeTicket.qr_code_hash}&color=000000`}
                                 alt="QR Code"
@@ -2535,7 +2540,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                 )}
 
                 {/* Ticket Details Card */}
-                <div className="bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 rounded-[20px] p-3 space-y-3">
+                <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-[20px] p-4 space-y-3">
                     {/* Event Title in Card */}
                     <div>
                         <h3 className="text-[16px] font-bold text-black dark:text-white leading-tight mb-0.5">{event.title}</h3>
@@ -2595,18 +2600,18 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
             </div>
 
             {/* Sticky Actions Footer */}
-            <div className="p-6 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-white/5">
+            <div className="p-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-white/5">
                 <div className="flex flex-col gap-3">
                     <button
                         onClick={handleDownloadPDF}
                         disabled={downloading}
-                        className="w-full h-14 bg-black dark:bg-white text-white dark:text-black rounded-[20px] text-[15px] font-bold tracking-tight hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-3"
+                        className="w-full h-12 bg-black dark:bg-white text-white dark:text-black rounded-full text-[13px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                         {downloading ? (
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white dark:border-black/30 dark:border-t-black rounded-full animate-spin" />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-white/20 dark:bg-black/10 flex items-center justify-center">
-                                <Download className="w-4 h-4" />
+                            <div className="w-7 h-7 rounded-full bg-white/20 dark:bg-black/10 flex items-center justify-center">
+                                <Download className="w-3.5 h-3.5" />
                             </div>
                         )}
                         {downloading ? 'Preparing Tickets...' : 'Download PDF Tickets'}
@@ -2615,7 +2620,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                     <div className="flex gap-3">
                         <button
                             onClick={handleShare}
-                            className="flex-1 h-12 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white rounded-2xl text-[13px] font-bold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
+                            className="flex-1 h-11 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white rounded-full text-[12px] font-semibold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
                         >
                             <Share2 className="w-4 h-4" />
                             Share
@@ -2624,7 +2629,7 @@ const SuccessView = ({ event, tickets, tierName }: { event: Event, tickets: any[
                             href={getGoogleCalendarUrl()}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex-1 h-12 bg-zinc-50 dark:bg-zinc-800/50 text-black dark:text-white border border-gray-200 dark:border-zinc-700 rounded-2xl text-[13px] font-bold hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
+                            className="flex-1 h-11 bg-white dark:bg-zinc-900 text-black dark:text-white border border-gray-200 dark:border-zinc-700 rounded-full text-[12px] font-semibold hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
                         >
                             <Calendar className="w-4 h-4" />
                             Calendar

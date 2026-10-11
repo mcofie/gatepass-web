@@ -1,406 +1,288 @@
 'use client'
 
 import React, { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { ArrowRight, Loader2, Check, ChevronLeft } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 import { syncUserTeamMemberships } from '@/app/actions/team'
+import { GatePassMark } from '@/components/branding/GatePassMark'
+
+type View = 'LOGIN' | 'SENT' | 'MANUAL'
+type Intent = 'buyer' | 'organizer'
+
+const fieldClass = 'h-12 w-full rounded-xl border border-[#d8d8d8] bg-white px-4 text-[15px] text-black outline-none transition-colors placeholder:text-[#919191] focus:border-black focus:ring-2 focus:ring-black/10 dark:border-[#3b3b3b] dark:bg-[#111] dark:text-white dark:placeholder:text-[#777] dark:focus:border-white dark:focus:ring-white/10'
+const labelClass = 'mb-2 block text-[13px] font-semibold text-[#262626] dark:text-[#e9e9e9]'
+const primaryClass = 'flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111] px-5 text-[15px] font-semibold text-white transition-colors hover:bg-[#333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-[#e5e5e5] dark:focus-visible:ring-white dark:focus-visible:ring-offset-[#080808]'
+const textButtonClass = 'text-[13px] font-semibold text-[#4d4d4d] underline decoration-[#bcbcbc] underline-offset-4 transition-colors hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:text-[#bcbcbc] dark:hover:text-white dark:focus-visible:ring-white'
 
 export function LoginContent() {
     const [email, setEmail] = useState('')
     const [otp, setOtp] = useState('')
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
-    const [view, setView] = useState<'LOGIN' | 'SENT' | 'MANUAL'>('LOGIN')
-    const [intent, setIntent] = useState<'buyer' | 'organizer'>('buyer')
-
+    const [view, setView] = useState<View>('LOGIN')
+    const [intent, setIntent] = useState<Intent>('buyer')
+    const [errorMessage, setErrorMessage] = useState('')
     const searchParams = useSearchParams()
-    const urlTarget = searchParams.get('next') || searchParams.get('redirect') || ''
-    const router = useRouter() // Though we use window.location for full reload often, consistency helps.
-
+    const requestedPath = searchParams.get('next') || searchParams.get('redirect') || ''
+    const urlTarget = requestedPath.startsWith('/') && !requestedPath.startsWith('//') && !requestedPath.includes('\\') ? requestedPath : ''
+    const actualPath = urlTarget || (intent === 'organizer' ? '/dashboard' : '/my-tickets')
     const supabase = createClient()
 
-    const actualPath = urlTarget || (intent === 'organizer' ? '/dashboard' : '/my-tickets')
-
-    const handleAuth = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const sendLoginLink = async () => {
+        setErrorMessage('')
         setLoading(true)
 
         try {
-            // Determine the base URL: prefer env var, fallback to origin
-            const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
-                ? process.env.NEXT_PUBLIC_SITE_URL
-                : window.location.origin
-
+            const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
             const { error } = await supabase.auth.signInWithOtp({
                 email: email.trim(),
                 options: {
                     shouldCreateUser: true,
-                    // Pass 'next' to the callback route
-                    emailRedirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(actualPath)}`,
+                    emailRedirectTo: baseUrl + '/auth/callback?next=' + encodeURIComponent(actualPath),
                 },
             })
-
             if (error) throw error
 
+            setOtp('')
             setView('SENT')
-            toast.success('Magic link sent!')
-        } catch (error: any) {
-            console.error('Magic Link Error:', error)
-            if (error.message?.includes('Error sending magic link email') || error.code === 'unexpected_failure') {
-                toast.error('Failed to send email. Rate limit exceeded.')
-            } else {
-                toast.error(error.message)
-            }
+            toast.success('Sign-in email sent')
+        } catch (error: unknown) {
+            const authError = error as { message?: string; code?: string }
+            const message = authError.message?.includes('Error sending magic link email') || authError.code === 'unexpected_failure'
+                ? 'We could not send another email right now. Please try again shortly.'
+                : authError.message || 'Something went wrong. Please try again.'
+            setErrorMessage(message)
+            toast.error(message)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleVerifyOtp = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!otp || otp.length < 6) {
-            toast.error('Please enter a valid 6-digit code')
+    const handleAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        await sendLoginLink()
+    }
+
+    const handleVerifyOtp = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        if (otp.length !== 6) {
+            setErrorMessage('Enter the 6-digit code from your email.')
             return
         }
-        if (!email && view === 'MANUAL') {
-            toast.error('Please enter your email')
+        if (!email.trim()) {
+            setErrorMessage('Enter your email address.')
             return
         }
 
+        setErrorMessage('')
         setVerifying(true)
         try {
-            let res = await supabase.auth.verifyOtp({
+            let result = await supabase.auth.verifyOtp({
                 email: email.trim(),
                 token: otp,
                 type: 'email',
             })
 
-            // Fallback for when Magic Link + OTP config expects 'magiclink' explicitly
-            if (res.error?.message?.toLowerCase().includes('expired') || res.error?.message?.toLowerCase().includes('invalid')) {
-                const retryRes = await supabase.auth.verifyOtp({
+            if (result.error?.message?.toLowerCase().includes('expired') || result.error?.message?.toLowerCase().includes('invalid')) {
+                const retry = await supabase.auth.verifyOtp({
                     email: email.trim(),
                     token: otp,
                     type: 'magiclink',
                 })
-                if (!retryRes.error) {
-                    res = retryRes
-                }
+                if (!retry.error) result = retry
             }
 
-            if (res.error) throw res.error
+            if (result.error) throw result.error
 
-            // Perform team membership sync just in case they were invited pending creation
             try {
                 const syncResult = await syncUserTeamMemberships()
-                if (syncResult && syncResult.success) {
-                    if (syncResult.count && syncResult.count > 0) {
-                        console.log(`[Auth] Synced ${syncResult.count} staff memberships`)
-                        toast.success('Logged in successfully!')
-                        window.location.href = '/dashboard?login=success'
-                        return
-                    }
-
-                    // Check if already a staff member
-                    const { createClient: createSupClient } = await import('@supabase/supabase-js')
-                    const supabaseAdmin = createSupClient(
-                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                        process.env.SUPABASE_SERVICE_ROLE_KEY!
-                    )
-                    const { data: { user: authedUser } } = await supabase.auth.getUser()
-                    if (authedUser) {
-                        const { data: existingStaff } = await supabaseAdmin
-                            .schema('gatepass')
-                            .from('organization_team')
-                            .select('id')
-                            .eq('user_id', authedUser.id)
-                            .limit(1)
-
-                        if (existingStaff && existingStaff.length > 0) {
-                            console.log('[Auth] Existing staff detected, redirecting to dashboard')
-                            toast.success('Logged in successfully!')
-                            window.location.href = '/dashboard?login=success'
-                            return
-                        }
-                    }
+                if (!urlTarget && syncResult.success && syncResult.hasTeamMembership) {
+                    toast.success('Signed in')
+                    window.location.href = '/dashboard?login=success'
+                    return
                 }
-            } catch (err) {
-                console.error('Failed to sync or verify team memberships:', err)
+            } catch (syncError) {
+                console.error('Failed to sync team memberships:', syncError)
             }
 
-            toast.success('Logged in successfully!')
-
-            // Hard reload to refresh session state and go to actual path
-            if (actualPath) {
-                window.location.href = actualPath
-            } else {
-                // Should technically not hit here since actualPath is never empty now, but safe fallback
-                window.location.href = '/auth/callback'
-            }
-        } catch (error: any) {
-            console.error('OTP Verification Error:', error)
-            toast.error(error.message || 'Invalid code')
+            toast.success('Signed in')
+            window.location.href = actualPath
+        } catch (error: unknown) {
+            const verifyError = error as { message?: string }
+            const message = verifyError.message || 'That code did not work. Please try again.'
+            setErrorMessage(message)
+            toast.error(message)
         } finally {
             setVerifying(false)
         }
     }
 
+    const changeEmail = () => {
+        setView('LOGIN')
+        setOtp('')
+        setErrorMessage('')
+    }
+
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFDFD] dark:bg-[#050505] font-sans px-6 relative overflow-hidden">
-            {/* Subtle Textured Background */}
-            <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-100 dark:brightness-100" />
-            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className="flex min-h-svh flex-col bg-white text-black dark:bg-[#080808] dark:text-white">
+            <header className="mx-auto flex w-full max-w-[1180px] items-center justify-between px-5 py-5 sm:px-8 sm:py-7">
+                <Link href="/" className="inline-flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white" aria-label="GatePass home">
+                    <GatePassMark />
+                    <span className="text-[17px] font-bold tracking-[-0.04em]">GatePass</span>
+                </Link>
+                <Link href="/" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#4b4b4b] transition-colors hover:text-black focus-visible:outline-none focus-visible:underline dark:text-[#bbb] dark:hover:text-white">
+                    Explore events <ArrowUpRight className="size-4" strokeWidth={1.8} aria-hidden="true" />
+                </Link>
+            </header>
 
-            <div className="w-full max-w-[380px] z-10">
-                {/* Logo Area */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex justify-center mb-12"
-                >
-                    <div className="w-12 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center shadow-xl shadow-black/5 dark:shadow-white/5">
-                        <span className="font-bold text-white dark:text-black text-lg tracking-tighter">GP</span>
+            <main className="mx-auto grid w-full max-w-[1180px] flex-1 items-center gap-12 px-5 pb-14 pt-8 sm:px-8 md:pb-20 lg:grid-cols-[minmax(0,1fr)_minmax(380px,440px)] lg:gap-24 lg:pt-0">
+                <div className="hidden lg:block">
+                    <h1 className="max-w-[610px] text-[clamp(3.5rem,5.2vw,5rem)] font-semibold leading-[1.02] tracking-[-0.065em]">
+                        One sign-in.<br />Every event.
+                    </h1>
+                    <p className="mt-6 max-w-[440px] text-[17px] leading-[1.6] text-[#646464] dark:text-[#aaa]">
+                        Access your tickets and the events you manage, all in one place.
+                    </p>
+                </div>
+
+                <div className="w-full max-w-[440px] justify-self-center lg:max-w-none">
+                    <div className="mb-7 lg:hidden">
+                        <h1 className="text-[36px] font-semibold leading-[1.04] tracking-[-0.055em] sm:text-[42px]">One sign-in.<br />Every event.</h1>
                     </div>
-                </motion.div>
 
-                <AnimatePresence mode="wait">
-                    {view === 'LOGIN' && (
-                        <motion.div
-                            key="login"
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
-                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                        >
-                            <div className="text-center mb-10">
-                                <h1 className="text-3xl font-semibold text-black dark:text-white tracking-tight mb-3">Sign in</h1>
-                                <p className="text-gray-500 dark:text-gray-400 text-[15px]">Welcome back to GatePass.</p>
-                            </div>
-
-                            <form onSubmit={handleAuth} className="space-y-6">
-                                {!urlTarget && (
-                                    <div className="flex bg-gray-50 dark:bg-zinc-900/50 p-1.5 rounded-2xl relative z-0">
-                                        <div
-                                            className="absolute inset-y-1.5 left-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-sm transition-transform duration-300 z-0"
-                                            style={{
-                                                width: 'calc(50% - 6px)',
-                                                transform: intent === 'buyer' ? 'translateX(0)' : 'translateX(100%)'
-                                            }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setIntent('buyer')}
-                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'buyer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                        >
-                                            My Tickets
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIntent('organizer')}
-                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'organizer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                        >
-                                            Manage Events
-                                        </button>
+                    <div className="rounded-2xl border border-[#e8e8e8] bg-white p-5 sm:p-8 lg:p-9 dark:border-[#2b2b2b] dark:bg-[#101010]">
+                        <div>
+                            {view === 'LOGIN' ? (
+                                <div>
+                                    <div className="mb-7">
+                                        <h2 className="text-[27px] font-semibold tracking-[-0.045em]">Sign in</h2>
+                                        <p className="mt-1.5 text-[14px] leading-6 text-[#6b6b6b] dark:text-[#aaa]">{urlTarget ? 'Enter your email to continue securely.' : 'Choose where you\'re going, then enter your email.'}</p>
                                     </div>
-                                )}
-                                <div className="space-y-2">
-                                    <input
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        type="email"
-                                        required
-                                        placeholder="name@work.com"
-                                        className="w-full h-14 bg-gray-50 dark:bg-zinc-900/50 border-none rounded-2xl px-5 text-lg font-medium text-center text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 transition-all outline-none"
-                                    />
+
+                                    <form onSubmit={handleAuth} className="space-y-5">
+                                        {!urlTarget && (
+                                            <fieldset>
+                                                <legend className={labelClass}>Sign in for</legend>
+                                                <div className="grid grid-cols-2 gap-2" role="group" aria-label="Sign-in destination">
+                                                    <button
+                                                        type="button"
+                                                        aria-pressed={intent === 'buyer'}
+                                                        onClick={() => setIntent('buyer')}
+                                                        className={'h-11 rounded-xl border text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white ' + (intent === 'buyer' ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black' : 'border-[#dedede] bg-white text-[#555] hover:border-[#888] dark:border-[#3b3b3b] dark:bg-[#101010] dark:text-[#bbb]')}
+                                                    >My tickets</button>
+                                                    <button
+                                                        type="button"
+                                                        aria-pressed={intent === 'organizer'}
+                                                        onClick={() => setIntent('organizer')}
+                                                        className={'h-11 rounded-xl border text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white ' + (intent === 'organizer' ? 'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black' : 'border-[#dedede] bg-white text-[#555] hover:border-[#888] dark:border-[#3b3b3b] dark:bg-[#101010] dark:text-[#bbb]')}
+                                                    >Manage events</button>
+                                                </div>
+                                            </fieldset>
+                                        )}
+                                        <div>
+                                            <label htmlFor="login-email" className={labelClass}>Email address</label>
+                                            <input
+                                                id="login-email"
+                                                value={email}
+                                                onChange={(event) => { setEmail(event.target.value); setErrorMessage('') }}
+                                                type="email"
+                                                autoComplete="email"
+                                                required
+                                                placeholder="you@example.com"
+                                                className={fieldClass}
+                                            />
+                                        </div>
+                                        {errorMessage && <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">{errorMessage}</p>}
+                                        <button type="submit" disabled={loading} className={primaryClass}>
+                                            {loading ? <Loader2 className="size-4 animate-spin" aria-label="Sending email" /> : <>Continue with email <ArrowRight className="size-4" strokeWidth={1.8} aria-hidden="true" /></>}
+                                        </button>
+                                    </form>
+                                    <p className="mt-4 text-[13px] leading-5 text-[#777] dark:text-[#999]">We&apos;ll email you a sign-in link and a 6-digit code. No password needed.</p>
+                                    <div className="mt-7 border-t border-[#ececec] pt-5 dark:border-[#303030]">
+                                        <button type="button" onClick={() => { setView('MANUAL'); setErrorMessage('') }} className={textButtonClass}>I already have a code</button>
+                                    </div>
                                 </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[16px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-black/10 dark:shadow-white/10 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
-                                >
-                                    {loading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            Continue <ArrowRight className="w-4 h-4 opacity-50" />
-                                        </>
-                                    )}
-                                </button>
-
-                                <div className="pt-4 text-center">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            // if (email) setExpectedEmail(email) // Optional: pass state logic eventually
-                                            setView('MANUAL')
-                                        }}
-                                        className="text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                                    >
-                                        I have a code
+                            ) : (
+                                <div>
+                                    <button type="button" onClick={changeEmail} className="mb-7 inline-flex items-center gap-1.5 rounded-md text-[13px] font-semibold text-[#666] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:text-[#aaa] dark:hover:text-white dark:focus-visible:ring-white">
+                                        <ArrowLeft className="size-4" strokeWidth={1.8} aria-hidden="true" /> Back
                                     </button>
-                                </div>
-                            </form>
-                        </motion.div>
-                    )}
-
-                    {view === 'SENT' && (
-                        <motion.div
-                            key="sent"
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
-                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                            className="flex flex-col items-center"
-                        >
-                            <div className="w-20 h-20 rounded-full bg-gray-50 dark:bg-zinc-900 flex items-center justify-center mb-8 border border-gray-100 dark:border-zinc-800">
-                                <Check className="w-8 h-8 text-black dark:text-white" />
-                            </div>
-                            <h2 className="text-2xl font-semibold tracking-tight text-black dark:text-white mb-4 text-center">Check your email</h2>
-                            <div className="text-[15px] text-gray-500 dark:text-gray-400 text-center max-w-xs mb-10 leading-relaxed">
-                                We sent a login link and code to <br />
-                                <span className="text-black dark:text-white font-medium">{email}</span>
-                            </div>
-
-                            <form onSubmit={handleVerifyOtp} className="w-full space-y-6">
-                                <div className="relative">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-gray-100 dark:border-zinc-800"></div>
+                                    <div className="mb-7">
+                                        {view === 'SENT' && <span className="mb-5 flex size-10 items-center justify-center rounded-full bg-[#f2f2f2] dark:bg-[#242424]"><Check className="size-5" strokeWidth={1.8} aria-hidden="true" /></span>}
+                                        <h2 className="text-[27px] font-semibold tracking-[-0.045em]">{view === 'SENT' ? 'Check your email' : 'Enter your code'}</h2>
+                                        <p className="mt-1.5 text-[14px] leading-6 text-[#6b6b6b] dark:text-[#aaa]">
+                                            {view === 'SENT' ? 'Use the sign-in link in your email, or enter the 6-digit code here.' : 'Enter the email address and 6-digit code from your GatePass message.'}
+                                        </p>
                                     </div>
-                                    <div className="relative flex justify-center text-xs uppercase">
-                                        <span className="bg-[#FDFDFD] dark:bg-[#050505] px-4 text-gray-400 tracking-widest font-medium">Or enter code</span>
-                                    </div>
-                                </div>
 
-                                <input
-                                    value={otp}
-                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    type="text"
-                                    inputMode="numeric"
-                                    placeholder="000 000"
-                                    className="w-full h-16 bg-transparent border-b-2 border-gray-100 dark:border-zinc-800 focus:border-black dark:focus:border-white rounded-none text-center text-3xl font-mono tracking-[0.5em] text-black dark:text-white placeholder:text-gray-200 dark:placeholder:text-zinc-800 outline-none transition-all"
-                                    autoFocus
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={verifying || otp.length < 6}
-                                    className="w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[16px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-black/10 dark:shadow-white/10 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
-                                >
-                                    {verifying ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        'Verify Code'
-                                    )}
-                                </button>
-                            </form>
-
-                            <button
-                                onClick={() => {
-                                    setView('LOGIN')
-                                    setOtp('')
-                                }}
-                                className="mt-8 flex items-center gap-2 text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                                Back to login
-                            </button>
-                        </motion.div>
-                    )}
-
-                    {view === 'MANUAL' && (
-                        <motion.div
-                            key="manual"
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
-                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                        >
-                            <div className="text-center mb-10">
-                                <h1 className="text-2xl font-semibold text-black dark:text-white tracking-tight mb-3">Login Code</h1>
-                                <p className="text-gray-500 dark:text-gray-400 text-[15px]">Enter the 6-digit code sent to your email.</p>
-                            </div>
-
-                            <form onSubmit={handleVerifyOtp} className="space-y-6">
-                                {!urlTarget && (
-                                    <div className="flex bg-gray-50 dark:bg-zinc-900/50 p-1.5 rounded-2xl relative z-0">
-                                        <div
-                                            className="absolute inset-y-1.5 left-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-sm transition-transform duration-300 z-0"
-                                            style={{
-                                                width: 'calc(50% - 6px)',
-                                                transform: intent === 'buyer' ? 'translateX(0)' : 'translateX(100%)'
-                                            }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setIntent('buyer')}
-                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'buyer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                        >
-                                            My Tickets
+                                    <form onSubmit={handleVerifyOtp} className="space-y-5">
+                                        {view === 'SENT' ? (
+                                            <div>
+                                                <span className={labelClass}>Email address</span>
+                                                <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-[#e4e4e4] bg-[#fafafa] px-4 dark:border-[#343434] dark:bg-[#171717]">
+                                                    <span className="min-w-0 truncate text-[14px] font-medium">{email}</span>
+                                                    <button type="button" onClick={changeEmail} className={textButtonClass}>Edit</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label htmlFor="code-email" className={labelClass}>Email address</label>
+                                                <input
+                                                    id="code-email"
+                                                    value={email}
+                                                    onChange={(event) => { setEmail(event.target.value); setErrorMessage('') }}
+                                                    type="email"
+                                                    autoComplete="email"
+                                                    required
+                                                    placeholder="you@example.com"
+                                                    className={fieldClass}
+                                                />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label htmlFor="login-code" className={labelClass}>6-digit code</label>
+                                            <input
+                                                id="login-code"
+                                                value={otp}
+                                                onChange={(event) => { setOtp(event.target.value.replace(/\D/g, '').slice(0, 6)); setErrorMessage('') }}
+                                                type="text"
+                                                inputMode="numeric"
+                                                autoComplete="one-time-code"
+                                                maxLength={6}
+                                                required
+                                                placeholder="000000"
+                                                className={fieldClass + ' text-center text-[20px] font-semibold tracking-[0.32em] tabular-nums placeholder:tracking-[0.32em]'}
+                                            />
+                                        </div>
+                                        {errorMessage && <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">{errorMessage}</p>}
+                                        <button type="submit" disabled={verifying || otp.length !== 6 || !email.trim()} className={primaryClass}>
+                                            {verifying ? <Loader2 className="size-4 animate-spin" aria-label="Verifying code" /> : <>Verify and sign in <ArrowRight className="size-4" strokeWidth={1.8} aria-hidden="true" /></>}
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIntent('organizer')}
-                                            className={`relative z-10 w-1/2 py-3 text-[13px] font-semibold transition-colors ${intent === 'organizer' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                        >
-                                            Manage Events
-                                        </button>
-                                    </div>
-                                )}
-                                <div className="space-y-4">
-                                    <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Email</label>
-                                        <input
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            type="email"
-                                            required
-                                            placeholder="name@work.com"
-                                            className="w-full h-12 bg-gray-50 dark:bg-zinc-900/50 border-none rounded-xl px-4 text-base font-medium text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-1 focus:ring-black dark:focus:ring-white transition-all outline-none"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-1">Code</label>
-                                        <input
-                                            value={otp}
-                                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                            type="text"
-                                            inputMode="numeric"
-                                            placeholder="000 000"
-                                            className="w-full h-14 bg-gray-50 dark:bg-zinc-900/50 border-none rounded-xl text-center text-xl font-mono tracking-[0.5em] text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:ring-1 focus:ring-black dark:focus:ring-white transition-all outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={verifying || otp.length < 6 || !email}
-                                    className="w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-medium text-[16px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-black/10 dark:shadow-white/10 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2"
-                                >
-                                    {verifying ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        'Verify Code'
+                                    </form>
+                                    {view === 'SENT' && (
+                                        <p className="mt-6 text-[13px] text-[#777] dark:text-[#999]">
+                                            Didn&apos;t receive it?{' '}
+                                            <button type="button" disabled={loading} onClick={sendLoginLink} className={textButtonClass + ' disabled:opacity-50'}>{loading ? 'Sending…' : 'Resend email'}</button>
+                                        </p>
                                     )}
-                                </button>
-                            </form>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </main>
 
-                            <div className="text-center mt-8">
-                                <button
-                                    onClick={() => setView('LOGIN')}
-                                    className="flex items-center justify-center gap-2 text-[13px] font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors w-full"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                    Back to login
-                                </button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
+            <footer className="mx-auto flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-4 border-t border-[#ededed] px-5 py-5 text-[12px] text-[#777] sm:px-8 dark:border-[#252525] dark:text-[#999]">
+                <span>© {new Date().getFullYear()} GatePass</span>
+                <nav aria-label="Legal and support" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    <Link href="/terms-of-service" className="hover:text-black focus-visible:underline dark:hover:text-white">Terms</Link>
+                    <Link href="/privacy-policy" className="hover:text-black focus-visible:underline dark:hover:text-white">Privacy</Link>
+                    <a href="mailto:support@gatepass.so" className="hover:text-black focus-visible:underline dark:hover:text-white">Support</a>
+                </nav>
+            </footer>
         </div>
     )
 }

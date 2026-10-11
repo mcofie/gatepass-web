@@ -1,14 +1,11 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { LayoutShell } from '@/components/layouts/LayoutShell'
 import { Toaster } from 'sonner'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
-
 export const metadata: Metadata = {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://gatepass.so'),
+    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://gatepass.so')),
     title: {
         template: '%s | GatePass',
         default: 'GatePass | Experience Curated Events',
@@ -32,7 +29,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body className={`${inter.variable} font-sans antialiased`}>
+            <body className="font-sans antialiased">
                 <ThemeProvider
                     attribute="class"
                     defaultTheme="system"

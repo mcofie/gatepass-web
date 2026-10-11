@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { ChevronDown, X, User, LogOut, LayoutDashboard, Ticket, Sun, Moon, Monitor } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, X, User, LogOut, LayoutDashboard, Ticket, Sun, Moon, Monitor } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 
 interface LandingHeaderProps {
     showAccountMenu?: boolean
@@ -17,12 +18,25 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
     const [user, setUser] = useState<any>(null)
     const { theme, setTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
+    const leftMenuButtonRef = React.useRef<HTMLButtonElement>(null)
     const supabase = createClient()
     const router = useRouter()
 
     useEffect(() => {
         setMounted(true)
     }, [])
+
+    useEffect(() => {
+        if (!isLeftOpen) return
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsLeftOpen(false)
+                leftMenuButtonRef.current?.focus()
+            }
+        }
+        window.addEventListener('keydown', closeOnEscape)
+        return () => window.removeEventListener('keydown', closeOnEscape)
+    }, [isLeftOpen])
 
     useEffect(() => {
         const getUser = async () => {
@@ -47,60 +61,58 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
     return (
         <>
             <div className="absolute top-0 left-0 right-0 p-4 md:p-8 z-50 pointer-events-none flex justify-between items-start gap-2">
-                {/* LEFT PILL */}
-                <div className="flex flex-col items-start gap-4">
-                    <div className="pointer-events-auto animate-fade-in flex items-center bg-gray-100/80 dark:bg-black/20 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-full shadow-lg transition-all duration-300 hover:bg-white/90 dark:hover:bg-black/30">
+                {/* Brand and about menu */}
+                <div className="flex flex-col items-start gap-2">
+                    <div className="pointer-events-auto animate-fade-in flex items-center bg-white/95 backdrop-blur-md border border-black/5 rounded-full shadow-sm text-black">
                         <Link
                             href="/"
-                            className="pl-4 md:pl-5 pr-2 md:pr-3 py-2 md:py-2.5 text-[13px] md:text-[14px] font-bold tracking-tight text-black dark:text-white leading-none hover:opacity-80 transition-opacity"
+                            className="inline-flex items-center gap-1.5 pl-3 pr-3 py-2.5 text-[14px] font-semibold tracking-tight leading-none hover:opacity-60 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black rounded-l-full"
                         >
+                            <GatePassMark className="size-5" invertOnDark={false} />
                             GatePass
                         </Link>
-                        <div className="w-px h-3 md:h-4 bg-black/10 dark:bg-white/20" />
+                        <div className="w-px h-4 bg-black/10" />
                         <button
+                            ref={leftMenuButtonRef}
                             onClick={() => {
                                 setIsLeftOpen(!isLeftOpen)
                                 if (isRightOpen) setIsRightOpen(false)
                             }}
-                            className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-colors duration-300"
+                            type="button"
+                            aria-expanded={isLeftOpen}
+                            aria-controls="gatepass-about-panel"
+                            className="px-3 py-2.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-700 hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black rounded-r-full"
                         >
-                            {isLeftOpen ? <X className="w-4 h-4 md:w-4 md:h-4" strokeWidth={2.5} /> : <ChevronDown className="w-4 h-4 md:w-4 md:h-4" strokeWidth={2.5} />}
+                            {isLeftOpen ? 'Close' : 'About'}
+                            {isLeftOpen ? <X aria-hidden="true" className="w-3.5 h-3.5" /> : <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />}
                         </button>
                     </div>
 
-                    {/* Left Popup Card */}
-                    <div
-                        className={`
-                            pointer-events-auto max-w-[90vw] w-[340px] 
-                            bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl 
-                            text-black dark:text-white p-6 rounded-3xl shadow-2xl border border-white/20 dark:border-zinc-700/50
-                            transform transition-all duration-500 cubic-bezier(0.32, 0.72, 0, 1) origin-top-left
-                            ${isLeftOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 -translate-y-4 pointer-events-none blur-sm'}
-                        `}
-                    >
-                        <div className="space-y-4">
-                            <p className="text-[13px] leading-relaxed text-gray-800 dark:text-gray-200 font-medium tracking-wide">
-                                <span className="block mb-2 font-bold text-black dark:text-white text-[15px]">The future of events.</span>
-                                GatePass is the first video-powered marketplace. Watch the highlights, catch the energy, and secure your spot in seconds.
+                    {isLeftOpen && (
+                        <div
+                            id="gatepass-about-panel"
+                            className="pointer-events-auto w-[300px] max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-xl text-black p-4 rounded-[20px] shadow-xl border border-black/5 animate-in fade-in slide-in-from-top-1 duration-200"
+                        >
+                            <h2 className="text-[15px] font-semibold tracking-tight">Events worth showing up for.</h2>
+                            <p className="mt-1 text-[12px] leading-[1.5] text-gray-600">
+                                Discover events through video and book your place in seconds.
                             </p>
 
-                            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 dark:via-zinc-700 to-transparent w-full" />
+                            <nav aria-label="GatePass links" className="mt-4 border-t border-gray-100 divide-y divide-gray-100">
+                                <Link href="/" onClick={() => setIsLeftOpen(false)} className="flex items-center justify-between py-3 text-[13px] font-medium hover:text-gray-600 focus-visible:outline-none focus-visible:underline">
+                                    Explore events <ArrowUpRight aria-hidden="true" className="w-4 h-4 text-gray-400" />
+                                </Link>
+                                <Link href="/dashboard/events/create" onClick={() => setIsLeftOpen(false)} className="flex items-center justify-between py-3 text-[13px] font-medium hover:text-gray-600 focus-visible:outline-none focus-visible:underline">
+                                    Create an event <ArrowUpRight aria-hidden="true" className="w-4 h-4 text-gray-400" />
+                                </Link>
+                            </nav>
 
-                            <div className="flex flex-col gap-2">
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">For Creators</p>
-                                <p className="text-[12px] text-gray-600 dark:text-gray-400 font-medium leading-relaxed">
-                                    Sell out faster with immersive video listings. Zero setup costs. Instant payouts.
-                                </p>
-                            </div>
-
-                            <div className="pt-4 mt-2 border-t border-gray-100 dark:border-zinc-800/50 flex flex-col gap-2">
-                                <div className="flex gap-4 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                    <a href="/terms-of-service" className="hover:text-black dark:hover:text-white transition-colors">Terms</a>
-                                    <a href="/privacy-policy" className="hover:text-black dark:hover:text-white transition-colors">Privacy</a>
-                                </div>
+                            <div className="flex gap-4 pt-3 border-t border-gray-100 text-[11px] text-gray-500">
+                                <Link href="/terms-of-service" onClick={() => setIsLeftOpen(false)} className="hover:text-black focus-visible:outline-none focus-visible:underline">Terms of Service</Link>
+                                <Link href="/privacy-policy" onClick={() => setIsLeftOpen(false)} className="hover:text-black focus-visible:outline-none focus-visible:underline">Privacy Policy</Link>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* RIGHT PILL */}

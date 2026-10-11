@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, Calendar, Banknote, LogOut, ShieldAlert, FileText, Settings, Activity, Wallet } from 'lucide-react'
+import { LayoutDashboard, Users, Calendar, Banknote, LogOut, FileText, Settings, Activity, Wallet } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { Skeleton } from '@/components/ui/skeleton'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 
 export function SuperAdminSidebar() {
     const pathname = usePathname()
@@ -51,9 +52,7 @@ export function SuperAdminSidebar() {
             {/* Brand */}
             <div className="p-8 pb-12">
                 <Link href="/admin" className="flex items-center gap-3 group">
-                    <div className="w-10 h-10 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black font-bold shadow-lg shadow-black/10 dark:shadow-white/10 group-hover:scale-105 transition-transform">
-                        <ShieldAlert className="w-5 h-5 text-red-500 dark:text-red-600" />
-                    </div>
+                    <GatePassMark className="size-10 transition-transform group-hover:scale-105" />
                     <div>
                         <h1 className="font-bold tracking-tight text-lg leading-tight text-gray-900 dark:text-white">
                             GatePass

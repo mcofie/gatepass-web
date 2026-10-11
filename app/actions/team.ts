@@ -213,11 +213,21 @@ export async function syncUserTeamMemberships() {
                     console.log(`[Sync Team] Successfully linked member record ${member.id} to user ${user.id}`)
                 }
             }
-            return { success: true, count: pendingMembers.length }
         }
 
-        console.log(`[Sync Team] No pending invites found for ${normalizedEmail}`)
-        return { success: true, count: 0 }
+        const { count: linkedCount, error: linkedError } = await adminSupabase
+            .schema('gatepass')
+            .from('organization_team')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+
+        if (linkedError) throw linkedError
+
+        return {
+            success: true,
+            count: pendingMembers?.length ?? 0,
+            hasTeamMembership: (linkedCount ?? 0) > 0,
+        }
     } catch (e: unknown) {
         const error = e as Error
         console.error('Failed to sync user team memberships:', error.message || error)

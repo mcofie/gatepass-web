@@ -34,14 +34,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
     if (!event) {
         return {
-            title: 'Event Not Found | GatePass',
+            title: 'Event Not Found',
         }
     }
 
     // SEO Protection for Unpublished
     if (!event.is_published) {
         return {
-            title: `Preview: ${event.title} | GatePass`,
+            title: `Preview: ${event.title}`,
             robots: {
                 index: false,
                 follow: false,
@@ -49,30 +49,36 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         }
     }
 
+    const plainDescription = (event.description || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;|&#160;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/\s+/g, ' ')
+        .replace(/\s+([,.;!?])/g, '$1')
+        .trim()
+    const shareDescription = plainDescription
+        ? plainDescription.length > 180 ? `${plainDescription.slice(0, 177).replace(/\s+\S*$/, '')}…` : plainDescription
+        : `Join us for ${event.title}. Get your tickets on GatePass.`
+
     return {
-        title: `${event.title} | GatePass`,
-        description: event.description || `Join us for ${event.title}. Get your tickets now on GatePass.`,
+        title: event.title,
+        description: shareDescription,
         openGraph: {
             title: event.title,
-            description: event.description || `Join us for ${event.title}.`,
-            url: `https://gatepass.so/events/${slug}`,
+            description: shareDescription,
+            url: `/events/${encodeURIComponent(slug)}`,
             siteName: 'GatePass',
-            images: event.poster_url ? [
-                {
-                    url: event.poster_url,
-                    width: 1200,
-                    height: 630,
-                    alt: event.title,
-                }
-            ] : [],
+            images: [{ url: `/events/${encodeURIComponent(slug)}/opengraph-image`, width: 1200, height: 630, alt: `${event.title} on GatePass` }],
             locale: 'en_US',
             type: 'website', // or 'event' if supported, but website is safer general usage
         },
         twitter: {
             card: 'summary_large_image',
             title: event.title,
-            description: event.description || `Join us for ${event.title}.`,
-            images: event.poster_url ? [event.poster_url] : [],
+            description: shareDescription,
+            images: [`/events/${encodeURIComponent(slug)}/opengraph-image`],
             creator: '@gatepass_io',
         },
     }

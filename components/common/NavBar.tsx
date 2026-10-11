@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { ThemeToggle } from './ThemeToggle'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 
 export function NavBar() {
     const [user, setUser] = useState<User | null>(null)
@@ -43,8 +44,9 @@ export function NavBar() {
         <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center py-4 px-4 pointer-events-none">
             <div className="w-full max-w-5xl pointer-events-auto">
                 <div className="glass rounded-2xl flex items-center justify-between px-6 py-4 shadow-sm transition-all duration-300">
-                    <Link href="/" className="font-bold text-xl tracking-tight text-white mix-blend-difference">
-                        Gatepass.
+                    <Link href="/" className="inline-flex items-center gap-2 font-bold text-xl tracking-tight text-gray-900 dark:text-white">
+                        <GatePassMark className="size-7" />
+                        GatePass
                     </Link>
 
                     {/* Desktop Menu */}
