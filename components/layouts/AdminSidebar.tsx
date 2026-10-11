@@ -15,6 +15,7 @@ import {
     History,
     ShieldAlert,
     BarChart3,
+    ReceiptText,
 
     ChevronDown,
     Plus,
@@ -144,7 +145,6 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             if (!isFoundViaActiveId && combined.length > 0) {
                 // Pick first one (Latest Owner -> Then Teams)
                 const first = combined[0]
-                console.log('Sidebar: Using fallback from combined array:', first)
                 if (mounted) {
                     setIsOwner(first.role === 'Owner')
                     setRole(first.role)
@@ -158,14 +158,12 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             }
 
             // Super Admin?
-            const { data: profile, error: profileError } = await supabase
+            const { data: profile } = await supabase
                 .schema('gatepass')
                 .from('profiles')
                 .select('is_super_admin')
                 .eq('id', authedUser.id)
                 .maybeSingle()
-
-            console.log('AdminSidebar Debug:', { authedUser: authedUser.email, profile, profileError })
 
             if (!mounted) return
             setIsSuperAdmin(!!profile?.is_super_admin)
@@ -188,11 +186,9 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
 
         try {
             // Smart Redirect: Stay on current page if it's a general section, otherwise go to dashboard
-            const safeCurrentPath = ['/dashboard/settings', '/dashboard/events', '/dashboard/customers', '/dashboard/scan', '/dashboard/monitor', '/dashboard/activity', '/dashboard']
+            const safeCurrentPath = ['/dashboard/settings', '/dashboard/events', '/dashboard/sales', '/dashboard/customers', '/dashboard/scan', '/dashboard/monitor', '/dashboard/activity', '/dashboard']
             const redirectTo = safeCurrentPath.includes(pathname) ? pathname : '/dashboard'
 
-            // Small artificial delay to let the animation start nicely
-            await new Promise(resolve => setTimeout(resolve, 800))
             await switchOrganization(orgId, redirectTo)
         } catch (err) {
             // If it's a redirect error, ignore it as Next.js handles it
@@ -222,11 +218,12 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
     const navItems = useMemo(() => {
         return [
             { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
-            ...(role !== 'Staff' ? [{ name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity }] : []),
-            { name: 'Marketing', path: '/dashboard/marketing', icon: BarChart3 },
-            { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
-            { name: 'Customers', path: '/dashboard/customers', icon: Users },
             { name: 'Events', path: '/dashboard/events', icon: Calendar },
+            { name: 'Sales', path: '/dashboard/sales', icon: ReceiptText },
+            { name: 'Customers', path: '/dashboard/customers', icon: Users },
+            { name: 'Marketing', path: '/dashboard/marketing', icon: BarChart3 },
+            ...(role !== 'Staff' ? [{ name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity }] : []),
+            { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
             ...(isOwner ? [{ name: 'Activity Log', path: '/dashboard/activity', icon: History }] : []),
             { name: 'Settings', path: '/dashboard/settings', icon: Settings },
         ]
@@ -238,199 +235,85 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                 {isSwitching && <OrgSwitchOverlay orgName={targetOrgName} />}
             </AnimatePresence>
 
-            {/* Mobile Header Trigger */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#0a0a0a] z-40 flex items-center justify-between px-6 border-b border-[#1a1a1a]">
-                <div className="flex items-center gap-2">
-                    {orgDetails?.name ? (
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black font-bold">
-                            {orgDetails.name.charAt(0).toUpperCase()}
-                        </div>
-                    ) : <GatePassMark className="size-8 invert" invertOnDark={false} />}
-                    <span className="font-bold text-white tracking-tight">GatePass</span>
-                </div>
-                <button
-                    onClick={() => setMobileOpen(true)}
-                    className="p-2 text-gray-400 hover:text-white"
-                >
-                    <Menu className="w-6 h-6" />
+            <div className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-5 dark:border-white/10 dark:bg-[#0b0b0b] lg:hidden">
+                <Link href="/dashboard" className="flex items-center gap-2.5 text-base font-semibold tracking-tight">
+                    <GatePassMark className="size-8" /> GatePass
+                </Link>
+                <button type="button" onClick={() => setMobileOpen(true)} aria-label="Open dashboard menu" aria-controls="dashboard-sidebar" aria-expanded={mobileOpen} className="flex size-9 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10">
+                    <Menu className="size-5" />
                 </button>
             </div>
 
-            {/* Backdrop */}
-            {mobileOpen && (
-                <div
-                    className="fixed inset-0 bg-black/80 z-50 lg:hidden backdrop-blur-sm animate-in fade-in duration-200"
-                    onClick={() => setMobileOpen(false)}
-                />
-            )}
+            {mobileOpen && <button type="button" aria-label="Close dashboard menu" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-40 bg-black/40 lg:hidden" />}
 
-            <aside className={`
-                w-72 bg-[#0a0a0a] text-white flex-shrink-0 flex flex-col h-screen overflow-hidden border-r border-[#1a1a1a]
-                fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-                lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen
-                ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-            `}>
-                <div className="lg:hidden absolute top-4 right-4 z-[60]">
-                    <button onClick={() => setMobileOpen(false)} className="p-2 text-gray-400 hover:text-white bg-black/50 rounded-full">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Brand */}
-                <div className="p-8 pb-8 flex-shrink-0 relative z-50">
-                    {loading ? (
-                        <div className="flex items-center gap-3">
-                            <Skeleton className="w-10 h-10 rounded-xl bg-[#222]" />
-                            <div className="space-y-1">
-                                <Skeleton className="w-24 h-4 bg-[#222]" />
-                                <Skeleton className="w-16 h-2 bg-[#222]" />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <Link href="/dashboard" className="flex items-center gap-3 group flex-1">
-                                {orgDetails?.name ? (
-                                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black font-bold shadow-lg shadow-white/10 group-hover:scale-105 transition-transform">
-                                        {orgDetails.name.charAt(0).toUpperCase()}
-                                    </div>
-                                ) : <GatePassMark className="size-10 invert transition-transform group-hover:scale-105" invertOnDark={false} />}
-                                <div>
-                                    <h1 className="font-bold tracking-tight text-lg leading-tight">
-                                        {orgDetails?.name || 'GatePass.'}
-                                    </h1>
-                                    {orgDetails?.name && (
-                                        <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">
-                                            Organization
-                                        </p>
-                                    )}
-                                </div>
-                            </Link>
-
-                            <div className="relative">
-                                <button
-                                    onClick={() => setOrgMenuOpen(!orgMenuOpen)}
-                                    className="p-1.5 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors"
-                                >
-                                    <ChevronDown className={`w-4 h-4 transition-transform ${orgMenuOpen ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                {/* Organization Popover */}
-                                {orgMenuOpen && (
-                                    <>
-                                        <div
-                                            className="fixed inset-0 z-40"
-                                            onClick={() => setOrgMenuOpen(false)}
-                                        />
-                                        <div className="absolute top-full right-0 mt-2 w-56 bg-[#111] border border-[#222] rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="p-2">
-                                                <p className="px-3 py-2 text-[10px] uppercase tracking-widest text-gray-500 font-bold">Switch Organization</p>
-
-                                                {allOrgs.map((org) => (
-                                                    <button
-                                                        key={org.id}
-                                                        onClick={() => handleSwitchOrg(org.id, org.name)}
-                                                        className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-white transition-colors mb-0.5"
-                                                    >
-                                                        <div className="w-6 h-6 rounded bg-white/10 text-white flex items-center justify-center text-xs font-bold">
-                                                            {org.name.charAt(0)}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-bold truncate">{org.name}</p>
-                                                            <p className="text-[10px] text-gray-500 capitalize">{org.role}</p>
-                                                        </div>
-                                                        {org.name === orgDetails?.name && <div className="w-1.5 h-1.5 rounded-full bg-green-500" />}
-                                                    </button>
-                                                ))}
-
-                                                <Link href="/onboarding" className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors mt-2 border-t border-white/5 pt-2">
-                                                    <div className="w-6 h-6 rounded border border-[#333] flex items-center justify-center">
-                                                        <Plus className="w-3 h-3" />
-                                                    </div>
-                                                    <span className="text-xs font-medium">Create Organization</span>
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Navigation - Scrollable Area */}
-                <nav className="flex-1 px-4 space-y-1 overflow-y-auto min-h-0">
-                    <p className="px-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">
-                        Main Menu
-                    </p>
-
-                    {navItems.map((item) => (
-                        <Link
-                            key={item.path}
-                            href={item.path}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive(item.path)
-                                ? 'bg-white text-black shadow-lg shadow-white/5'
-                                : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a]'
-                                }`}
-                        >
-                            <item.icon
-                                className={`w-4 h-4 transition-colors ${isActive(item.path) ? 'text-black' : 'text-gray-500 group-hover:text-white'
-                                    }`}
-                            />
-                            {item.name}
+            <aside id="dashboard-sidebar" className={"fixed inset-y-0 left-0 z-50 flex h-screen w-[260px] shrink-0 flex-col border-r border-gray-200 bg-white text-gray-950 transition-transform duration-200 dark:border-white/10 dark:bg-[#0b0b0b] dark:text-white lg:sticky lg:top-0 lg:translate-x-0 " + (mobileOpen ? "translate-x-0" : "-translate-x-full")}>
+                <div className="border-b border-gray-100 px-5 pb-4 pt-5 dark:border-white/10">
+                    <div className="flex items-center justify-between">
+                        <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5 text-lg font-semibold tracking-[-0.035em]">
+                            <GatePassMark className="size-8" /> GatePass
                         </Link>
-                    ))}
-                </nav>
-
-                {/* Sticky Bottom Section */}
-                <div className="p-4 border-t border-[#1a1a1a] space-y-4 flex-shrink-0 bg-[#0a0a0a]">
-                    {(isSuperAdmin || isAdmin) && (
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 group border border-red-500/20"
-                        >
-                            <ShieldAlert className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                            <div className="flex-1">
-                                <p className="text-[11px] font-bold leading-none uppercase tracking-widest">God Mode</p>
-                                <p className="text-[9px] opacity-70 mt-0.5 font-medium leading-none">Switch to Super Admin</p>
-                            </div>
-                        </Link>
-                    )}
-
-                    <div className="bg-[#111] rounded-2xl p-1 border border-[#1a1a1a]">
-                        {loading ? (
-                            <div className="flex items-center gap-3 px-3 py-2.5">
-                                <Skeleton className="w-8 h-8 rounded-full bg-[#222]" />
-                                <div className="space-y-1">
-                                    <Skeleton className="w-32 h-3 bg-[#222]" />
-                                    <Skeleton className="w-20 h-2 bg-[#222]" />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-3 px-3 py-2.5">
-                                <div className="w-8 h-8 bg-gradient-to-tr from-gray-700 to-gray-600 rounded-full flex items-center justify-center text-[10px] font-bold shadow-inner">
-                                    {user?.email?.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="overflow-hidden flex-1">
-                                    <p className="text-[12px] font-medium text-white truncate">{user?.email}</p>
-                                    <p className="text-[10px] text-gray-500">{role}</p>
-                                </div>
-                            </div>
-                        )}
+                        <button type="button" aria-label="Close dashboard menu" onClick={() => setMobileOpen(false)} className="flex size-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 lg:hidden"><X className="size-4" /></button>
                     </div>
 
-                    <button
-                        onClick={handleLogout}
-                        className="w-full text-left px-4 py-3 text-red-400 text-[12px] font-medium hover:text-red-300 transition flex items-center gap-2 hover:bg-red-950/10 rounded-xl"
-                    >
-                        <LogOut className="w-3.5 h-3.5" /> Sign Out
-                    </button>
+                    <div className="relative mt-5">
+                        {loading ? (
+                            <Skeleton className="h-[58px] w-full rounded-xl bg-gray-100 dark:bg-white/10" />
+                        ) : (
+                            <button type="button" onClick={() => setOrgMenuOpen(open => !open)} aria-label="Switch organization" aria-expanded={orgMenuOpen} className="flex w-full items-center gap-3 rounded-xl border border-gray-200 px-3 py-2 text-left transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 dark:border-white/15 dark:hover:bg-white/5">
+                                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gray-950 text-sm font-semibold text-white dark:bg-white dark:text-black">{orgDetails?.name?.charAt(0).toUpperCase() || 'G'}</span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[13px] font-semibold">{orgDetails?.name || 'Choose organization'}</span>
+                                    <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">Workspace</span>
+                                </span>
+                                <ChevronDown className={"size-4 shrink-0 text-gray-500 transition-transform " + (orgMenuOpen ? "rotate-180" : "")} aria-hidden="true" />
+                            </button>
+                        )}
+
+                        {orgMenuOpen && (
+                            <>
+                                <button type="button" aria-label="Close organization list" className="fixed inset-0 z-40" onClick={() => setOrgMenuOpen(false)} />
+                                <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-white/15 dark:bg-[#151515]">
+                                    <p className="px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">Switch workspace</p>
+                                    {allOrgs.map(org => (
+                                        <button key={org.id} type="button" onClick={() => handleSwitchOrg(org.id, org.name)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
+                                            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold dark:bg-white/10">{org.name.charAt(0).toUpperCase()}</span>
+                                            <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{org.name}</span><span className="block text-[10px] capitalize text-gray-500">{org.role}</span></span>
+                                            {org.name === orgDetails?.name && <span className="size-1.5 rounded-full bg-black dark:bg-white" />}
+                                        </button>
+                                    ))}
+                                    <Link href="/onboarding" onClick={() => { setOrgMenuOpen(false); setMobileOpen(false) }} className="mt-1 flex items-center gap-2.5 border-t border-gray-100 px-2.5 py-3 text-xs font-medium text-gray-600 hover:text-black dark:border-white/10 dark:text-gray-300 dark:hover:text-white">
+                                        <Plus className="size-4" /> Create organization
+                                    </Link>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                <div className="px-8 pb-8 pt-2 text-center flex-shrink-0">
-                    <p className="text-[10px] text-gray-700 font-bold uppercase tracking-widest flex items-center justify-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
-                        <span className="w-1.5 h-1.5 bg-gray-600 rounded-full" />
-                        GatePass
-                    </p>
+                <nav aria-label="Dashboard navigation" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                    <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Workspace</p>
+                    <div className="space-y-0.5">
+                        {navItems.map(item => {
+                            const active = isActive(item.path)
+                            return <Link key={item.path} href={item.path} onClick={() => setMobileOpen(false)} aria-current={active ? 'page' : undefined} className={"flex h-9 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors " + (active ? "bg-gray-100 text-black dark:bg-white/10 dark:text-white" : "text-gray-600 hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white")}>
+                                <item.icon className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                                {item.name}
+                            </Link>
+                        })}
+                    </div>
+                </nav>
+
+                <div className="border-t border-gray-100 px-4 pb-4 pt-3 dark:border-white/10">
+                    {(isSuperAdmin || isAdmin) && <Link href="/admin" onClick={() => setMobileOpen(false)} className="mb-3 flex h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"><ShieldAlert className="size-4" /> Platform admin</Link>}
+                    {loading ? (
+                        <Skeleton className="h-10 w-full rounded-lg bg-gray-100 dark:bg-white/10" />
+                    ) : (
+                        <div className="flex items-center gap-2.5 px-2">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold dark:bg-white/10">{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+                            <span className="min-w-0"><span className="block truncate text-xs font-medium">{user?.email}</span><span className="block text-[11px] text-gray-500 dark:text-gray-400">{role}</span></span>
+                        </div>
+                    )}
+                    <button type="button" onClick={handleLogout} className="mt-3 flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"><LogOut className="size-4" /> Sign out</button>
                 </div>
             </aside>
         </>

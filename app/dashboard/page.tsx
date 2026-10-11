@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 
 import { formatCurrency } from '@/utils/format'
-import { Calendar, Ticket, DollarSign, Wallet, Settings } from 'lucide-react'
+import { ArrowUpRight, Plus, Ticket } from 'lucide-react'
 import Link from 'next/link'
 
 export const revalidate = 0
@@ -14,6 +14,7 @@ interface TeamMemberRecord {
 
 interface TransactionRecord {
     id: string
+    created_at: string
     amount: number
     currency: string
     platform_fee?: number
@@ -166,10 +167,11 @@ export default async function DashboardPage() {
         // Ideally checking "redirect" here but safe to just return empty stats
         // Actually, let's return early structure to avoid crashes
         return (
-            <div className="max-w-7xl mx-auto py-12 text-center">
-                <h2 className="text-2xl font-bold">No Organization Found</h2>
-                <p className="mb-4">Please create an organization to get started.</p>
-                <Link href="/onboarding" className="text-blue-600 hover:underline">Go to Onboarding</Link>
+            <div className="mx-auto max-w-3xl py-20 text-center">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Creator workspace</p>
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Create your organization</h1>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-gray-500 dark:text-gray-400">Set up your workspace to publish events and follow your sales in one place.</p>
+                <Link href="/onboarding" className="mt-7 inline-flex h-11 items-center gap-2 rounded-full bg-black px-6 text-sm font-semibold text-white dark:bg-white dark:text-black">Get started <ArrowUpRight className="size-4" /></Link>
             </div>
         )
     }
@@ -346,180 +348,112 @@ export default async function DashboardPage() {
 
 
     const stats = [
-        { label: 'Total Events', value: eventRes.count || 0, icon: Calendar },
-        { label: 'Tickets Sold', value: ticketRes.count || 0, icon: Ticket },
-        { label: 'Total Revenue', value: formatCurrency(totalRevenue, currencySymbol), icon: DollarSign },
+        { label: 'Events', value: eventRes.count ?? 0, note: 'Created' },
+        { label: 'Tickets sold', value: ticketRes.count ?? 0, note: 'Valid and used' },
+        { label: 'Net earnings', value: formatCurrency(totalRevenue, currencySymbol), note: 'After applicable fees' },
     ]
 
-    return (
-        <div className="max-w-7xl mx-auto space-y-8 animate-fade-in pb-20">
+    const recentSales = (recentSalesRes.data || []) as unknown as TransactionRecord[]
+    const organizationName = typeof org.name === 'string' ? org.name : 'Your organization'
 
-            {/* Header */}
-            <div className="flex flex-col gap-1">
-                <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
-                <p className="text-gray-500 font-medium dark:text-gray-400">Welcome back, here{"'"}s what{"'"}s happening today.</p>
+    return (
+        <div className="mx-auto max-w-[1180px] pb-16">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace overview</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-gray-950 dark:text-white sm:text-[38px]">{organizationName}</h1>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Your events and sales at a glance.</p>
+                </div>
+                <Link href="/dashboard/events/create" className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                    <Plus className="size-4" aria-hidden="true" /> Create event
+                </Link>
             </div>
 
-            {/* Stats Grid - Bento Style */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {stats.map((stat) => (
-                    <div key={stat.label} className="group bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300">
-                        <div className="flex items-center justify-between mb-8">
-                            <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">{stat.label}</p>
-                            <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/5 text-gray-400 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-colors flex items-center justify-center">
-                                <stat.icon className="w-5 h-5" />
-                            </div>
-                        </div>
-                        <p className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">{stat.value}</p>
+            <section aria-label="All-time performance" className="mt-8 grid grid-cols-2 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/15 dark:bg-[#101010] sm:grid-cols-3">
+                {stats.map((stat, index) => (
+                    <div key={stat.label} className={"min-w-0 px-5 py-4 sm:px-6 sm:py-6 " + (index === 1 ? "border-l border-gray-200 dark:border-white/15" : index === 2 ? "col-span-2 border-t border-gray-200 dark:border-white/15 sm:col-span-1 sm:border-l sm:border-t-0" : "")}>
+                        <p className="text-[13px] font-medium text-gray-500 dark:text-gray-400">{stat.label}</p>
+                        <p className="mt-3 truncate text-[30px] font-semibold leading-none tracking-[-0.045em] tabular-nums text-gray-950 dark:text-white sm:text-[34px]">{stat.value}</p>
+                        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{stat.note}</p>
                     </div>
                 ))}
-            </div>
+            </section>
 
-            <div className="grid lg:grid-cols-3 gap-8">
-                {/* Main Content Area */}
-                <div className="lg:col-span-2 space-y-8">
-
-
-
-                    {/* Recent Sales */}
+            <section className="mt-11" aria-labelledby="recent-sales-title">
+                <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
-                        <div className="flex items-center justify-between px-1 mb-4">
-                            <h3 className="font-bold text-xl tracking-tight dark:text-white">Recent Sales</h3>
-                            <Link href="/dashboard/sales" className="text-sm font-medium text-gray-400 hover:text-black dark:hover:text-white transition-colors">View All</Link>
-                        </div>
+                        <h2 id="recent-sales-title" className="text-xl font-semibold tracking-[-0.025em] text-gray-950 dark:text-white">Recent sales</h2>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Latest successful payments</p>
+                    </div>
+                    <Link href="/dashboard/sales" className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-black dark:text-gray-300 dark:hover:text-white">View all <ArrowUpRight className="size-4" aria-hidden="true" /></Link>
+                </div>
 
-                        <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-                            {recentSalesRes.data && recentSalesRes.data.length > 0 ? (
-                                <div className="divide-y divide-gray-50 dark:divide-white/5">
-                                    {recentSalesRes.data.map((sale: unknown) => {
-                                        const s = sale as TransactionRecord
-                                        // Calculations
-                                        // Simplified Logic: Rely on stored snapshot
-                                        // UPDATED: Recalculate to match Total Revenue logic
-                                        const feeBearer = s.reservations?.events?.fee_bearer || 'customer'
-                                        const isInstalment = s.metadata?.payment_type === 'instalment' || s.metadata?.metadata?.payment_type === 'instalment'
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/15 dark:bg-[#101010]">
+                    {recentSales.length > 0 ? (
+                        <div>
+                            <div className="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_150px] gap-5 border-b border-gray-100 px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:border-white/10 sm:grid">
+                                <span>Customer</span><span>Event</span><span className="text-right">Net earnings</span>
+                            </div>
+                            <div className="divide-y divide-gray-100 dark:divide-white/10">
+                                {recentSales.map(s => {
+                                    const reservation = s.reservations
+                                    const feeBearer = reservation?.events?.fee_bearer || 'customer'
+                                    const isInstalment = s.metadata?.payment_type === 'instalment' || s.metadata?.metadata?.payment_type === 'instalment'
+                                    const price = reservation?.ticket_tiers?.price || 0
+                                    const quantity = reservation?.quantity || 1
+                                    const discount = reservation?.discounts
+                                    const discountAmount = discount?.type === 'percentage'
+                                        ? price * quantity * ((discount.value || 0) / 100)
+                                        : discount?.value || 0
+                                    const ticketRevenue = Math.max(0, price * quantity - discountAmount)
+                                    const platformRate = s.applied_fee_rate ?? 0.04
+                                    const storedProcessorRate = s.applied_processor_rate
+                                    const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate) ? 0.0195 : storedProcessorRate
+                                    let platformFee = s.platform_fee
+                                    if (platformFee == null || platformFee === 0) platformFee = isInstalment ? s.amount * platformRate : ticketRevenue * platformRate
+                                    const processorFee = s.applied_processor_fee != null ? s.applied_processor_fee : s.amount * processorRate
+                                    const payout = feeBearer === 'customer'
+                                        ? s.amount - platformFee
+                                        : s.amount - platformFee - processorFee
+                                    const buyer = reservation?.profiles?.full_name || reservation?.guest_name || 'Guest'
+                                    const eventTitle = reservation?.events?.title || 'Event'
+                                    const tierName = reservation?.ticket_tiers?.name || 'Ticket'
+                                    const saleDate = new Date(s.created_at)
+                                    const dateLabel = Number.isNaN(saleDate.getTime())
+                                        ? ''
+                                        : new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short' }).format(saleDate)
 
-                                        let ticketRevenue = 0
-                                        if (s.reservations) {
-                                            const r = s.reservations
-                                            const discount = r.discounts
-                                            let discountAmount = 0
-                                            const price = r.ticket_tiers?.price || 0
-                                            const quantity = r.quantity || 1
-
-                                            if (discount) {
-                                                if (discount.type === 'percentage') {
-                                                    discountAmount = (price * quantity) * ((discount.value || 0) / 100)
-                                                } else {
-                                                    discountAmount = discount.value || 0
-                                                }
-                                            }
-                                            ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
-                                        }
-
-                                        const platformRate = s.applied_fee_rate ?? 0.04
-                                        const storedProcessorRate2 = s.applied_processor_rate
-                                        const processorRate = (storedProcessorRate2 === 0.02 || !storedProcessorRate2)
-                                            ? 0.0195
-                                            : storedProcessorRate2
-
-                                        let finalPlatformFee = s.platform_fee
-                                        if (finalPlatformFee == null || finalPlatformFee === 0) {
-                                            finalPlatformFee = isInstalment
-                                                ? s.amount * platformRate
-                                                : ticketRevenue * platformRate
-                                        }
-
-                                        const finalProcessorFee = (s.applied_processor_fee != null)
-                                            ? s.applied_processor_fee
-                                            : s.amount * processorRate
-
-                                        const organizerPayout = feeBearer === 'customer'
-                                            ? s.amount - finalPlatformFee
-                                            : s.amount - finalPlatformFee - finalProcessorFee
-
-                                        return (
-                                            <div key={s.id} className="flex items-center justify-between p-6 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/10 dark:to-white/5 text-gray-600 dark:text-white flex items-center justify-center font-bold text-sm shadow-inner">
-                                                        {s.reservations?.profiles?.full_name?.charAt(0) || s.reservations?.guest_name?.charAt(0) || 'G'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[15px] font-semibold text-gray-900 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors">
-                                                            {s.reservations?.profiles?.full_name || s.reservations?.guest_name || 'Guest User'}
-                                                        </p>
-                                                        <p className="text-[13px] text-gray-500 dark:text-gray-400">
-                                                            purchased <span className="font-medium text-gray-700 dark:text-gray-300">{s.reservations?.ticket_tiers?.name}</span> • {s.reservations?.events?.title}
-                                                        </p>
-                                                        {s.reservations?.addons && Object.keys(s.reservations.addons).length > 0 && (
-                                                            <div className="mt-1 flex flex-col gap-0.5">
-                                                                {Object.entries(s.reservations.addons).map(([id, qty]) => (
-                                                                    <p key={id} className="text-[11px] text-gray-500 font-medium flex items-center gap-1.5">
-                                                                        <span className="bg-gray-100 dark:bg-white/10 px-1.5 rounded text-[10px]">{qty as number}x</span> {addonMap[id] || 'Add-on'}
-                                                                    </p>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[15px] font-bold text-green-600 dark:text-green-400 tabular-nums">+{formatCurrency(organizerPayout, s.currency)}</p>
-                                                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">
-                                                        Net Earnings
+                                    return (
+                                        <div key={s.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_150px] sm:gap-5 sm:px-6">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">{buyer}</p>
+                                                <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{tierName}<span className="sm:hidden"> · {eventTitle}</span></p>
+                                                {reservation?.addons && Object.keys(reservation.addons).length > 0 && (
+                                                    <p className="mt-1 truncate text-xs text-gray-400 dark:text-gray-500">
+                                                        {Object.entries(reservation.addons).map(([id, qty]) => String(qty) + '× ' + (addonMap[id] || 'Add-on')).join(' · ')}
                                                     </p>
-                                                </div>
+                                                )}
                                             </div>
-                                        )
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="py-24 text-center text-gray-400">
-                                    <p className="text-sm font-medium">No recent activity found.</p>
-                                </div>
-                            )}
+                                            <p className="hidden truncate text-sm text-gray-600 dark:text-gray-300 sm:block">{eventTitle}</p>
+                                            <div className="text-right">
+                                                <p className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-950 dark:text-white">{formatCurrency(payout, s.currency)}</p>
+                                                {dateLabel && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{dateLabel}</p>}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="flex flex-col items-center px-6 py-16 text-center">
+                            <div className="flex size-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"><Ticket className="size-5" aria-hidden="true" /></div>
+                            <h3 className="mt-4 text-base font-semibold text-gray-950 dark:text-white">No sales yet</h3>
+                            <p className="mt-1 max-w-sm text-sm leading-6 text-gray-500 dark:text-gray-400">When someone buys a ticket, the sale will appear here.</p>
+                            <Link href="/dashboard/events" className="mt-4 text-sm font-semibold underline underline-offset-4">View events</Link>
+                        </div>
+                    )}
                 </div>
-
-                {/* Quick Actions (Sidebar) */}
-                <div className="space-y-6">
-                    <div className="bg-black dark:bg-[#111] text-white rounded-3xl p-8 shadow-2xl shadow-black/20 dark:shadow-none border border-transparent dark:border-white/10 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-white/10 transition-colors duration-500" />
-                        <div className="relative z-10">
-                            <h3 className="font-bold text-2xl mb-2">Create Event</h3>
-                            <p className="text-gray-400 mb-8 max-w-[200px] leading-relaxed">Ready to launch your next experience?</p>
-                            <Link href="/dashboard/events/create" className="inline-flex items-center justify-center w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all active:scale-[0.98]">
-                                Get Started
-                            </Link>
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-8">
-                        <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Quick Links</h3>
-                        <div className="space-y-2">
-                            <Link href="/dashboard/events" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                                <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
-                                    <Calendar className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
-                                </div>
-                                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">Manage Events</span>
-                            </Link>
-                            <Link href="/my-tickets" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                                <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
-                                    <Wallet className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
-                                </div>
-                                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">My Tickets</span>
-                            </Link>
-                            <Link href="/dashboard/settings" className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                                <div className="w-10 h-10 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-transparent group-hover:shadow-sm dark:group-hover:shadow-none border border-transparent group-hover:border-gray-200 dark:group-hover:border-white/10 flex items-center justify-center transition-all">
-                                    <Settings className="w-5 h-5 text-gray-500 group-hover:text-black dark:text-gray-400 dark:group-hover:text-white" />
-                                </div>
-                                <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">Settings</span>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </section>
         </div>
-
     )
 }
