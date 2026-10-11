@@ -138,34 +138,34 @@ export function TeamSettings({ organizer }: { organizer: any }) {
     return (
         <div className="max-w-4xl space-y-8">
             {/* Invite Form */}
-            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
+            <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-500">
                         <UserPlus className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Invite Team Member</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Invite Team Member</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Invite staff to help manage your events.</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleInvite} className="flex gap-4 items-end">
                     <div className="flex-1 space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Email Address</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Email Address</label>
                         <Input
                             type="email"
                             value={newEmail}
                             onChange={e => setNewEmail(e.target.value)}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white"
                             placeholder="colleague@example.com"
                         />
                     </div>
                     <div className="w-40 space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Role</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Role</label>
                         <select
                             value={role}
                             onChange={(e) => setRole(e.target.value as any)}
-                            className="w-full h-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 font-medium dark:text-white"
+                            className="w-full h-12 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl px-4 font-medium dark:text-white"
                         >
                             <option value="staff">Staff</option>
                             <option value="admin">Admin</option>
@@ -182,12 +182,12 @@ export function TeamSettings({ organizer }: { organizer: any }) {
             </div>
 
             {/* Team List */}
-            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
-                <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Team Members</h3>
+            <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
+                <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">Team Members</h3>
 
                 <div className="space-y-4">
                     {/* Owner Card (Hardcoded visual) */}
-                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/10">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 bg-black dark:bg-white text-white dark:text-black rounded-full flex items-center justify-center font-bold text-sm">
                                 OW
@@ -207,7 +207,7 @@ export function TeamSettings({ organizer }: { organizer: any }) {
                     )}
 
                     {members.map(member => (
-                        <div key={member.id} className="flex items-center justify-between p-4 bg-white dark:bg-[#111] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors rounded-2xl border border-gray-100 dark:border-white/10 group">
+                        <div key={member.id} className="flex items-center justify-between p-4 bg-white dark:bg-[#111] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors rounded-2xl border border-gray-200 dark:border-white/10 group">
                             <div className="flex items-center gap-4">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${member.user_id ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300'}`}>
                                     {member.email[0].toUpperCase()}
@@ -227,7 +227,7 @@ export function TeamSettings({ organizer }: { organizer: any }) {
                                                 value={member.role}
                                                 onChange={(e) => handleRoleChange(member.id, e.target.value as 'admin' | 'staff')}
                                                 disabled={!member.user_id} // Disable for pending invites
-                                                className="appearance-none text-[10px] uppercase tracking-wider font-bold bg-white dark:bg-white/5 pl-2 pr-6 py-0.5 rounded border border-gray-100 dark:border-white/10 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
+                                                className="appearance-none text-[10px] uppercase tracking-wider font-bold bg-white dark:bg-white/5 pl-2 pr-6 py-0.5 rounded border border-gray-200 dark:border-white/10 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
                                             >
                                                 <option value="staff">Staff</option>
                                                 <option value="admin">Admin</option>

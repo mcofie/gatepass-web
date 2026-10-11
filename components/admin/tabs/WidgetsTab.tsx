@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Event } from '@/types/gatepass'
-import { Copy, Check, ExternalLink, Code } from 'lucide-react'
+import { Copy, Check, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +15,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
     // Construct the embed URL
     const baseUrl = typeof window !== 'undefined'
         ? window.location.origin
-        : process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.io'
+        : process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so'
 
     const embedUrl = `${baseUrl}/embed/${event.slug || event.id}`
     const previewUrl = `${embedUrl}?theme=${theme}`
@@ -29,7 +29,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
   width="100%"
   height="600"
   frameborder="0"
-  style="border-radius: 12px; border: 1px solid #eee; overflow: hidden;"
+  style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;"
 ></iframe>`
 
     const handleCopy = () => {
@@ -44,37 +44,33 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* Left Side: Instructions & Code */}
                 <div className="space-y-6">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Code className="w-6 h-6" />
-                            Embedded Checkout
+                        <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
+                            Embed checkout
                         </h2>
-                        <p className="mt-2 text-gray-500 dark:text-gray-400 leading-relaxed">
-                            Sell tickets directly on your own website. Copy the code below and paste it into any HTML page or website builder (Wix, Squarespace, WordPress, etc.).
+                        <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                            Add ticket checkout to your website with the code below.
                         </p>
                     </div>
 
-                    <div className="bg-white dark:bg-[#111] p-6 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                Settings
-                            </label>
-                        </div>
+                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                        <h3 className="text-base font-semibold text-gray-950 dark:text-white">Appearance</h3>
 
                         {/* Theme Toggle */}
                         <div className="flex items-center gap-3">
-                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Theme:</div>
-                            <div className="flex p-1 bg-gray-100 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/5">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">Theme</span>
+                            <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-white/10 dark:bg-white/5">
                                 <button
                                     onClick={() => setTheme('light')}
+                                    aria-pressed={theme === 'light'}
                                     className={cn(
-                                        "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
+                                        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                                         theme === 'light'
-                                            ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm"
+                                            ? "bg-white text-black dark:bg-zinc-800 dark:text-white"
                                             : "text-gray-500 hover:text-black dark:hover:text-white"
                                     )}
                                 >
@@ -82,10 +78,11 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                                 </button>
                                 <button
                                     onClick={() => setTheme('dark')}
+                                    aria-pressed={theme === 'dark'}
                                     className={cn(
-                                        "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
+                                        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                                         theme === 'dark'
-                                            ? "bg-black text-white dark:bg-white dark:text-black shadow-sm"
+                                            ? "bg-black text-white dark:bg-white dark:text-black"
                                             : "text-gray-500 hover:text-black dark:hover:text-white"
                                     )}
                                 >
@@ -94,76 +91,56 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                             </div>
                         </div>
 
-                        <div className="h-px bg-gray-50 dark:bg-white/5 w-full" />
+                        <div className="h-px w-full bg-gray-100 dark:bg-white/10" />
 
                         <div className="flex items-center justify-between">
-                            <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                Embed Code
-                            </label>
-                            <span className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-white/10 px-2 py-1 rounded">
-                                HTML / Iframe
-                            </span>
+                            <h3 className="text-sm font-semibold text-gray-950 dark:text-white">Embed code</h3>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">HTML</span>
                         </div>
 
-                        <div className="relative group">
-                            <pre className="bg-gray-50 dark:bg-black/50 text-gray-800 dark:text-gray-300 p-4 rounded-xl text-xs font-mono border border-gray-200 dark:border-white/10 overflow-x-auto whitespace-pre-wrap break-all min-h-[120px]">
+                        <div>
+                            <pre className="min-h-[120px] overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-800 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
                                 {iframeCode}
                             </pre>
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={handleCopy}
-                                    className="bg-black/80 hover:bg-black text-white text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                                >
-                                    Copy
-                                </button>
-                            </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                             <button
                                 onClick={handleCopy}
-                                className="flex-1 flex items-center justify-center gap-2 h-10 bg-black dark:bg-white text-white dark:text-black rounded-lg font-bold text-sm hover:opacity-90 active:scale-95 transition-all"
+                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                             >
                                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                {copied ? 'Copied!' : 'Copy Code'}
+                                {copied ? 'Copied' : 'Copy code'}
                             </button>
                             <button
                                 onClick={handleOpenPreview}
-                                className="flex-1 flex items-center justify-center gap-2 h-10 bg-white dark:bg-white/5 text-gray-700 dark:text-white border border-gray-200 dark:border-white/10 rounded-lg font-bold text-sm hover:bg-gray-50 dark:hover:bg-white/10 transition-all"
+                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                             >
                                 <ExternalLink className="w-4 h-4" />
-                                Preview Widget
+                                Open preview
                             </button>
                         </div>
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-500/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-500/20">
-                        <h4 className="font-bold text-blue-900 dark:text-blue-400 text-sm mb-2">Technical Note</h4>
-                        <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                            The widget is fully responsive and will adapt to the width of its container.
-                            We recommend a minimum width of 350px for the best experience.
-                        </p>
-                    </div>
+                    <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">Use a container at least 350px wide for the best checkout experience.</p>
                 </div>
 
                 {/* Right Side: Visual Preview */}
                 <div className="flex flex-col gap-4">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Live Preview</h3>
-                    <div className="flex-1 bg-gray-100 dark:bg-black/20 rounded-3xl border border-dashed border-gray-300 dark:border-white/10 flex items-center justify-center p-8 min-h-[500px]">
-                        <div className="w-full max-w-[400px] pointer-events-none select-none shadow-2xl">
+                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Live preview</h3>
+                    <div className="flex min-h-[500px] flex-1 items-start justify-center rounded-2xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5 sm:p-6">
+                        <div className="pointer-events-none w-full max-w-[400px] select-none">
                             <iframe
                                 src={previewUrl}
                                 width="100%"
                                 height="600"
                                 frameBorder="0"
-                                className="rounded-2xl bg-white shadow-2xl"
+                                className="rounded-xl bg-white"
                                 style={{ pointerEvents: 'none' }}
                             />
                         </div>
                     </div>
-                    <p className="text-center text-xs text-gray-400">
-                        This is how the widget will appear on your site.
-                    </p>
+                    <p className="text-center text-xs text-gray-500 dark:text-gray-400">Preview uses this event’s colors and content.</p>
                 </div>
             </div>
         </div>

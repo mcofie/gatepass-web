@@ -17,12 +17,12 @@ import clsx from 'clsx'
 import { PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
 const STEPS = [
-    { id: 'basics', title: 'Basics', description: 'Name & Details' },
-    { id: 'location', title: 'Time & Place', description: 'Vehicle & Date' },
-    { id: 'media', title: 'Media', description: 'Photos & Videos' },
-    { id: 'lineup', title: 'Lineup', description: 'Speakers & Artists' },
-    { id: 'tickets', title: 'Tickets', description: 'Admission & Pricing' },
-    { id: 'review', title: 'Review', description: 'Finalize' }
+    { id: 'basics', title: 'Basics', description: 'Name and description' },
+    { id: 'location', title: 'Date & location', description: 'When and where' },
+    { id: 'media', title: 'Media', description: 'Images and video' },
+    { id: 'lineup', title: 'Lineup', description: 'Artists and speakers' },
+    { id: 'tickets', title: 'Tickets', description: 'Pricing and capacity' },
+    { id: 'review', title: 'Review', description: 'Check and create' }
 ]
 
 export default function CreateEventPage() {
@@ -269,37 +269,42 @@ export default function CreateEventPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto py-8 font-sans">
-            <Link href="/dashboard/events" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-black mb-8 transition-colors">
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+        <div className="mx-auto max-w-[1180px] pb-28 font-sans md:pb-16">
+            <Link href="/dashboard/events" className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-black dark:text-gray-400 dark:hover:text-white">
+                <ArrowLeft className="h-4 w-4" /> Events
             </Link>
+            <div className="mb-8">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">New event</p>
+                <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Create event</h1>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Add the essentials first. You can review everything before creating the event.</p>
+            </div>
 
-            <div className="flex gap-8 items-start">
+            <div className="grid items-start gap-6 md:grid-cols-[210px_minmax(0,1fr)] lg:gap-10">
 
                 {/* Steps Sidebar */}
-                <div className="hidden md:block w-64 shrink-0 space-y-1">
+                <div className="hidden space-y-1 md:block">
                     {STEPS.map((step, index) => {
                         const isActive = index === currentStep
                         const isPast = index < currentStep
 
                         return (
                             <div key={step.id}
-                                className={clsx("flex items-center gap-3 p-3 rounded-xl transition-all", {
-                                    'bg-white dark:bg-[#111] shadow-sm border border-gray-100 dark:border-white/10': isActive,
+                                className={clsx("flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors", {
+                                    'bg-gray-100 dark:bg-white/10': isActive,
                                     'text-gray-400 dark:text-gray-500': !isActive && !isPast,
                                     'text-black dark:text-white': isActive || isPast
                                 })}
                             >
-                                <div className={clsx("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all", {
+                                <div className={clsx("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold", {
                                     'bg-black text-white dark:bg-white dark:text-black': isActive,
-                                    'bg-green-500 text-white': isPast,
+                                    'bg-gray-200 text-gray-700 dark:bg-white/15 dark:text-white': isPast,
                                     'bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-500': !isActive && !isPast
                                 })}>
                                     {isPast ? <Check className="w-4 h-4" /> : index + 1}
                                 </div>
                                 <div>
-                                    <div className={clsx("text-sm font-bold", isActive ? "text-black dark:text-white" : "text-gray-500 dark:text-gray-400")}>{step.title}</div>
-                                    <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-medium">{step.description}</div>
+                                    <div className={clsx("text-sm font-medium", isActive ? "text-black dark:text-white" : "text-gray-500 dark:text-gray-400")}>{step.title}</div>
+                                    <div className="text-xs text-gray-400 dark:text-gray-500">{step.description}</div>
                                 </div>
                             </div>
                         )
@@ -307,12 +312,16 @@ export default function CreateEventPage() {
                 </div>
 
                 {/* Main Form Area */}
-                <div className="flex-1 bg-white dark:bg-[#111] p-10 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] min-h-[600px] flex flex-col relative">
+                <div className="relative flex min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-7">
 
                     {/* Header */}
-                    <div className="mb-8">
-                        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{STEPS[currentStep].title}</h1>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Step {currentStep + 1} of {STEPS.length}</p>
+                    <div className="mb-7">
+                        <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">Step {currentStep + 1} of {STEPS.length}</p>
+                        <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{STEPS[currentStep].title}</h2>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{STEPS[currentStep].description}</p>
+                        <div className="mt-5 flex gap-1.5 md:hidden" aria-label={`Step ${currentStep + 1} of ${STEPS.length}`}>
+                            {STEPS.map((step, index) => <span key={step.id} className={`h-1 flex-1 rounded-full ${index <= currentStep ? 'bg-black dark:bg-white' : 'bg-gray-200 dark:bg-white/10'}`} />)}
+                        </div>
                     </div>
 
                     {/* Step Content */}
@@ -321,32 +330,34 @@ export default function CreateEventPage() {
                         {currentStep === 0 && (
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Title</label>
+                                    <label htmlFor="event-title" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Event name</label>
                                     <input
+                                        id="event-title"
                                         name="title"
                                         value={formData.title}
                                         onChange={handleChange}
                                         type="text"
                                         autoFocus
                                         required
-                                        placeholder="e.g. Summer Music Festival 2024"
+                                        placeholder="e.g. 99 Problems"
                                         className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent focus:bg-white dark:focus:bg-[#111] transition-all outline-none font-medium text-gray-900 dark:text-white dark:placeholder-gray-600"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">URL Slug</label>
+                                    <label htmlFor="event-slug" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Event link</label>
                                     <div className="flex items-center gap-2">
                                         <div className="flex-1 flex items-center relative">
-                                            <span className="bg-gray-100 dark:bg-white/10 border border-r-0 border-gray-200 dark:border-white/10 rounded-l-xl px-4 py-3 text-gray-500 dark:text-gray-400 text-sm font-medium">gatepass.com/events/</span>
+                                            <span className="hidden rounded-l-xl border border-r-0 border-gray-200 bg-gray-100 px-4 py-3 text-sm font-medium text-gray-500 dark:border-white/10 dark:bg-white/10 dark:text-gray-400 sm:block">gatepass.so/events/</span>
                                             <input
+                                                id="event-slug"
                                                 name="slug"
                                                 value={formData.slug}
                                                 onChange={handleChange}
                                                 type="text"
                                                 required
-                                                className={`flex-1 px-4 py-3 bg-gray-50 dark:bg-white/5 border rounded-r-xl focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent focus:bg-white dark:focus:bg-[#111] transition-all outline-none font-medium dark:text-white ${slugStatus === 'taken' ? 'border-red-300 text-red-600 focus:ring-red-200' :
-                                                    slugStatus === 'available' ? 'border-green-300 text-green-700 dark:text-green-400 focus:ring-green-200' :
+                                                className={`min-w-0 flex-1 rounded-xl border bg-gray-50 px-4 py-3 font-medium outline-none transition-colors focus:border-gray-500 dark:bg-white/5 dark:text-white sm:rounded-l-none ${slugStatus === 'taken' ? 'border-red-300 text-red-600' :
+                                                    slugStatus === 'available' ? 'border-gray-300 text-gray-900 dark:border-white/20 dark:text-white' :
                                                         'border-gray-200 dark:border-white/10'
                                                     }`}
                                             />
@@ -357,13 +368,14 @@ export default function CreateEventPage() {
                                         <button
                                             type="button"
                                             onClick={handleGenerateSlug}
-                                            className="px-4 py-3 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-600 dark:text-gray-300 rounded-xl font-medium text-sm transition-colors whitespace-nowrap"
+                                            className="rounded-lg border border-gray-200 px-3 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
                                         >
                                             Generate
                                         </button>
                                     </div>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 sm:hidden">gatepass.so/events/{formData.slug || 'your-event'}</p>
                                     {slugStatus === 'taken' && <p className="text-xs text-red-500 mt-1.5 font-medium">This slug is already taken.</p>}
-                                    {slugStatus === 'available' && formData.slug && <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 font-medium">Slug available!</p>}
+                                    {slugStatus === 'available' && formData.slug && <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Link available</p>}
                                 </div>
 
                                 <div>
@@ -382,8 +394,9 @@ export default function CreateEventPage() {
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Venue Name</label>
+                                        <label htmlFor="event-venue" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Venue name</label>
                                         <input
+                                            id="event-venue"
                                             name="venue_name"
                                             value={formData.venue_name}
                                             onChange={handleChange}
@@ -394,8 +407,9 @@ export default function CreateEventPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Address</label>
+                                        <label htmlFor="event-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Address</label>
                                         <input
+                                            id="event-address"
                                             name="venue_address"
                                             value={formData.venue_address}
                                             onChange={handleChange}
@@ -406,8 +420,9 @@ export default function CreateEventPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Latitude (Optional)</label>
+                                        <label htmlFor="event-latitude" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Latitude (optional)</label>
                                         <input
+                                            id="event-latitude"
                                             name="latitude"
                                             value={formData.latitude || ''}
                                             onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
@@ -417,8 +432,9 @@ export default function CreateEventPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Longitude (Optional)</label>
+                                        <label htmlFor="event-longitude" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Longitude (optional)</label>
                                         <input
+                                            id="event-longitude"
                                             name="longitude"
                                             value={formData.longitude || ''}
                                             onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
@@ -431,7 +447,7 @@ export default function CreateEventPage() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Starts At</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Starts at</label>
                                         <DateTimePicker
                                             date={formData.starts_at}
                                             setDate={(date) => setFormData(prev => ({ ...prev, starts_at: date }))}
@@ -439,7 +455,7 @@ export default function CreateEventPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Ends At (Optional)</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ends at (optional)</label>
                                         <DateTimePicker
                                             date={formData.ends_at}
                                             setDate={(date) => setFormData(prev => ({ ...prev, ends_at: date }))}
@@ -454,7 +470,7 @@ export default function CreateEventPage() {
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div className="grid gap-6">
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Poster URL</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event poster</label>
                                         <MediaUploader
                                             type="image"
                                             path={`${formData.organization_id}/uploads`}
@@ -466,7 +482,7 @@ export default function CreateEventPage() {
                                         </p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Trailer/Teaser (Required)</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event video</label>
                                         <MediaUploader
                                             type="video"
                                             path={`${formData.organization_id}/uploads`}
@@ -479,7 +495,7 @@ export default function CreateEventPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Logo (Optional)</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event logo (optional)</label>
                                         <div className="flex items-start gap-6">
                                             <div className="w-32 shrink-0">
                                                 <MediaUploader
@@ -497,7 +513,7 @@ export default function CreateEventPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Theme Color</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Accent color</label>
                                         <div className="flex items-center gap-4">
                                             <input
                                                 name="primary_color"
@@ -672,8 +688,8 @@ export default function CreateEventPage() {
                                             onChange={(e) => setFormData(prev => ({ ...prev, fee_bearer: e.target.value as 'customer' | 'organizer' }))}
                                             className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent focus:bg-white dark:focus:bg-[#111] transition-all outline-none font-medium appearance-none text-gray-900 dark:text-white"
                                         >
-                                            <option value="customer" className="dark:bg-[#111]">Customer (Pass fees)</option>
-                                            <option value="organizer" className="dark:bg-[#111]">Organizer (Absorb fees)</option>
+                                            <option value="customer" className="dark:bg-[#111]">Customer pays fees</option>
+                                            <option value="organizer" className="dark:bg-[#111]">Organizer pays fees</option>
                                         </select>
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                                             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -685,30 +701,24 @@ export default function CreateEventPage() {
                     </div>
 
                     {/* Footer / Navigation */}
-                    <div className="pt-8 mt-4 border-t border-gray-100 dark:border-white/10 flex items-center justify-between">
+                    <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-gray-200 bg-white px-5 py-4 dark:border-white/10 dark:bg-[#111] md:static md:mt-8 md:border-gray-100 md:bg-transparent md:px-0 md:pb-0 md:pt-5 dark:md:bg-transparent">
                         {currentStep > 0 ? (
                             <button
                                 onClick={prevStep}
-                                className="px-6 py-3 rounded-xl font-bold text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                                className="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:text-black dark:text-gray-400 dark:hover:text-white"
                             >
                                 Back
                             </button>
                         ) : (
-                            <Link href="/dashboard/events">
-                                <button
-                                    className="px-6 py-3 rounded-xl font-bold text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </Link>
+                            <Link href="/dashboard/events" className="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:text-black dark:text-gray-400 dark:hover:text-white">Cancel</Link>
                         )}
 
-                        <div className="flex gap-4">
+                        <div className="flex gap-2">
                             {currentStep === 5 && (
                                 <button
                                     type="button"
                                     onClick={() => setShowPreview(true)}
-                                    className="px-6 py-3 rounded-xl font-bold text-black dark:text-white border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                                    className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
                                 >
                                     Preview
                                 </button>
@@ -717,7 +727,7 @@ export default function CreateEventPage() {
                             {currentStep < 5 ? (
                                 <button
                                     onClick={nextStep}
-                                    className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-lg shadow-black/20 dark:shadow-none flex items-center gap-2"
+                                    className="flex items-center gap-2 rounded-lg bg-black px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                                 >
                                     Next <ChevronRight className="w-4 h-4" />
                                 </button>
@@ -725,7 +735,7 @@ export default function CreateEventPage() {
                                 <button
                                     onClick={handleSubmit}
                                     disabled={loading}
-                                    className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-lg shadow-black/20 dark:shadow-none flex items-center gap-2 disabled:opacity-50"
+                                    className="flex items-center gap-2 rounded-lg bg-black px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                                 >
                                     {loading ? 'Creating...' : 'Create Event'}
                                 </button>

@@ -139,10 +139,11 @@ export default async function MarketingPage() {
         .eq('is_published', true)
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8 animate-fade-in pb-20">
-            <div className="flex flex-col gap-1 px-4 md:px-0">
-                <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Marketing Analytics</h1>
-                <p className="text-gray-500 font-medium dark:text-gray-400">Track your ad performance and conversion rates across Instagram, Facebook, and more.</p>
+        <div className="mx-auto max-w-[1180px] space-y-7 pb-16">
+            <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Marketing</h1>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">See how your links perform and reach your attendees.</p>
             </div>
 
             <MarketingDashboard initialStats={stats || []} events={events || []} organizationId={resolvedOrgId} />

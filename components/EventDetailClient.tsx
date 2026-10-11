@@ -893,7 +893,7 @@ const EventMobilePreview = ({ event, cheapestTier, onExpand }: { event: Event, c
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 flex-shrink-0 overflow-hidden relative">
                         {event.logo_url ? (
-                            <Image src={event.logo_url} alt="" fill className="object-cover" />
+                            <Image src={event.logo_url} alt="" fill sizes="40px" className="object-cover" />
                         ) : (
                             <span className="flex h-full items-center justify-center text-[10px] font-semibold text-gray-500">{event.title?.substring(0, 2).toUpperCase() || 'GP'}</span>
                         )}
@@ -987,7 +987,7 @@ const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded
                     {/* Organizer Logo */}
                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-zinc-800 text-black dark:text-white flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 border border-gray-100 dark:border-zinc-700 relative">
                         {event.logo_url ? (
-                            <Image src={event.logo_url} alt="" fill className="object-cover" />
+                            <Image src={event.logo_url} alt="" fill sizes="40px" className="object-cover" />
                         ) : (
                             <span className="text-[10px]">{event.title?.substring(0, 2).toUpperCase() || 'GP'}</span>
                         )}
@@ -1118,7 +1118,7 @@ const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded
                                             <div key={i} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
                                                 <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden relative flex-shrink-0">
                                                     {item.image_url ? (
-                                                        <Image src={item.image_url} alt={item.name} fill className="object-cover" />
+                                                        <Image src={item.image_url} alt={item.name} fill sizes="36px" className="object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-gray-500">
                                                             {item.name.charAt(0)}
@@ -1169,7 +1169,7 @@ const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded
                     <div className="flex -space-x-2 flex-shrink-0">
                         {event.lineup.slice(0, 3).map((item, i) => (
                             <div key={i} className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-gray-100 dark:bg-zinc-800 overflow-hidden relative">
-                                {item.image_url ? <Image src={item.image_url} alt="" fill className="object-cover" /> : <span className="flex h-full items-center justify-center text-[9px] font-semibold text-gray-500">{item.name.charAt(0)}</span>}
+                                {item.image_url ? <Image src={item.image_url} alt="" fill sizes="24px" className="object-cover" /> : <span className="flex h-full items-center justify-center text-[9px] font-semibold text-gray-500">{item.name.charAt(0)}</span>}
                             </div>
                         ))}
                     </div>
@@ -1640,7 +1640,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                                     {/* Elevated Image Container */}
                                     <div className="w-[68px] h-[68px] rounded-xl overflow-hidden flex-shrink-0 relative bg-gray-100 dark:bg-zinc-800 border border-black/5 dark:border-white/5">
                                         {addon.image_url ? (
-                                            <Image src={addon.image_url} alt={addon.name} fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
+                                            <Image src={addon.image_url} alt={addon.name} fill sizes="68px" className="object-cover transition-transform duration-700 group-hover:scale-110" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-zinc-800">
                                                 <BadgeCheck className="w-8 h-8 text-gray-400 dark:text-zinc-500" />

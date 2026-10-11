@@ -21,11 +21,11 @@ export default async function CustomersPage() {
         const { data: explicitOrg } = await supabase
             .schema('gatepass')
             .from('organizers')
-            .select('id')
+            .select('id, user_id')
             .eq('id', activeOrgId)
             .maybeSingle()
 
-        if (explicitOrg) {
+        if (explicitOrg?.user_id === user.id) {
             resolvedOrgId = explicitOrg.id
         } else {
             // Check if user is part of this org team

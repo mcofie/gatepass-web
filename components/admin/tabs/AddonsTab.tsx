@@ -140,61 +140,65 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
 
     if (isCreating) {
         return (
-            <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                <div className="flex items-center gap-3 mb-6">
-                    <button onClick={resetForm} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
+            <div className="max-w-2xl space-y-5 animate-in fade-in duration-200">
+                <div className="flex items-center gap-3">
+                    <button type="button" onClick={resetForm} aria-label="Back to add-ons" className="rounded-lg border border-gray-200 p-2 transition-colors hover:border-gray-400 dark:border-white/10">
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? 'Edit Add-on' : 'New Add-on'}</h3>
+                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">{editingId ? 'Edit add-on' : 'New add-on'}</h2>
                 </div>
 
-                <form onSubmit={handleSave} className="space-y-6">
+                <form onSubmit={handleSave} className="space-y-5">
                     {/* Basic Info Card */}
-                    <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm space-y-4">
+                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
                         <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Name</label>
+                            <label htmlFor="addon-name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                             <input
+                                id="addon-name"
                                 required
                                 value={form.name}
                                 onChange={e => setForm({ ...form, name: e.target.value })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white"
+                                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                 placeholder="e.g. VIP Parking Pass"
                             />
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Price (GHS)</label>
+                            <label htmlFor="addon-price" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Price (GHS)</label>
                             <input
+                                id="addon-price"
                                 type="number"
                                 required
                                 min="0"
                                 step="0.01"
                                 value={form.price}
                                 onChange={e => setForm({ ...form, price: parseFloat(e.target.value) })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-mono font-medium text-gray-900 dark:text-white"
+                                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                 placeholder="0.00"
                             />
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Description</label>
+                            <label htmlFor="addon-description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                             <textarea
+                                id="addon-description"
                                 value={form.description || ''}
                                 onChange={e => setForm({ ...form, description: e.target.value })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white min-h-[100px]"
+                                className="min-h-24 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                 placeholder="Describe the item..."
                             />
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Applies To Ticket Tier</label>
+                            <label htmlFor="addon-tier" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Available with</label>
                             <div className="relative">
                                 <select
+                                    id="addon-tier"
                                     value={form.tier_id || ''}
                                     onChange={e => setForm({ ...form, tier_id: e.target.value || null })}
-                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium appearance-none text-gray-900 dark:text-white"
+                                    className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                 >
-                                    <option value="">All Tiers (General Add-on)</option>
+                                    <option value="">All ticket types</option>
                                     {tiers.map(t => (
                                         <option key={t.id} value={t.id}>{t.name}</option>
                                     ))}
@@ -203,82 +207,83 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                 </div>
                             </div>
-                            <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
-                                If selected, this add-on will only show up when the buyer selects this specific ticket tier.
+                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                Limit this item to one ticket type, or offer it to everyone.
                             </p>
                         </div>
                     </div>
 
                     {/* Selection Type Card */}
-                    <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm space-y-4">
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Selection Type</label>
-                        <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">How guests select it</p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <button
                                 type="button"
                                 onClick={() => setForm({ ...form, selection_type: 'quantity' })}
+                                aria-pressed={form.selection_type === 'quantity'}
                                 className={cn(
-                                    "p-4 rounded-2xl border text-left transition-all",
+                                    "rounded-xl border p-4 text-left transition-colors",
                                     form.selection_type === 'quantity'
-                                        ? "border-black dark:border-white bg-black/5 dark:bg-white/5 ring-1 ring-black dark:ring-white shadow-sm"
-                                        : "border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 bg-gray-50/50 dark:bg-transparent"
+                                        ? "border-black bg-gray-50 dark:border-white dark:bg-white/5"
+                                        : "border-gray-200 hover:border-gray-400 dark:border-white/10 dark:hover:border-white/30"
                                 )}
                             >
-                                <div className="font-bold text-sm mb-1 text-gray-900 dark:text-white flex items-center gap-2">
+                                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                     <Package className="w-3.5 h-3.5" />
                                     Quantity
                                 </div>
-                                <div className="text-[11px] text-gray-500 leading-tight">Allow guests to buy multiple (e.g. Drinks, Merch)</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Guests can add more than one.</div>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setForm({ ...form, selection_type: 'toggle' })}
+                                aria-pressed={form.selection_type === 'toggle'}
                                 className={cn(
-                                    "p-4 rounded-2xl border text-left transition-all",
+                                    "rounded-xl border p-4 text-left transition-colors",
                                     form.selection_type === 'toggle'
-                                        ? "border-black dark:border-white bg-black/5 dark:bg-white/5 ring-1 ring-black dark:ring-white shadow-sm"
-                                        : "border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 bg-gray-50/50 dark:bg-transparent"
+                                        ? "border-black bg-gray-50 dark:border-white dark:bg-white/5"
+                                        : "border-gray-200 hover:border-gray-400 dark:border-white/10 dark:hover:border-white/30"
                                 )}
                             >
-                                <div className="font-bold text-sm mb-1 text-gray-900 dark:text-white flex items-center gap-2">
+                                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                     <Check className="w-3.5 h-3.5" />
                                     Toggle
                                 </div>
-                                <div className="text-[11px] text-gray-500 leading-tight">Single selection (0 or 1) only.</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Guests can add it once.</div>
                             </button>
                         </div>
                     </div>
 
                     {/* Image Upload */}
-                    <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm">
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 block flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4" />
-                            Display Image
-                        </label>
-                        <div className="w-40 mx-auto">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                        <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Image <span className="font-normal text-gray-400">Optional</span></p>
+                        <div className="w-28">
                             <MediaUploader
                                 type="image"
                                 path={`${organizationId}/addons`}
                                 value={form.image_url || ''}
                                 onChange={(url) => setForm({ ...form, image_url: url })}
                                 aspectRatio="square"
+                                compact
+                                label="Add image"
                             />
                         </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
+                    <div className="flex flex-wrap justify-end gap-2">
                         <button
                             type="button"
                             onClick={resetForm}
-                            className="flex-1 h-12 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 dark:border-white/10 dark:text-gray-300"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 h-12 rounded-xl bg-black dark:bg-white text-white dark:text-black font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+                            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
                         >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingId ? 'Save Changes' : 'Create Add-on')}
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingId ? 'Save add-on' : 'Create add-on')}
                         </button>
                     </div>
                 </form >
@@ -288,49 +293,49 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
 
     // LIST VIEW
     return (
-        <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="space-y-5 animate-in fade-in duration-200">
             {/* Header / Empty State */}
             {addons.length === 0 ? (
-                <div className="text-center py-24 bg-white dark:bg-[#111] rounded-[2rem] border border-dashed border-gray-200 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.02)]">
-                    <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-gray-100 dark:border-white/5">
-                        <Package className="w-8 h-8 text-gray-400" />
+                <div className="rounded-2xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#111]">
+                    <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10">
+                        <Package className="h-5 w-5 text-gray-500" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 tracking-tight">No Add-ons Yet</h3>
+                    <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">No add-ons yet</h3>
                     <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8 text-sm leading-relaxed">
                         Enhance your event revenue by selling merchandise, parking passes, or upgrades alongside your tickets.
                     </p>
                     <button
                         onClick={() => setIsCreating(true)}
-                        className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold inline-flex items-center gap-2 hover:scale-105 transition-transform shadow-xl shadow-black/10 dark:shadow-white/5"
+                        className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                     >
                         <Plus className="w-4 h-4" />
-                        Create First Add-on
+                        Add an item
                     </button>
                 </div>
             ) : (
                 <>
-                    <div className="flex justify-between items-center px-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h3 className="font-bold text-2xl text-gray-900 dark:text-white tracking-tight">Active Add-ons</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Manage merchandise and upgrades</p>
+                            <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Add-ons</h2>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage merchandise and upgrades.</p>
                         </div>
                         <button
                             onClick={() => setIsCreating(true)}
-                            className="h-11 px-6 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold text-sm inline-flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-black/10 dark:shadow-white/5 hover:-translate-y-0.5"
+                            className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                         >
                             <Plus className="w-4 h-4" />
-                            New Item
+                            Add item
                         </button>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
                         {addons.map(addon => (
-                            <div key={addon.id} className="group bg-white dark:bg-[#111] p-5 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all flex flex-col md:flex-row gap-6 items-start md:items-center">
+                            <div key={addon.id} className="group grid grid-cols-[72px_minmax(0,1fr)] gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#111] sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:p-5">
                                 {/* Image */}
-                                <div className="w-full md:w-24 h-24 bg-gray-100 dark:bg-white/5 rounded-2xl flex-shrink-0 relative overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+                                <div className="relative h-[72px] w-[72px] overflow-hidden rounded-lg bg-gray-100 dark:bg-white/5 sm:h-20 sm:w-20">
                                     {addon.image_url ? (
                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={addon.image_url} alt={addon.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                        <img src={addon.image_url} alt={addon.name} className="h-full w-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/20">
                                             <ImageIcon className="w-8 h-8" />
@@ -342,17 +347,12 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                                 <div className="flex-1 min-w-0 flex flex-col gap-1">
                                     <div className="flex flex-wrap items-center gap-3">
                                         <h4 className="font-bold text-lg text-gray-900 dark:text-white truncate">{addon.name}</h4>
-                                        <span className={cn(
-                                            "text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border",
-                                            addon.selection_type === 'toggle'
-                                                ? "bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20"
-                                                : "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20"
-                                        )}>
-                                            {addon.selection_type === 'toggle' ? 'Single Choice' : 'Multi-Quantity'}
+                                        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
+                                            {addon.selection_type === 'toggle' ? 'Single choice' : 'Multiple'}
                                         </span>
                                         {addon.tier_id && (
-                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
-                                                Tied to: {tiers.find(t => t.id === addon.tier_id)?.name || 'Ticket Tier'}
+                                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
+                                                For {tiers.find(t => t.id === addon.tier_id)?.name || 'ticket type'}
                                             </span>
                                         )}
                                     </div>
@@ -361,8 +361,8 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                                         <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 font-medium">{addon.description}</p>
                                     )}
 
-                                    <div className="flex items-center gap-4 mt-2">
-                                        <p className="font-bold text-lg text-gray-900 dark:text-white">
+                                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                                        <p className="text-base font-semibold text-gray-950 dark:text-white">
                                             {formatCurrency(addon.price, addon.currency)}
                                         </p>
                                         <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
@@ -374,17 +374,18 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0 pl-0 md:pl-6 border-l-0 md:border-l border-gray-100 dark:border-white/10 md:h-16 justify-end">
+                                <div className="col-span-2 flex items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-white/10 sm:col-span-1 sm:border-0 sm:pt-0">
                                     <button
                                         onClick={() => startEdit(addon)}
-                                        className="h-10 px-5 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-all flex items-center gap-2 border border-transparent hover:border-gray-200 dark:hover:border-white/10"
+                                        className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-black dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
                                     >
                                         <Edit2 className="w-3.5 h-3.5" />
                                         Edit
                                     </button>
                                     <button
                                         onClick={() => handleDelete(addon.id)}
-                                        className="h-10 w-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all border border-transparent hover:border-red-100 dark:hover:border-red-500/20"
+                                        aria-label={`Delete ${addon.name}`}
+                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>

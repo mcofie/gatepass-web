@@ -40,11 +40,21 @@ export default async function InstalmentDetailPage({ params }: { params: Promise
 
     if (error || !instalment) notFound()
 
+    const reservation = instalment.reservations?.[0]
+    const instalmentDetail = {
+        ...instalment,
+        reservations: reservation ? {
+            ...reservation,
+            ticket_tiers: reservation.ticket_tiers?.[0] ?? null,
+            events: reservation.events?.[0] ?? null,
+        } : null,
+    }
+
     return (
         <div className="min-h-svh bg-white text-[#111] dark:bg-[#080808] dark:text-white">
             <LandingHeader showAccountMenu={true} />
             <main className="mx-auto w-full max-w-[780px] px-5 pb-20 pt-32 sm:px-8 md:pt-40">
-                <InstalmentDetailClient instalment={instalment} />
+                <InstalmentDetailClient instalment={instalmentDetail} />
             </main>
         </div>
     )

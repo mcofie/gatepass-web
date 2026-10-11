@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { Volume2, VolumeX } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -14,7 +14,18 @@ interface EventBackgroundProps {
 
 export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: EventBackgroundProps) {
     const [isMuted, setIsMuted] = useState(true)
+    const [showVideo, setShowVideo] = useState(false)
     const videoRef = useRef<HTMLVideoElement>(null)
+
+    useEffect(() => {
+        if (forcePause || !videoUrl) {
+            setShowVideo(false)
+            return
+        }
+
+        const timer = window.setTimeout(() => setShowVideo(true), 350)
+        return () => window.clearTimeout(timer)
+    }, [forcePause, videoUrl])
 
     const toggleAudio = () => {
         if (videoRef.current) {
@@ -24,7 +35,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
     }
 
     // Handle Play/Pause
-    React.useEffect(() => {
+    useEffect(() => {
         if (videoRef.current) {
             if (forcePause) {
                 videoRef.current.pause()
@@ -32,7 +43,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
                 videoRef.current.play().catch(e => console.log('Autoplay prevented', e))
             }
         }
-    }, [forcePause])
+    }, [forcePause, showVideo])
 
     if (!videoUrl) {
         return (
@@ -42,6 +53,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
                         src={posterUrl}
                         alt="Event Background"
                         fill
+                        sizes="100vw"
                         className="object-cover opacity-90"
                         priority={!forcePause} // Prioritize if this is the active/first item
                     />
@@ -58,13 +70,14 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
                     src={posterUrl}
                     alt="Event Background"
                     fill
+                    sizes="100vw"
                     className="object-cover opacity-90 transition-opacity duration-1000"
                     priority={!forcePause}
                 />
             )}
 
             {/* Video (Only render when active) */}
-            {!forcePause && videoUrl && (
+            {!forcePause && showVideo && (
                 <video
                     ref={videoRef}
                     src={videoUrl}
@@ -73,6 +86,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
                     muted={isMuted}
                     playsInline
                     autoPlay
+                    preload="none"
                     poster={posterUrl || undefined}
                 />
             )}

@@ -10,7 +10,7 @@ interface AnalyticsChartsProps {
 }
 
 export default function AnalyticsCharts({ tickets }: AnalyticsChartsProps) {
-    const { theme } = useTheme()
+    const { resolvedTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
@@ -19,25 +19,28 @@ export default function AnalyticsCharts({ tickets }: AnalyticsChartsProps) {
 
     if (!tickets || tickets.length === 0 || !mounted) return null
 
-    const isDark = theme === 'dark'
+    const isDark = resolvedTheme === 'dark'
+    const salesData = aggregateSalesOverTime(tickets)
+    const ticketTypes = aggregateTicketTypes(tickets)
 
     // COLORS
-    const gridColor = isDark ? '#333333' : '#e5e7eb'
+    const gridColor = isDark ? '#333333' : '#eceff2'
     const textColor = isDark ? '#9ca3af' : '#6b7280'
     const tooltipBg = isDark ? '#111111' : '#ffffff'
     const tooltipText = isDark ? '#ffffff' : '#000000'
     const lineColor = isDark ? '#ffffff' : '#000000'
     const pieColors = isDark
-        ? ['#ffffff', '#a3a3a3', '#525252', '#262626']
-        : ['#000000', '#666666', '#999999', '#CCCCCC']
+        ? ['#ffffff', '#b3b3b3', '#737373', '#404040']
+        : ['#111111', '#5b5b5b', '#989898', '#c8c8c8']
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-[300px]">
-                <h3 className="font-bold text-gray-900 dark:text-white mb-4">Sales Volume</h3>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="flex h-[300px] min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                <h3 className="mb-5 text-sm font-semibold text-gray-950 dark:text-white">Sales over time</h3>
+                <div className="min-h-0 flex-1">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={aggregateSalesOverTime(tickets)}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} opacity={0.5} />
+                    <LineChart data={salesData} margin={{ top: 8, right: 12, left: -20, bottom: 2 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                         <XAxis
                             dataKey="date"
                             tickLine={false}
@@ -52,9 +55,8 @@ export default function AnalyticsCharts({ tickets }: AnalyticsChartsProps) {
                         <Tooltip
                             contentStyle={{
                                 backgroundColor: tooltipBg,
-                                borderRadius: '12px',
+                                borderRadius: '8px',
                                 border: '1px solid ' + gridColor,
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                                 color: tooltipText
                             }}
                             itemStyle={{ color: tooltipText }}
@@ -65,44 +67,57 @@ export default function AnalyticsCharts({ tickets }: AnalyticsChartsProps) {
                             type="monotone"
                             dataKey="count"
                             stroke={lineColor}
-                            strokeWidth={3}
-                            dot={{ r: 4, fill: lineColor, strokeWidth: 0 }}
-                            activeDot={{ r: 6, fill: lineColor }}
+                            strokeWidth={2}
+                            dot={{ r: 3, fill: lineColor, strokeWidth: 0 }}
+                            activeDot={{ r: 5, fill: lineColor }}
                         />
                     </LineChart>
                 </ResponsiveContainer>
+                </div>
             </div>
 
-            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-[300px]">
-                <h3 className="font-bold text-gray-900 dark:text-white mb-4">Ticket Type Distribution</h3>
+            <div className="flex h-[380px] min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:h-[300px] sm:p-6">
+                <h3 className="mb-5 text-sm font-semibold text-gray-950 dark:text-white">Tickets by type</h3>
+                <div className="flex min-h-0 flex-1 flex-col items-center gap-3 sm:flex-row">
+                <div className="h-[160px] w-full min-w-0 sm:h-full sm:flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
-                            data={aggregateTicketTypes(tickets)}
+                            data={ticketTypes}
                             cx="50%"
                             cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={5}
+                            innerRadius={50}
+                            outerRadius={72}
+                            paddingAngle={2}
                             dataKey="value"
                             stroke="none"
                         >
-                            {aggregateTicketTypes(tickets).map((entry, index) => (
+                            {ticketTypes.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                             ))}
                         </Pie>
                         <Tooltip
                             contentStyle={{
                                 backgroundColor: tooltipBg,
-                                borderRadius: '12px',
+                                borderRadius: '8px',
                                 border: '1px solid ' + gridColor,
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                                 color: tooltipText
                             }}
                             itemStyle={{ color: tooltipText }}
                         />
                     </PieChart>
                 </ResponsiveContainer>
+                </div>
+                <ul className="max-h-full w-full shrink-0 space-y-2 overflow-y-auto text-xs sm:w-36">
+                    {ticketTypes.map((entry, index) => (
+                        <li key={entry.name} className="flex items-start gap-2 text-gray-600 dark:text-gray-300">
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: pieColors[index % pieColors.length] }} aria-hidden="true" />
+                            <span className="min-w-0 flex-1 break-words">{entry.name}</span>
+                            <span className="font-semibold tabular-nums text-gray-950 dark:text-white">{entry.value}</span>
+                        </li>
+                    ))}
+                </ul>
+                </div>
             </div>
         </div>
     )

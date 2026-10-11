@@ -4,15 +4,14 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, MapPin, Globe, DollarSign, Users, BarChart3, Share2, Video, ImageIcon, Ticket, Plus, Search, ScanLine, Filter, Check, Edit2, Trash2, Eye, Copy, Download, ShieldCheck, Mail, Loader2, CopyPlus, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react'
-import { Event, TicketTier, Discount, EventStaff, EventFormQuestion, EventFormResponse } from '@/types/gatepass'
-import { createEventStaff, fetchEventStaff, deleteEventStaff } from '@/utils/actions/staff'
+import { ArrowUpRight, Calendar, MapPin, Ticket, Plus, Search, ScanLine, Check, Trash2, Eye, Copy, Download, ShieldCheck, Loader2, CopyPlus, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { Event, TicketTier, Discount, EventFormQuestion } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { formatCurrency, formatCompactNumber, formatCompactCurrency } from '@/utils/format'
+import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import dynamic from 'next/dynamic'
-import { aggregateSalesOverTime, aggregateTicketTypes, generateCSV, downloadCSV } from '@/utils/analytics'
+import { generateCSV, downloadCSV } from '@/utils/analytics'
 import { logActivity } from '@/app/actions/logger'
 import { updateEventFee, updateEventFeeBearer } from '@/app/actions/fees'
 import { requestPayout } from '@/app/actions/payouts'
@@ -22,7 +21,7 @@ import { Button } from '@/components/ui/Button'
 
 const DateTimePicker = dynamic(() => import('@/components/common/DateTimePicker').then(mod => mod.DateTimePicker), { ssr: false })
 const AnalyticsCharts = dynamic(() => import('@/components/admin/AnalyticsCharts'), {
-    loading: () => <div className="h-[300px] w-full bg-gray-50/50 rounded-3xl animate-pulse" />,
+    loading: () => <div className="h-[300px] w-full bg-gray-50/50 rounded-2xl animate-pulse" />,
     ssr: false
 })
 import { StaffTab } from '@/components/admin/tabs/StaffTab'
@@ -61,10 +60,10 @@ export function EventManageClient({
     const isAdmin = userRole === 'Owner' || userRole === 'Admin' || isSuperAdmin
     const [event, setEvent] = useState(initialEvent)
     const supabase = createClient()
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments' | 'forms'>('tickets')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments' | 'forms'>('details')
+    const sectionNavRef = React.useRef<HTMLElement>(null)
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
-    const [showMoreMenu, setShowMoreMenu] = useState(false)
 
     // Custom Forms State
     const [questions, setQuestions] = useState<EventFormQuestion[]>([])
@@ -111,6 +110,7 @@ export function EventManageClient({
     })
     const [creatingDiscount, setCreatingDiscount] = useState(false)
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
+    const [showDiscountForm, setShowDiscountForm] = useState(false)
 
     // Payouts State
     const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0, totalAddons: 0 })
@@ -568,7 +568,7 @@ export function EventManageClient({
             }
 
             await fetchDiscounts()
-            await fetchDiscounts()
+            setShowDiscountForm(false)
             setDiscountForm({
                 code: '',
                 type: 'percentage',
@@ -589,6 +589,7 @@ export function EventManageClient({
 
     const startEditingDiscount = (discount: Discount) => {
         setEditingDiscountId(discount.id)
+        setShowDiscountForm(true)
         setDiscountForm({
             code: discount.code,
             type: discount.type,
@@ -605,6 +606,7 @@ export function EventManageClient({
 
     const cancelEditingDiscount = () => {
         setEditingDiscountId(null)
+        setShowDiscountForm(false)
         setDiscountForm({
             code: '',
             type: 'percentage',
@@ -884,37 +886,59 @@ export function EventManageClient({
     }, [activeTab])
 
     const tabClass = (tab: string) => clsx(
-        "px-6 py-2.5 text-sm font-bold rounded-full transition-all duration-300 ease-out",
+        "shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors sm:px-5",
         activeTab === tab
-            ? "bg-white dark:bg-white text-black dark:text-black shadow-md shadow-black/5 ring-1 ring-black/5"
-            : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/10"
+            ? "border-black text-black dark:border-white dark:text-white"
+            : "border-transparent text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white"
     )
 
+    React.useEffect(() => {
+        const nav = sectionNavRef.current
+        const selected = nav?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')
+        if (!nav || !selected) return
+        const navBounds = nav.getBoundingClientRect()
+        const selectedBounds = selected.getBoundingClientRect()
+        const left = nav.scrollLeft + selectedBounds.left - navBounds.left - (nav.clientWidth - selectedBounds.width) / 2
+        nav.scrollTo({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    }, [activeTab])
 
+
+
+    const filteredFormResponses = formResponses.filter(response => {
+        const query = responseSearchQuery.toLowerCase().trim()
+        return !query ||
+            response.reservations?.guest_name?.toLowerCase().includes(query) ||
+            response.reservations?.guest_email?.toLowerCase().includes(query) ||
+            response.answer?.toLowerCase().includes(query) ||
+            response.event_form_questions?.label?.toLowerCase().includes(query)
+    })
 
     return (
-        <div className="container mx-auto p-6 max-w-7xl font-sans">
+        <div className="mx-auto max-w-[1180px] space-y-7 pb-16 font-sans">
             {/* Header */}
-            <div className="flex flex-col gap-6 mb-10">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+            <div className="space-y-5">
+                <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                     <Link href="/dashboard/events" className="hover:text-black dark:hover:text-white transition-colors">Events</Link>
-                    <ArrowLeft className="w-3 h-3 rotate-180" />
-                    <span className="text-black dark:text-white">{event.title}</span>
+                    <span aria-hidden="true">/</span>
+                    <span className="truncate text-gray-900 dark:text-white">{event.title}</span>
                 </div>
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div>
-                        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">{event.title}</h1>
-                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-medium">
-                            <span>{event.venue_name}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-zinc-700" />
-                            <span suppressHydrationWarning>{new Date(event.starts_at).toLocaleDateString()}</span>
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white sm:text-[38px]">{event.title}</h1>
+                            <span className={clsx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", event.is_published ? "border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400" : "border-gray-200 text-gray-600 dark:border-white/10 dark:text-gray-400")}>
+                                <span className={clsx("h-1.5 w-1.5 rounded-full", event.is_published ? "bg-emerald-500" : "bg-gray-400")} />
+                                {event.is_published ? 'Published' : 'Draft'}
+                            </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                            {event.venue_name && <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{event.venue_name}</span>}
+                            <span className="inline-flex items-center gap-1.5" suppressHydrationWarning><Calendar className="h-3.5 w-3.5" />{new Date(event.starts_at).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <Link href={`/events/${event.slug || event.id}`} target="_blank">
-                            <button className="h-10 px-5 rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 font-semibold text-sm hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-white/10 dark:text-white transition-all flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live Page
-                            </button>
+                    <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
+                        <Link href={`/events/${event.slug || event.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-white dark:hover:border-white/30">
+                            View event page <ArrowUpRight className="h-4 w-4" />
                         </Link>
                         {!isStaff && (
                             <button
@@ -935,146 +959,94 @@ export function EventManageClient({
                                     }
                                 }}
                                 disabled={isDuplicating}
-                                className="h-10 px-5 rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 font-semibold text-sm hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-white/10 dark:text-white transition-all flex items-center gap-2 disabled:opacity-50"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 disabled:opacity-50 dark:border-white/10 dark:bg-[#111] dark:text-white dark:hover:border-white/30"
                             >
                                 {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CopyPlus className="w-4 h-4" />}
                                 {isDuplicating ? 'Duplicating...' : 'Duplicate'}
                             </button>
                         )}
-                        <button
+                        {activeTab === 'details' && !isStaff && <button
                             onClick={() => updateEvent()}
                             disabled={loading}
-                            className="h-10 px-6 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black"
                         >
                             {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-                            {loading ? 'Saving...' : 'Save Changes'}
-                        </button>
+                            {loading ? 'Saving...' : 'Save event'}
+                        </button>}
                     </div>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex justify-start mb-10 overflow-visible pb-4 sm:pb-0 scrollbar-hide">
-                <div className="relative inline-flex bg-gray-100/50 dark:bg-white/5 p-1.5 rounded-full border border-gray-200/50 dark:border-white/5">
-                    <button onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
-                    <button onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
-                    <button onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest List</button>
+            <nav ref={sectionNavRef} className="overflow-x-auto border-b border-gray-200 dark:border-white/10" aria-label="Event sections">
+                <div className="flex min-w-max items-center">
+                    <button aria-pressed={activeTab === 'details'} onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
+                    <button aria-pressed={activeTab === 'tickets'} onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
+                    <button aria-pressed={activeTab === 'attendees'} onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest list</button>
                     {isAdmin && (
-                        <button onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
+                        <button aria-pressed={activeTab === 'discounts'} onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
                     )}
                     {isAdmin && (
-                        <button onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
+                        <button aria-pressed={activeTab === 'payouts'} onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
                     )}
                     {isAdmin && (
-                        <button onClick={() => setActiveTab('instalments')} className={tabClass('instalments')}>Instalments</button>
+                        <button aria-pressed={activeTab === 'instalments'} onClick={() => setActiveTab('instalments')} className={tabClass('instalments')}>Instalments</button>
                     )}
                     {isAdmin && (
-                        <button onClick={() => setActiveTab('forms')} className={tabClass('forms')}>Forms</button>
+                        <button aria-pressed={activeTab === 'forms'} onClick={() => setActiveTab('forms')} className={tabClass('forms')}>Forms</button>
                     )}
-
-                    {/* More Dropdown */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowMoreMenu(!showMoreMenu)}
-                            onBlur={() => setTimeout(() => setShowMoreMenu(false), 200)}
-                            className={clsx(
-                                "px-5 py-2.5 text-sm font-bold rounded-full transition-all duration-300 ease-out flex items-center gap-2",
-                                ['team', 'addons', 'widgets'].includes(activeTab)
-                                    ? "bg-white dark:bg-white text-black dark:text-black shadow-md shadow-black/5 ring-1 ring-black/5"
-                                    : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/10"
-                            )}
-                        >
-                            More <ChevronDown className={clsx("w-4 h-4 transition-transform", showMoreMenu && "rotate-180")} />
-                        </button>
-
-                        {showMoreMenu && (
-                            <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-800 p-2 z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                <button
-                                    onClick={() => setActiveTab('team')}
-                                    className={clsx(
-                                        "w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
-                                        activeTab === 'team' ? "bg-gray-100 dark:bg-white/10 text-black dark:text-white" : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-400"
-                                    )}
-                                >
-                                    Team
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('addons')}
-                                    className={clsx(
-                                        "w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
-                                        activeTab === 'addons' ? "bg-gray-100 dark:bg-white/10 text-black dark:text-white" : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-400"
-                                    )}
-                                >
-                                    Add-ons
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('widgets')}
-                                    className={clsx(
-                                        "w-full text-left px-4 py-2.5 text-sm font-medium rounded-xl transition-colors",
-                                        activeTab === 'widgets' ? "bg-gray-100 dark:bg-white/10 text-black dark:text-white" : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 dark:text-gray-400"
-                                    )}
-                                >
-                                    Widgets
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <button aria-pressed={activeTab === 'addons'} onClick={() => setActiveTab('addons')} className={tabClass('addons')}>Add-ons</button>
+                    <button aria-pressed={activeTab === 'widgets'} onClick={() => setActiveTab('widgets')} className={tabClass('widgets')}>Widgets</button>
+                    <button aria-pressed={activeTab === 'team'} onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
                 </div>
-            </div>
+            </nav>
 
 
             {/* PAYOUTS TAB */}
             {activeTab === 'payouts' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="space-y-6 animate-in fade-in duration-200" aria-busy={loadingPayouts}>
+                    <div>
+                        <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Payouts</h2>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Review ticket payments and your available balance.</p>
+                    </div>
 
-                    {/* ... Stats Cards (Keep existing ones, they are good) ... */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         {/* Organizer Due Card */}
-                        <div className="bg-black text-white p-10 rounded-[2rem] shadow-2xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-40 bg-white/5 rounded-full translate-x-10 -translate-y-10 blur-3xl group-hover:bg-white/10 transition-colors duration-500" />
-                            <div className="relative z-10 flex flex-col h-full justify-between gap-8">
+                        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                            <div className="flex h-full flex-col justify-between gap-6">
                                 <div>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                                            <DollarSign className="w-4 h-4 text-white" />
-                                        </div>
-                                        <p className="text-sm font-bold uppercase tracking-widest text-white/60">Balance Due</p>
-                                    </div>
-                                    <h2 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60 truncate" title={formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}>
-                                        {formatCompactCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
+                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Available to request</p>
+                                    <h2 className="mt-3 truncate text-4xl font-semibold tracking-tight text-gray-950 dark:text-white" title={formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}>
+                                        {loadingPayouts ? 'Loading…' : formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
                                     </h2>
                                 </div>
                                 <div className="space-y-4">
-                                    <div className="p-4 rounded-xl bg-white/10 border border-white/5 backdrop-blur-sm">
-                                        <p className="text-sm text-gray-300 leading-relaxed font-medium">
-                                            This is your net payout after platform fees. {event.fee_bearer === 'organizer' ? 'Fees are deducted from your earnings.' : 'Fees are paid by the customer.'}
-                                        </p>
-                                    </div>
+                                    <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">After previous and pending payouts. {event.fee_bearer === 'organizer' ? 'Processing fees are deducted from your earnings.' : 'The customer pays processing fees.'}</p>
                                     {!activePayout && (
-                                        <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                                            <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Paystack Transfer Fees</p>
-                                            <p className="text-xs text-gray-400">
+                                        <div className="border-t border-gray-200 pt-4 dark:border-white/10">
+                                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Transfer fees</p>
+                                            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                                                 GHS 1.00 for Mobile Money / GHS 8.00 for Bank transfers will be deducted from your final payout.
                                             </p>
                                         </div>
                                     )}
                                     {activePayout ? (
-                                        <div className="w-full bg-white/10 text-white py-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-white/10 cursor-not-allowed">
-                                            <div className="flex items-center gap-2 text-yellow-500">
+                                        <div className="flex w-full cursor-not-allowed flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50 py-3 font-medium text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
+                                            <div className="flex items-center gap-2">
                                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                                <span>Processing Payout</span>
+                                                <span>Processing payout</span>
                                             </div>
-                                            <span className="text-xs font-normal text-gray-400">
+                                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
                                                 {formatCurrency(activePayout.amount, activePayout.currency)} requested on {new Date(activePayout.created_at).toLocaleDateString()}
                                             </span>
                                         </div>
                                     ) : (
                                         <button
                                             onClick={handleRequestPayout}
-                                            disabled={requestingPayout || payoutStats.organizerNet <= 0}
-                                            className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all active:scale-[0.98] shadow-lg shadow-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                            disabled={loadingPayouts || requestingPayout || payoutStats.organizerNet <= 0}
+                                            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black"
                                         >
-                                            {requestingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Request Payout'}
+                                            {requestingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : loadingPayouts ? 'Loading balance…' : 'Request payout'}
                                         </button>
                                     )}
                                 </div>
@@ -1082,40 +1054,47 @@ export function EventManageClient({
                         </div>
 
                         {/* Breakdown Card */}
-                        <div className="bg-white dark:bg-[#111] p-10 rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col gap-6">
-                            <div className="flex items-center justify-between border-b border-gray-100 dark:border-white/10 pb-6">
-                                <h3 className="font-bold text-xl text-gray-900 dark:text-white flex items-center gap-2">
-                                    <BarChart3 className="w-5 h-5 text-gray-400" />
-                                    Financial Summary
+                        <div className="flex flex-col gap-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                            <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-white/10">
+                                <h3 className="text-base font-semibold text-gray-950 dark:text-white">
+                                    Financial summary
                                 </h3>
-                                <div className="text-xs font-bold px-3 py-1 bg-gray-100 dark:bg-white/10 rounded-full text-gray-500 dark:text-gray-400">
-                                    Real-time
-                                </div>
                             </div>
 
                             <div className="space-y-5 flex-1">
                                 <div className="flex justify-between items-center group">
-                                    <span className="text-gray-500 dark:text-gray-400 font-medium group-hover:text-black dark:group-hover:text-white transition-colors">Gross Sales Volume</span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">Gross sales</span>
                                     <span className="font-bold text-gray-900 dark:text-white text-lg tabular-nums">{formatCurrency(payoutStats.totalCollected, initialTiers?.[0]?.currency || 'GHS')}</span>
                                 </div>
                                 <div className="flex justify-between items-center group">
-                                    <span className="text-gray-500 dark:text-gray-400 font-medium group-hover:text-black dark:group-hover:text-white transition-colors">Total Transactions</span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">Transactions</span>
                                     <span className="font-bold text-gray-900 dark:text-white text-lg tabular-nums">{payoutStats.transactionCount}</span>
                                 </div>
                                 <div className="h-px bg-gray-100 dark:bg-white/10 w-full" />
                                 <div className="flex justify-between items-center group">
                                     <div className="flex flex-col">
-                                        <span className="text-gray-500 dark:text-gray-400 font-medium group-hover:text-red-500 transition-colors">Platform Fees</span>
-                                        <span className="text-[10px] text-gray-400 font-medium">GatePass + Processing</span>
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">Platform and processing fees</span>
                                     </div>
                                     <span className="font-bold text-red-500 text-lg tabular-nums">
                                         - {formatCurrency(payoutStats.platformFee, initialTiers?.[0]?.currency || 'GHS')}
                                     </span>
                                 </div>
+                                {payoutRequests.some((request: any) => request.status === 'paid') && (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">Previously paid out</span>
+                                        <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">− {formatCurrency(payoutRequests.filter((request: any) => request.status === 'paid').reduce((total: number, request: any) => total + request.amount, 0), initialTiers?.[0]?.currency || 'GHS')}</span>
+                                    </div>
+                                )}
+                                {activePayout && (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">Payout in progress</span>
+                                        <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">− {formatCurrency(activePayout.amount, initialTiers?.[0]?.currency || 'GHS')}</span>
+                                    </div>
+                                )}
                                 <div className="h-px bg-gray-100 dark:bg-white/10 w-full" />
                                 <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/10">
-                                    <span className="font-bold text-gray-900 dark:text-white">Net Earnings</span>
-                                    <span className="font-black text-gray-900 dark:text-white text-xl tabular-nums tracking-tight">{formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}</span>
+                                    <span className="font-semibold text-gray-900 dark:text-white">Available balance</span>
+                                    <span className="text-xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-white">{formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}</span>
                                 </div>
                             </div>
                         </div>
@@ -1123,14 +1102,14 @@ export function EventManageClient({
 
 
                     {/* Transaction History Table */}
-                    <div className="bg-white dark:bg-[#111] rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-                        <div className="px-8 py-8 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                        <div className="flex flex-col gap-3 border-b border-gray-100 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/10 flex items-center justify-center border border-gray-100 dark:border-white/10">
                                     <ScanLine className="w-5 h-5 text-gray-900 dark:text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-xl text-gray-900 dark:text-white">Recent Transactions</h3>
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Recent transactions</h3>
                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{payoutCount} successful payments found</p>
                                 </div>
                             </div>
@@ -1140,27 +1119,27 @@ export function EventManageClient({
                                     downloadCSV(csv, `gatepass-transactions-${event.slug}`)
                                 }}
                                 disabled={transactions.length === 0}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-lg shadow-gray-900/10 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                                className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 disabled:pointer-events-none disabled:opacity-40 dark:border-white/10 dark:bg-[#111] dark:text-white sm:self-auto"
                             >
                                 <Download className="w-4 h-4" />
-                                Export CSV
+                                Export page
                             </button>
                         </div>
 
                         {transactions.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
+                            <div className="md:overflow-x-auto">
+                                <table className="block w-full text-left text-sm md:table">
+                                    <thead className="hidden border-b border-gray-100 bg-gray-50/50 text-xs font-medium text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400 md:table-header-group">
                                         <tr>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Date</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Customer</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Gross</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Fees</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Net Payout</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400 text-center">Action</th>
+                                            <th className="px-5 py-3 font-medium">Date</th>
+                                            <th className="px-5 py-3 font-medium">Customer</th>
+                                            <th className="px-5 py-3 text-right font-medium">Gross</th>
+                                            <th className="px-5 py-3 text-right font-medium">Fees</th>
+                                            <th className="px-5 py-3 text-right font-medium">Net payout</th>
+                                            <th className="px-5 py-3 text-center font-medium">View</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                                    <tbody className="block space-y-2 p-4 md:table-row-group md:divide-y md:divide-gray-50 md:space-y-0 md:p-0 dark:md:divide-white/5">
                                         {transactions.map((tx: any) => {
                                             const r = tx.reservations
                                             const tier = tiers.find(t => t.id === r?.tier_id)
@@ -1233,33 +1212,34 @@ export function EventManageClient({
                                                 <tr
                                                     key={tx.id}
                                                     onClick={() => setSelectedTransaction(tx)}
-                                                    className="group hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                                    className="group block cursor-pointer rounded-xl border border-gray-200 p-4 transition-colors hover:bg-gray-50/50 dark:border-white/10 dark:hover:bg-white/5 md:table-row md:rounded-none md:border-0 md:p-0"
                                                 >
-                                                    <td className="px-8 py-5 text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
+                                                    <td className="block pb-2 text-xs text-gray-500 dark:text-gray-400 md:table-cell md:whitespace-nowrap md:px-5 md:py-4 md:text-sm">
                                                         {new Date(tx.created_at).toLocaleDateString()}
                                                     </td>
-                                                    <td className="px-8 py-5">
+                                                    <td className="block pb-3 md:table-cell md:px-5 md:py-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-400">
+                                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500 dark:bg-white/10 dark:text-gray-400">
                                                                 {(r?.profiles?.full_name || r?.guest_name || '?')[0]}
                                                             </div>
-                                                            <span className="font-bold text-gray-900 dark:text-white">{r?.profiles?.full_name || r?.guest_name}</span>
+                                                            <span className="font-medium text-gray-900 dark:text-white">{r?.profiles?.full_name || r?.guest_name}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-8 py-5 text-right font-medium text-gray-900 dark:text-white">
-                                                        {formatCurrency(tx.amount, tx.currency)}
+                                                    <td className="flex items-center justify-between gap-3 border-t border-gray-100 py-2 text-right font-medium text-gray-900 dark:border-white/10 dark:text-white md:table-cell md:border-0 md:px-5 md:py-4">
+                                                        <span className="font-normal text-gray-500 md:hidden">Gross</span><span>{formatCurrency(tx.amount, tx.currency)}</span>
                                                     </td>
-                                                    <td className="px-8 py-5 text-right font-medium text-red-500">
-                                                        {totalFees > 0 ? `- ${formatCurrency(totalFees, tx.currency)}` : '-'}
+                                                    <td className="flex items-center justify-between gap-3 py-2 text-right text-gray-600 dark:text-gray-400 md:table-cell md:px-5 md:py-4">
+                                                        <span className="md:hidden">Fees</span><span>{totalFees > 0 ? `- ${formatCurrency(totalFees, tx.currency)}` : '-'}</span>
                                                     </td>
-                                                    <td className="px-8 py-5 text-right">
-                                                        <span className="font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-400/10 px-2 py-1 rounded-md">
+                                                    <td className="flex items-center justify-between gap-3 py-2 text-right md:table-cell md:px-5 md:py-4">
+                                                        <span className="text-gray-500 md:hidden">Net payout</span>
+                                                        <span className="font-semibold tabular-nums text-gray-950 dark:text-white">
                                                             {formatCurrency(netPayout, tx.currency)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-8 py-5 text-center">
-                                                        <button className="text-gray-400 hover:text-black dark:hover:text-white transition-colors">
-                                                            <Eye className="w-4 h-4" />
+                                                    <td className="block pt-2 text-center md:table-cell md:px-5 md:py-4">
+                                                        <button type="button" onClick={() => setSelectedTransaction(tx)} aria-label={`View transaction for ${r?.profiles?.full_name || r?.guest_name || 'guest'}`} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/10 md:w-auto md:border-0 md:p-2">
+                                                            <Eye className="h-4 w-4" /><span className="md:hidden">View details</span>
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -1269,20 +1249,17 @@ export function EventManageClient({
                                 </table>
                             </div>
                         ) : (
-                            <div className="p-20 flex flex-col items-center justify-center text-center">
-                                <div className="w-16 h-16 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center mb-4">
-                                    <ScanLine className="w-8 h-8 text-gray-300 dark:text-gray-500" />
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No transactions yet</h3>
-                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                                    When people buy tickets, their payments will appear here in real-time.
+                            <div className="px-5 py-14 text-center">
+                                <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white">No transactions yet</h3>
+                                <p className="mx-auto max-w-xs text-sm text-gray-500 dark:text-gray-400">
+                                    Ticket payments will appear here.
                                 </p>
                             </div>
                         )}
 
                         {/* Pagination Controls */}
                         {payoutCount > 20 && (
-                            <div className="px-8 py-4 bg-gray-50/30 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex items-center justify-between">
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/30 px-5 py-4 dark:border-white/10 dark:bg-white/5 sm:px-6">
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                     Showing <span className="font-medium">{payoutPage * 20 + 1}</span> to <span className="font-medium">{Math.min((payoutPage + 1) * 20, payoutCount)}</span> of <span className="font-medium">{payoutCount}</span>
                                 </p>
@@ -1307,43 +1284,62 @@ export function EventManageClient({
                     </div>
 
                     {/* Payout Requests History */}
-                    <div className="bg-white dark:bg-[#111] rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-                        <div className="px-8 py-8 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/10 flex items-center justify-center border border-gray-100 dark:border-white/10">
-                                    <DollarSign className="w-5 h-5 text-gray-900 dark:text-white" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-xl text-gray-900 dark:text-white">Payout Requests</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{payoutRequests.length} payout requests made</p>
-                                </div>
-                            </div>
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                        <div className="border-b border-gray-100 p-5 dark:border-white/10 sm:p-6">
+                            <h3 className="text-base font-semibold text-gray-950 dark:text-white">Payout requests</h3>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{payoutRequests.length} {payoutRequests.length === 1 ? 'request' : 'requests'}</p>
                         </div>
 
                         {payoutRequests.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
+                            <>
+                            <div className="space-y-2 p-4 md:hidden">
+                                {payoutRequests.map((req: any) => (
+                                    <div key={req.id} className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(req.created_at).toLocaleDateString()}</p>
+                                                <p className="mt-1 text-base font-semibold tabular-nums text-gray-950 dark:text-white">{formatCurrency(req.amount, req.currency)}</p>
+                                            </div>
+                                            <span className={clsx(
+                                                "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
+                                                req.status === 'paid' ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
+                                                    req.status === 'pending' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400" :
+                                                        req.status === 'processing' ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
+                                                            "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                                            )}>{req.status}</span>
+                                        </div>
+                                        {(req.reference || req.notes) && (
+                                            <div className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs dark:border-white/10">
+                                                {req.reference && <p className="break-all text-gray-500 dark:text-gray-400">Reference: {req.reference}</p>}
+                                                {req.notes && <p className="break-words text-gray-600 dark:text-gray-300">{req.notes}</p>}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="hidden overflow-x-auto md:block">
+                                <table className="w-full min-w-[660px] text-left text-sm">
+                                    <thead className="border-b border-gray-100 bg-gray-50/50 text-xs text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
                                         <tr>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Date</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Amount</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
-                                            <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-gray-400">Notes</th>
+                                            <th className="px-5 py-3 font-medium">Date</th>
+                                            <th className="px-5 py-3 font-medium">Amount</th>
+                                            <th className="px-5 py-3 font-medium">Status</th>
+                                            <th className="px-5 py-3 font-medium">Reference</th>
+                                            <th className="px-5 py-3 font-medium">Notes</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                         {payoutRequests.map((req: any) => (
                                             <tr key={req.id} className="group hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
-                                                <td className="px-8 py-5 text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
+                                                <td className="whitespace-nowrap px-5 py-4 text-gray-600 dark:text-gray-400">
                                                     {new Date(req.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td className="px-8 py-5 font-bold text-gray-900 dark:text-white">
+                                                <td className="px-5 py-4 font-semibold tabular-nums text-gray-900 dark:text-white">
                                                     {formatCurrency(req.amount, req.currency)}
                                                 </td>
-                                                <td className="px-8 py-5">
+                                                <td className="px-5 py-4">
                                                     <span className={clsx(
-                                                        "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                                        "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
                                                         req.status === 'paid' ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
                                                             req.status === 'pending' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400" :
                                                                 req.status === 'processing' ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
@@ -1352,10 +1348,10 @@ export function EventManageClient({
                                                         {req.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-5 text-gray-500 dark:text-gray-400 font-mono text-xs">
+                                                <td className="px-5 py-4 text-xs text-gray-500 dark:text-gray-400">
                                                     {req.reference || '-'}
                                                 </td>
-                                                <td className="px-8 py-5 text-gray-500 dark:text-gray-400 max-w-xs truncate" title={req.notes}>
+                                                <td className="max-w-xs truncate px-5 py-4 text-gray-500 dark:text-gray-400" title={req.notes}>
                                                     {req.notes || '-'}
                                                 </td>
                                             </tr>
@@ -1363,14 +1359,12 @@ export function EventManageClient({
                                     </tbody>
                                 </table>
                             </div>
+                            </>
                         ) : (
-                            <div className="p-20 flex flex-col items-center justify-center text-center">
-                                <div className="w-16 h-16 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center mb-4">
-                                    <DollarSign className="w-8 h-8 text-gray-300 dark:text-gray-500" />
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No payout requests</h3>
-                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                                    Your payout request history will appear here once you initiate a request.
+                            <div className="px-5 py-14 text-center">
+                                <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white">No payout requests</h3>
+                                <p className="mx-auto max-w-xs text-sm text-gray-500 dark:text-gray-400">
+                                    Payout requests will appear here.
                                 </p>
                             </div>
                         )}
@@ -1401,80 +1395,20 @@ export function EventManageClient({
                 activeTab === 'details' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
-                        {/* 1. Stats Row */}
-                        {/* 1. Stats Row */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-                            {/* Gross Revenue - Highlighted */}
-                            <div className="col-span-2 md:col-span-1 xl:col-span-1 bg-black text-white dark:bg-white dark:text-black p-6 rounded-3xl shadow-xl shadow-black/5 flex flex-col justify-between relative overflow-hidden group min-h-[140px]">
-                                <div className="absolute top-0 right-0 p-16 bg-white/10 dark:bg-black/5 rounded-full translate-x-8 -translate-y-8 blur-2xl transition-transform group-hover:scale-110 duration-700" />
-                                <div className="relative z-10 flex flex-col justify-between h-full">
-                                    <div className="flex items-center gap-2 text-white/60 dark:text-black/60 mb-2">
-                                        <div className="p-1.5 bg-white/10 dark:bg-black/5 rounded-lg">
-                                            <DollarSign className="w-3.5 h-3.5" />
-                                        </div>
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Gross Revenue</span>
-                                    </div>
-                                    <p className="text-2xl xl:text-3xl font-black tracking-tight mt-1 truncate" title={formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}>
-                                        {formatCompactCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS')}
-                                    </p>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                            {[
+                                { label: 'Net revenue', value: formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS'), detail: 'After fees' },
+                                { label: 'Tickets sold', value: stats.totalSold.toLocaleString(), detail: `of ${stats.totalCapacity.toLocaleString()} available` },
+                                { label: 'Page views', value: (event.view_count || 0).toLocaleString(), detail: 'Event page' },
+                                { label: 'Capacity filled', value: `${stats.utilization.toFixed(1)}%`, detail: 'Across all ticket types' },
+                                { label: 'Discounts', value: formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS'), detail: 'Applied to sales' },
+                            ].map((metric) => (
+                                <div key={metric.label} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 last:col-span-2 dark:border-white/10 dark:bg-[#111] sm:last:col-span-1 sm:p-5">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{metric.label}</p>
+                                    <p className="mt-4 truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white" title={metric.value}>{metric.value}</p>
+                                    <p className="mt-1 truncate text-xs text-gray-400 dark:text-gray-500" title={metric.detail}>{metric.detail}</p>
                                 </div>
-                            </div>
-
-                            {/* Tickets Sold */}
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-colors">
-                                        <Ticket className="w-5 h-5" />
-                                    </div>
-                                    <span className={clsx("text-[10px] font-bold px-2 py-1 rounded-full",
-                                        stats.utilization >= 90 ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
-                                            stats.utilization >= 50 ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
-                                                "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400"
-                                    )}>
-                                        {stats.utilization.toFixed(0)}% Sold
-                                    </span>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Tickets Sold</p>
-                                    <div className="flex items-baseline gap-1">
-                                        <p className="text-xl font-black text-gray-900 dark:text-white">{stats.totalSold}</p>
-                                        <span className="text-xs font-medium text-gray-400">/ {stats.totalCapacity}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Total Views */}
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
-                                <div className="mb-2 w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                    <Eye className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Total Views</p>
-                                    <p className="text-xl font-black text-gray-900 dark:text-white">{event.view_count?.toLocaleString() || 0}</p>
-                                </div>
-                            </div>
-
-                            {/* Utilization/Capacity */}
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
-                                <div className="mb-2 w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-green-600 group-hover:text-white transition-colors">
-                                    <BarChart3 className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Utilization</p>
-                                    <p className="text-xl font-black text-gray-900 dark:text-white">{stats.utilization.toFixed(1)}%</p>
-                                </div>
-                            </div>
-
-                            {/* Discounts */}
-                            <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 transition-all group min-h-[140px] flex flex-col justify-between">
-                                <div className="mb-2 w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                                    <Ticket className="w-5 h-5 rotate-45" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Discounts</p>
-                                    <p className="text-xl font-black text-gray-900 dark:text-white truncate" title={formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}>{formatCompactCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS')}</p>
-                                </div>
-                            </div>
+                            ))}
                         </div>
 
                         {/* 2. Charts Row */}
@@ -1482,31 +1416,32 @@ export function EventManageClient({
                             <AnalyticsCharts tickets={analyticsTickets} />
                         )}
 
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div>
+                            <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Event details</h2>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Update the information and presentation of your event.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
                             {/* LEFT COLUMN (8 cols) */}
-                            <div className="lg:col-span-8 space-y-8">
+                            <div className="space-y-5 lg:col-span-8">
 
                                 {/* General Info */}
-                                <div className="p-8 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
-                                    <div className="flex items-center gap-3 border-b pb-4 border-gray-100 dark:border-white/10">
-                                        <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl">
-                                            <ImageIcon className="w-5 h-5 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Event Identity</h3>
-                                    </div>
+                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">About the event</h3>
                                     <div className="grid gap-6">
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Event Title</label>
+                                            <label htmlFor="event-title" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Event title</label>
                                             <input
+                                                id="event-title"
                                                 disabled={isStaff}
                                                 value={event.title}
                                                 onChange={e => setEvent({ ...event, title: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3.5 text-lg font-bold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none text-gray-900 dark:text-white disabled:opacity-70"
+                                                className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-base font-medium text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                 placeholder="E.g. Summer Music Festival"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                                             <RichTextEditor
                                                 value={event.description}
                                                 onChange={(value) => setEvent({ ...event, description: value })}
@@ -1518,32 +1453,23 @@ export function EventManageClient({
                                 </div>
 
                                 {/* Lineup Editor (Embedded) */}
-                                <div className="p-8 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
-                                    <div className="flex items-center gap-3 border-b pb-4 border-gray-100 dark:border-white/10">
-                                        <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl">
-                                            <Users className="w-5 h-5 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Event Lineup</h3>
-                                    </div>
+                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Lineup</h3>
                                     <LineupTab
                                         lineup={event.lineup || []}
                                         onChange={(newLineup) => setEvent({ ...event, lineup: newLineup })}
                                         organizationId={event.organization_id || ''}
+                                        disabled={isStaff}
                                     />
                                 </div>
 
                                 {/* Timing & URL (Moved from Right) */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                                     {/* Date & Time */}
-                                    <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
-                                        <div className="flex items-center gap-3 pb-2">
-                                            <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-                                                <Calendar className="w-4 h-4 text-gray-900 dark:text-white" />
-                                            </div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white">Timing</h3>
-                                        </div>
+                                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                        <h3 className="text-base font-semibold text-gray-950 dark:text-white">Date and time</h3>
                                         <div>
-                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Starts</label>
+                                            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Starts</label>
                                             <DateTimePicker
                                                 date={event.starts_at ? new Date(event.starts_at) : undefined}
                                                 setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
@@ -1551,7 +1477,7 @@ export function EventManageClient({
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Ends</label>
+                                            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Ends</label>
                                             <DateTimePicker
                                                 date={event.ends_at ? new Date(event.ends_at) : undefined}
                                                 setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
@@ -1561,22 +1487,19 @@ export function EventManageClient({
                                     </div>
 
                                     {/* URL Slug */}
-                                    <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
-                                        <div className="flex items-center gap-3 pb-2">
-                                            <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-                                                <Globe className="w-4 h-4 text-gray-900 dark:text-white" />
-                                            </div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white">Custom URL</h3>
-                                        </div>
+                                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                        <h3 className="text-base font-semibold text-gray-950 dark:text-white">Event URL</h3>
                                         <div>
                                             <div className="flex flex-col">
-                                                <span className="text-xs text-gray-400 mb-1">gatepass.com/events/</span>
+                                                <label htmlFor="event-slug" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Link ending</label>
+                                                <span className="mb-1 text-xs text-gray-400">gatepass.so/events/</span>
                                                 <div className="relative">
                                                     <input
+                                                        id="event-slug"
                                                         disabled={isStaff}
                                                         value={event.slug}
                                                         onChange={e => setEvent({ ...event, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
-                                                        className={`w-full bg-gray-50 dark:bg-white/5 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70 ${slugStatus === 'taken'
+                                                        className={`w-full rounded-lg border bg-white p-3 text-sm font-medium outline-none dark:bg-white/5 dark:text-white disabled:opacity-70 ${slugStatus === 'taken'
                                                             ? 'border-red-300 dark:border-red-500 focus:ring-red-200 dark:focus:ring-red-500/20'
                                                             : slugStatus === 'available'
                                                                 ? 'border-green-300 dark:border-green-500 focus:ring-green-200 dark:focus:ring-green-500/20'
@@ -1608,25 +1531,16 @@ export function EventManageClient({
 
                                 {/* Financial Settings (Super Admin Only) */}
                                 {isSuperAdmin && (
-                                    <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
-                                                    <DollarSign className="w-4 h-4 text-red-600 dark:text-red-400" />
-                                                </div>
-                                                Financial Settings
-                                            </h3>
-                                            <span className={clsx("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border",
-                                                feeSource === 'Event Specific' ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20" :
-                                                    feeSource === 'Organizer Default' ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20" :
-                                                        "bg-gray-50 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10"
-                                            )}>
+                                    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+                                            <h3 className="text-base font-semibold text-gray-950 dark:text-white">Financial settings</h3>
+                                            <span className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">
                                                 {feeSource}
                                             </span>
                                         </div>
                                         <div className="space-y-4">
                                             <div>
-                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Platform Fee Override (%)</label>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Platform fee override (%)</label>
                                                 <div className="flex gap-2">
                                                     <Input
                                                         value={feeInput}
@@ -1644,15 +1558,14 @@ export function EventManageClient({
                                                         {feeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
                                                     </Button>
                                                 </div>
-                                                <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-                                                    Current Effective Rate: <span className="font-bold text-gray-900 dark:text-white">{(getEffectiveFeeRates(feeRates, event).platformFeePercent * 100).toFixed(2)}%</span>.
-                                                    Leave empty to inherit from Organizer or System default.
+                                                <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                                    Effective rate: <span className="font-medium text-gray-900 dark:text-white">{(getEffectiveFeeRates(feeRates, event).platformFeePercent * 100).toFixed(2)}%</span>. Leave empty to use the organizer or system rate.
                                                 </p>
                                             </div>
 
                                             <div className="pt-4 border-t border-gray-100 dark:border-white/10">
-                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Fee Bearer (Who pays?)</label>
-                                                <div className="grid grid-cols-2 gap-3">
+                                                <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Who pays the fees?</p>
+                                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                                     <button
                                                         type="button"
                                                         onClick={() => {
@@ -1661,14 +1574,14 @@ export function EventManageClient({
                                                             updateEventFeeBearer(event.id, newBearer).then(() => toast.success('Fee bearer updated')).catch(e => toast.error(e.message));
                                                         }}
                                                         className={clsx(
-                                                            "px-4 py-3 rounded-xl text-sm font-bold border transition-all text-left flex flex-col gap-1",
+                                                            "flex flex-col gap-1 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors",
                                                             event.fee_bearer === 'customer'
-                                                                ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white ring-2 ring-offset-2 ring-black/10 dark:ring-white/10"
-                                                                : "bg-white dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-gray-300"
+                                                                ? "border-black bg-gray-50 text-gray-900 dark:border-white dark:bg-white/10 dark:text-white"
+                                                                : "border-gray-200 bg-white text-gray-700 hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
                                                         )}
                                                     >
                                                         <span>Customer</span>
-                                                        <span className="text-[10px] opacity-70 font-normal">Fees added to total</span>
+                                                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Fees added to total</span>
                                                     </button>
                                                     <button
                                                         type="button"
@@ -1678,14 +1591,14 @@ export function EventManageClient({
                                                             updateEventFeeBearer(event.id, newBearer).then(() => toast.success('Fee bearer updated')).catch(e => toast.error(e.message));
                                                         }}
                                                         className={clsx(
-                                                            "px-4 py-3 rounded-xl text-sm font-bold border transition-all text-left flex flex-col gap-1",
+                                                            "flex flex-col gap-1 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors",
                                                             event.fee_bearer === 'organizer'
-                                                                ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white ring-2 ring-offset-2 ring-black/10 dark:ring-white/10"
-                                                                : "bg-white dark:bg-white/5 text-gray-500 border-gray-200 dark:border-white/10 hover:border-gray-300"
+                                                                ? "border-black bg-gray-50 text-gray-900 dark:border-white dark:bg-white/10 dark:text-white"
+                                                                : "border-gray-200 bg-white text-gray-700 hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
                                                         )}
                                                     >
                                                         <span>Organizer</span>
-                                                        <span className="text-[10px] opacity-70 font-normal">Fees deducted from payout</span>
+                                                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Fees deducted from payout</span>
                                                     </button>
                                                 </div>
                                             </div>
@@ -1694,13 +1607,8 @@ export function EventManageClient({
                                 )}
 
                                 {/* Poster Image */}
-                                <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
-                                    <h3 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-                                            <ImageIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        Event Poster
-                                    </h3>
+                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event poster</h3>
                                     <div className="space-y-4">
                                         <MediaUploader
                                             type="image"
@@ -1708,25 +1616,20 @@ export function EventManageClient({
                                             value={event.poster_url || ''}
                                             onChange={(url) => setEvent({ ...event, poster_url: url })}
                                             disabled={isStaff}
+                                            className="max-w-md"
                                         />
-                                        <p className="text-xs text-gray-500 text-center px-4">
-                                            Recommended: 1080x1350px (4:5) or 1080x1920px (9:16). Max 5MB.
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Recommended: 1080 × 1350 px or 1080 × 1920 px. Max 5 MB.
                                         </p>
                                     </div>
                                 </div>
 
 
                                 {/* Event Logo */}
-                                <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
-                                    <h3 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-pink-50 dark:bg-pink-500/10 flex items-center justify-center">
-                                            <ImageIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-                                        </div>
-                                        Event Logo
-                                    </h3>
+                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event logo</h3>
                                     <div className="space-y-4">
-                                        <div className="flex justify-center">
-                                            <div className="w-32">
+                                        <div className="w-28">
                                                 <MediaUploader
                                                     type="image"
                                                     path={`${event.organization_id}/${event.id}`}
@@ -1736,10 +1639,9 @@ export function EventManageClient({
                                                     aspectRatio="square"
                                                     disabled={isStaff}
                                                 />
-                                            </div>
                                         </div>
-                                        <p className="text-xs text-gray-500 text-center px-4">
-                                            Displayed on ticket cards. Square image recommended.
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Shown on ticket cards. Use a square image.
                                         </p>
                                     </div>
                                 </div>
@@ -1748,77 +1650,75 @@ export function EventManageClient({
 
 
                                 {/* Event Video */}
-                                <div className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] h-fit">
-                                    <h3 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center">
-                                            <Video className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                        </div>
-                                        Event Video
-                                    </h3>
+                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event video</h3>
                                     <div className="space-y-4">
                                         <MediaUploader
                                             type="video"
                                             path={`${event.organization_id}/${event.id}`}
                                             value={event.video_url || ''}
                                             onChange={(url) => setEvent({ ...event, video_url: url })}
+                                            disabled={isStaff}
+                                            className="max-w-lg"
                                         />
-                                        <p className="text-xs text-gray-500 text-center px-4">
-                                            Short teaser video (15-30s). Max 50MB. Will be auto-optimized to WebM.
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Short teaser video, 15–30 seconds. Max 50 MB.
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Location */}
-                                <div className="p-8 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-6">
-                                    <div className="flex items-center gap-3 border-b pb-4 border-gray-100 dark:border-white/10">
-                                        <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl">
-                                            <MapPin className="w-5 h-5 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Location</h3>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Location</h3>
+                                    <div className="grid grid-cols-1 gap-5">
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                             <div>
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Venue Name</label>
+                                                <label htmlFor="event-venue-name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Venue name</label>
                                                 <input
+                                                    id="event-venue-name"
                                                     disabled={isStaff}
                                                     value={event.venue_name || ''}
                                                     onChange={e => setEvent({ ...event, venue_name: e.target.value })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                     placeholder="Venue Name"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Venue Address</label>
+                                                <label htmlFor="event-venue-address" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Venue address</label>
                                                 <input
+                                                    id="event-venue-address"
                                                     disabled={isStaff}
                                                     value={event.venue_address || ''}
                                                     onChange={e => setEvent({ ...event, venue_address: e.target.value })}
-                                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm font-semibold focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none dark:text-white disabled:opacity-70"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                     placeholder="Physical Address"
                                                 />
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-6 bg-gray-50/50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5 border-dashed">
+                                        <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 dark:border-white/10 sm:grid-cols-2">
                                             <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Latitude</label>
+                                                <label htmlFor="event-latitude" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Latitude</label>
                                                 <input
+                                                    id="event-latitude"
                                                     type="number"
+                                                    disabled={isStaff}
                                                     step="any"
                                                     value={event.latitude || ''}
                                                     onChange={e => setEvent({ ...event, latitude: parseFloat(e.target.value) })}
-                                                    className="w-full bg-white dark:bg-transparent border-gray-200 dark:border-white/10 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none font-mono text-gray-900 dark:text-white"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                     placeholder="5.6037"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Longitude</label>
+                                                <label htmlFor="event-longitude" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Longitude</label>
                                                 <input
+                                                    id="event-longitude"
                                                     type="number"
+                                                    disabled={isStaff}
                                                     step="any"
                                                     value={event.longitude || ''}
                                                     onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
-                                                    className="w-full bg-white dark:bg-transparent border-gray-200 dark:border-white/10 rounded-lg p-2 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none font-mono text-gray-900 dark:text-white"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                     placeholder="-0.1870"
                                                 />
                                             </div>
@@ -1831,13 +1731,13 @@ export function EventManageClient({
                             </div>
 
                             {/* RIGHT COLUMN (4 cols) - Settings */}
-                            <div className="lg:col-span-4 space-y-8">
+                            <div className="space-y-5 lg:col-span-4">
 
                                 {/* Publish Status - High Priority */}
-                                <div className="p-6 rounded-3xl bg-black text-white shadow-xl shadow-black/10">
-                                    <h3 className="font-bold text-lg mb-4 text-white">Visibility</h3>
+                                <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#111]">
+                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Visibility</h3>
                                     <div className="flex items-center justify-between">
-                                        <span className="font-medium text-gray-300">Publish Event</span>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Publish event</span>
                                         <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
                                             <input
                                                 type="checkbox"
@@ -1854,14 +1754,14 @@ export function EventManageClient({
                                                 className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
                                                 style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
                                             />
-                                            <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-green-500' : 'bg-gray-600'}`}></label>
+                                            <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-black dark:bg-gray-600' : 'bg-gray-300 dark:bg-white/20'}`}></label>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
+                                    <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-white/10">
                                         <div className="flex flex-col">
-                                            <span className="font-medium text-gray-300">Ticket Sales</span>
-                                            <span className="text-[10px] text-gray-500 font-normal">Enable checkout or show waitlist</span>
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ticket sales</span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">Enable checkout or show waitlist</span>
                                         </div>
                                         <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
                                             <input
@@ -1875,17 +1775,18 @@ export function EventManageClient({
                                                 className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
                                                 style={{ right: (event.sales_enabled ?? true) ? '0' : 'auto', left: (event.sales_enabled ?? true) ? 'auto' : '0' }}
                                             />
-                                            <label htmlFor="sales" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${(event.sales_enabled ?? true) ? 'bg-green-500' : 'bg-gray-600'}`}></label>
+                                            <label htmlFor="sales" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${(event.sales_enabled ?? true) ? 'bg-black dark:bg-gray-600' : 'bg-gray-300 dark:bg-white/20'}`}></label>
                                         </div>
                                     </div>
 
                                     {/* Scheduled Publishing */}
                                     {!event.is_published && (
-                                        <div className="mt-4 pt-4 border-t border-white/10">
-                                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                                Schedule Publish
+                                        <div className="mt-4 border-t border-gray-100 pt-4 dark:border-white/10">
+                                            <label htmlFor="event-publish-at" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                Schedule publication
                                             </label>
                                             <input
+                                                id="event-publish-at"
                                                 type="datetime-local"
                                                 value={event.publish_at ? new Date(event.publish_at).toISOString().slice(0, 16) : ''}
                                                 onChange={e => {
@@ -1897,11 +1798,11 @@ export function EventManageClient({
                                                     }
                                                 }}
                                                 min={new Date().toISOString().slice(0, 16)}
-                                                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:ring-2 focus:ring-white focus:border-transparent outline-none"
+                                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                             />
                                             {event.publish_at && (
-                                                <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                                <p className="mt-2 flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                                     Scheduled for {new Date(event.publish_at).toLocaleString()}
                                                 </p>
                                             )}
@@ -1911,7 +1812,7 @@ export function EventManageClient({
                                         </div>
                                     )}
 
-                                    <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+                                    <p className="mt-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                                         {event.is_published
                                             ? 'Your event is live and visible to the public.'
                                             : event.publish_at
@@ -1922,19 +1823,14 @@ export function EventManageClient({
                                 </div>
 
                                 {/* Branding (Moved from Left) */}
-                                <div className="p-8 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-[0_2px_40px_rgba(0,0,0,0.04)] space-y-8">
-                                    <div className="flex items-center gap-3 border-b pb-4 border-gray-100 dark:border-white/10">
-                                        <div className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl">
-                                            <div className="w-5 h-5 rounded-full border border-gray-200 dark:border-white/20 shadow-sm" style={{ background: event.primary_color || '#000000' }} />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Event Branding</h3>
-                                    </div>
+                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Event appearance</h3>
 
-                                    <div className="space-y-6">
+                                    <div className="space-y-5">
                                         {/* Presets */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Curated Palette</label>
-                                            <div className="flex flex-wrap gap-3">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Theme color</label>
+                                            <div className="flex flex-wrap gap-2.5">
                                                 {[
                                                     { color: '#000000', name: 'Pitch Black' },
                                                     { color: '#18181B', name: 'Charcoal' },
@@ -1950,11 +1846,13 @@ export function EventManageClient({
                                                         type="button"
                                                         onClick={() => setEvent({ ...event, primary_color: preset.color })}
                                                         className={clsx(
-                                                            "w-10 h-10 rounded-full border-2 transition-all hover:scale-110 shadow-sm",
-                                                            event.primary_color === preset.color ? "border-black dark:border-white scale-110 ring-2 ring-offset-2 ring-black/10 dark:ring-white/10" : "border-transparent hover:border-gray-200 dark:hover:border-white/20"
+                                                            "h-9 w-9 rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2",
+                                                            event.primary_color === preset.color ? "ring-2 ring-offset-2 ring-gray-500 dark:ring-white" : "border-transparent hover:border-gray-300 dark:hover:border-white/40"
                                                         )}
                                                         style={{ background: preset.color }}
                                                         title={preset.name}
+                                                        aria-label={preset.name}
+                                                        aria-pressed={event.primary_color === preset.color}
                                                     />
                                                 ))}
                                             </div>
@@ -1962,37 +1860,39 @@ export function EventManageClient({
 
                                         {/* Custom Input */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Custom Hex Code</label>
+                                            <label htmlFor="event-color-hex" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Custom color</label>
                                             <div className="flex items-center gap-3">
                                                 <div className="relative">
                                                     <input
                                                         type="color"
+                                                        aria-label="Choose custom color"
                                                         value={event.primary_color || '#000000'}
                                                         onChange={e => setEvent({ ...event, primary_color: e.target.value })}
                                                         className="w-12 h-12 rounded-xl cursor-pointer bg-white border border-gray-200 p-1 opacity-0 absolute inset-0 z-10"
                                                     />
-                                                    <div className="w-12 h-12 rounded-xl border border-gray-200 shadow-sm flex items-center justify-center p-1" style={{ background: event.primary_color || '#000000' }}>
+                                                    <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 p-1" style={{ background: event.primary_color || '#000000' }}>
                                                         <div className="w-full h-full rounded-lg border border-white/20" />
                                                     </div>
                                                 </div>
                                                 <div className="relative flex-1">
                                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">#</span>
                                                     <input
+                                                        id="event-color-hex"
                                                         value={event.primary_color?.replace('#', '') || ''}
                                                         onChange={e => setEvent({ ...event, primary_color: `#${e.target.value}` })}
                                                         type="text"
                                                         maxLength={6}
                                                         placeholder="000000"
-                                                        className="w-full px-4 py-3 pl-8 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent transition-all outline-none font-bold uppercase text-gray-900 dark:text-white tracking-wider"
+                                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm font-medium uppercase text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Live Preview */}
-                                        <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-6 border border-gray-100 dark:border-white/10">
-                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 text-center">Live Preview</p>
-                                            <div className="bg-white dark:bg-[#111] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-white/10 max-w-[240px] mx-auto">
+                                        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-white/10 dark:bg-white/5">
+                                            <p className="mb-3 text-xs font-medium text-gray-500 dark:text-gray-400">Preview</p>
+                                            <div className="mx-auto max-w-[240px] rounded-lg border border-gray-200 bg-white p-3 dark:border-white/10 dark:bg-[#111]">
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/10" />
                                                     <div className="space-y-1">
@@ -2002,14 +1902,14 @@ export function EventManageClient({
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    className="w-full h-9 rounded-lg text-[10px] font-bold text-white shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+                                                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg text-xs font-semibold text-white"
                                                     style={{ background: event.primary_color || '#000000' }}
                                                 >
                                                     <Ticket className="w-3 h-3" />
                                                     Get Tickets
                                                 </button>
                                             </div>
-                                            <p className="text-center text-xs text-gray-400 mt-4">
+                                            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                                                 This color defines your event&apos;s primary buttons and accents.
                                             </p>
                                         </div>
@@ -2018,16 +1918,12 @@ export function EventManageClient({
 
 
                                 {/* Financials */}
-                                <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
-                                    <div className="flex items-center gap-3 pb-2">
-                                        <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-                                            <DollarSign className="w-4 h-4 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white">Financials</h3>
-                                    </div>
+                                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Fees</h3>
                                     <div>
-                                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Fee Bearer</label>
+                                        <label htmlFor="event-fee-bearer" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Who pays the fees?</label>
                                         <select
+                                            id="event-fee-bearer"
                                             disabled={isStaff}
                                             value={event.fee_bearer || 'customer'}
                                             onChange={async (e) => {
@@ -2041,86 +1937,87 @@ export function EventManageClient({
                                                     toast.error('Failed to update: ' + err.message)
                                                 }
                                             }}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2.5 text-sm focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
+                                            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         >
-                                            <option value="customer">Customer Pays Fees</option>
-                                            <option value="organizer">Absorb Fees</option>
+                                            <option value="customer">Customer pays</option>
+                                            <option value="organizer">Organizer pays</option>
                                         </select>
                                         <p className="text-xs text-gray-400 mt-2">
-                                            If &apos;Customer Pays&apos;, fees are added to the ticket price. If &apos;Absorb&apos;, fees are deducted from your earnings.
+                                            Customer paid fees appear at checkout. Organizer paid fees are deducted from your earnings.
                                         </p>
                                     </div>
                                     </div>
 
                                 {/* Socials */}
-                                <div className="p-6 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#111] shadow-sm space-y-4">
-                                    <div className="flex items-center gap-3 pb-2">
-                                        <div className="p-1.5 bg-gray-50 dark:bg-white/5 rounded-lg">
-                                            <Share2 className="w-4 h-4 text-gray-900 dark:text-white" />
-                                        </div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white">Socials</h3>
-                                    </div>
-                                    <div className="grid gap-3">
+                                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Social links</h3>
+                                    <div className="grid gap-4">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Website
                                         <input
                                             disabled={isStaff}
                                             value={event.social_website || ''}
                                             onChange={e => setEvent({ ...event, social_website: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
+                                            className="mt-1.5 h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                             placeholder="Website URL"
                                         />
+                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Instagram
                                         <input
                                             disabled={isStaff}
                                             value={event.social_instagram || ''}
                                             onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
+                                            className="mt-1.5 h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                             placeholder="Instagram Username"
                                         />
+                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">X
                                         <input
                                             disabled={isStaff}
                                             value={event.social_twitter || ''}
                                             onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 text-xs focus:ring-black dark:focus:ring-white focus:border-black transition-all text-gray-900 dark:text-white disabled:opacity-70"
-                                            placeholder="X (Twitter)"
+                                            className="mt-1.5 h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                                            placeholder="Username"
                                         />
+                                        </label>
                                     </div>
                                 </div>
 
-                                {/* Save Action - Sticky at bottom of column */}
-                                <div className="sticky bottom-6 pt-4">
+                                {/* Save action at the end of event settings */}
+                                <div className="pt-2">
                                     {!isStaff ? (
                                         <>
                                             <button
                                                 type="button"
                                                 onClick={() => updateEvent()}
-                                                className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all disabled:opacity-50 shadow-xl shadow-black/10 dark:shadow-white/5 hover:shadow-2xl hover:-translate-y-1 text-lg"
+                                                className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                                                 disabled={loading}
                                             >
-                                                {loading ? 'Saving Update...' : 'Save Changes'}
+                                                {loading ? 'Saving...' : 'Save event'}
                                             </button>
                                             <div className="mt-8 pt-8 border-t border-gray-100 dark:border-white/10">
-                                                <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/20 shadow-sm">
-                                                    <h3 className="text-red-900 dark:text-red-200 font-bold mb-2">Danger Zone</h3>
-                                                    <p className="text-red-700 dark:text-red-400 text-xs mb-4 leading-relaxed">
+                                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                                    <h3 className="mb-2 text-base font-semibold text-gray-950 dark:text-white">Delete event</h3>
+                                                    <p className="mb-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                                                         Deleting this event will permanently remove all associated data, including ticket sales and guest lists.
                                                     </p>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsDeleteModalOpen(true)}
-                                                        className="w-full bg-white dark:bg-white/5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 font-bold py-3 rounded-xl hover:bg-red-600 dark:hover:bg-red-600 hover:text-white dark:hover:text-white hover:border-transparent transition-all shadow-sm"
+                                                        className="h-10 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 transition-colors hover:border-red-400 dark:border-red-500/30 dark:text-red-400"
                                                     >
-                                                        Delete Event
+                                                        Delete event
                                                     </button>
                                                 </div>
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="bg-blue-50 dark:bg-blue-500/10 p-6 rounded-3xl border border-blue-100 dark:border-blue-500/20 shadow-sm">
-                                            <h3 className="text-blue-900 dark:text-blue-200 font-bold mb-1 flex items-center gap-2">
+                                        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                            <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-gray-950 dark:text-white">
                                                 <ShieldCheck className="w-4 h-4" />
-                                                View Only Mode
+                                                View only
                                             </h3>
-                                            <p className="text-blue-700 dark:text-blue-400 text-xs leading-relaxed font-medium">
-                                                You are viewing this event as a Staff member. Only Owners and Admins can modify event details or delete events.
+                                            <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                                                Staff can view event details. Owners and admins can make changes.
                                             </p>
                                         </div>
                                     )}
@@ -2153,7 +2050,7 @@ export function EventManageClient({
             {/* TICKETS TAB */}
             {
                 activeTab === 'tickets' && (
-                    <TicketsTab event={event} tiers={tiers} onTiersUpdate={setTiers} />
+                    <TicketsTab event={event} tiers={tiers} onTiersUpdate={setTiers} isStaff={isStaff} />
                 )
             }
 
@@ -2184,37 +2081,49 @@ export function EventManageClient({
             {/* DISCOUNTS TAB */}
             {
                 activeTab === 'discounts' && (
-                    <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+                    <div className="space-y-5 animate-in fade-in duration-200">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Discount codes</h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Create offers and track how often they are used.</p>
+                            </div>
+                            <button type="button" onClick={() => showDiscountForm ? cancelEditingDiscount() : setShowDiscountForm(true)} aria-expanded={showDiscountForm} className={showDiscountForm ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-[#111] dark:text-gray-300 dark:hover:bg-white/10" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"}>
+                                {showDiscountForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                {showDiscountForm ? 'Close form' : 'Create code'}
+                            </button>
+                        </div>
+                        {showDiscountForm && <div className="max-w-4xl rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
                             <div className="flex justify-between items-center mb-6">
-                                <h3 className="font-bold text-xl text-gray-900 dark:text-white">{editingDiscountId ? 'Edit Discount Code' : 'Create Discount Code'}</h3>
+                                <h3 className="text-lg font-semibold text-gray-950 dark:text-white">{editingDiscountId ? 'Edit discount code' : 'New discount code'}</h3>
                                 {editingDiscountId && (
                                     <button
                                         onClick={cancelEditingDiscount}
-                                        className="text-sm font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
                                     >
-                                        Cancel Edit
+                                        Cancel edit
                                     </button>
                                 )}
                             </div>
                             <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                 <div className="md:col-span-1">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Code</label>
+                                    <label htmlFor="discount-code" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Discount code</label>
                                     <input
+                                        id="discount-code"
                                         required
                                         value={discountForm.code}
                                         onChange={e => setDiscountForm({ ...discountForm, code: e.target.value })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all uppercase font-medium text-gray-900 dark:text-white"
+                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium uppercase text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         placeholder="e.g. EARLYBIRD"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Type</label>
+                                    <label htmlFor="discount-type" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Discount type</label>
                                     <div className="relative">
                                         <select
+                                            id="discount-type"
                                             value={discountForm.type}
                                             onChange={e => setDiscountForm({ ...discountForm, type: e.target.value as 'percentage' | 'fixed' })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium appearance-none text-gray-900 dark:text-white"
+                                            className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         >
                                             <option value="percentage">Percent (%)</option>
                                             <option value="fixed">Fixed Amount</option>
@@ -2225,46 +2134,54 @@ export function EventManageClient({
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Value</label>
+                                    <label htmlFor="discount-value" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{discountForm.type === 'percentage' ? 'Percent off' : 'Amount off'}</label>
                                     <input
+                                        id="discount-value"
                                         type="number"
                                         required
                                         min="0"
+                                        step="0.01"
+                                        max={discountForm.type === 'percentage' ? 100 : undefined}
                                         value={isNaN(discountForm.value) ? '' : discountForm.value}
                                         onChange={e => {
                                             const val = parseFloat(e.target.value)
                                             setDiscountForm({ ...discountForm, value: isNaN(val) ? 0 : val })
                                         }}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white"
+                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                     />
                                 </div>
+                                <details className="md:col-span-3 rounded-xl border border-gray-200 dark:border-white/10">
+                                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 [&::-webkit-details-marker]:hidden">Usage, expiry, and affiliate options</summary>
+                                    <div className="grid grid-cols-1 gap-4 border-t border-gray-200 px-4 py-4 dark:border-white/10 md:grid-cols-3">
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Total Usage Limit</label>
+                                    <label htmlFor="discount-limit" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Usage limit</label>
                                     <input
+                                        id="discount-limit"
                                         type="number"
                                         min="0"
                                         value={discountForm.max_uses}
                                         onChange={e => setDiscountForm({ ...discountForm, max_uses: parseInt(e.target.value) })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white"
+                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         placeholder="∞"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Expires At</label>
+                                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Expires</label>
                                     <DateTimePicker
                                         date={discountForm.expires_at ? new Date(discountForm.expires_at) : undefined}
                                         setDate={(date) => setDiscountForm({ ...discountForm, expires_at: date ? date.toISOString() : '' })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Applies To</label>
+                                    <label htmlFor="discount-tier" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Ticket types</label>
                                     <div className="relative">
                                         <select
+                                            id="discount-tier"
                                             value={discountForm.tier_id || ''}
                                             onChange={e => setDiscountForm({ ...discountForm, tier_id: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium appearance-none truncate pr-8 text-gray-900 dark:text-white"
+                                            className="h-11 w-full appearance-none truncate rounded-lg border border-gray-200 bg-white pl-3 pr-8 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         >
-                                            <option value="">All Tiers</option>
+                                            <option value="">All ticket types</option>
                                             {tiers.map(t => (
                                                 <option key={t.id} value={t.id}>{t.name}</option>
                                             ))}
@@ -2275,114 +2192,100 @@ export function EventManageClient({
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Link to UTM Campaign (Auto-Apply)</label>
+                                    <label htmlFor="discount-campaign" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Campaign key</label>
                                     <input
+                                        id="discount-campaign"
                                         value={discountForm.linked_utm_campaign}
                                         onChange={e => setDiscountForm({ ...discountForm, linked_utm_campaign: e.target.value })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent outline-none transition-all font-medium text-gray-900 dark:text-white"
+                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         placeholder="e.g. summer_promo"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block text-blue-600">Affiliate Commission (%)</label>
+                                    <label htmlFor="discount-commission" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Promoter commission (%)</label>
                                     <input
+                                        id="discount-commission"
                                         type="number"
                                         value={discountForm.affiliate_commission_percent}
                                         onChange={e => setDiscountForm({ ...discountForm, affiliate_commission_percent: parseFloat(e.target.value) })}
-                                        className="w-full bg-blue-50/30 dark:bg-blue-500/5 border-blue-100 dark:border-blue-500/10 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-bold text-blue-600"
+                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                     />
                                 </div>
                                 <div className="md:col-span-3">
-                                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block text-blue-600">Affiliate Email (For Notifications)</label>
+                                    <label htmlFor="discount-email" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Promoter email</label>
                                     <input
+                                        id="discount-email"
+                                        type="email"
                                         value={discountForm.affiliate_email}
                                         onChange={e => setDiscountForm({ ...discountForm, affiliate_email: e.target.value })}
-                                        className="w-full bg-blue-50/30 dark:bg-blue-500/5 border-blue-100 dark:border-blue-500/10 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-blue-600"
+                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         placeholder="promoter@email.com"
                                     />
-                                    <p className="text-[10px] text-blue-500/70 mt-1 italic font-medium">Providing an email enables automated sales notifications for this promoter.</p>
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Add an email to send this promoter sales notifications.</p>
                                 </div>
+                                    </div>
+                                </details>
                                 <div className="md:col-span-3 flex justify-end pt-2">
                                     <button
                                         disabled={creatingDiscount}
-                                        className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 shadow-lg shadow-black/20 hover:-translate-y-0.5 transition-all"
+                                        className="inline-flex h-11 items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                                     >
-                                        {creatingDiscount ? 'Saving...' : (editingDiscountId ? 'Update Discount' : 'Create Discount')}
+                                        {creatingDiscount ? 'Saving...' : (editingDiscountId ? 'Update code' : 'Create code')}
                                     </button>
                                 </div>
                             </form>
-                        </div>
+                        </div>}
 
                         <div className="grid gap-4">
                             {discounts.slice(discountPage * 5, (discountPage + 1) * 5).map(discount => (
-                                <div key={discount.id} className="bg-white dark:bg-[#111] p-6 rounded-3xl border border-gray-100 dark:border-white/10 flex items-center justify-between hover:shadow-md transition-shadow">
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center font-bold text-xl border border-green-100 dark:border-green-500/10">
+                                <div key={discount.id} className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#111] sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-base font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                             %
                                         </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h4 className="font-bold text-lg tracking-tight text-gray-900 dark:text-white">{discount.code}</h4>
+                                        <div className="min-w-0">
+                                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                                                <h4 className="break-all text-base font-semibold tracking-tight text-gray-950 dark:text-white">{discount.code}</h4>
                                                 <button
                                                     onClick={() => copyCode(discount.code, discount.id)}
                                                     className="text-gray-400 hover:text-black dark:hover:text-white transition-colors p-1"
                                                     title="Copy Code"
+                                                    aria-label={`Copy code ${discount.code}`}
                                                 >
                                                     {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                                                 </button>
-                                                {discount.linked_utm_campaign && (
-                                                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-500/20">
-                                                        Linked to UTM: {discount.linked_utm_campaign}
-                                                    </span>
-                                                )}
-                                                {discount.affiliate_email && (
-                                                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-500/20">
-                                                        Affiliate: {discount.affiliate_email} ({discount.affiliate_commission_percent}%)
-                                                    </span>
-                                                )}
+                                                {discount.linked_utm_campaign && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">Campaign: {discount.linked_utm_campaign}</span>}
+                                                {discount.affiliate_email && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">Promoter: {discount.affiliate_email} ({discount.affiliate_commission_percent}%)</span>}
                                             </div>
-                                            <div className="flex flex-col gap-1.5">
-                                                <p className="text-sm font-medium text-gray-500">
-                                                    {discount.type === 'percentage' ? `${discount.value}% OFF` : `-${formatCurrency(discount.value, event.currency || 'GHS')}`}
-                                                    <span className="mx-2 text-gray-300">|</span>
-                                                    Used: {discount.used_count || 0} {discount.max_uses ? `/ ${discount.max_uses}` : ''}
-                                                    <span className="mx-2 text-gray-300">|</span>
-                                                    <span className={clsx("text-xs uppercase font-bold tracking-wider", discount.tier_id ? "text-purple-600" : "text-gray-400")}>
-                                                        {discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Specific Tier') : 'All Tickets'}
-                                                    </span>
-                                                    {discount.expires_at && (
-                                                        <>
-                                                            <span className="mx-2 text-gray-300">|</span>
-                                                            <span className="text-orange-500 font-medium text-xs bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded">Expires {new Date(discount.expires_at).toLocaleDateString()}</span>
-                                                        </>
-                                                    )}
+                                            <div className="flex flex-col gap-2">
+                                                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                                                    <span className="font-medium text-gray-900 dark:text-white">{discount.type === 'percentage' ? `${discount.value}% off` : `${formatCurrency(discount.value, event.currency || 'GHS')} off`}</span>
+                                                    <span aria-hidden="true">·</span>
+                                                    <span>Used {discount.used_count || 0}{discount.max_uses ? ` of ${discount.max_uses}` : ' times'}</span>
+                                                    <span aria-hidden="true">·</span>
+                                                    <span>{discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Selected ticket type') : 'All ticket types'}</span>
+                                                    {discount.expires_at && <span>Expires {new Date(discount.expires_at).toLocaleDateString()}</span>}
                                                 </p>
-                                                <div className="flex items-center gap-2 group cursor-pointer" onClick={() => {
+                                                <button type="button" className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white" onClick={() => {
                                                     const link = `${window.location.origin}/events/${event.slug}?code=${discount.code}`;
                                                     navigator.clipboard.writeText(link);
-                                                    toast.success('Affiliate link copied!');
+                                                    toast.success('Checkout link copied');
                                                 }}>
-                                                    <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 flex items-center gap-2 group-hover:border-blue-500/50 transition-all">
-                                                        <Share2 className="w-3 h-3 text-blue-500" />
-                                                        <code className="text-[11px] font-mono text-gray-400 group-hover:text-blue-400 transition-colors">
-                                                            {window.location.origin}/events/{event.slug}?code={discount.code}
-                                                        </code>
-                                                        <Copy className="w-3 h-3 text-gray-300 group-hover:text-blue-500 ml-1 opacity-0 group-hover:opacity-100 transition-all" />
-                                                    </div>
-                                                </div>
+                                                    <Copy className="h-3.5 w-3.5" /> Copy checkout link
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex shrink-0 gap-2 border-t border-gray-100 pt-3 dark:border-white/10 sm:border-0 sm:pt-0">
                                         <button
                                             onClick={() => startEditingDiscount(discount)}
-                                            className="text-gray-400 hover:text-black dark:hover:text-white font-bold text-sm px-4 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                                            className="h-9 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:text-gray-300"
                                         >
                                             Edit
                                         </button>
                                         <button
                                             onClick={() => deleteDiscount(discount.id)}
-                                            className="text-gray-400 hover:text-red-600 font-bold text-sm px-4 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                                            className="h-9 rounded-lg border border-gray-200 px-3 text-sm font-medium text-red-600 transition-colors hover:border-red-300 dark:border-white/10 dark:text-red-400"
                                         >
                                             Delete
                                         </button>
@@ -2390,16 +2293,17 @@ export function EventManageClient({
                                 </div>
                             ))}
                             {discounts.length === 0 && (
-                                <div className="text-center py-24 text-gray-400 bg-white dark:bg-[#111] rounded-3xl border border-dashed border-gray-200 dark:border-white/10">
-                                    <div className="w-16 h-16 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300 dark:text-gray-500">
-                                        <span className="font-bold text-2xl">%</span>
+                                <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-5 py-14 text-center text-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-gray-400">
+                                    <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400">
+                                        <span className="text-base font-semibold">%</span>
                                     </div>
-                                    <p className="font-medium">No discount codes created yet.</p>
+                                    <p className="font-medium text-gray-900 dark:text-white">No discount codes yet</p>
+                                    <p className="mt-1 text-sm">Create one to offer a promotion for this event.</p>
                                 </div>
                             )}
 
                             {discounts.length > 5 && (
-                                <div className="px-8 py-4 bg-gray-50/30 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-3xl flex items-center justify-between mt-4">
+                                <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#111]">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
                                         Showing <span className="font-medium">{discountPage * 5 + 1}</span> to <span className="font-medium">{Math.min((discountPage + 1) * 5, discounts.length)}</span> of <span className="font-medium">{discounts.length}</span>
                                     </p>
@@ -2432,34 +2336,38 @@ export function EventManageClient({
 
             {/* FORMS TAB */}
             {activeTab === 'forms' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="bg-white dark:bg-[#111] p-8 rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-sm">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-white/10 pb-6 mb-6">
+                <div className="space-y-5 animate-in fade-in duration-200">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                        <div className="mb-6 flex flex-col gap-4 border-b border-gray-100 pb-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Custom Forms & Questionnaire</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Collect additional attendee details post-checkout</p>
+                                <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Questions and responses</h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Ask attendees for extra details after checkout.</p>
                             </div>
-                            <div className="flex gap-2 bg-gray-100 dark:bg-white/5 p-1 rounded-xl">
+                            <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-white/10 dark:bg-white/5">
                                 <button
+                                    type="button"
                                     onClick={() => setFormsSubTab('builder')}
+                                    aria-pressed={formsSubTab === 'builder'}
                                     className={clsx(
-                                        "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                                        "rounded-md px-3 py-2 text-sm font-medium transition-colors",
                                         formsSubTab === 'builder'
-                                            ? "bg-white dark:bg-white/10 text-black dark:text-white shadow-sm"
+                                            ? "bg-white text-black dark:bg-white/10 dark:text-white"
                                             : "text-gray-500 hover:text-black dark:hover:text-white"
                                     )}
                                 >
-                                    Question Builder
+                                    Questions
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setFormsSubTab('responses');
                                         fetchResponses();
                                     }}
+                                    aria-pressed={formsSubTab === 'responses'}
                                     className={clsx(
-                                        "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                                        "rounded-md px-3 py-2 text-sm font-medium transition-colors",
                                         formsSubTab === 'responses'
-                                            ? "bg-white dark:bg-white/10 text-black dark:text-white shadow-sm"
+                                            ? "bg-white text-black dark:bg-white/10 dark:text-white"
                                             : "text-gray-500 hover:text-black dark:hover:text-white"
                                     )}
                                 >
@@ -2469,53 +2377,56 @@ export function EventManageClient({
                         </div>
 
                         {formsSubTab === 'builder' && (
-                            <div className="space-y-8">
+                            <div className="space-y-6">
                                 {/* Form to create/edit question */}
-                                <div className="bg-gray-50/50 dark:bg-white/5 p-6 rounded-2xl border border-gray-100 dark:border-white/5">
-                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-4">
-                                        {editingQuestionId ? 'Edit Question' : 'Add New Question'}
-                                    </h4>
+                                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5 sm:p-5">
+                                    <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">
+                                        {editingQuestionId ? 'Edit question' : 'Add a question'}
+                                    </h3>
                                     <form onSubmit={handleSaveQuestion} className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div className="md:col-span-2">
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Question Label</label>
+                                                <label htmlFor="question-label" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Question</label>
                                                 <input
+                                                    id="question-label"
                                                     required
                                                     value={questionForm.label}
                                                     onChange={e => setQuestionForm({ ...questionForm, label: e.target.value })}
-                                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none text-gray-900 dark:text-white text-sm"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-white"
                                                     placeholder="e.g. What is your T-shirt size?"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Input Type</label>
+                                                <label htmlFor="question-type" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Answer type</label>
                                                 <select
+                                                    id="question-type"
                                                     value={questionForm.type}
                                                     onChange={e => setQuestionForm({ ...questionForm, type: e.target.value as 'text' | 'select' | 'checkbox' })}
-                                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none text-gray-900 dark:text-white text-sm"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-white"
                                                 >
-                                                    <option value="text">Free Text</option>
-                                                    <option value="select">Multiple Choice (Dropdown)</option>
-                                                    <option value="checkbox">Checkbox (Yes/No)</option>
+                                                    <option value="text">Free text</option>
+                                                    <option value="select">Multiple choice</option>
+                                                    <option value="checkbox">Yes or no</option>
                                                 </select>
                                             </div>
                                         </div>
 
                                         {questionForm.type === 'select' && (
                                             <div>
-                                                <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Options</label>
+                                                <label htmlFor="question-options" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Choices</label>
                                                 <input
+                                                    id="question-options"
                                                     required
                                                     value={questionForm.options}
                                                     onChange={e => setQuestionForm({ ...questionForm, options: e.target.value })}
-                                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none text-gray-900 dark:text-white text-sm"
+                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-white"
                                                     placeholder="e.g. Small, Medium, Large"
                                                 />
-                                                <span className="text-[10px] text-gray-400 mt-1 block font-medium">Enter multiple choices separated by commas</span>
+                                                <span className="mt-1 block text-xs text-gray-500">Separate choices with commas.</span>
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-between pt-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                                             <label className="flex items-center gap-2 cursor-pointer">
                                                 <input
                                                     type="checkbox"
@@ -2523,7 +2434,7 @@ export function EventManageClient({
                                                     onChange={e => setQuestionForm({ ...questionForm, required: e.target.checked })}
                                                     className="rounded border border-gray-200 bg-white checked:bg-black focus:ring-0 cursor-pointer"
                                                 />
-                                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Required Question</span>
+                                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Required</span>
                                             </label>
                                             <div className="flex gap-2">
                                                 {editingQuestionId && (
@@ -2533,7 +2444,7 @@ export function EventManageClient({
                                                             setEditingQuestionId(null);
                                                             setQuestionForm({ label: '', type: 'text', options: '', required: false });
                                                         }}
-                                                        className="px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                                                    className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 dark:border-white/10 dark:text-gray-300"
                                                     >
                                                         Cancel
                                                     </button>
@@ -2541,9 +2452,9 @@ export function EventManageClient({
                                                 <button
                                                     type="submit"
                                                     disabled={savingQuestion}
-                                                    className="bg-black dark:bg-white text-white dark:text-black px-6 py-2.5 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all text-xs"
+                                                    className="inline-flex h-10 items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
                                                 >
-                                                    {savingQuestion ? 'Saving...' : (editingQuestionId ? 'Update' : 'Add Question')}
+                                                    {savingQuestion ? 'Saving...' : (editingQuestionId ? 'Save question' : 'Add question')}
                                                 </button>
                                             </div>
                                         </div>
@@ -2552,29 +2463,30 @@ export function EventManageClient({
 
                                 {/* Questions List */}
                                 <div className="space-y-3">
-                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-2">Question List</h4>
+                                    <h3 className="mb-2 text-sm font-semibold text-gray-950 dark:text-white">Saved questions</h3>
                                     {questions.map((q, idx) => (
-                                        <div key={q.id} className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-gray-100 dark:border-white/10 flex items-center justify-between hover:shadow-sm transition-shadow">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-sm text-gray-900 dark:text-white">{q.label}</span>
+                                        <div key={q.id} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#111] sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0 space-y-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-white">{q.label}</span>
                                                     {q.required && (
-                                                        <span className="text-[10px] bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 font-bold uppercase px-1.5 py-0.5 rounded">Required</span>
+                                                        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">Required</span>
                                                     )}
                                                 </div>
-                                                <div className="text-xs text-gray-500 font-medium">
-                                                    Type: <span className="uppercase text-gray-700 dark:text-zinc-300 font-bold">{q.type}</span>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    <span>{q.type === 'select' ? 'Multiple choice' : q.type === 'checkbox' ? 'Yes or no' : 'Free text'}</span>
                                                     {q.options && q.options.length > 0 && (
-                                                        <span className="ml-2 font-normal">({q.options.join(', ')})</span>
+                                                        <span className="ml-2">· {q.options.join(', ')}</span>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex shrink-0 items-center gap-1">
                                                 <button
                                                     onClick={() => handleMoveQuestion(idx, 'up')}
                                                     disabled={idx === 0}
                                                     className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-30"
                                                     title="Move Up"
+                                                    aria-label={`Move ${q.label} up`}
                                                 >
                                                     <ArrowUp className="w-3.5 h-3.5" />
                                                 </button>
@@ -2583,12 +2495,13 @@ export function EventManageClient({
                                                     disabled={idx === questions.length - 1}
                                                     className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-30"
                                                     title="Move Down"
+                                                    aria-label={`Move ${q.label} down`}
                                                 >
                                                     <ArrowDown className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => startEditingQuestion(q)}
-                                                    className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-white/5 dark:hover:bg-white/10 text-xs font-bold rounded-lg transition-colors text-gray-700 dark:text-gray-300"
+                                                    className="h-9 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 dark:border-white/10 dark:text-gray-300"
                                                 >
                                                     Edit
                                                 </button>
@@ -2596,85 +2509,95 @@ export function EventManageClient({
                                                     onClick={() => handleDeleteQuestion(q.id)}
                                                     className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                                                     title="Delete Question"
+                                                    aria-label={`Delete ${q.label}`}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </div>
                                     ))}
-                                    {questions.length === 0 && (
-                                        <div className="text-center py-12 text-gray-400 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl">
-                                            No custom questions configured.
-                                        </div>
-                                    )}
+                                    {questions.length === 0 && <p className="rounded-xl border border-gray-200 px-4 py-10 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">No questions added yet.</p>}
                                 </div>
                             </div>
                         )}
 
                         {formsSubTab === 'responses' && (
                             <div className="space-y-4">
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="relative w-full sm:w-72">
                                         <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                         <input
                                             type="text"
-                                            placeholder="Search responses..."
+                                            placeholder="Search responses"
+                                            aria-label="Search responses"
                                             value={responseSearchQuery}
                                             onChange={e => setResponseSearchQuery(e.target.value)}
-                                            className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl text-sm outline-none focus:ring-1 focus:ring-zinc-400 transition-all text-gray-900 dark:text-white"
+                                            className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                     <button
                                         onClick={handleExportResponses}
-                                        className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-xl text-xs font-bold shadow-md hover:-translate-y-0.5 transition-all"
+                                        disabled={formResponses.length === 0}
+                                        className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 sm:w-auto"
                                     >
                                         <Download className="w-3.5 h-3.5" />
-                                        Export CSV
+                                        Export all
                                     </button>
                                 </div>
 
-                                <div className="border border-gray-100 dark:border-white/10 rounded-2xl overflow-hidden overflow-x-auto">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-bold uppercase text-[10px] tracking-wider border-b border-gray-100 dark:border-white/10">
+                                <div className="space-y-2 md:hidden">
+                                    {filteredFormResponses.map(r => (
+                                        <div key={r.id} className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{r.event_form_questions?.label || 'Question'}</p>
+                                            <p className="mt-1 break-words text-sm font-semibold text-gray-950 dark:text-white">{r.answer || '—'}</p>
+                                            <div className="mt-4 flex flex-wrap items-end justify-between gap-2 border-t border-gray-100 pt-3 text-xs dark:border-white/10">
+                                                <div className="min-w-0">
+                                                    <p className="font-medium text-gray-800 dark:text-gray-200">{r.reservations?.guest_name || 'Guest'}</p>
+                                                    <p className="break-all text-gray-500 dark:text-gray-400">{r.reservations?.guest_email || '—'}</p>
+                                                </div>
+                                                <time className="shrink-0 text-gray-500 dark:text-gray-400" dateTime={r.created_at}>{new Date(r.created_at).toLocaleDateString()}</time>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {filteredFormResponses.length === 0 && (
+                                        <p className="rounded-xl border border-gray-200 px-4 py-10 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                                            {responseSearchQuery ? 'No responses match your search.' : 'No responses yet.'}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="hidden overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10 md:block">
+                                    <table className="w-full min-w-[640px] text-left text-sm">
+                                        <thead className="border-b border-gray-100 bg-gray-50/50 text-xs text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
                                             <tr>
-                                                <th className="px-6 py-4">Attendee</th>
-                                                <th className="px-6 py-4">Question</th>
-                                                <th className="px-6 py-4">Answer</th>
-                                                <th className="px-6 py-4">Submitted At</th>
+                                                <th className="px-4 py-3 font-medium">Attendee</th>
+                                                <th className="px-4 py-3 font-medium">Question</th>
+                                                <th className="px-4 py-3 font-medium">Answer</th>
+                                                <th className="px-4 py-3 font-medium">Submitted</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50 dark:divide-white/5 text-gray-900 dark:text-white">
-                                            {formResponses
-                                                .filter(r => {
-                                                    const q = responseSearchQuery.toLowerCase()
-                                                    return (
-                                                        r.reservations?.guest_name?.toLowerCase().includes(q) ||
-                                                        r.reservations?.guest_email?.toLowerCase().includes(q) ||
-                                                        r.answer?.toLowerCase().includes(q) ||
-                                                        r.event_form_questions?.label?.toLowerCase().includes(q)
-                                                    )
-                                                })
-                                                .map(r => (
+                                            {filteredFormResponses.map(r => (
                                                     <tr key={r.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
-                                                        <td className="px-6 py-4">
-                                                            <div className="font-bold">{r.reservations?.guest_name || 'N/A'}</div>
-                                                            <div className="text-xs text-gray-400 font-normal">{r.reservations?.guest_email || 'N/A'}</div>
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-medium">{r.reservations?.guest_name || 'Guest'}</div>
+                                                            <div className="text-xs text-gray-500">{r.reservations?.guest_email || '—'}</div>
                                                         </td>
-                                                        <td className="px-6 py-4 font-medium text-gray-600 dark:text-gray-300">
+                                                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                                                             {r.event_form_questions?.label}
                                                         </td>
-                                                        <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">
+                                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                                                             {r.answer}
                                                         </td>
-                                                        <td className="px-6 py-4 text-xs text-gray-400 font-mono">
+                                                        <td className="px-4 py-3 text-xs text-gray-500">
                                                             {new Date(r.created_at).toLocaleDateString()}
                                                         </td>
                                                     </tr>
                                                 ))}
-                                            {formResponses.length === 0 && (
+                                            {filteredFormResponses.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={4} className="text-center py-12 text-gray-400">
-                                                        No custom form responses found.
+                                                    <td colSpan={4} className="py-12 text-center text-sm text-gray-500">
+                                                        {responseSearchQuery ? 'No responses match your search.' : 'No responses yet.'}
                                                     </td>
                                                 </tr>
                                             )}

@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { EventDetailClient } from '@/components/EventDetailClient'
 import { EventBackground } from '@/components/EventBackground'
 import { LandingHeader } from '@/components/LandingHeader'
-import React from 'react'
+import React, { cache } from 'react'
 import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
 import { getFeeSettings } from '@/utils/settings'
@@ -13,16 +13,15 @@ interface PageProps {
     params: Promise<{ slug: string }>
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+const getEvent = cache(async (slug: string) => {
     const supabase = await createClient()
-    const { slug } = await params
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
 
     let query = supabase
         .schema('gatepass')
         .from('events')
-        .select('title, description, poster_url, is_published')
+        .select('*, organizers(user_id, name, description, website, instagram, twitter, meta_pixel_id, ga4_measurement_id)')
 
     if (isUuid) {
         query = query.eq('id', slug)
@@ -30,7 +29,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         query = query.eq('slug', slug)
     }
 
-    const { data: event } = await query.single()
+    const { data, error } = await query.single()
+    if (error && error.code !== 'PGRST116') throw error
+    return data
+})
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { slug } = await params
+    const event = await getEvent(slug)
 
     if (!event) {
         return {
@@ -84,25 +90,44 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 }
 
-export default async function EventPage({ params }: PageProps) {
+async function EventPurchase({ event }: { event: Event }) {
     const supabase = await createClient()
-    const { slug } = await params
-
-    // Check if slug is UUID
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
-
-    let query = supabase
+    const tiersQuery = supabase
         .schema('gatepass')
-        .from('events')
-        .select('*, organizers(*)')
+        .from('ticket_tiers')
+        .select('*, payment_plans(*)')
+        .eq('event_id', event.id)
+        .neq('is_visible', false)
+        .order('sort_order', { ascending: true })
 
-    if (isUuid) {
-        query = query.eq('id', slug)
-    } else {
-        query = query.eq('slug', slug)
-    }
+    const addonsQuery = supabase
+        .schema('gatepass')
+        .from('event_addons')
+        .select('*')
+        .eq('event_id', event.id)
+        .eq('is_active', true)
+        .order('price', { ascending: true })
 
-    const { data: event } = await query.single()
+    const [{ data: tiers }, { data: addons }, feeSettings] = await Promise.all([
+        tiersQuery,
+        addonsQuery,
+        getFeeSettings(),
+    ])
+
+    return (
+        <EventDetailClient
+            event={event}
+            tiers={(tiers as TicketTier[]) || []}
+            layoutId={`event-card-${event.id}`}
+            feeRates={feeSettings}
+            availableAddons={addons || []}
+        />
+    )
+}
+
+export default async function EventPage({ params }: PageProps) {
+    const { slug } = await params
+    const event = await getEvent(slug)
 
     if (!event) {
         return (
@@ -115,23 +140,24 @@ export default async function EventPage({ params }: PageProps) {
     // ----------------------------------------------------------------
     // Authorization Check for Private Events
     // ----------------------------------------------------------------
-    const { data: { user } } = await supabase.auth.getUser()
     let canView = event.is_published
 
-    if (!canView && user) {
-        // 1. Owner Check
-        if (event.organizers?.user_id === user.id) {
-            canView = true
-        } else {
-            // 2. Team Check
-            const { data: teamMember } = await supabase.schema('gatepass').from('organization_team')
-                .select('role')
-                .eq('organization_id', event.organization_id)
-                .eq('user_id', user.id)
-                .single()
-
-            if (teamMember && (teamMember.role === 'admin' || teamMember.role === 'owner')) {
+    if (!canView) {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            if (event.organizers?.user_id === user.id) {
                 canView = true
+            } else {
+                const { data: teamMember } = await supabase.schema('gatepass').from('organization_team')
+                    .select('role')
+                    .eq('organization_id', event.organization_id)
+                    .eq('user_id', user.id)
+                    .single()
+
+                if (teamMember && (teamMember.role === 'admin' || teamMember.role === 'owner')) {
+                    canView = true
+                }
             }
         }
     }
@@ -155,26 +181,6 @@ export default async function EventPage({ params }: PageProps) {
             </div>
         )
     }
-
-    // Fetch tiers (only visible ones for public view)
-    const { data: tiers } = await supabase
-        .schema('gatepass')
-        .from('ticket_tiers')
-        .select('*, payment_plans(*)')
-        .eq('event_id', event.id)
-        .neq('is_visible', false)
-        .order('sort_order', { ascending: true })
-
-    // Fetch Addons
-    const { data: addons } = await supabase
-        .schema('gatepass')
-        .from('event_addons')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('is_active', true)
-        .order('price', { ascending: true })
-
-    const feeSettings = await getFeeSettings()
 
     return (
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
@@ -236,13 +242,7 @@ export default async function EventPage({ params }: PageProps) {
                     </div>
                 </div>
             }>
-                <EventDetailClient
-                    event={event as Event}
-                    tiers={(tiers as TicketTier[]) || []}
-                    layoutId={`event-card-${event.id}`}
-                    feeRates={feeSettings}
-                    availableAddons={addons || []}
-                />
+                <EventPurchase event={event as Event} />
             </React.Suspense>
         </div >
     )

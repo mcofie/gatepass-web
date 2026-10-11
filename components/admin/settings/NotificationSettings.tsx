@@ -54,20 +54,20 @@ export function NotificationSettings({ organizer, userRole }: { organizer: any, 
     }
 
     return (
-        <div className="max-w-2xl bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
+        <div className="max-w-2xl bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
             <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-black dark:bg-white flex items-center justify-center">
                     <Bell className="w-5 h-5 text-white dark:text-black" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Notification Settings</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notification Settings</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Configure how you want to be notified about ticket sales</p>
                 </div>
             </div>
 
             <form onSubmit={handleSave} className="space-y-6">
                 {/* Sale Notifications Toggle */}
-                <div className="p-5 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 space-y-4">
+                <div className="p-5 rounded-2xl bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 space-y-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-500/20 flex items-center justify-center">
@@ -93,13 +93,13 @@ export function NotificationSettings({ organizer, userRole }: { organizer: any, 
                     {/* Email Input (shown when enabled) */}
                     {notifyOnSale && (
                         <div className="pt-4 border-t border-gray-200 dark:border-white/10 space-y-2 animate-fade-in">
-                            <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Notification Email</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Notification Email</label>
                             <Input
                                 type="email"
                                 value={notificationEmail}
                                 onChange={e => setNotificationEmail(e.target.value)}
                                 disabled={!canEdit}
-                                className="h-12 bg-white dark:bg-black/30 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                                className="h-12 bg-white dark:bg-black/30 border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                                 placeholder="your@email.com"
                             />
                             <p className="text-xs text-gray-400 ml-1">
@@ -114,14 +114,14 @@ export function NotificationSettings({ organizer, userRole }: { organizer: any, 
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
+                            className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all "
                         >
                             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Save Preferences
                         </Button>
                     </div>
                 ) : (
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/10">
+                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">
                             Only Owners and Admins can modify notification settings.
                         </p>

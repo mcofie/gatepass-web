@@ -74,21 +74,25 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
     }
 
     return (
-        <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_40px_rgba(0,0,0,0.04)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="px-8 py-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center">
-                <h3 className="font-bold text-xl text-gray-900 dark:text-white">Guest List</h3>
-                <div className="flex gap-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111] animate-in fade-in duration-200">
+            <div className="flex flex-col gap-4 border-b border-gray-100 p-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between lg:p-6">
+                <div>
+                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Guest list</h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{ticketCount} {ticketCount === 1 ? 'guest' : 'guests'} for this event</p>
+                </div>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                    <div className="relative min-w-0 flex-1 sm:min-w-[220px]">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Search details..."
+                            placeholder="Search guests"
+                            aria-label="Search guests"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value)
                                 setTicketPage(0) // Reset page on search
                             }}
-                            className="pl-9 pr-4 py-1.5 w-64 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-lg text-sm focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 focus:border-black dark:focus:border-white transition-all text-gray-900 dark:text-white"
+                            className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                         />
                     </div>
                     {!isStaff && (
@@ -98,14 +102,14 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                     const csv = generateCSV(tickets)
                                     downloadCSV(csv, `${event.slug}-guests.csv`)
                                 }}
-                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
                             >
                                 <Download className="w-4 h-4" />
-                                Export
+                                Export page
                             </button>
                             <button
                                 onClick={() => setShowImportModal(true)}
-                                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
                             >
                                 <Upload className="w-4 h-4" />
                                 Import CSV
@@ -114,59 +118,60 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                     )}
                     <button
                         onClick={() => setIsCheckInMode(!isCheckInMode)}
-                        className={clsx("flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all border", {
-                            'bg-green-500 text-white border-green-600 shadow-md shadow-green-500/20': isCheckInMode,
-                            'bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5': !isCheckInMode
+                        aria-pressed={isCheckInMode}
+                        className={clsx("inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors", {
+                            'border-black bg-black text-white dark:border-white dark:bg-white dark:text-black': isCheckInMode,
+                            'border-gray-200 bg-white text-gray-700 hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300': !isCheckInMode
                         })}
                     >
                         <ScanLine className="w-4 h-4" />
-                        {isCheckInMode ? 'Check-in Mode' : 'Check-in'}
+                        {isCheckInMode ? 'Check-in mode on' : 'Check-in'}
                     </button>
                 </div>
             </div>
 
             {loadingTickets ? (
-                <div className="p-12 text-center text-gray-500 animate-pulse">Loading guest list...</div>
+                <div className="px-5 py-14 text-center text-sm text-gray-500">Loading guest list…</div>
             ) : tickets.length > 0 ? (
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
+                    <table className="w-full min-w-[800px] text-left text-sm">
+                        <thead className="border-b border-gray-100 bg-gray-50/50 text-xs text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
                             <tr>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Reference</th>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Guest</th>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Ticket</th>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Purchased</th>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400">Status</th>
-                                <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 text-right">Actions</th>
+                                <th className="px-5 py-3 font-medium">Reference</th>
+                                <th className="px-5 py-3 font-medium">Guest</th>
+                                <th className="px-5 py-3 font-medium">Ticket</th>
+                                <th className="px-5 py-3 font-medium">Purchased</th>
+                                <th className="px-5 py-3 font-medium">Status</th>
+                                <th className="px-5 py-3 text-right font-medium">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                             {tickets.map((ticket: any) => (
                                 <tr key={ticket.id} className={clsx("hover:bg-gray-50/80 dark:hover:bg-white/5 transition-colors group", {
-                                    'opacity-40 grayscale': isCheckInMode && ticket.status !== 'valid'
+                                    'opacity-60': isCheckInMode && ticket.status !== 'valid'
                                 })}>
-                                    <td className="px-8 py-5 font-mono text-xs text-gray-500 dark:text-gray-400">{ticket.order_reference?.substring(0, 8) || 'N/A'}</td>
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/10 dark:to-white/5 flex items-center justify-center text-sm font-bold text-gray-600 dark:text-gray-300 border border-white dark:border-white/5 shadow-sm ring-1 ring-gray-100 dark:ring-white/5">
+                                    <td className="px-5 py-4 font-mono text-xs text-gray-500 dark:text-gray-400">{ticket.order_reference?.substring(0, 8) || '—'}</td>
+                                    <td className="px-5 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">
                                                 {ticket.profiles?.full_name?.charAt(0) || ticket.reservations?.guest_name?.charAt(0) || 'G'}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-gray-900 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors">
-                                                    {ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest User'}
+                                                <div className="font-medium text-gray-900 dark:text-white">
+                                                    {ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest'}
                                                 </div>
-                                                <div className="text-xs text-gray-400 tracking-tight">
-                                                    {ticket.profiles?.email || ticket.reservations?.guest_email || 'No Email'}
+                                                <div className="text-xs text-gray-500">
+                                                    {ticket.profiles?.email || ticket.reservations?.guest_email || 'No email'}
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-5">
-                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 dark:bg-white/10 text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-white/5">
+                                    <td className="px-5 py-4">
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">
                                             {ticket.ticket_tiers?.name}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className="px-5 py-4">
                                         <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                                             {new Date(ticket.created_at).toLocaleDateString(undefined, {
                                                 month: 'short',
@@ -175,7 +180,7 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                             })}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className="px-5 py-4">
                                         <span className={clsx("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold", {
                                             'bg-green-100/80 text-green-700 dark:bg-green-500/10 dark:text-green-400': ticket.status === 'valid',
                                             'bg-gray-100/80 text-gray-600 dark:bg-white/10 dark:text-gray-400': ticket.status === 'used',
@@ -191,12 +196,13 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                             {(ticket.status === 'checked_in' ? 'Checked In' : ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1))}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-5 text-right">
+                                    <td className="px-5 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => setSelectedReservationForForms(ticket.reservation_id)}
                                                 className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                                                 title="View Form Answers"
+                                                aria-label="View form answers"
                                             >
                                                 <FileText className="w-4 h-4" />
                                             </button>
@@ -204,18 +210,19 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                                 onClick={() => setSelectedTicketForQR(ticket)}
                                                 className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                                                 title="View QR Code"
+                                                aria-label="View QR code"
                                             >
                                                 <QrCode className="w-4 h-4" />
                                             </button>
                                             {ticket.status === 'valid' && (
                                                 <button
                                                     onClick={() => updateTicketStatus(ticket.id, 'checked_in')}
-                                                    className={clsx("font-bold bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-md shadow-black/10 hover:shadow-lg hover:-translate-y-0.5", {
-                                                        'px-6 py-3 text-sm': isCheckInMode,
-                                                        'px-4 py-2 text-xs': !isCheckInMode
+                                                    className={clsx("rounded-lg bg-black font-semibold text-white dark:bg-white dark:text-black", {
+                                                        'px-4 py-2.5 text-sm': isCheckInMode,
+                                                        'px-3 py-2 text-xs': !isCheckInMode
                                                     })}
                                                 >
-                                                    Check In
+                                                    Check in
                                                 </button>
                                             )}
                                         </div>
@@ -226,33 +233,30 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                     </table>
                 </div>
             ) : (
-                <div className="p-24 text-center">
-                    <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <svg className="w-10 h-10 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path></svg>
-                    </div>
-                    <h3 className="text-gray-900 dark:text-white font-bold text-lg mb-2">No tickets sold yet</h3>
-                    <p className="text-gray-500 dark:text-gray-400">When people purchase tickets, they will appear here.</p>
+                <div className="px-5 py-14 text-center">
+                    <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white">No tickets sold yet</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Guests will appear here when tickets are purchased.</p>
                 </div>
             )}
 
             {/* Pagination Footer */}
             {tickets.length > 0 && (
-                <div className="border-t border-gray-100 dark:border-white/10 p-4 bg-gray-50/30 dark:bg-white/5 flex items-center justify-between">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                        Showing <span className="font-bold text-gray-900 dark:text-white">{ticketPage * TICKETS_PER_PAGE + 1}</span> to <span className="font-bold text-gray-900 dark:text-white">{Math.min((ticketPage + 1) * TICKETS_PER_PAGE, ticketCount)}</span> of <span className="font-bold text-gray-900 dark:text-white">{ticketCount}</span> results
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 p-4 dark:border-white/10">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Showing {ticketPage * TICKETS_PER_PAGE + 1}–{Math.min((ticketPage + 1) * TICKETS_PER_PAGE, ticketCount)} of {ticketCount}
                     </p>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setTicketPage(p => Math.max(0, p - 1))}
                             disabled={ticketPage === 0 || loadingTickets}
-                            className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-white/10 rounded-lg hover:bg-white dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-[#111] dark:text-white shadow-sm"
+                            className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
                         >
                             Previous
                         </button>
                         <button
                             onClick={() => setTicketPage(p => p + 1)}
                             disabled={(ticketPage + 1) * TICKETS_PER_PAGE >= ticketCount || loadingTickets}
-                            className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-white/10 rounded-lg hover:bg-white dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-[#111] dark:text-white shadow-sm"
+                            className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
                         >
                             Next
                         </button>
@@ -348,44 +352,41 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50/50 dark:bg-white/5">
-                    <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-gray-400" />
-                        Form Responses
-                    </h3>
-                    <button onClick={onClose} className="p-1 text-gray-400 hover:text-black dark:hover:text-white rounded-lg transition-colors">
-                        <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-5">
+            <div role="dialog" aria-modal="true" aria-label="Form responses" className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#111]">
+                <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
+                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Form responses</h3>
+                    <button type="button" onClick={onClose} aria-label="Close form responses" className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
+                        <X className="h-4 w-4" />
                     </button>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="max-h-[65dvh] space-y-4 overflow-y-auto p-5">
                     {loading ? (
-                        <div className="py-8 flex flex-col items-center justify-center text-zinc-500">
-                            <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                            <p className="text-sm">Loading responses...</p>
+                        <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                            <Loader2 className="mb-2 h-6 w-6 animate-spin" />
+                            <p className="text-sm">Loading responses…</p>
                         </div>
                     ) : responses.length > 0 ? (
                         <div className="space-y-4">
                             {responses.map((r) => (
-                                <div key={r.id} className="space-y-1 bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5">
-                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                <div key={r.id} className="space-y-1 border-b border-gray-100 pb-4 last:border-0 last:pb-0 dark:border-white/10">
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
                                         {r.event_form_questions?.label || 'Question'}
                                     </div>
-                                    <div className="text-sm font-bold text-gray-900 dark:text-white mt-1">
+                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
                                         {r.answer}
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="py-8 text-center text-gray-400">
+                        <div className="py-8 text-center text-sm text-gray-500">
                             No form responses submitted for this order.
                         </div>
                     )}
                 </div>
-                <div className="px-6 py-4 bg-gray-50/50 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex justify-end">
-                    <button onClick={onClose} className="bg-black dark:bg-white text-white dark:text-black px-6 py-2 rounded-xl text-xs font-bold transition-all">
+                <div className="flex justify-end border-t border-gray-100 px-5 py-4 dark:border-white/10">
+                    <button type="button" onClick={onClose} className="h-10 rounded-lg bg-black px-4 text-sm font-semibold text-white dark:bg-white dark:text-black">
                         Close
                     </button>
                 </div>

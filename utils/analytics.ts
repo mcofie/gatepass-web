@@ -2,24 +2,21 @@
 import { Ticket } from "@/types/gatepass"
 
 export function aggregateSalesOverTime(tickets: Ticket[]) {
-    const salesMap = new Map<string, number>()
+    const salesMap = new Map<string, { date: string; count: number }>()
 
     tickets.forEach(ticket => {
         if (!ticket.created_at) return
-        // Format date as "MMM DD" (e.g. "Dec 16")
-        const date = new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        salesMap.set(date, (salesMap.get(date) || 0) + 1)
+        const createdAt = new Date(ticket.created_at)
+        if (Number.isNaN(createdAt.getTime())) return
+        const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}-${String(createdAt.getDate()).padStart(2, '0')}`
+        const date = createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const previous = salesMap.get(key)
+        salesMap.set(key, { date, count: (previous?.count || 0) + 1 })
     })
 
-    // Convert to array and sort by date
-    // Note: This simple sort assumes dates are in same year or chronological. 
-    // For production, might want better date sorting logic or iso strings.
-    // Given the dashboard scope, this is fine for now usually.
     return Array.from(salesMap.entries())
-        .map(([date, count]) => ({ date, count }))
-        .reverse() // Often tickets come latest first, so reverse to show timeline left-to-right? 
-    // Wait, map iteration order is insertion order usually.
-    // It's safer to sort. 
+        .sort(([first], [second]) => first.localeCompare(second))
+        .map(([, sale]) => sale)
 }
 
 export function aggregateTicketTypes(tickets: Ticket[]) {

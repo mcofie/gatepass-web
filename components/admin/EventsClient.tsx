@@ -64,37 +64,36 @@ export function EventsClient({ events, role }: EventsClientProps) {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="mx-auto max-w-[1180px] space-y-7 pb-16">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tight text-gray-900 dark:text-white mb-2">Events</h1>
-                    <p className="text-gray-500 font-medium text-lg max-w-xl dark:text-gray-400">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                    <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Events</h1>
+                    <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
                         {isStaff
                             ? "View and manage events for your organization."
                             : "Manage your events, track sales, and customize your ticketing pages."}
                     </p>
                 </div>
                 {!isStaff && (
-                    <Link href="/dashboard/events/create">
-                        <button className="bg-black dark:bg-white dark:text-black text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-xl shadow-black/10 dark:shadow-none hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
-                            <Plus className="w-5 h-5" />
-                            <span>Create Event</span>
-                        </button>
+                    <Link href="/dashboard/events/create" className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black">
+                        <Plus className="h-4 w-4" /> Create event
                     </Link>
                 )}
             </div>
 
             {/* Controls Bar */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-[#111] p-2 pr-4 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm sticky top-4 z-30">
+            <div className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-white/10 md:flex-row md:items-center md:justify-between">
                 {/* Tabs */}
-                <div className="flex p-1 bg-gray-100/50 dark:bg-white/5 rounded-2xl self-stretch md:self-auto">
+                <div className="flex gap-1 overflow-x-auto self-stretch md:self-auto">
                     {(['all', 'upcoming', 'past', 'draft'] as TabType[]).map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab
-                                ? 'bg-white dark:bg-white/10 text-black dark:text-white shadow-sm'
+                            aria-pressed={activeTab === tab}
+                            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors capitalize ${activeTab === tab
+                                ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white'
                                 : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
                                 }`}
                         >
@@ -103,30 +102,35 @@ export function EventsClient({ events, role }: EventsClientProps) {
                     ))}
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex w-full items-center gap-2 md:w-auto">
                     {/* Search */}
                     <div className="relative flex-1 md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Search events..."
+                            placeholder="Search events"
+                            aria-label="Search events"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full h-10 pl-10 pr-4 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent focus:bg-white dark:focus:bg-black focus:border-gray-200 dark:focus:border-white/20 outline-none transition-all text-sm font-medium"
+                            className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none transition-colors focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:focus:border-white/40"
                         />
                     </div>
 
                     {/* View Toggle */}
-                    <div className="flex p-1 bg-gray-100/50 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/5">
+                    <div className="flex rounded-lg border border-gray-200 p-1 dark:border-white/10">
                         <button
                             onClick={() => setViewMode('grid')}
-                            className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-white/10 text-black dark:text-white shadow-sm' : 'text-gray-400 hover:text-black dark:hover:text-white'}`}
+                            aria-label="Grid view"
+                            aria-pressed={viewMode === 'grid'}
+                            className={`rounded-md p-2 transition-colors ${viewMode === 'grid' ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white' : 'text-gray-400 hover:text-black dark:hover:text-white'}`}
                         >
                             <LayoutGrid className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => setViewMode('list')}
-                            className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-white/10 text-black dark:text-white shadow-sm' : 'text-gray-400 hover:text-black dark:hover:text-white'}`}
+                            aria-label="List view"
+                            aria-pressed={viewMode === 'list'}
+                            className={`rounded-md p-2 transition-colors ${viewMode === 'list' ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white' : 'text-gray-400 hover:text-black dark:hover:text-white'}`}
                         >
                             <ListIcon className="w-4 h-4" />
                         </button>
@@ -137,13 +141,13 @@ export function EventsClient({ events, role }: EventsClientProps) {
             {/* Content Area */}
             {filteredEvents.length > 0 ? (
                 viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                         {filteredEvents.map((event) => (
                             <EventCard key={event.id} event={event} isStaff={isStaff} />
                         ))}
                     </div>
                 ) : (
-                    <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
@@ -166,7 +170,7 @@ export function EventsClient({ events, role }: EventsClientProps) {
                     </div>
                 )
             ) : (
-                <div className="flex flex-col items-center justify-center py-32 text-center bg-white dark:bg-[#111] rounded-[2rem] border border-gray-100 dark:border-white/10 border-dashed">
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center dark:border-white/10 dark:bg-[#111]">
                     <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
                         <Calendar className="w-8 h-8 text-gray-300 dark:text-gray-600" />
                     </div>
@@ -177,7 +181,7 @@ export function EventsClient({ events, role }: EventsClientProps) {
                     {(activeTab !== 'all' || search) && (
                         <button
                             onClick={() => { setSearch(''); setActiveTab('all') }}
-                            className="mt-6 text-sm font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                            className="mt-6 text-sm font-semibold text-gray-900 underline underline-offset-4 dark:text-white"
                         >
                             Clear Filters
                         </button>
@@ -192,15 +196,15 @@ function EventCard({ event, isStaff }: { event: Event, isStaff: boolean }) {
     const isPast = event.ends_at ? new Date(event.ends_at) < new Date() : false
 
     return (
-        <div className="group bg-white dark:bg-[#111] rounded-[2rem] border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] overflow-hidden transition-all duration-500 flex flex-col h-full hover:-translate-y-1">
+        <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:hover:border-white/30">
             {/* Poster Aspect Ratio */}
-            <div className="relative aspect-[16/10] bg-gray-100 dark:bg-white/5 overflow-hidden">
+            <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-white/5">
                 {event.poster_url ? (
                     <Image
                         src={event.poster_url}
                         alt={event.title}
                         fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                        className="object-cover"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/10">
@@ -208,29 +212,22 @@ function EventCard({ event, isStaff }: { event: Event, isStaff: boolean }) {
                     </div>
                 )}
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0 opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500" />
-
-                <div className="absolute top-4 right-4 flex gap-2">
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border border-white/10 shadow-lg ${event.is_published
-                        ? isPast
-                            ? 'bg-gray-900/90 text-gray-300'
-                            : 'bg-green-500/90 text-white'
-                        : 'bg-yellow-400/90 text-black'
-                        }`}>
+                <div className="absolute right-3 top-3">
+                    <div className="rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-900 dark:bg-black dark:text-white">
                         {event.is_published ? (isPast ? 'Ended' : 'Live') : 'Draft'}
                     </div>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="p-6 flex-1 flex flex-col">
+            <div className="flex flex-1 flex-col p-5">
                 <div className="flex items-start justify-between gap-4 mb-4">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    <h3 className="line-clamp-1 text-lg font-semibold text-gray-900 dark:text-white">
                         {event.title}
                     </h3>
                 </div>
 
-                <div className="space-y-3 mb-8">
+                <div className="mb-6 space-y-2">
                     <div className="flex items-center gap-2.5 text-sm text-gray-500 font-medium dark:text-gray-400">
                         <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-600" />
                         <span>
@@ -244,7 +241,7 @@ function EventCard({ event, isStaff }: { event: Event, isStaff: boolean }) {
                 </div>
 
                 {/* Mini Stats Row */}
-                <div className="mt-auto pt-6 border-t border-gray-100 dark:border-white/10 grid grid-cols-2 gap-4 pb-4">
+                <div className="mt-auto grid grid-cols-2 gap-4 border-t border-gray-100 pb-4 pt-4 dark:border-white/10">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sold</span>
                         <div className="flex items-center gap-1.5 text-gray-900 dark:text-white font-bold">
@@ -261,10 +258,8 @@ function EventCard({ event, isStaff }: { event: Event, isStaff: boolean }) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Link href={`/dashboard/events/${event.id}`} className="flex-1">
-                        <button className="w-full h-10 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-white/5 border border-transparent hover:border-black dark:hover:border-white hover:bg-white dark:hover:bg-transparent hover:text-black dark:hover:text-white transition-all">
-                            Manage
-                        </button>
+                    <Link href={`/dashboard/events/${event.id}`} className="flex h-10 flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10">
+                        Manage
                     </Link>
                     {!isStaff && (
                         <div className="w-10 h-10 flex items-center justify-center">
@@ -289,7 +284,7 @@ function EventRow({ event, isStaff }: { event: Event, isStaff: boolean }) {
                     </div>
                     <div>
                         <h4 className="font-bold text-gray-900 dark:text-white">{event.title}</h4>
-                        <Link href={`/events/${event.slug}`} target="_blank" className="text-xs text-blue-600 hover:underline">
+                        <Link href={`/events/${event.slug}`} target="_blank" className="text-xs text-gray-500 underline-offset-2 hover:underline dark:text-gray-400">
                             View Live Page
                         </Link>
                     </div>
@@ -302,27 +297,22 @@ function EventRow({ event, isStaff }: { event: Event, isStaff: boolean }) {
                 {event.venue_name || 'TBD'}
             </td>
             <td className="px-6 py-4">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${event.is_published
-                    ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
-                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
-                    }`}>
+                <span className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">
                     {event.is_published ? 'Live' : 'Draft'}
                 </span>
             </td>
             <td className="px-6 py-4 text-right">
                 <div className="flex flex-col items-end">
                     <span className="font-bold text-gray-900 dark:text-white">{event.tickets_sold || 0} sold</span>
-                    <span className="text-xs text-green-600 font-medium">
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                         {formatCurrency(event.revenue || 0, event.currency || 'GHS')}
                     </span>
                 </div>
             </td>
             <td className="px-6 py-4 text-right">
-                <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link href={`/dashboard/events/${event.id}`}>
-                        <button className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors text-gray-500 dark:text-gray-400">
-                            <MoreHorizontal className="w-4 h-4" />
-                        </button>
+                <div className="flex items-center justify-end gap-2">
+                    <Link href={`/dashboard/events/${event.id}`} aria-label={`Manage ${event.title}`} className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-white/10">
+                        <MoreHorizontal className="h-4 w-4" />
                     </Link>
                 </div>
             </td>

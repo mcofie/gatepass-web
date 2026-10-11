@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 import { calculateFees } from '@/utils/fees'
-import { ChevronLeft, ChevronRight, Loader2, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { TransactionDetailModal } from '@/components/admin/TransactionDetailModal'
@@ -127,29 +127,62 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
     const totalPages = Math.ceil(count / ITEMS_PER_PAGE)
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
+        <div className="space-y-7 pb-16">
+            <div>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Sales History</h1>
-                    <p className="text-gray-500 mt-2 dark:text-gray-400">View and manage all your ticket sales.</p>
-                </div>
-                <div className="hidden">
-                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <Download className="w-4 h-4" />
-                        Export
-                    </button>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                    <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Sales</h1>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Review ticket purchases and open a transaction for details.</p>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
+                    <div>
+                        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Transactions</h2>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{count} completed sale{count === 1 ? '' : 's'}</p>
+                    </div>
+                </div>
+                <div className="divide-y divide-gray-100 sm:hidden dark:divide-white/10">
+                    {loading && sales.length === 0 ? (
+                        <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
+                    ) : sales.length === 0 ? (
+                        <div className="px-5 py-16 text-center"><p className="font-medium text-gray-900 dark:text-white">No sales yet</p><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Completed purchases will appear here.</p></div>
+                    ) : sales.map(sale => {
+                        const reservation = sale.reservations
+                        return (
+                            <button
+                                key={sale.id}
+                                type="button"
+                                onClick={() => { setSelectedTransaction(sale); setIsDetailOpen(true) }}
+                                className="w-full px-5 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{reservation?.profiles?.full_name || reservation?.guest_name || 'Guest'}</p>
+                                        <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{reservation?.events?.title} · {reservation?.ticket_tiers?.name}</p>
+                                    </div>
+                                    <div className="shrink-0 text-right">
+                                        <p className="text-[11px] text-gray-500 dark:text-gray-400">Paid</p>
+                                        <p className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{formatCurrency(sale.amount, sale.currency)}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                                    <span>{formatDateTime(sale.created_at)}</span>
+                                    <span>View details →</span>
+                                </div>
+                            </button>
+                        )
+                    })}
+                </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
+                    <table className="hidden min-w-[760px] w-full text-left text-sm sm:table">
+                        <thead className="border-b border-gray-100 bg-gray-50/70 text-xs font-medium text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
                             <tr>
                                 <th className="px-6 py-4">Date</th>
                                 <th className="px-6 py-4">Guest</th>
                                 <th className="px-6 py-4">Event & Ticket</th>
-                                <th className="px-6 py-4">Add-ons</th>
+                                <th className="hidden px-6 py-4 xl:table-cell">Add-ons</th>
                                 <th className="px-6 py-4 text-center">Qty</th>
                                 <th className="px-6 py-4 text-right">Net Earnings</th>
                             </tr>
@@ -230,14 +263,25 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                         : sale.amount - finalPlatformFee - finalProcessorFee  // Organizer bears: pays both
 
                                     // purchasedAddons already defined above
-                                    const hasAddons = Object.keys(purchasedAddons).length > 0
+                                    const visibleAddons = Object.entries(purchasedAddons).filter(([, qty]) => Number(qty) > 0)
+                                    const hasAddons = visibleAddons.length > 0
 
                                     return (
                                         <tr
                                             key={sale.id}
+                                            tabIndex={0}
+                                            role="button"
+                                            aria-label={`Open transaction for ${r?.profiles?.full_name || r?.guest_name || 'Guest'}`}
                                             onClick={() => {
                                                 setSelectedTransaction(sale)
                                                 setIsDetailOpen(true)
+                                            }}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                    event.preventDefault()
+                                                    setSelectedTransaction(sale)
+                                                    setIsDetailOpen(true)
+                                                }
                                             }}
                                             className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group cursor-pointer"
                                         >
@@ -261,10 +305,10 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                                     <span className="text-gray-500 dark:text-gray-400 text-xs">{tier?.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="hidden px-6 py-4 xl:table-cell">
                                                 {hasAddons ? (
                                                     <div className="space-y-1">
-                                                        {Object.entries(purchasedAddons).map(([id, qty]) => (
+                                                        {visibleAddons.map(([id, qty]) => (
                                                             <div key={id} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
                                                                 <span className="font-medium bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{qty as number}x</span>
                                                                 <span>{addonMap[id] || 'Add-on'}</span>
@@ -279,8 +323,8 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                                 {quantity}
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <span className="font-bold text-green-600 dark:text-green-400 tabular-nums">
-                                                    +{formatCurrency(organizerPayout, sale.currency)}
+                                                <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
+                                                    {formatCurrency(organizerPayout, sale.currency)}
                                                 </span>
                                             </td>
                                         </tr>
@@ -289,7 +333,8 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                             ) : (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-24 text-center text-gray-400">
-                                        No sales found.
+                                        <div className="font-medium text-gray-900 dark:text-white">No sales yet</div>
+                                        <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Completed ticket purchases will appear here.</div>
                                     </td>
                                 </tr>
                             )}
@@ -299,7 +344,7 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
 
                 {/* Pagination */}
                 {count > 0 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-white/10 bg-gray-50/30 dark:bg-white/5">
+                    <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/10">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Showing <span className="font-medium">{Math.min(count, page * ITEMS_PER_PAGE + 1)}</span> to <span className="font-medium">{Math.min(count, (page + 1) * ITEMS_PER_PAGE)}</span> of <span className="font-medium">{count}</span> results
                         </p>

@@ -99,14 +99,14 @@ export function SettlementSettings({ organizer }: { organizer: any }) {
 
     return (
         <div
-            className="max-w-2xl bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
+            className="max-w-2xl bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
             <div className="flex items-center gap-3 mb-6">
                 <div
                     className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-500">
                     <Building className="w-5 h-5" />
                 </div>
                 <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Settlement Account</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Settlement Account</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Where should we send your payouts?</p>
                 </div>
             </div>
@@ -135,11 +135,11 @@ export function SettlementSettings({ organizer }: { organizer: any }) {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Bank Name</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Bank Name</label>
                         <select
                             value={selectedBankCode}
                             onChange={e => setSelectedBankCode(e.target.value)}
-                            className="w-full h-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all appearance-none"
+                            className="w-full h-12 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all appearance-none"
                         >
                             <option value="">Select Bank</option>
                             {banks.map((bank, i) => (
@@ -150,25 +150,25 @@ export function SettlementSettings({ organizer }: { organizer: any }) {
                         </select>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Account
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Account
                             Number</label>
                         <Input
                             value={accountNumber}
                             onChange={e => setAccountNumber(e.target.value)}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white"
                             placeholder="0123456789"
                         />
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Account Name
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Account Name
                         (Auto-verified)</label>
                     <div className="relative">
                         <Input
                             value={businessName}
                             readOnly
-                            className="h-12 bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white cursor-not-allowed text-gray-500"
+                            className="h-12 bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white cursor-not-allowed text-gray-500"
                             placeholder="Will appear after verification"
                         />
                         {verifying && (
@@ -188,7 +188,7 @@ export function SettlementSettings({ organizer }: { organizer: any }) {
                     <Button
                         type="submit"
                         disabled={loading || !isVerified || verifying}
-                        className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
+                        className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all "
                     >
                         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         {paystackCode ? 'Update Details' : 'Connect Account'}

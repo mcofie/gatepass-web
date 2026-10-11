@@ -198,104 +198,123 @@ export function TicketTierCard({
         onEditCancel()
     }
 
+    const editInputClass = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white'
+    const editLabelClass = 'mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300'
+
     return (
         <div
             ref={setNodeRef}
             style={style}
-            className="group bg-white dark:bg-[#111] border border-gray-100 dark:border-white/10 rounded-3xl p-6 hover:shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-all duration-300"
+            className="group rounded-2xl border border-gray-200 bg-white p-4 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-[#111] dark:hover:border-white/20 sm:p-5"
         >
             {isEditing ? (
-                <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-5">
+                    <div>
+                        <h3 className="text-base font-semibold text-gray-950 dark:text-white">Edit ticket type</h3>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Update the ticket details shown at checkout.</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Name</label>
+                            <label htmlFor={`ticket-name-${tier.id}`} className={editLabelClass}>Name</label>
                             <input
+                                id={`ticket-name-${tier.id}`}
                                 value={editForm.name}
                                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
-                                placeholder="Ticket Name"
+                                className={editInputClass}
+                                placeholder="Ticket name"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Price</label>
+                            <label htmlFor={`ticket-price-${tier.id}`} className={editLabelClass}>Price ({event.currency || 'GHS'})</label>
                             <input
+                                id={`ticket-price-${tier.id}`}
                                 type="number"
+                                min={0}
+                                step="0.01"
                                 value={editForm.price}
                                 onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                className={editInputClass}
                                 placeholder="0.00"
                             />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Total Qty</label>
+                            <label htmlFor={`ticket-quantity-${tier.id}`} className={editLabelClass}>Total quantity</label>
                             <input
+                                id={`ticket-quantity-${tier.id}`}
                                 type="number"
+                                min={0}
                                 value={editForm.total_quantity}
                                 onChange={e => setEditForm({ ...editForm, total_quantity: parseInt(e.target.value) })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                className={editInputClass}
                                 placeholder="100"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Max / Order</label>
+                            <label htmlFor={`ticket-limit-${tier.id}`} className={editLabelClass}>Maximum per order</label>
                             <input
+                                id={`ticket-limit-${tier.id}`}
                                 type="number"
+                                min={1}
                                 disabled={editForm.is_virtual}
                                 value={editForm.is_virtual ? 1 : editForm.max_per_order}
                                 onChange={e => setEditForm({ ...editForm, max_per_order: parseInt(e.target.value) })}
-                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white disabled:opacity-50"
+                                className={editInputClass}
                                 placeholder="10"
                             />
                         </div>
                     </div>
 
                     {/* Virtual Ticket / Livestream Options */}
-                    <div className="border-t border-gray-100 dark:border-white/10 pt-4 space-y-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="space-y-4 border-t border-gray-100 pt-5 dark:border-white/10">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
                             <input
                                 type="checkbox"
                                 checked={editForm.is_virtual}
                                 onChange={e => setEditForm({ ...editForm, is_virtual: e.target.checked })}
-                                className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-indigo-600 focus:ring-indigo-500/20"
+                                className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black dark:border-white/20"
                             />
-                            <span className="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white">
-                                Virtual / Remote Access Ticket
-                            </span>
+                            <span>Virtual or livestream ticket</span>
                         </label>
 
                         {editForm.is_virtual && (
-                            <div className="space-y-3 bg-zinc-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/50 p-4 dark:border-white/10 dark:bg-white/5">
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Livestream URL</label>
+                                    <label htmlFor={`ticket-stream-url-${tier.id}`} className={editLabelClass}>Livestream URL</label>
                                     <input
+                                        id={`ticket-stream-url-${tier.id}`}
                                         value={editForm.virtual_link}
                                         onChange={e => setEditForm({ ...editForm, virtual_link: e.target.value })}
-                                        className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-xs text-gray-900 dark:text-white placeholder:font-medium"
+                                        className={editInputClass}
                                         placeholder="e.g. YouTube Live, Zoom link"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Streaming Instructions</label>
+                                    <label htmlFor={`ticket-stream-instructions-${tier.id}`} className={editLabelClass}>Access instructions</label>
                                     <textarea
+                                        id={`ticket-stream-instructions-${tier.id}`}
                                         value={editForm.virtual_instructions}
                                         onChange={e => setEditForm({ ...editForm, virtual_instructions: e.target.value })}
-                                        className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-medium text-xs text-gray-900 dark:text-white min-h-[60px] resize-none"
+                                        className="min-h-20 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                         placeholder="e.g. Zoom passcode, access start times..."
                                     />
                                 </div>
                             </div>
                         )}
                     </div>
+                    <details className="rounded-xl border border-gray-200 dark:border-white/10">
+                        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">More ticket settings <span className="font-normal text-gray-500 dark:text-gray-400">· Perks, tags, discounts and payment plans</span></summary>
+                        <div className="space-y-5 border-t border-gray-100 p-4 dark:border-white/10">
                     <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Perks</label>
+                        <label className={editLabelClass}>Perks</label>
                         <div className="space-y-2 mb-2">
                             {editForm.perks?.map((perk: string, i: number) => (
-                                <div key={i} className="flex items-center justify-between bg-gray-50 dark:bg-white/5 p-2 rounded-lg text-sm font-bold dark:text-gray-300">
+                                <div key={i} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:text-gray-300">
                                     <span>{perk}</span>
                                     <button
                                         type="button"
+                                        aria-label={`Remove perk ${perk}`}
                                         onClick={() => setEditForm({ ...editForm, perks: editForm.perks.filter((_, idx) => idx !== i) })}
                                         className="text-gray-400 hover:text-red-500"
                                     >
@@ -317,33 +336,35 @@ export function TicketTierCard({
                                         }
                                     }
                                 }}
-                                className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                className={`${editInputClass} min-w-0 flex-1`}
                                 placeholder="Add a perk..."
                             />
                             <button
                                 type="button"
+                                aria-label="Add perk"
                                 onClick={() => {
                                     if (editPerk.trim()) {
                                         setEditForm({ ...editForm, perks: [...(editForm.perks || []), editPerk.trim()] })
                                         setEditPerk('')
                                     }
                                 }}
-                                className="bg-black dark:bg-white text-white dark:text-black p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tags (e.g. VIP, Early Bird)</label>
+                        <label className={editLabelClass}>Tags</label>
                         <div className="flex flex-wrap gap-1.5 mb-2">
                             {editForm.tags?.map((tag: string, i: number) => (
-                                <div key={i} className="flex items-center gap-1.5 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100/50 dark:border-indigo-500/20 px-2.5 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                <div key={i} className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-white/10 dark:text-gray-300">
                                     <span>{tag}</span>
                                     <button
                                         type="button"
+                                        aria-label={`Remove tag ${tag}`}
                                         onClick={() => setEditForm({ ...editForm, tags: editForm.tags.filter((_, idx) => idx !== i) })}
-                                        className="text-indigo-400 hover:text-red-500 transition-colors"
+                                        className="text-gray-400 transition-colors hover:text-red-500"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
@@ -363,55 +384,56 @@ export function TicketTierCard({
                                         }
                                     }
                                 }}
-                                className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                className={`${editInputClass} min-w-0 flex-1`}
                                 placeholder="Add a tag..."
                             />
                             <button
                                 type="button"
+                                aria-label="Add tag"
                                 onClick={() => {
                                     if (editTag.trim()) {
                                         setEditForm({ ...editForm, tags: [...(editForm.tags || []), editTag.trim()] })
                                         setEditTag('')
                                     }
                                 }}
-                                className="bg-black dark:bg-white text-white dark:text-black p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Description</label>
+                        <label className={editLabelClass}>Description</label>
                         <textarea
                             value={editForm.description}
                             onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-medium text-sm text-gray-900 dark:text-white min-h-[80px] resize-none"
+                            className="min-h-24 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                             placeholder="Ticket description..."
                         />
                     </div>
 
                     {/* Quantity Discount Section */}
                     <div className="border-t border-gray-100 dark:border-white/10 pt-4 mt-2">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Quantity Discount (Optional)</label>
+                        <p className="mb-3 text-sm font-medium text-gray-900 dark:text-white">Quantity discount</p>
                         <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Min Qty</label>
+                                    <label className={editLabelClass}>Minimum quantity</label>
                                     <input
                                         type="number"
                                         min={1}
                                         value={editForm.min_quantity}
                                         onChange={e => setEditForm({ ...editForm, min_quantity: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                        className={editInputClass}
                                         placeholder="e.g. 5"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Discount Type</label>
+                                    <label className={editLabelClass}>Discount type</label>
                                     <select
                                         value={editForm.discount_type}
                                         onChange={e => setEditForm({ ...editForm, discount_type: e.target.value as 'percentage' | 'fixed' | '' })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                        className={editInputClass}
                                     >
                                         <option value="">None</option>
                                         <option value="percentage">Percentage (%)</option>
@@ -421,7 +443,7 @@ export function TicketTierCard({
                             </div>
                             {editForm.discount_type && (
                                 <div className="animate-in fade-in duration-200">
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                                    <label className={editLabelClass}>
                                         {editForm.discount_type === 'percentage' ? 'Discount Percentage (%)' : `Discount Value (${event.currency || 'GHS'})`}
                                     </label>
                                     <input
@@ -430,7 +452,7 @@ export function TicketTierCard({
                                         step="any"
                                         value={editForm.discount_value}
                                         onChange={e => setEditForm({ ...editForm, discount_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                        className={editInputClass}
                                         placeholder={editForm.discount_type === 'percentage' ? 'e.g. 10' : 'e.g. 20'}
                                     />
                                 </div>
@@ -448,51 +470,51 @@ export function TicketTierCard({
                                     onChange={e => setEditForm({ ...editForm, allow_instalments: e.target.checked })}
                                     className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-amber-500 focus:ring-amber-500/20"
                                 />
-                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                                <span className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-white">
                                     <CalendarClock className="w-3.5 h-3.5" />
-                                    Allow Instalment Payments
+                                    Allow instalment payments
                                 </span>
                             </label>
                         </div>
 
                         {editForm.allow_instalments && (
-                            <div className="bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="grid grid-cols-3 gap-3">
+                            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                     <div>
-                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-1">No. of Payments</label>
+                                        <label className={editLabelClass}>Payments</label>
                                         <input
                                             type="number"
                                             min={2}
                                             max={12}
                                             value={instalmentConfig.num_instalments}
                                             onChange={e => setInstalmentConfig({ ...instalmentConfig, num_instalments: parseInt(e.target.value) || 2 })}
-                                            className="w-full bg-white dark:bg-white/5 border-amber-200 dark:border-amber-500/20 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                            className={editInputClass}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-1">Upfront %</label>
+                                        <label className={editLabelClass}>Upfront %</label>
                                         <input
                                             type="number"
                                             min={10}
                                             max={90}
                                             value={instalmentConfig.initial_percent}
                                             onChange={e => setInstalmentConfig({ ...instalmentConfig, initial_percent: parseInt(e.target.value) || 50 })}
-                                            className="w-full bg-white dark:bg-white/5 border-amber-200 dark:border-amber-500/20 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                            className={editInputClass}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-1">Days Between</label>
+                                        <label className={editLabelClass}>Days between</label>
                                         <input
                                             type="number"
                                             min={1}
                                             max={90}
                                             value={instalmentConfig.deadline_days}
                                             onChange={e => setInstalmentConfig({ ...instalmentConfig, deadline_days: parseInt(e.target.value) || 7 })}
-                                            className="w-full bg-white dark:bg-white/5 border-amber-200 dark:border-amber-500/20 rounded-lg p-2 font-bold text-sm text-gray-900 dark:text-white"
+                                            className={editInputClass}
                                         />
                                     </div>
                                 </div>
-                                <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
                                     Buyers will pay {instalmentConfig.initial_percent}% upfront, then the rest in {instalmentConfig.num_instalments - 1} payment(s) every {instalmentConfig.deadline_days} day(s).
                                     {editForm.price > 0 && (
                                         <> First payment: <strong>{formatCurrency(editForm.price * instalmentConfig.initial_percent / 100, event.currency)}</strong></>
@@ -502,44 +524,48 @@ export function TicketTierCard({
                         )}
                     </div>
 
-                    <div className="flex justify-end gap-2">
-                        <button onClick={onEditCancel} className="px-4 py-2 text-sm text-gray-500 font-bold">Cancel</button>
-                        <button onClick={handleSave} className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg text-sm font-bold flex items-center gap-2">
+                        </div>
+                    </details>
+
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-white/10">
+                        <button type="button" onClick={onEditCancel} className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 dark:border-white/10 dark:text-gray-300">Cancel</button>
+                        <button type="button" onClick={handleSave} className="flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white dark:bg-white dark:text-black">
                             <Check className="w-4 h-4" /> Save
                         </button>
                     </div>
                 </div>
             ) : (
-                <div className="flex justify-between items-start">
-                    <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 gap-2">
                         {/* Drag Handle */}
                         {!isStaff && (
                             <div
                                 {...attributes}
                                 {...listeners}
-                                className="mt-1 -ml-2 p-1.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg transition-colors self-start"
+                                className="-ml-2 cursor-grab self-start rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700 active:cursor-grabbing dark:hover:bg-white/5"
+                                aria-label={`Reorder ${tier.name}`}
                             >
-                                <GripVertical className="w-5 h-5" />
+                                <GripVertical className="h-4 w-4" />
                             </div>
                         )}
-                        <div>
-                            <div className="flex items-center gap-3 mb-1">
-                                <h3 className={`font-bold text-xl ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>{tier.name}</h3>
-                                <span className="px-2.5 py-0.5 bg-gray-100 dark:bg-white/10 rounded-full text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                    {tier.quantity_sold} / {tier.total_quantity} Sold
+                        <div className="min-w-0">
+                            <h3 className={`text-base font-semibold leading-snug ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-950 dark:text-white'}`}>{tier.name}</h3>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
+                                    {tier.quantity_sold} of {tier.total_quantity} sold
                                 </span>
                                 {tier.is_virtual && (
-                                    <span className="px-2.5 py-0.5 bg-purple-50 dark:bg-purple-500/10 rounded-full text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+                                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                         Virtual
                                     </span>
                                 )}
                                 {tier.is_visible === false && (
-                                    <span className="px-2.5 py-0.5 bg-red-50 dark:bg-red-500/10 rounded-full text-xs font-bold text-red-500 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                         <EyeOff className="w-3 h-3" /> Hidden
                                     </span>
                                 )}
                                 {tier.allow_instalments && (
-                                    <span className="px-2.5 py-0.5 bg-amber-50 dark:bg-amber-500/10 rounded-full text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                         <CalendarClock className="w-3 h-3" />
                                         {tier.payment_plans && tier.payment_plans.length > 0 && tier.payment_plans.find((p: PaymentPlan) => p.is_active)
                                             ? `Pay in ${tier.payment_plans.find((p: PaymentPlan) => p.is_active)!.num_instalments} · ${tier.payment_plans.find((p: PaymentPlan) => p.is_active)!.initial_percent}% upfront`
@@ -548,43 +574,46 @@ export function TicketTierCard({
                                     </span>
                                 )}
                                 {tier.min_quantity && tier.discount_value && (
-                                    <span className="px-2.5 py-0.5 bg-green-50 dark:bg-green-500/10 rounded-full text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-wide flex items-center gap-1">
+                                    <span className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                         Buy {tier.min_quantity}+ get {tier.discount_type === 'percentage' ? `${tier.discount_value}%` : formatCurrency(tier.discount_value, event.currency)} off
                                     </span>
                                 )}
                                 {tier.tags && tier.tags.map((tag, idx) => (
-                                    <span key={idx} className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">
+                                    <span key={idx} className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                         {tag}
                                     </span>
                                 ))}
                             </div>
-                            <p className={`text-sm max-w-md ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{tier.description}</p>
+                            {tier.description && <p className={`mt-2 max-w-2xl text-sm ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{tier.description}</p>}
                         </div>
                     </div>
-                    <div className="text-right">
-                        <div className={`text-2xl font-bold mb-2 ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                    <div className="flex shrink-0 items-center justify-between gap-3 pl-6 sm:flex-col sm:items-end sm:gap-1 sm:pl-0">
+                        <div className={`text-lg font-semibold tracking-tight ${tier.is_visible === false ? 'text-gray-400 dark:text-gray-500' : 'text-gray-950 dark:text-white'}`}>
                             {formatCurrency(tier.price, event.currency)}
                         </div>
                         {!isStaff && (
-                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center justify-end gap-1">
                                 <button
                                     onClick={() => onToggleVisibility(tier.id, tier.is_visible !== false)}
-                                    className={`p-2 rounded-lg transition-colors ${tier.is_visible === false
+                                    className={`rounded-lg p-2 transition-colors ${tier.is_visible === false
                                         ? 'hover:bg-green-50 dark:hover:bg-green-500/10 text-gray-400 hover:text-green-500'
                                         : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-600'}`}
                                     title={tier.is_visible === false ? 'Show on event page' : 'Hide from event page'}
+                                    aria-label={tier.is_visible === false ? `Show ${tier.name} on event page` : `Hide ${tier.name} from event page`}
                                 >
                                     {tier.is_visible === false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                 </button>
                                 <button
                                     onClick={onEditStart}
                                     className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                    aria-label={`Edit ${tier.name}`}
                                 >
                                     <Edit2 className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={() => onDelete(tier.id)}
                                     className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                                    aria-label={`Delete ${tier.name}`}
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -597,10 +626,10 @@ export function TicketTierCard({
 
             {
                 !isEditing && (
-                    <div className="mt-6 h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
+                    <div className="mt-4 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
                         <div
                             className="h-full bg-black dark:bg-white rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${(tier.quantity_sold / tier.total_quantity) * 100}%` }}
+                            style={{ width: `${tier.total_quantity > 0 ? Math.min(100, (tier.quantity_sold / tier.total_quantity) * 100) : 0}%` }}
                         />
                     </div>
                 )

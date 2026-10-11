@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Search, Mail, Phone, ShoppingBag, TrendingUp, User, Filter, Download } from 'lucide-react'
+import { Search, Mail, Phone, User, Download } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { toast } from 'sonner'
 import { exportToCSV } from '@/utils/export'
@@ -35,13 +35,11 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user) throw new Error('No user')
 
-                let orgId = organizationId
-
                 let query = supabase
                     .schema('gatepass')
                     .from('customer_stats')
                     .select('*')
-                    .eq('organization_id', orgId) // Filter by Org
+                    .eq('organization_id', organizationId)
                     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
                 if (searchQuery) {
@@ -76,7 +74,7 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
         }, 300)
 
         return () => clearTimeout(timeoutId)
-    }, [page, searchQuery, sortBy])
+    }, [organizationId, page, searchQuery, sortBy])
 
     // Client-side filtering removed in favor of server-side
     // But for export we might want to export ALL? 
@@ -97,40 +95,42 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
     }
 
     return (
-        <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
-            <div className="flex justify-between items-end">
+        <div className="mx-auto max-w-[1180px] space-y-7 pb-16">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Customer Database</h1>
-                    <p className="text-gray-500 mt-2 dark:text-gray-400">View your top spenders and loyal attendees.</p>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                    <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Customers</h1>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">People who have bought tickets to your events.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <Download className="w-4 h-4" /> Export CSV
+                    <button onClick={handleExport} disabled={loading || customers.length === 0} className="flex h-11 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-[#111] dark:text-white dark:hover:bg-white/5">
+                        <Download className="w-4 h-4" /> Export page
                     </button>
                 </div>
             </div>
 
             {/* Filter Bar */}
-            <div className="flex gap-4 items-center">
-                <div className="relative flex-1 max-w-md">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative w-full sm:max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search by name or email..."
+                        onChange={(e) => { setSearchQuery(e.target.value); setPage(0) }}
+                        placeholder="Search name or email"
+                        aria-label="Search customers by name or email"
                         className="w-full pl-10 h-10 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] dark:text-white text-sm outline-none focus:border-black dark:focus:border-white transition-all"
                     />
                 </div>
                 <div className="flex items-center gap-2 bg-white dark:bg-[#111] p-1 rounded-lg border border-gray-200 dark:border-white/10">
                     <button
-                        onClick={() => setSortBy('spend')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${sortBy === 'spend' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                        onClick={() => { setSortBy('spend'); setPage(0) }}
+                        className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:flex-none ${sortBy === 'spend' ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         Top Spenders
                     </button>
                     <button
-                        onClick={() => setSortBy('recent')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${sortBy === 'recent' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                        onClick={() => { setSortBy('recent'); setPage(0) }}
+                        className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:flex-none ${sortBy === 'recent' ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                         Recently Active
                     </button>
@@ -138,14 +138,47 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden min-h-[400px]">
-                <table className="w-full text-left text-sm">
+            <div className="min-h-[320px] overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                <div className="border-b border-gray-100 px-5 py-4 dark:border-white/10">
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Customer list</h2>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{loading ? 'Loading customers' : `${customers.length} on this page`}</p>
+                </div>
+                <div className="divide-y divide-gray-100 sm:hidden dark:divide-white/10">
+                    {loading ? (
+                        Array.from({ length: 4 }).map((_, index) => (
+                            <div key={index} className="space-y-3 p-5">
+                                <Skeleton className="h-4 w-36 bg-gray-200" />
+                                <Skeleton className="h-3 w-48 bg-gray-100" />
+                                <Skeleton className="h-3 w-24 bg-gray-100" />
+                            </div>
+                        ))
+                    ) : filteredCustomers.map(customer => (
+                        <div key={customer.email} className="space-y-4 p-5">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                                    {customer.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{customer.name}</p>
+                                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{customer.email}</p>
+                                    {customer.phone && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{customer.phone}</p>}
+                                </div>
+                            </div>
+                            <div className="flex items-end justify-between border-t border-gray-100 pt-3 text-xs dark:border-white/10">
+                                <span className="text-gray-500 dark:text-gray-400">{customer.tickets_bought} {customer.tickets_bought === 1 ? 'order' : 'orders'} · Last seen {new Date(customer.last_seen).toLocaleDateString()}</span>
+                                <span className="shrink-0 pl-2 font-semibold text-gray-900 dark:text-white">{formatCurrency(customer.total_spent, 'GHS')}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="hidden overflow-x-auto sm:block">
+                <table className="w-full min-w-[680px] text-left text-sm">
                     <thead className="bg-gray-50/50 dark:bg-white/5 border-b border-gray-100 dark:border-white/10 text-gray-500 dark:text-gray-400 font-medium">
                         <tr>
                             <th className="px-6 py-4">Customer</th>
                             <th className="px-6 py-4">Contact</th>
                             <th className="px-6 py-4 text-right">Last Seen</th>
-                            <th className="px-6 py-4 text-right">LTV (Total Spend)</th>
+                            <th className="px-6 py-4 text-right">Total spent</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-white/10">
@@ -180,10 +213,10 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
                                 <tr key={c.email} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-300 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-colors">
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
                                                 {c.name.charAt(0)}
                                             </div>
-                                            <span className="font-bold text-gray-900 dark:text-white">{c.name}</span>
+                                            <span className="font-semibold text-gray-900 dark:text-white">{c.name}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
@@ -202,9 +235,9 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
                                         {new Date(c.last_seen).toLocaleDateString()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(c.total_spent, 'GHS')}</div>
-                                        <div className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mt-0.5">
-                                            {c.tickets_bought} Orders
+                                        <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(c.total_spent, 'GHS')}</div>
+                                        <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                            {c.tickets_bought} {c.tickets_bought === 1 ? 'order' : 'orders'}
                                         </div>
                                     </td>
                                 </tr>
@@ -212,10 +245,12 @@ export function CustomerCRM({ organizationId }: { organizationId: string }) {
                         )}
                     </tbody>
                 </table>
-                {filteredCustomers.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                        <User className="w-12 h-12 mb-4 opacity-20" />
-                        <p>No customers found</p>
+                </div>
+                {!loading && filteredCustomers.length === 0 && (
+                    <div className="flex h-56 flex-col items-center justify-center px-6 text-center text-gray-500 dark:text-gray-400">
+                        <User className="mb-3 h-6 w-6" />
+                        <p className="font-medium text-gray-900 dark:text-white">{searchQuery ? 'No matching customers' : 'No customers yet'}</p>
+                        <p className="mt-1 text-sm">{searchQuery ? 'Try another name or email.' : 'Ticket buyers will appear here.'}</p>
                     </div>
                 )}
             </div>

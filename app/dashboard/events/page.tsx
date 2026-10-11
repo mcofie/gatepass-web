@@ -31,8 +31,8 @@ export default async function AdminEventsPage() {
             .maybeSingle()
 
         if (explicitOrg) {
-            resolvedOrgId = explicitOrg.id
             if (explicitOrg.user_id === user.id) {
+                resolvedOrgId = explicitOrg.id
                 role = 'Owner'
             } else {
                 // Check team role for this specific org
@@ -43,7 +43,12 @@ export default async function AdminEventsPage() {
                     .eq('organization_id', activeOrgId)
                     .eq('user_id', user.id)
                     .maybeSingle()
-                if (teamRole) role = teamRole.role.charAt(0).toUpperCase() + teamRole.role.slice(1)
+                if (teamRole) {
+                    resolvedOrgId = explicitOrg.id
+                    role = teamRole.role.charAt(0).toUpperCase() + teamRole.role.slice(1)
+                } else {
+                    resolvedOrgId = undefined
+                }
             }
         } else {
             // Check if user is part of this org team
@@ -220,20 +225,13 @@ export default async function AdminEventsPage() {
         })
 
         return (
-            <div className="max-w-7xl mx-auto pb-24">
+            <div className="mx-auto max-w-[1180px]">
                 <EventsClient events={enrichedEvents} role={role} />
             </div>
         )
 
     } catch (error: any) {
         console.error('Fatal Dashboard Error:', error)
-        return (
-            <div className="p-8 text-center">
-                <div className="text-red-500 font-bold mb-2">Failed to load events</div>
-                <pre className="text-xs text-left bg-gray-100 p-4 rounded overflow-auto max-w-lg mx-auto">
-                    {error.message || JSON.stringify(error)}
-                </pre>
-            </div>
-        )
+        return <div className="mx-auto max-w-[1180px] rounded-2xl border border-gray-200 bg-white p-8 text-center dark:border-white/10 dark:bg-[#111]"><h1 className="text-xl font-semibold">Events are unavailable</h1><p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Please refresh the page and try again.</p></div>
     }
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Upload, X, FileVideo, Image as ImageIcon, Loader2, CheckCircle2 } from 'lucide-react'
+import { X, FileVideo, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import clsx from 'clsx'
 import { transcoder } from '@/utils/transcode'
@@ -183,7 +183,7 @@ export function MediaUploader({
                             type="button"
                             aria-label="Remove uploaded image"
                             onClick={() => onChange('')}
-                            className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity hover:bg-black"
+                            className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-lg bg-black/75 text-white transition-colors hover:bg-black"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -197,8 +197,10 @@ export function MediaUploader({
                 <video src={value} className="w-full h-full object-cover" controls />
                 {!disabled && (
                     <button
+                        type="button"
+                        aria-label="Remove uploaded video"
                         onClick={() => onChange('')}
-                        className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black z-10"
+                        className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-black/75 text-white transition-colors hover:bg-black"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -211,7 +213,7 @@ export function MediaUploader({
         <div className={clsx("w-full transition-all", className)}>
             {value ? (
                 <div className={clsx(
-                    "w-full rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden relative shadow-sm hover:shadow-md transition-shadow",
+                    "relative w-full overflow-hidden rounded-xl border border-gray-200 dark:border-white/10",
                     aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : ''
                 )}>
                     {renderPreview()}
@@ -233,10 +235,10 @@ export function MediaUploader({
                     tabIndex={disabled || isUploading ? -1 : 0}
                     aria-label={label || `Upload ${type === 'video' ? 'video' : 'cover image'}`}
                     className={clsx(
-                        "w-full border-2 border-dashed flex flex-col items-center justify-center transition-all duration-300 group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white",
-                        compact ? 'rounded-2xl' : 'rounded-3xl',
+                        "group relative flex w-full flex-col items-center justify-center overflow-hidden border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white",
+                        'rounded-xl',
                         aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : '',
-                        isDragging ? "border-black dark:border-white bg-gray-50 dark:bg-white/10 scale-[1.02]" : "border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/30 hover:bg-gray-50/50 dark:hover:bg-white/5",
+                        isDragging ? "border-black bg-gray-50 dark:border-white dark:bg-white/10" : "border-gray-200 bg-gray-50/40 hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/30",
                         (isUploading || disabled) && "pointer-events-none opacity-80"
                     )}
                 >
@@ -278,15 +280,15 @@ export function MediaUploader({
                             </span>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-3 text-center p-6 group-hover:scale-105 transition-transform duration-300">
-                            <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-colors">
-                                {type === 'video' ? <FileVideo className="w-6 h-6" /> : <ImageIcon className="w-6 h-6" />}
+                        <div className="flex flex-col items-center gap-3 p-6 text-center">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
+                                {type === 'video' ? <FileVideo className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />}
                             </div>
                             <div>
-                                <p className="font-bold text-gray-900 dark:text-white">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
                                     {isDragging ? 'Drop to upload' : label || `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     {type === 'video' ? 'MP4, MOV (max 50MB)' : 'JPG, PNG (max 5MB)'}
                                 </p>
                             </div>

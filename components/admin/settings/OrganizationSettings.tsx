@@ -72,11 +72,11 @@ export function OrganizationSettings({ organizer, userRole }: { organizer: any, 
     }
 
     return (
-        <div className="max-w-2xl bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
-            <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">General Information</h3>
+        <div className="max-w-2xl bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
+            <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">General Information</h3>
             <form onSubmit={handleSave} className="space-y-6">
                 <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Organization Logo</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Organization Logo</label>
                     <div className={`w-32 ${!canEdit ? 'pointer-events-none opacity-80' : ''}`}>
                         <MediaUploader
                             type="image"
@@ -90,45 +90,49 @@ export function OrganizationSettings({ organizer, userRole }: { organizer: any, 
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Organization Name</label>
+                    <label htmlFor="organization-name" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Organization name</label>
                     <Input
+                        id="organization-name"
                         value={name}
                         onChange={e => setName(e.target.value)}
                         disabled={!canEdit}
-                        className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                        className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                         placeholder="My Awesome Org"
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Bio</label>
+                    <label htmlFor="organization-bio" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Bio</label>
                     <textarea
+                        id="organization-bio"
                         value={description}
                         onChange={e => setDescription(e.target.value)}
                         disabled={!canEdit}
-                        className="w-full min-h-[100px] bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 focus:border-black dark:focus:border-white/20 transition-all resize-y dark:text-white disabled:opacity-50"
+                        className="w-full min-h-[100px] bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 focus:border-black dark:focus:border-white/20 transition-all resize-y dark:text-white disabled:opacity-50"
                         placeholder="Tell us about what you do..."
                     />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Website</label>
+                        <label htmlFor="organization-website" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Website</label>
                         <Input
+                            id="organization-website"
                             value={website}
                             onChange={e => setWebsite(e.target.value)}
                             disabled={!canEdit}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                             placeholder="https://example.com"
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Slug</label>
+                        <label htmlFor="organization-slug" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Public link</label>
                         <Input
+                            id="organization-slug"
                             value={slug}
                             onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
                             disabled={!canEdit}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                             placeholder="my-org"
                         />
                     </div>
@@ -137,22 +141,24 @@ export function OrganizationSettings({ organizer, userRole }: { organizer: any, 
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">X (Twitter)</label>
+                        <label htmlFor="organization-x" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">X profile</label>
                         <Input
+                            id="organization-x"
                             value={twitter}
                             onChange={e => setTwitter(e.target.value)}
                             disabled={!canEdit}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                             placeholder="@username"
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Instagram</label>
+                        <label htmlFor="organization-instagram" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Instagram</label>
                         <Input
+                            id="organization-instagram"
                             value={instagram}
                             onChange={e => setInstagram(e.target.value)}
                             disabled={!canEdit}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                             placeholder="@username"
                         />
                     </div>
@@ -163,14 +169,14 @@ export function OrganizationSettings({ organizer, userRole }: { organizer: any, 
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
+                            className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all "
                         >
                             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Save Changes
                         </Button>
                     </div>
                 ) : (
-                    <div className="pt-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/10">
+                    <div className="pt-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">
                             You are viewing this organization in read-only mode. Only Owners and Admins can modify these settings.
                         </p>

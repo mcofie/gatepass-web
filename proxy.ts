@@ -1,7 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+    // The immersive event pages use their own header. A public visit should not
+    // wait for an authentication request before the page can render.
+    if (request.nextUrl.pathname === '/' || request.nextUrl.pathname.startsWith('/events/')) {
+        return NextResponse.next()
+    }
+
     let response = NextResponse.next({
         request: {
             headers: request.headers,

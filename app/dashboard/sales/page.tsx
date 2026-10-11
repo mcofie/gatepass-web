@@ -78,7 +78,7 @@ export default async function SalesPage() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto py-8">
+        <div className="mx-auto max-w-[1180px]">
             <AllSalesClient orgId={resolvedOrgId} />
         </div>
     )

@@ -45,37 +45,37 @@ export function MarketingSettings({ organizer, userRole }: { organizer: any, use
 
     return (
         <div className="max-w-2xl space-y-8">
-            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 p-8 shadow-sm">
+            <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
                 <div className="flex items-center gap-4 mb-8">
                     <div className="w-12 h-12 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
                         <Target className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Marketing Tracking</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Marketing Tracking</h3>
                         <p className="text-sm text-gray-500">Connect your external analytics and ad platforms.</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-6">
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Meta Pixel ID</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Meta Pixel ID</label>
                         <Input
                             value={metaPixelId}
                             onChange={e => setMetaPixelId(e.target.value)}
                             disabled={!canEdit}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                             placeholder="1234567890"
                         />
                         <p className="text-[10px] text-gray-400 ml-1">Connect your Instagram and Facebook ads to track purchases.</p>
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-300 ml-1">Google Analytics 4 ID</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Google Analytics 4 ID</label>
                         <Input
                             value={ga4Id}
                             onChange={e => setGa4Id(e.target.value)}
                             disabled={!canEdit}
-                            className="h-12 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl px-4 dark:text-white disabled:opacity-50"
+                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
                             placeholder="G-XXXXXXXXXX"
                         />
                         <p className="text-[10px] text-gray-400 ml-1">Enter your GA4 Measurement ID to track visitor behavior.</p>
@@ -86,14 +86,14 @@ export function MarketingSettings({ organizer, userRole }: { organizer: any, use
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
+                                className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all "
                             >
                                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 Save Tracking IDs
                             </Button>
                         </div>
                     ) : (
-                        <div className="pt-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/10">
+                        <div className="pt-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">
                                 Only Owners and Admins can modify marketing settings.
                             </p>
@@ -102,7 +102,7 @@ export function MarketingSettings({ organizer, userRole }: { organizer: any, use
                 </form>
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-500/5 rounded-3xl p-8 border border-blue-100 dark:border-blue-500/10">
+            <div className="bg-blue-50 dark:bg-blue-500/5 rounded-2xl p-8 border border-blue-100 dark:border-blue-500/10">
                 <div className="flex items-start gap-4">
                     <div className="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center flex-shrink-0">
                         <BarChart3 className="w-5 h-5" />

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Search, Download, Calendar, DollarSign, User, Mail, Phone, Clock, CheckCircle2, AlertCircle, X, ChevronRight, Hash, ArrowUpRight, MessageSquare, Loader2, Send } from 'lucide-react'
+import { Search, Download, Calendar, Mail, Phone, CheckCircle2, X, ChevronRight, MessageSquare, Loader2, Send } from 'lucide-react'
 import { generateCSV, downloadCSV } from '@/utils/analytics'
 import { sendManualSMS } from '@/app/actions/communications'
 import { toast } from 'sonner'
 import clsx from 'clsx'
 import { formatCurrency } from '@/utils/format'
-import { Event, PaymentPlan, InstalmentReservation } from '@/types/gatepass'
+import { Event } from '@/types/gatepass'
 
 interface InstalmentsTabProps {
     event: Event
@@ -160,166 +160,144 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="space-y-5 animate-in fade-in duration-200">
+            <div>
+                <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Instalments</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Track payment plans and outstanding balances.</p>
+            </div>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Total Committed</span>
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                            <DollarSign className="w-5 h-5" />
-                        </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                {[
+                    { label: 'Committed', value: stats.totalExpected, detail: 'Across payment plans' },
+                    { label: 'Paid to date', value: stats.totalPaid, detail: 'Collected so far' },
+                    { label: 'Remaining', value: stats.totalBalance, detail: 'Yet to be paid' },
+                ].map((metric) => (
+                    <div key={metric.label} className="col-span-1 min-w-0 rounded-2xl border border-gray-200 bg-white p-4 first:col-span-2 dark:border-white/10 dark:bg-[#111] md:first:col-span-1 sm:p-5">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{metric.label}</p>
+                        <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white" title={formatCurrency(metric.value, event.currency || 'GHS')}>{loading && page === 0 ? 'Loading…' : formatCurrency(metric.value, event.currency || 'GHS')}</p>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{count > reservations.length ? 'On this page' : metric.detail}</p>
                     </div>
-                    <div className="text-4xl font-black text-gray-900 dark:text-white tracking-tight mb-2">
-                        {formatCurrency(stats.totalExpected, event.currency || 'GHS')}
-                    </div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Across all plans</div>
-                </div>
-
-                <div className="bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Total Paid</span>
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                            <CheckCircle2 className="w-5 h-5" />
-                        </div>
-                    </div>
-                    <div className="text-4xl font-black text-gray-900 dark:text-white tracking-tight mb-2">
-                        {formatCurrency(stats.totalPaid, event.currency || 'GHS')}
-                    </div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Realized Revenue</div>
-                </div>
-
-                <div className="bg-white dark:bg-[#111] p-8 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="font-bold text-gray-400 uppercase tracking-widest text-[10px]">Remaining Balance</span>
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center text-orange-600 dark:text-orange-400">
-                            <Clock className="w-5 h-5" />
-                        </div>
-                    </div>
-                    <div className="text-4xl font-black text-gray-900 dark:text-white tracking-tight mb-2">
-                        {formatCurrency(stats.totalBalance, event.currency || 'GHS')}
-                    </div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Pending Settlements</div>
-                </div>
+                ))}
             </div>
 
             {/* List Table Card */}
-            <div className="bg-white dark:bg-[#111] rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
-                <div className="px-8 py-8 border-b border-gray-100 dark:border-white/10 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center border border-gray-100 dark:border-white/10 shadow-sm">
-                            <User className="w-5 h-5 text-gray-900 dark:text-white" />
-                        </div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                <div className="flex flex-col gap-4 border-b border-gray-100 p-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between lg:p-6">
+                    <div>
                         <div>
-                            <h3 className="font-bold text-xl text-gray-900 dark:text-white tracking-tight">Instalment Plans</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{count} total commitments</p>
+                            <h3 className="text-base font-semibold text-gray-950 dark:text-white">Payment plans</h3>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{count} {count === 1 ? 'commitment' : 'commitments'}</p>
                         </div>
                     </div>
-                    <div className="flex gap-4 w-full md:w-auto">
-                        <div className="relative flex-1 md:flex-none">
-                            <Search className="absolute left-4 top-3 w-4 h-4 text-gray-400" />
+                    <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                        <div className="relative min-w-0 flex-1 lg:flex-none">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Search customers..."
+                                placeholder="Search customers"
+                                aria-label="Search customers"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-11 pr-4 py-2.5 w-full md:w-64 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 focus:bg-white dark:focus:bg-white/10 focus:ring-2 focus:ring-black/5 dark:focus:ring-white/10 rounded-xl text-sm transition-all outline-none"
+                                className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 lg:w-64"
                             />
                         </div>
                         <button
+                            disabled={reservations.length === 0}
                             onClick={() => {
                                 const csv = generateCSV(reservations)
                                 downloadCSV(csv, `${event.slug}-instalments.csv`)
                             }}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-white dark:bg-white/5 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 active:scale-95 transition-all"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
                         >
                             <Download className="w-4 h-4 text-gray-400" />
-                            Export CSV
+                            Export page
                         </button>
                     </div>
                 </div>
 
                 {loading && page === 0 ? (
-                    <div className="p-32 text-center text-gray-500 flex flex-col items-center gap-4">
-                        <div className="w-10 h-10 border-4 border-gray-200 border-t-black dark:border-white/10 dark:border-t-white rounded-full animate-spin" />
-                        <span className="font-bold animate-pulse">Loading instalment data...</span>
+                    <div className="flex flex-col items-center gap-3 px-5 py-16 text-center text-gray-500">
+                        <div className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-black dark:border-white/10 dark:border-t-white" />
+                        <span className="text-sm">Loading payment plans…</span>
                     </div>
                 ) : displayReservations.length > 0 ? (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] border-b border-gray-100 dark:border-white/10">
+                        <table className="w-full min-w-[900px] text-left text-sm">
+                            <thead className="border-b border-gray-100 bg-gray-50/50 text-xs font-medium text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
                                 <tr>
-                                    <th className="px-10 py-5">Customer</th>
-                                    <th className="px-10 py-5">Amount</th>
-                                    <th className="px-10 py-5">Progress</th>
-                                    <th className="px-10 py-5">Remaining</th>
-                                    <th className="px-10 py-5">Timeline</th>
-                                    <th className="px-10 py-5">Status</th>
+                                    <th className="px-5 py-3 font-medium">Customer</th>
+                                    <th className="px-5 py-3 font-medium">Amount</th>
+                                    <th className="px-5 py-3 font-medium">Progress</th>
+                                    <th className="px-5 py-3 font-medium">Remaining</th>
+                                    <th className="px-5 py-3 font-medium">Next due</th>
+                                    <th className="px-5 py-3 font-medium">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                 {displayReservations.map((r) => (
-                                    <tr 
-                                        key={r.id} 
+                                    <tr
+                                        key={r.id}
                                         onClick={() => setSelectedRes(r)}
-                                        className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group cursor-pointer"
+                                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedRes(r) } }}
+                                        tabIndex={0}
+                                        aria-label={`View payment plan for ${r.contact_name || 'guest'}`}
+                                        className="group cursor-pointer transition-colors hover:bg-gray-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-black dark:hover:bg-white/5"
                                     >
-                                        <td className="px-10 py-8">
+                                        <td className="px-5 py-4">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-xs font-black text-gray-500 dark:text-gray-400 border border-gray-200/50 dark:border-white/5">
+                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500 dark:bg-white/10 dark:text-gray-400">
                                                     {(r.contact_name || 'G')[0]}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-gray-900 dark:text-white tracking-tight leading-tight group-hover:text-black dark:group-hover:text-white transition-colors">{r.contact_name || 'Guest'}</span>
+                                                    <span className="font-medium text-gray-900 dark:text-white">{r.contact_name || 'Guest'}</span>
                                                     <span className="text-xs text-gray-400">{r.contact_email}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-10 py-8">
-                                            <span className="font-bold text-gray-900 dark:text-white text-lg tracking-tight font-mono">
+                                        <td className="px-5 py-4">
+                                            <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
                                                 {formatCurrency(r.total_amount, r.currency)}
                                             </span>
                                         </td>
-                                        <td className="px-10 py-8">
+                                        <td className="px-5 py-4">
                                             <div className="flex flex-col gap-2 min-w-[160px]">
                                                 <div className="flex justify-between items-end">
-                                                    <span className="font-bold text-[10px] text-emerald-500 uppercase tracking-widest">{Math.round((r.amount_paid / r.total_amount) * 100)}% PAID</span>
-                                                    <span className="text-xs font-bold text-gray-400">{formatCurrency(r.amount_paid, r.currency)}</span>
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{r.total_amount > 0 ? Math.round((r.amount_paid / r.total_amount) * 100) : 0}% paid</span>
+                                                    <span className="text-xs text-gray-500">{formatCurrency(r.amount_paid, r.currency)}</span>
                                                 </div>
                                                 <div className="h-1.5 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
                                                     <div 
-                                                        className="h-full bg-emerald-500 transition-all duration-1000 ease-out" 
-                                                        style={{ width: `${(r.amount_paid / r.total_amount) * 100}%` }}
+                                                        className="h-full bg-black dark:bg-white"
+                                                        style={{ width: `${r.total_amount > 0 ? Math.min(100, Math.max(0, (r.amount_paid / r.total_amount) * 100)) : 0}%` }}
                                                     />
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-10 py-8">
-                                            <span className="font-bold text-orange-600 dark:text-orange-400 text-lg tracking-tight font-mono">
+                                        <td className="px-5 py-4">
+                                            <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
                                                 {formatCurrency(r.total_amount - r.amount_paid, r.currency)}
                                             </span>
                                         </td>
-                                        <td className="px-10 py-8">
+                                        <td className="px-5 py-4">
                                             {r.next_instalment_due_at ? (
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
                                                         {new Date(r.next_instalment_due_at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                                     </span>
-                                                    <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Next Due</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-sm text-gray-300 font-bold italic">Settled</span>
+                                                <span className="text-sm text-gray-500">Settled</span>
                                             )}
                                         </td>
-                                        <td className="px-10 py-8">
+                                        <td className="px-5 py-4">
                                             <div className="flex items-center justify-between">
                                                 <span className={clsx(
-                                                    "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
+                                                    "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
                                                     getStatusColor(r.status)
                                                 )}>
                                                     {r.status}
                                                 </span>
-                                                <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-black dark:group-hover:text-white transition-all transform group-hover:translate-x-1" />
+                                                <ChevronRight className="h-4 w-4 text-gray-400" />
                                             </div>
                                         </td>
                                     </tr>
@@ -328,34 +306,31 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                         </table>
                     </div>
                 ) : (
-                    <div className="p-32 text-center">
-                        <div className="w-24 h-24 bg-gray-50 dark:bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner border border-gray-100 dark:border-white/10">
-                            <DollarSign className="w-10 h-10 text-gray-200 dark:text-gray-600" />
-                        </div>
-                        <h3 className="text-gray-900 dark:text-white font-bold text-xl mb-2">No instalments found</h3>
-                        <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                    <div className="px-5 py-14 text-center">
+                        <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white">No payment plans yet</h3>
+                        <p className="mx-auto max-w-sm text-sm text-gray-500 dark:text-gray-400">
                             Instalment payment plans for this event will appear here once customers start reserving tickets.
                         </p>
                     </div>
                 )}
 
                 {count > ITEMS_PER_PAGE && (
-                    <div className="px-10 py-6 bg-gray-50/50 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex items-center justify-between">
-                        <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/10">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
                             Showing {page * ITEMS_PER_PAGE + 1}-{Math.min((page + 1) * ITEMS_PER_PAGE, count)} of {count}
                         </span>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setPage(p => Math.max(0, p - 1))}
                                 disabled={page === 0}
-                                className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-30 transition-all active:scale-95 bg-white dark:bg-[#161616]"
+                                className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
                             >
                                 Previous
                             </button>
                             <button
                                 onClick={() => setPage(p => p + 1)}
                                 disabled={(page + 1) * ITEMS_PER_PAGE >= count}
-                                className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-30 transition-all active:scale-95 bg-white dark:bg-[#161616]"
+                                className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
                             >
                                 Next
                             </button>
@@ -366,99 +341,89 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
 
             {/* DETAIL MODAL */}
             {selectedRes && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-6 pointer-events-none">
-                    <div 
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-300 pointer-events-auto"
+                <div className="pointer-events-none fixed inset-0 z-[200] flex items-end justify-center p-2 sm:items-center sm:p-5">
+                    <div
+                        className="pointer-events-auto fixed inset-0 bg-black/50"
                         onClick={() => setSelectedRes(null)}
                     />
-                    
-                    <div className="relative w-full max-w-2xl bg-white dark:bg-[#111] rounded-3xl shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-5 duration-300 pointer-events-auto">
-                        <button 
-                            onClick={() => setSelectedRes(null)}
-                            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gray-50 dark:bg-white/5 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 transition-all z-10 active:scale-90"
-                        >
-                            <X className="w-5 h-5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white" />
-                        </button>
+                    <div role="dialog" aria-modal="true" aria-label="Payment plan details" className="pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#111] sm:max-h-[calc(100dvh-2.5rem)]">
 
                         {/* Modal Header */}
-                        <div className="p-8 pb-0 flex gap-6">
-                            <div className="w-20 h-20 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 flex items-center justify-center text-4xl font-bold text-gray-300 dark:text-gray-700">
-                                {(selectedRes.contact_name || 'G')[0]}
-                            </div>
-                            <div className="flex flex-col justify-center">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{selectedRes.contact_name || 'Guest'}</h2>
+                        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-5 dark:border-white/10 sm:px-6">
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h2 className="truncate text-xl font-semibold tracking-tight text-gray-950 dark:text-white">{selectedRes.contact_name || 'Guest'}</h2>
                                     <span className={clsx(
-                                        "px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest",
+                                        "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
                                         getStatusColor(selectedRes.status)
                                     )}>
                                         {selectedRes.status}
                                     </span>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm">
-                                        <Mail className="w-3.5 h-3.5" />
+                                <div className="mt-2 flex flex-col gap-1 break-all text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 shrink-0" />
                                         {selectedRes.contact_email}
                                     </div>
                                     {selectedRes.contact_phone && (
-                                        <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm">
-                                            <Phone className="w-3.5 h-3.5" />
+                                        <div className="flex items-center gap-1.5">
+                                            <Phone className="h-3.5 w-3.5 shrink-0" />
                                             {selectedRes.contact_phone}
                                         </div>
                                     )}
                                 </div>
                             </div>
+                            <button type="button" onClick={() => setSelectedRes(null)} aria-label="Close payment plan details" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
+                                <X className="h-4 w-4" />
+                            </button>
                         </div>
 
                         {/* Modal Body */}
-                        <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            <div className="grid grid-cols-2 gap-4 mb-8">
-                                <div className="p-6 rounded-2xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Total Commit</span>
-                                    <div className="text-3xl font-black text-gray-900 dark:text-white font-mono">
+                        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+                            <div className="mb-6 grid grid-cols-2 gap-3">
+                                <div className="min-w-0 rounded-xl border border-gray-200 p-4 dark:border-white/10">
+                                    <span className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">Committed</span>
+                                    <div className="truncate text-lg font-semibold tabular-nums text-gray-950 dark:text-white" title={formatCurrency(selectedRes.total_amount, selectedRes.currency)}>
                                         {formatCurrency(selectedRes.total_amount, selectedRes.currency)}
                                     </div>
                                 </div>
-                                <div className="p-6 rounded-2xl bg-emerald-50/50 dark:bg-emerald-500/5 border border-emerald-100/50 dark:border-emerald-500/10">
-                                    <span className="text-[10px] font-bold text-emerald-600/60 dark:text-emerald-400 uppercase tracking-widest block mb-1">Total Paid</span>
-                                    <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                                <div className="min-w-0 rounded-xl border border-gray-200 p-4 dark:border-white/10">
+                                    <span className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">Paid so far</span>
+                                    <div className="truncate text-lg font-semibold tabular-nums text-gray-950 dark:text-white" title={formatCurrency(selectedRes.amount_paid, selectedRes.currency)}>
                                         {formatCurrency(selectedRes.amount_paid, selectedRes.currency)}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-2 border-b border-gray-100 dark:border-white/5">Breakdown</h3>
+                            <div className="space-y-3">
+                                <h3 className="text-sm font-semibold text-gray-950 dark:text-white">Payment schedule</h3>
                                 {loadingPayments ? (
-                                    <div className="py-12 text-center animate-pulse text-gray-400 font-medium">Fetching details...</div>
+                                    <div className="py-10 text-center text-sm text-gray-500">Loading payments…</div>
                                 ) : (
-                                    <div className="space-y-3">
+                                    <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 dark:divide-white/10 dark:border-white/10">
                                         {payments.map((p) => (
-                                            <div key={p.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.01]">
-                                                <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-400 font-bold text-xs">
-                                                    #{p.instalment_number}
-                                                </div>
-                                                
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-center mb-0.5">
-                                                        <span className="font-bold text-gray-900 dark:text-white font-mono">
+                                            <div key={p.id} className="flex items-center gap-3 p-4">
+                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">{p.instalment_number}</div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <span className="text-sm font-semibold tabular-nums text-gray-950 dark:text-white">
                                                             {formatCurrency(p.amount, p.currency)}
                                                         </span>
                                                         <span className={clsx(
-                                                            "px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest",
+                                                            "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
                                                             getStatusColor(p.status)
                                                         )}>
                                                             {p.status}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                                                            <Calendar className="w-3 h-3" />
+                                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            <Calendar className="h-3 w-3" />
                                                             {new Date(p.due_at).toLocaleDateString()}
                                                         </div>
                                                         {p.paid_at && (
-                                                            <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-bold">
-                                                                <CheckCircle2 className="w-3 h-3" />
+                                                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                <CheckCircle2 className="h-3 w-3" />
                                                                 Paid {new Date(p.paid_at).toLocaleDateString()}
                                                             </div>
                                                         )}
@@ -472,8 +437,9 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                                                             handleSendReminder(selectedRes.contact_phone, selectedRes.contact_name, p.amount, p.id, 'specific')
                                                         }}
                                                         disabled={isSending === p.id}
-                                                        className="w-10 h-10 rounded-xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center hover:opacity-90 active:scale-95 transition-all disabled:opacity-30"
-                                                        title="Send SMS Reminder"
+                                                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-700 disabled:opacity-40 dark:border-white/10 dark:text-gray-300"
+                                                        title="Send SMS reminder"
+                                                        aria-label={`Send SMS reminder for payment ${p.instalment_number}`}
                                                     >
                                                         {isSending === p.id ? (
                                                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -490,24 +456,18 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="p-8 pt-0 flex gap-3">
-                            <button 
-                                onClick={() => setSelectedRes(null)}
-                                className="flex-1 py-3.5 rounded-xl text-sm font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
-                            >
-                                Back
-                            </button>
-                            <button 
+                        <div className="border-t border-gray-100 px-5 py-4 dark:border-white/10 sm:px-6">
+                            <button
                                 onClick={() => handleSendReminder(selectedRes.contact_phone, selectedRes.contact_name, selectedRes.total_amount - selectedRes.amount_paid, selectedRes.id, 'general')}
                                 disabled={!!isSending || selectedRes.status === 'completed'}
-                                className="flex-[2] py-3.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-sm font-bold hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-30"
+                                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
                             >
                                 {isSending === 'general' ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
                                     <MessageSquare className="w-4 h-4" />
                                 )}
-                                Send SMS Reminder
+                                Send SMS reminder
                             </button>
                         </div>
                     </div>

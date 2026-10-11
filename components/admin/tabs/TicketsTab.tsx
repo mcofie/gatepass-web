@@ -17,6 +17,7 @@ interface TicketsTabProps {
 export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: TicketsTabProps) {
     // Local UI state
     const [creatingTier, setCreatingTier] = useState(false)
+    const [showCreateForm, setShowCreateForm] = useState(false)
     const [editingTierId, setEditingTierId] = useState<string | null>(null)
 
     const [tierForm, setTierForm] = useState<{
@@ -86,6 +87,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                 // Optimistic update or refetch
                 onTiersUpdate([...tiers, data])
                 setTierForm({ name: '', price: 0, total_quantity: 100, max_per_order: 10, description: '', perks: [], tags: [], min_quantity: '', discount_value: '', discount_type: '', is_virtual: false, virtual_link: '', virtual_instructions: '' })
+                setShowCreateForm(false)
                 toast.success('Ticket tier created')
             } else {
                 toast.error(error?.message)
@@ -244,98 +246,120 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
         }
     }
 
+    const fieldClass = 'h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white'
+    const fieldLabelClass = 'mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300'
+
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className={`grid grid-cols-1 ${isStaff ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-8`}>
+        <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Ticket types</h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{tiers.length} {tiers.length === 1 ? 'type' : 'types'}{!isStaff && ' · Drag to change their order on the event page.'}</p>
+                </div>
+                {!isStaff && <button type="button" onClick={() => setShowCreateForm(!showCreateForm)} aria-expanded={showCreateForm} className={showCreateForm ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-[#111] dark:text-gray-300 dark:hover:bg-white/10" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"}>
+                    {showCreateForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {showCreateForm ? 'Close form' : 'Add ticket type'}
+                </button>}
+            </div>
                 {/* Create Tier Form - Hidden for Staff */}
-                {!isStaff && (
-                    <div className="md:col-span-1 border border-gray-100 dark:border-white/10 rounded-3xl p-6 bg-white dark:bg-[#111] shadow-sm h-fit">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-black dark:bg-white rounded-xl">
-                                <Ticket className="w-5 h-5 text-white dark:text-black" />
-                            </div>
-                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">Create Ticket</h3>
+                {!isStaff && showCreateForm && (
+                    <div className="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold text-gray-950 dark:text-white">New ticket type</h3>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Start with the essentials. Add details if this ticket needs them.</p>
                         </div>
                         <form onSubmit={handleAddTier} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Ticket Name</label>
+                                <label htmlFor="new-ticket-name" className={fieldLabelClass}>Ticket name</label>
                                 <input
+                                    id="new-ticket-name"
+                                    required
                                     value={tierForm.name}
                                     onChange={e => setTierForm({ ...tierForm, name: e.target.value })}
-                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white placeholder:font-medium"
+                                    className={fieldClass}
                                     placeholder="e.g. Early Bird"
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Price</label>
+                                    <label htmlFor="new-ticket-price" className={fieldLabelClass}>Price</label>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-bold uppercase">{event.currency || 'GHS'}</span>
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500">{event.currency || 'GHS'}</span>
                                         <input
+                                            id="new-ticket-price"
+                                            min={0}
+                                            step="0.01"
                                             type="number"
                                             value={tierForm.price}
                                             onChange={e => setTierForm({ ...tierForm, price: parseFloat(e.target.value) })}
-                                            className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 pl-12 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                            className={`${fieldClass} pl-12`}
                                             placeholder="0.00"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Total Qty</label>
+                                    <label htmlFor="new-ticket-quantity" className={fieldLabelClass}>Quantity available</label>
                                     <input
+                                        id="new-ticket-quantity"
+                                        min={1}
                                         type="number"
                                         value={tierForm.total_quantity}
                                         onChange={e => setTierForm({ ...tierForm, total_quantity: parseInt(e.target.value) })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                        className={fieldClass}
                                     />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Max / Order</label>
+                                    <label htmlFor="new-ticket-limit" className={fieldLabelClass}>Limit per order</label>
                                     <input
+                                        id="new-ticket-limit"
+                                        min={1}
                                         type="number"
                                         disabled={tierForm.is_virtual}
                                         value={tierForm.is_virtual ? 1 : tierForm.max_per_order}
                                         onChange={e => setTierForm({ ...tierForm, max_per_order: parseInt(e.target.value) })}
-                                        className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white disabled:opacity-50"
+                                        className={fieldClass}
                                         placeholder="10"
                                     />
                                 </div>
                             </div>
 
+                            <details className="group rounded-xl border border-gray-200 dark:border-white/10">
+                                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">More ticket settings <span className="font-normal text-gray-500 dark:text-gray-400">· Access, discounts and details</span></summary>
+                                <div className="space-y-5 border-t border-gray-200 px-4 py-4 dark:border-white/10">
                             {/* Virtual Ticket / Livestream Options */}
-                            <div className="border-t border-gray-100 dark:border-white/10 pt-4 space-y-4">
-                                <label className="flex items-center gap-2 cursor-pointer">
+                            <div className="space-y-4">
+                                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
                                     <input
                                         type="checkbox"
                                         checked={tierForm.is_virtual}
                                         onChange={e => setTierForm({ ...tierForm, is_virtual: e.target.checked })}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-indigo-600 focus:ring-indigo-500/20"
+                                        className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black dark:border-white/20"
                                     />
-                                    <span className="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white">
-                                        Virtual / Remote Access Ticket
-                                    </span>
+                                    <span>Virtual or livestream ticket</span>
                                 </label>
 
                                 {tierForm.is_virtual && (
-                                    <div className="space-y-3 bg-zinc-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/50 p-4 dark:border-white/10 dark:bg-white/5">
                                         <div>
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Livestream URL</label>
+                                            <label htmlFor="new-ticket-stream-url" className={fieldLabelClass}>Livestream URL</label>
                                             <input
+                                                id="new-ticket-stream-url"
                                                 value={tierForm.virtual_link}
                                                 onChange={e => setTierForm({ ...tierForm, virtual_link: e.target.value })}
-                                                className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white placeholder:font-medium"
+                                                className={fieldClass}
                                                 placeholder="e.g. YouTube Live, Zoom link"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Streaming Instructions</label>
+                                            <label htmlFor="new-ticket-stream-instructions" className={fieldLabelClass}>Access instructions</label>
                                             <textarea
+                                                id="new-ticket-stream-instructions"
                                                 value={tierForm.virtual_instructions}
                                                 onChange={e => setTierForm({ ...tierForm, virtual_instructions: e.target.value })}
-                                                className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-medium text-gray-900 dark:text-white min-h-[60px] resize-none"
+                                                className="min-h-20 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                                 placeholder="e.g. Zoom passcode, access start times..."
                                             />
                                         </div>
@@ -345,26 +369,28 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
 
                             {/* Quantity Discount */}
                             <div className="border-t border-gray-100 dark:border-white/10 pt-4">
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Quantity Discount (Optional)</label>
+                                <p className="mb-3 text-sm font-medium text-gray-900 dark:text-white">Quantity discount</p>
                                 <div className="space-y-3">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <div>
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Min Qty</label>
+                                            <label htmlFor="new-ticket-discount-min" className={fieldLabelClass}>Minimum quantity</label>
                                             <input
+                                                id="new-ticket-discount-min"
                                                 type="number"
                                                 min={1}
                                                 value={tierForm.min_quantity}
                                                 onChange={e => setTierForm({ ...tierForm, min_quantity: e.target.value === '' ? '' : parseInt(e.target.value) })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                                className={fieldClass}
                                                 placeholder="e.g. 5"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Discount Type</label>
+                                            <label htmlFor="new-ticket-discount-type" className={fieldLabelClass}>Discount type</label>
                                             <select
+                                                id="new-ticket-discount-type"
                                                 value={tierForm.discount_type}
                                                 onChange={e => setTierForm({ ...tierForm, discount_type: e.target.value as 'percentage' | 'fixed' | '' })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                                className={fieldClass}
                                             >
                                                 <option value="">None</option>
                                                 <option value="percentage">Percentage (%)</option>
@@ -374,16 +400,17 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                     </div>
                                     {tierForm.discount_type && (
                                         <div className="animate-in fade-in duration-200">
-                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
-                                                {tierForm.discount_type === 'percentage' ? 'Discount Percentage (%)' : `Discount Value (${event.currency || 'GHS'})`}
+                                            <label htmlFor="new-ticket-discount-value" className={fieldLabelClass}>
+                                                {tierForm.discount_type === 'percentage' ? 'Percent off' : `Amount off (${event.currency || 'GHS'})`}
                                             </label>
                                             <input
+                                                id="new-ticket-discount-value"
                                                 type="number"
                                                 min={0.01}
                                                 step="any"
                                                 value={tierForm.discount_value}
                                                 onChange={e => setTierForm({ ...tierForm, discount_value: e.target.value === '' ? '' : parseFloat(e.target.value) })}
-                                                className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                                className={fieldClass}
                                                 placeholder={tierForm.discount_type === 'percentage' ? 'e.g. 10 for 10%' : 'e.g. 20'}
                                             />
                                         </div>
@@ -393,13 +420,14 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
 
                             {/* Perks */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Perks</label>
+                                <label htmlFor="new-ticket-perk" className={fieldLabelClass}>Perks</label>
                                 <div className="space-y-2 mb-2">
                                     {tierForm.perks.map((perk, i) => (
-                                        <div key={i} className="flex items-center justify-between bg-gray-50 dark:bg-white/5 p-2 rounded-lg text-sm font-bold dark:text-gray-300">
+                                        <div key={i} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:text-gray-300">
                                             <span>{perk}</span>
                                             <button
                                                 type="button"
+                                                aria-label={`Remove perk ${perk}`}
                                                 onClick={() => setTierForm({ ...tierForm, perks: tierForm.perks.filter((_, idx) => idx !== i) })}
                                                 className="text-gray-400 hover:text-red-500"
                                             >
@@ -410,6 +438,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                 </div>
                                 <div className="flex gap-2">
                                     <input
+                                        id="new-ticket-perk"
                                         value={newPerk}
                                         onChange={e => setNewPerk(e.target.value)}
                                         onKeyDown={e => {
@@ -421,18 +450,19 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                                 }
                                             }
                                         }}
-                                        className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                        className={`${fieldClass} min-w-0 flex-1`}
                                         placeholder="Add a perk..."
                                     />
                                     <button
                                         type="button"
+                                        aria-label="Add perk"
                                         onClick={() => {
                                             if (newPerk.trim()) {
                                                 setTierForm({ ...tierForm, perks: [...tierForm.perks, newPerk.trim()] })
                                                 setNewPerk('')
                                             }
                                         }}
-                                        className="bg-black dark:bg-white text-white dark:text-black p-3 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200"
+                                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
                                     >
                                         <Plus className="w-5 h-5" />
                                     </button>
@@ -441,15 +471,16 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
 
                             {/* Tags */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tags (e.g. VIP, Early Bird)</label>
+                                <label htmlFor="new-ticket-tag" className={fieldLabelClass}>Tags</label>
                                 <div className="flex flex-wrap gap-1.5 mb-2">
                                     {tierForm.tags.map((tag, i) => (
-                                        <div key={i} className="flex items-center gap-1.5 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100/50 dark:border-indigo-500/20 px-2.5 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                        <div key={i} className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-white/10 dark:text-gray-300">
                                             <span>{tag}</span>
                                             <button
                                                 type="button"
+                                                aria-label={`Remove tag ${tag}`}
                                                 onClick={() => setTierForm({ ...tierForm, tags: tierForm.tags.filter((_, idx) => idx !== i) })}
-                                                className="text-indigo-400 hover:text-red-500 transition-colors"
+                                                className="text-gray-400 transition-colors hover:text-red-500"
                                             >
                                                 <X className="w-3 h-3" />
                                             </button>
@@ -458,6 +489,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                 </div>
                                 <div className="flex gap-2">
                                     <input
+                                        id="new-ticket-tag"
                                         value={newTag}
                                         onChange={e => setNewTag(e.target.value)}
                                         onKeyDown={e => {
@@ -469,18 +501,19 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                                 }
                                             }
                                         }}
-                                        className="flex-1 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-bold text-gray-900 dark:text-white"
+                                        className={`${fieldClass} min-w-0 flex-1`}
                                         placeholder="Add a tag..."
                                     />
                                     <button
                                         type="button"
+                                        aria-label="Add tag"
                                         onClick={() => {
                                             if (newTag.trim()) {
                                                 setTierForm({ ...tierForm, tags: [...tierForm.tags, newTag.trim()] })
                                                 setNewTag('')
                                             }
                                         }}
-                                        className="bg-black dark:bg-white text-white dark:text-black p-3 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200"
+                                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
                                     >
                                         <Plus className="w-5 h-5" />
                                     </button>
@@ -489,24 +522,27 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
 
                             {/* Description */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Description</label>
+                                <label htmlFor="new-ticket-description" className={fieldLabelClass}>Description</label>
                                 <textarea
+                                    id="new-ticket-description"
                                     value={tierForm.description}
                                     onChange={e => setTierForm({ ...tierForm, description: e.target.value })}
-                                    className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all font-medium text-gray-900 dark:text-white min-h-[80px] resize-none"
+                                    className="min-h-24 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                     placeholder="Includes access to..."
                                 />
                             </div>
+                                </div>
+                            </details>
 
                             <button
                                 disabled={creatingTier}
-                                className="w-full bg-black dark:bg-white text-white dark:text-black py-4 rounded-xl font-bold text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                             >
                                 {creatingTier ? (
                                     <span className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" />
                                 ) : (
                                     <>
-                                        <Plus className="w-4 h-4" /> Create Ticket
+                                        <Plus className="w-4 h-4" /> Create ticket type
                                     </>
                                 )}
                             </button>
@@ -515,15 +551,15 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                 )}
 
                 {/* Tiers List */}
-                <div className={isStaff ? "md:col-span-1 space-y-4" : "md:col-span-2 space-y-4"}>
+                <div className="space-y-3">
                     {tiers.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-gray-50/50 dark:bg-white/5 rounded-3xl border border-gray-100 dark:border-white/10 border-dashed">
-                            <div className="w-16 h-16 bg-white dark:bg-white/10 rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100 dark:border-white/5">
-                                <Ticket className="w-8 h-8 text-gray-300 dark:text-gray-500" />
+                        <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#111]">
+                            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5">
+                                <Ticket className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                             </div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No Tickets Created</h3>
+                            <h3 className="mb-1 text-base font-semibold text-gray-900 dark:text-white">No ticket types yet</h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                                {isStaff ? "No ticket types have been created for this event yet." : "Create your first ticket type using the form on the left to start selling."}
+                                {isStaff ? "No ticket types have been created for this event yet." : "Add a ticket type to start selling."}
                             </p>
                         </div>
                     ) : (
@@ -555,7 +591,6 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                         </DndContext>
                     )}
                 </div>
-            </div>
         </div >
     )
 }
