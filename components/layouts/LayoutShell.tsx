@@ -9,7 +9,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     const isDashboard = pathname?.startsWith('/dashboard')
     const isAdmin = pathname?.startsWith('/admin')
     const isStudio = pathname?.startsWith('/studio')
-    const isTicket = pathname?.startsWith('/tickets/')
+    const isTicket = pathname?.startsWith('/ticket/') || pathname?.startsWith('/tickets/')
 
     const isEmbed = pathname?.startsWith('/embed')
 

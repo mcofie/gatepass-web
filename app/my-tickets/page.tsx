@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { Ticket } from '@/types/gatepass'
 
 export const metadata = {
-    title: 'My Tickets | GatePass',
+    title: 'My tickets',
 }
 
 export default async function MyTicketsPage() {
@@ -23,7 +23,7 @@ export default async function MyTicketsPage() {
         .select(`
             *,
             events (
-                id, title, poster_url, starts_at, venue_name, primary_color
+                id, title, poster_url, starts_at, ends_at, venue_name
             ),
             ticket_tiers (
                 id, name, price, currency, is_virtual, virtual_link, virtual_instructions
@@ -41,6 +41,7 @@ export default async function MyTicketsPage() {
             reservation_id,
             total_amount,
             amount_paid,
+            currency,
             status,
             next_instalment_due_at,
             created_at,
@@ -48,7 +49,7 @@ export default async function MyTicketsPage() {
                 user_id,
                 quantity,
                 ticket_tiers ( id, name, price, currency ),
-                events ( id, title, poster_url, starts_at, venue_name, primary_color )
+                events ( id, title, poster_url, starts_at, ends_at, venue_name )
             )
         `)
         .eq('user_id', user.id)
@@ -60,20 +61,13 @@ export default async function MyTicketsPage() {
     }
 
     return (
-        <div className="relative min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-50 pb-20 overflow-hidden font-sans">
-            {/* Background Texture/Gradient */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-50/50 via-white to-white dark:from-zinc-900/30 dark:via-black dark:to-black pointer-events-none z-0" />
-
+        <div className="min-h-svh bg-white text-[#111] dark:bg-[#080808] dark:text-white">
             <LandingHeader showAccountMenu={true} />
 
-            <main className="relative z-10 max-w-4xl mx-auto px-5 pt-32 md:pt-40 animate-fade-in">
-                <div className="mb-8 md:mb-12">
-                    <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2 text-zinc-900 dark:text-white">
-                        My Tickets
-                    </h1>
-                    <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm md:text-base">
-                        Manage your upcoming events, instalments, and transfers
-                    </p>
+            <main className="mx-auto w-full max-w-[1040px] px-5 pb-20 pt-32 sm:px-8 md:pt-40">
+                <div className="mb-9 md:mb-12">
+                    <h1 className="text-[clamp(2.75rem,5vw,4.25rem)] font-semibold leading-[1.02] tracking-[-0.065em]">My tickets</h1>
+                    <p className="mt-3 text-[15px] text-[#666] dark:text-[#aaa]">Your passes and payment plans in one place.</p>
                 </div>
 
                 <MyTicketsClient tickets={tickets as unknown as Ticket[]} instalments={instalments as any[]} />

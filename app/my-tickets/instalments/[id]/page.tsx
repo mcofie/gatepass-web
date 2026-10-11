@@ -3,12 +3,10 @@ import { redirect, notFound } from 'next/navigation'
 import InstalmentDetailClient from './InstalmentDetailClient'
 import { LandingHeader } from '@/components/LandingHeader'
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params
-    return {
-        title: 'Payment Plan Details – GatePass',
-        description: `View details for instalment plan ${id}`
-    }
+export const metadata = {
+    title: 'Payment plan',
+    description: 'View your GatePass payment plan.',
+    robots: { index: false, follow: false },
 }
 
 export default async function InstalmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,19 +14,25 @@ export default async function InstalmentDetailPage({ params }: { params: Promise
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) redirect('/login')
+    if (!user) redirect(`/login?next=/my-tickets/instalments/${id}`)
 
     const { data: instalment, error } = await supabase
         .schema('gatepass')
         .from('instalment_reservations')
         .select(`
-            *,
-            payment_plans(*),
-            instalment_payments(*),
+            id,
+            reservation_id,
+            total_amount,
+            amount_paid,
+            currency,
+            status,
+            contact_email,
+            instalment_payments(id, instalment_number, amount, currency, status, due_at, paid_at),
             reservations(
-                *,
-                ticket_tiers(*),
-                events(id, title, starts_at, ends_at, poster_url, venue_name, venue_address, organizers(name, slug))
+                guest_email,
+                quantity,
+                ticket_tiers(name),
+                events(id, title, starts_at, ends_at, poster_url, venue_name)
             )
         `)
         .or(`id.eq.${id},reservation_id.eq.${id}`)
@@ -36,15 +40,10 @@ export default async function InstalmentDetailPage({ params }: { params: Promise
 
     if (error || !instalment) notFound()
 
-    // Sort payments by instalment number
-    if (instalment.instalment_payments) {
-        instalment.instalment_payments.sort((a: any, b: any) => a.instalment_number - b.instalment_number)
-    }
-
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 text-black dark:text-white pb-20">
+        <div className="min-h-svh bg-white text-[#111] dark:bg-[#080808] dark:text-white">
             <LandingHeader showAccountMenu={true} />
-            <main className="max-w-4xl mx-auto px-4 pt-28 md:pt-32">
+            <main className="mx-auto w-full max-w-[780px] px-5 pb-20 pt-32 sm:px-8 md:pt-40">
                 <InstalmentDetailClient instalment={instalment} />
             </main>
         </div>

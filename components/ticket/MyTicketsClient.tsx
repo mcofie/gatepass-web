@@ -1,514 +1,328 @@
 'use client'
 
 import { useState } from 'react'
-import { Ticket, InstalmentReservation } from '@/types/gatepass'
-import { formatDateTime, formatCurrency } from '@/utils/format'
-import { TransferModal } from '@/components/transfer/TransferModal'
-import { Button } from '@/components/ui/Button'
-import { Share2, QrCode, Calendar, MapPin, Ticket as TicketIcon, Globe, Video, Eye, ChevronDown } from 'lucide-react'
-import { Dialog, DialogContent } from '@/components/ui/Dialog'
-import QRCode from 'react-qr-code'
+import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CreditCard, Globe2, MapPin, QrCode, Ticket as TicketIcon, X } from 'lucide-react'
+import QRCode from 'react-qr-code'
+import { Ticket, InstalmentReservation } from '@/types/gatepass'
+import { formatCurrency, formatDateTime } from '@/utils/format'
+import { TransferModal } from '@/components/transfer/TransferModal'
+import { Dialog, DialogContent } from '@/components/ui/Dialog'
 
 interface MyTicketsClientProps {
     tickets: Ticket[]
     instalments?: InstalmentReservation[]
 }
 
+interface GroupedEvent {
+    event: {
+        id: string
+        title: string
+        poster_url?: string | null
+        starts_at: string
+        ends_at?: string | null
+        venue_name: string
+    }
+    tickets: Ticket[]
+    instalments: InstalmentReservation[]
+}
+
+type Filter = 'all' | 'upcoming' | 'past'
+type Sort = 'event-asc' | 'event-desc' | 'purchase-desc' | 'purchase-asc'
+
+const primaryAction = 'inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#111] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-[#e5e5e5] dark:focus-visible:ring-white dark:focus-visible:ring-offset-[#080808]'
+const secondaryAction = 'inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#dedede] px-4 text-[13px] font-semibold text-[#222] transition-colors hover:border-[#aaa] hover:bg-[#f7f7f7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-[#383838] dark:text-white dark:hover:bg-[#202020] dark:focus-visible:ring-white'
+
+function displayTierName(name?: string) {
+    if (!name) return 'General admission'
+    if (/^virtual\s*\/\s*livestream\s*\/\s*online$/i.test(name)) return 'Livestream'
+    if (/^pay[\s-]*what[\s-]*you[\s-]*want\s*\/\s*pay[\s-]*what[\s-]*you[\s-]*can$/i.test(name)) return 'Pay what you want'
+    return name
+}
+
+function statusLabel(status: Ticket['status'], eventEnded: boolean) {
+    return status === 'valid' ? eventEnded ? 'Unused' : 'Valid' : status === 'used' ? 'Used' : 'Cancelled'
+}
+
+function hasEventEnded(event: GroupedEvent['event'], now: number) {
+    const start = new Date(event.starts_at).getTime()
+    const end = event.ends_at ? new Date(event.ends_at).getTime() : start + 4 * 60 * 60 * 1000
+    return end < now
+}
+
 export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientProps) {
+    const router = useRouter()
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
     const [isTransferring, setIsTransferring] = useState(false)
     const [showQR, setShowQR] = useState(false)
-
-    // Filter, Sort and Pagination state
-    const [activeFilter, setActiveFilter] = useState<'all' | 'upcoming' | 'past'>('all')
-    const [sortBy, setSortBy] = useState<'event-asc' | 'event-desc' | 'purchase-desc' | 'purchase-asc'>('event-asc')
+    const [activeFilter, setActiveFilter] = useState<Filter>('all')
+    const [sortBy, setSortBy] = useState<Sort>('event-asc')
     const [currentPage, setCurrentPage] = useState(1)
 
-    // Group by Event
-    const safeInstalments = instalments || []
     const safeTickets = tickets || []
-    interface GroupedEvent {
-        event: {
-            id: string
-            title: string
-            poster_url?: string | null
-            starts_at: string
-            venue_name: string
-            primary_color?: string | null
-        }
-        tickets: Ticket[]
-        instalments: InstalmentReservation[]
-    }
+    const safeInstalments = instalments || []
+    const now = Date.now()
 
-    const groupedItems = [...safeTickets, ...safeInstalments].reduce((acc, item) => {
-        // Both `tickets` and `instalment_reservations` tables have `reservation_id` columns now.
-        // We can distinguish an instalment by checking for `amount_paid` instead.
+    const groupedItems = [...safeTickets, ...safeInstalments].reduce<Record<string, GroupedEvent>>((groups, item) => {
         const isInstalment = 'amount_paid' in item
         const event = isInstalment ? (item as InstalmentReservation).reservations?.events : (item as Ticket).events
-        if (!event) return acc
-        const eventId = event.id
+        if (!event) return groups
 
-        if (!acc[eventId]) {
-            acc[eventId] = {
-                event: event,
-                tickets: [],
-                instalments: []
-            }
+        groups[event.id] ??= { event, tickets: [], instalments: [] }
+        if (isInstalment) groups[event.id].instalments.push(item as InstalmentReservation)
+        else groups[event.id].tickets.push(item as Ticket)
+        return groups
+    }, {})
+
+    const allGroups = Object.values(groupedItems)
+    const upcomingCount = allGroups.filter(({ event }) => !hasEventEnded(event, now)).length
+    const pastCount = allGroups.length - upcomingCount
+    const filteredGroups = allGroups.filter(({ event }) => {
+        if (activeFilter === 'all') return true
+        const isUpcoming = !hasEventEnded(event, now)
+        return activeFilter === 'upcoming' ? isUpcoming : !isUpcoming
+    })
+    const sortedGroups = filteredGroups.sort((a, b) => {
+        const dateA = new Date(a.event.starts_at).getTime()
+        const dateB = new Date(b.event.starts_at).getTime()
+        if (sortBy === 'event-asc') {
+            const upcomingA = !hasEventEnded(a.event, now)
+            const upcomingB = !hasEventEnded(b.event, now)
+            if (upcomingA !== upcomingB) return upcomingA ? -1 : 1
+            return upcomingA ? dateA - dateB : dateB - dateA
         }
+        if (sortBy === 'event-desc') return dateB - dateA
 
-        if (isInstalment) {
-            acc[eventId].instalments.push(item as InstalmentReservation)
-        } else {
-            acc[eventId].tickets.push(item as Ticket)
+        const purchaseTime = (group: GroupedEvent) => {
+            const times = [...group.tickets.map(ticket => new Date(ticket.created_at).getTime()), ...group.instalments.map(plan => new Date(plan.created_at).getTime())]
+            return sortBy === 'purchase-desc' ? Math.max(...times) : Math.min(...times)
         }
+        return sortBy === 'purchase-desc' ? purchaseTime(b) - purchaseTime(a) : purchaseTime(a) - purchaseTime(b)
+    })
 
-        return acc
-    }, {} as Record<string, GroupedEvent>)
+    const itemsPerPage = 5
+    const totalPages = Math.ceil(sortedGroups.length / itemsPerPage)
+    const page = Math.min(currentPage, Math.max(1, totalPages))
+    const paginatedGroups = sortedGroups.slice((page - 1) * itemsPerPage, page * itemsPerPage)
 
-    const handleTransfer = (ticket: Ticket) => {
+    const openCode = (ticket: Ticket) => {
+        setSelectedTicket(ticket)
+        setShowQR(true)
+    }
+    const openTransfer = (ticket: Ticket) => {
         setSelectedTicket(ticket)
         setIsTransferring(true)
     }
 
-    const handleViewQR = (ticket: Ticket) => {
-        setSelectedTicket(ticket)
-        setShowQR(true)
-    }
-
-    const now = new Date()
-
-    // Filter groups
-    const filteredGroups = Object.values(groupedItems).filter(group => {
-        const eventDate = new Date(group.event.starts_at)
-        if (activeFilter === 'upcoming') {
-            return eventDate >= now
-        } else if (activeFilter === 'past') {
-            return eventDate < now
-        }
-        return true
-    })
-
-    // Sort groups
-    const sortedGroups = filteredGroups.sort((a, b) => {
-        if (sortBy === 'event-asc') {
-            return new Date(a.event.starts_at).getTime() - new Date(b.event.starts_at).getTime()
-        } else if (sortBy === 'event-desc') {
-            return new Date(b.event.starts_at).getTime() - new Date(a.event.starts_at).getTime()
-        } else {
-            const getGroupPurchaseTime = (g: GroupedEvent, newest: boolean) => {
-                const times = [
-                    ...g.tickets.map(t => new Date(t.created_at).getTime()),
-                    ...g.instalments.map(i => new Date(i.created_at).getTime())
-                ]
-                if (times.length === 0) return 0
-                return newest ? Math.max(...times) : Math.min(...times)
-            }
-            const timeA = getGroupPurchaseTime(a, sortBy === 'purchase-desc')
-            const timeB = getGroupPurchaseTime(b, sortBy === 'purchase-desc')
-            return sortBy === 'purchase-desc' ? timeB - timeA : timeA - timeB
-        }
-    })
-
-    // Paginate groups
-    const ITEMS_PER_PAGE = 5
-    const totalPages = Math.ceil(sortedGroups.length / ITEMS_PER_PAGE)
-    const validCurrentPage = Math.min(Math.max(1, currentPage), Math.max(1, totalPages))
-    const startIndex = (validCurrentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-    const paginatedGroups = sortedGroups.slice(startIndex, endIndex)
-
     if (safeTickets.length === 0 && safeInstalments.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 animate-fade-in">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-zinc-800/80 border border-zinc-200/50 dark:border-zinc-700/30 rounded-full flex items-center justify-center mb-6">
-                    <TicketIcon className="w-10 h-10 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-bold mb-2">No Tickets Yet</h3>
-                <p className="text-gray-500 mb-8 max-w-sm">
-                    You haven&apos;t purchased any tickets yet. Explore events to find your next experience.
-                </p>
-                <Button onClick={() => window.location.href = '/'}>
-                    Explore Events
-                </Button>
+            <div className="rounded-[20px] border border-[#e5e5e5] px-6 py-16 text-center dark:border-[#303030]">
+                <TicketIcon className="mx-auto size-8 text-[#777] dark:text-[#aaa]" strokeWidth={1.5} aria-hidden="true" />
+                <h2 className="mt-5 text-[24px] font-semibold tracking-[-0.04em]">No tickets yet</h2>
+                <p className="mx-auto mt-2 max-w-sm text-[14px] leading-6 text-[#666] dark:text-[#aaa]">When you book an event, your passes will appear here.</p>
+                <Link href="/" className={`${primaryAction} mt-7`}>Explore events <ArrowRight className="size-4" aria-hidden="true" /></Link>
             </div>
         )
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 relative">
-            {/* Filter and Sort Control Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-500/[0.03] dark:bg-white/[0.01] border border-zinc-200/50 dark:border-zinc-800/50 p-4 rounded-3xl backdrop-blur-sm relative z-20 shadow-sm">
-                {/* Filter Tabs */}
-                <div className="flex w-full sm:w-auto p-1 bg-zinc-100/60 dark:bg-zinc-900/60 rounded-2xl border border-zinc-200/20 dark:border-zinc-800/20">
-                    {[
-                        { id: 'all', label: 'All' },
-                        { id: 'upcoming', label: 'Upcoming' },
-                        { id: 'past', label: 'Past' }
-                    ].map((tab) => (
+        <div>
+            <div className="mb-7 flex flex-col gap-4 border-b border-[#e8e8e8] sm:flex-row sm:items-end sm:justify-between dark:border-[#2e2e2e]">
+                <div className="flex gap-6 overflow-x-auto" aria-label="Filter events">
+                    {([
+                        { id: 'all', label: 'All events', count: allGroups.length },
+                        { id: 'upcoming', label: 'Upcoming', count: upcomingCount },
+                        { id: 'past', label: 'Past', count: pastCount },
+                    ] as const).map((filter) => (
                         <button
-                            key={tab.id}
-                            onClick={() => {
-                                setActiveFilter(tab.id as any)
-                                setCurrentPage(1)
-                            }}
-                            className={`flex-1 sm:flex-initial text-center px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                activeFilter === tab.id
-                                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm'
-                                    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                            }`}
+                            key={filter.id}
+                            type="button"
+                            aria-pressed={activeFilter === filter.id}
+                            onClick={() => { setActiveFilter(filter.id); setCurrentPage(1) }}
+                            className={`flex h-11 shrink-0 items-center gap-1.5 border-b-2 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white ${activeFilter === filter.id ? 'border-black text-black dark:border-white dark:text-white' : 'border-transparent text-[#777] hover:text-black dark:text-[#999] dark:hover:text-white'}`}
                         >
-                            {tab.label}
+                            {filter.label}<span className="text-[11px] font-medium opacity-65">{filter.count}</span>
                         </button>
                     ))}
                 </div>
-
-                {/* Sort Dropdown */}
-                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-                    <span className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest shrink-0">Sort By</span>
-                    <div className="relative flex-grow sm:flex-grow-0">
+                <div className="flex items-center gap-2 pb-4 sm:pb-2">
+                    <label htmlFor="ticket-sort" className="shrink-0 text-[12px] font-medium text-[#777] dark:text-[#999]">Sort</label>
+                    <div className="relative">
                         <select
+                            id="ticket-sort"
                             value={sortBy}
-                            onChange={(e) => {
-                                setSortBy(e.target.value as any)
-                                setCurrentPage(1)
-                            }}
-                            className="appearance-none w-full sm:w-auto bg-white dark:bg-zinc-900 text-xs font-bold text-zinc-800 dark:text-zinc-200 pl-4 pr-10 py-2.5 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/80 shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 transition-all cursor-pointer"
+                            onChange={(event) => { setSortBy(event.target.value as Sort); setCurrentPage(1) }}
+                            className="h-9 appearance-none rounded-lg border border-[#dedede] bg-white pl-3 pr-8 text-[12px] font-medium text-[#222] outline-none focus:border-black focus:ring-2 focus:ring-black/10 dark:border-[#383838] dark:bg-[#101010] dark:text-white dark:focus:border-white"
                         >
-                            <option value="event-asc">Event Date: Soonest First</option>
-                            <option value="event-desc">Event Date: Latest First</option>
-                            <option value="purchase-desc">Purchase Date: Newest First</option>
-                            <option value="purchase-asc">Purchase Date: Oldest First</option>
+                            <option value="event-asc">Upcoming first</option>
+                            <option value="event-desc">Event date: latest</option>
+                            <option value="purchase-desc">Recently purchased</option>
+                            <option value="purchase-asc">Oldest purchase</option>
                         </select>
-                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#777]" aria-hidden="true" />
                     </div>
                 </div>
             </div>
 
-            {/* Event Groups List */}
             {paginatedGroups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center min-h-[30vh] text-center p-8 bg-zinc-500/[0.02] dark:bg-white/[0.01] border border-dashed border-zinc-200 dark:border-zinc-800/50 rounded-3xl animate-in fade-in duration-300">
-                    <TicketIcon className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-3" />
-                    <h4 className="text-base font-bold mb-1">No Tickets Found</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-xs leading-relaxed">
-                        There are no tickets or instalments matching the selected filter.
-                    </p>
+                <div className="rounded-[20px] border border-[#e5e5e5] px-6 py-16 text-center dark:border-[#303030]">
+                    <h2 className="text-[22px] font-semibold tracking-[-0.04em]">No {activeFilter} events</h2>
+                    <p className="mt-2 text-[14px] text-[#666] dark:text-[#aaa]">Your other passes are still available in All.</p>
+                    <button type="button" onClick={() => setActiveFilter('all')} className={`${secondaryAction} mt-6`}>View all tickets</button>
                 </div>
             ) : (
-                <div className="space-y-10">
-                    {paginatedGroups.map(({ event, tickets, instalments }, index) => (
-                        <div key={event.id} className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
-                            {/* Visual Divider for subsequent events */}
-                            {index > 0 && (
-                                <div className="border-t border-zinc-200/50 dark:border-white/5 pb-6" />
-                            )}
-
-                            <div className="flex items-center gap-4 md:gap-5">
-                                <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl relative overflow-hidden flex-shrink-0 shadow-sm border border-black/5 dark:border-white/10">
-                                    {event.poster_url ? (
-                                        <Image src={event.poster_url} alt={event.title} fill className="object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full bg-gray-100 dark:bg-white/5 flex items-center justify-center">
-                                            <TicketIcon className="w-6 h-6 text-gray-300 dark:text-gray-600" />
-                                        </div>
-                                    )}
+                <div className="space-y-8">
+                    {paginatedGroups.map(({ event, tickets: eventTickets, instalments: eventInstalments }) => (
+                        <section key={event.id} aria-labelledby={`event-${event.id}`} className="overflow-hidden rounded-[20px] border border-[#e5e5e5] dark:border-[#303030]">
+                            <div className="flex items-center gap-4 border-b border-[#eaeaea] bg-[#fafafa] px-4 py-4 sm:px-6 dark:border-[#303030] dark:bg-[#111]">
+                                <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-[#e9e9e9] dark:bg-[#222]">
+                                    {event.poster_url ? <Image src={event.poster_url} alt="" fill className="object-cover" /> : <TicketIcon className="absolute left-4 top-4 size-6 text-[#777]" aria-hidden="true" />}
                                 </div>
-                                <div className="space-y-1.5 min-w-0">
-                                    <h2 className="text-xl md:text-2xl font-black tracking-tight text-gray-900 dark:text-white leading-none truncate">{event.title}</h2>
-                                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs md:text-sm text-zinc-500 dark:text-zinc-400 font-medium">
-                                        <span className="flex items-center gap-1.5 whitespace-nowrap"><Calendar className="w-4 h-4 text-zinc-400 dark:text-zinc-500 shrink-0" /> {formatDateTime(event.starts_at)}</span>
-                                        <span className="flex items-start gap-1.5"><MapPin className="w-4 h-4 text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5" /> <span className="break-words leading-tight">{event.venue_name}</span></span>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                        <h2 id={`event-${event.id}`} className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.035em] sm:text-[20px]">{event.title}</h2>
+                                        {hasEventEnded(event, now) && <span className="text-[11px] font-medium text-[#777] dark:text-[#aaa]">Past event</span>}
                                     </div>
+                                    <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#666] dark:text-[#aaa]">
+                                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="size-3.5" aria-hidden="true" />{formatDateTime(event.starts_at)}</span>
+                                        {event.venue_name && <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" aria-hidden="true" />{event.venue_name}</span>}
+                                    </p>
                                 </div>
+                                <Link href={`/events/${event.id}`} aria-label={`View ${event.title}`} className="flex size-9 shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-[#eee] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:text-[#aaa] dark:hover:bg-[#292929] dark:hover:text-white dark:focus-visible:ring-white">
+                                    <ArrowUpRight className="size-4" aria-hidden="true" />
+                                </Link>
                             </div>
 
-                            <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-                                {tickets.map((ticket: Ticket) => {
-                                    const isVirtual = ticket.ticket_tiers?.is_virtual
+                            <div className="divide-y divide-[#eaeaea] dark:divide-[#303030]">
+                                {eventTickets.map((ticket) => {
+                                    const isVirtual = Boolean(ticket.ticket_tiers?.is_virtual)
                                     const virtualLink = ticket.ticket_tiers?.virtual_link
+                                    const isValid = ticket.status === 'valid'
+                                    const eventEnded = hasEventEnded(event, now)
+                                    const ticketHint = !isValid
+                                        ? ticket.status === 'used' ? 'Already checked in' : 'This pass is no longer active'
+                                        : eventEnded
+                                            ? isVirtual && virtualLink ? 'Stream link is available' : 'Event has ended'
+                                            : isVirtual
+                                                ? virtualLink ? 'Stream link is ready' : 'Stream details are on your pass'
+                                                : 'Show this code at entry'
                                     return (
-                                        <div 
-                                            key={ticket.id} 
-                                            className={`group relative glass-card rounded-3xl overflow-hidden hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-white/[0.02] hover:-translate-y-1 transition-all duration-300 h-[280px] border ${
-                                                isVirtual 
-                                                    ? 'border-purple-500/30 dark:border-purple-500/30 shadow-sm shadow-purple-500/[0.02]' 
-                                                    : 'border-zinc-200/60 dark:border-zinc-800/60'
-                                            }`}
-                                        >
-                                            {/* Ticket Stub Effect: Dashed Line & Notches */}
-                                            <div className={`absolute top-[72%] left-0 right-0 h-px border-t-2 border-dashed ${
-                                                isVirtual 
-                                                    ? 'border-purple-500/20 dark:border-purple-500/30' 
-                                                    : 'border-zinc-200/60 dark:border-zinc-800/60'
-                                            }`} />
-                                            <div className={`absolute top-[72%] -left-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border ${
-                                                isVirtual 
-                                                    ? 'border-purple-500/20 dark:border-purple-500/30 dark:border-l-transparent dark:border-t-transparent border-r-transparent border-b-transparent' 
-                                                    : 'border-zinc-200/60 dark:border-zinc-800/60 dark:border-l-transparent dark:border-t-transparent border-r-transparent border-b-transparent'
-                                            } rotate-45 z-10`} />
-                                            <div className={`absolute top-[72%] -right-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border ${
-                                                isVirtual 
-                                                    ? 'border-purple-500/20 dark:border-purple-500/30 dark:border-l-transparent dark:border-t-transparent border-l-transparent border-t-transparent' 
-                                                    : 'border-zinc-200/60 dark:border-zinc-800/60 dark:border-l-transparent dark:border-t-transparent border-l-transparent border-t-transparent'
-                                            } -rotate-45 z-10`} />
-
-                                            {/* Upper Section: Clickable to go to Ticket pass page */}
-                                            <div 
-                                                onClick={() => window.location.href = `/ticket/${ticket.id}`}
-                                                className="p-6 h-[72%] flex flex-col justify-between relative cursor-pointer hover:bg-zinc-50/30 dark:hover:bg-white/[0.01] transition-colors"
-                                            >
-                                                {/* Subtle background glow */}
-                                                {isVirtual ? (
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 dark:bg-purple-500/5 rounded-bl-[100px] blur-xl pointer-events-none group-hover:bg-purple-500/10 transition-colors" />
-                                                ) : (
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-500/[0.02] dark:bg-white/[0.01] rounded-bl-[100px] blur-xl pointer-events-none group-hover:bg-zinc-500/[0.04] transition-colors" />
-                                                )}
-
-                                                {/* Content */}
-                                                <div className="relative z-10">
-                                                    <div className="flex justify-between items-start mb-6">
-                                                        <div className="space-y-1.5 min-w-0 pr-2">
-                                                            <p className={`text-[10px] font-black uppercase tracking-[0.15em] truncate ${
-                                                                isVirtual 
-                                                                    ? 'text-purple-600 dark:text-purple-400' 
-                                                                    : 'text-zinc-400 dark:text-zinc-500'
-                                                            }`}>
-                                                                {ticket.ticket_tiers?.name || 'General Access'}
-                                                            </p>
-                                                            <p className="text-xs font-mono text-zinc-400 dark:text-zinc-500 font-medium lowercase tracking-wide">
-                                                                #{ticket.id.slice(0, 8)}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 shrink-0">
-                                                            {isVirtual && (
-                                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-50 text-purple-600 border border-purple-100 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20">
-                                                                    Virtual
-                                                                </span>
-                                                            )}
-                                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                                                                ticket.status === 'valid'
-                                                                    ? 'bg-green-50 text-green-600 border-green-100 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20'
-                                                                    : ticket.status === 'used'
-                                                                        ? 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-white/5 dark:text-zinc-500 dark:border-white/10'
-                                                                        : 'bg-red-50 text-red-600 border-red-100 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20'
-                                                            }`}>
-                                                                {ticket.status}
-                                                            </div>
-                                                        </div>
+                                        <article key={ticket.id} className="px-4 py-4 sm:px-6">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex min-w-0 items-start gap-3">
+                                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f3f3f3] text-[#444] dark:bg-[#222] dark:text-[#ccc]">
+                                                        {isVirtual ? <Globe2 className="size-4" strokeWidth={1.7} aria-hidden="true" /> : <TicketIcon className="size-4" strokeWidth={1.7} aria-hidden="true" />}
                                                     </div>
-                                                    {isVirtual ? (
-                                                        <div className="flex items-center gap-3 opacity-80 group-hover:opacity-100 transition-opacity">
-                                                            <div className="w-8 h-8 rounded-full bg-purple-50 dark:bg-purple-950/20 border border-purple-100/50 dark:border-purple-500/10 flex items-center justify-center shrink-0">
-                                                                {virtualLink ? (
-                                                                    <Video className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                                                ) : (
-                                                                    <Globe className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                                                )}
-                                                            </div>
-                                                            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-medium truncate">
-                                                                {virtualLink ? 'Livestream Link Active' : 'Livestream Link Pending'}
-                                                            </div>
-                                                        </div>
+                                                    <div className="min-w-0">
+                                                        <h3 className="text-[15px] font-semibold leading-5">{displayTierName(ticket.ticket_tiers?.name)}</h3>
+                                                        <p className="mt-1 text-[12px] text-[#777] dark:text-[#aaa]">{isVirtual ? 'Online pass' : 'Entry pass'} · #{ticket.id.slice(0, 8)}</p>
+                                                    </div>
+                                                </div>
+                                                <span className={`inline-flex shrink-0 items-center gap-1.5 pt-1 text-[11px] font-medium ${ticket.status === 'cancelled' ? 'text-red-600 dark:text-red-400' : 'text-[#666] dark:text-[#aaa]'}`}>
+                                                    <span className={`size-1.5 rounded-full ${ticket.status === 'cancelled' ? 'bg-red-500' : ticket.status === 'used' ? 'bg-[#999]' : 'bg-[#111] dark:bg-white'}`} />
+                                                    {statusLabel(ticket.status, eventEnded)}
+                                                </span>
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pl-12">
+                                                <p className="text-[12px] text-[#777] dark:text-[#aaa]">{ticketHint}</p>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    {!isValid ? (
+                                                        <Link href={`/ticket/${ticket.id}`} className={secondaryAction}>View pass <ArrowRight className="size-3.5" aria-hidden="true" /></Link>
+                                                    ) : isVirtual && virtualLink ? (
+                                                        <a href={virtualLink} target="_blank" rel="noopener noreferrer" className={primaryAction}>{eventEnded ? 'Open stream' : 'Join stream'} <ArrowUpRight className="size-3.5" aria-hidden="true" /></a>
+                                                    ) : isVirtual || eventEnded ? (
+                                                        <Link href={`/ticket/${ticket.id}`} className={primaryAction}>View pass <ArrowRight className="size-3.5" aria-hidden="true" /></Link>
                                                     ) : (
-                                                        <div className="flex items-center gap-3 opacity-80 group-hover:opacity-100 transition-opacity">
-                                                            <div className="w-8 h-8 rounded-full bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/10 flex items-center justify-center shrink-0">
-                                                                <TicketIcon className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
-                                                            </div>
-                                                            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-medium truncate">
-                                                                Standard Entry Ticket
-                                                            </div>
-                                                        </div>
+                                                        <button type="button" onClick={() => openCode(ticket)} className={primaryAction}><QrCode className="size-3.5" aria-hidden="true" />Show code</button>
                                                     )}
+                                                    {isValid && !isVirtual && !eventEnded && <button type="button" onClick={() => openTransfer(ticket)} className={secondaryAction}>Transfer</button>}
                                                 </div>
                                             </div>
-
-                                            {/* Lower Section: Actions */}
-                                            <div className="absolute bottom-0 left-0 right-0 h-[28%] bg-zinc-50/30 dark:bg-white/[0.01] px-3 flex items-center gap-2">
-                                                {isVirtual ? (
-                                                    virtualLink ? (
-                                                        <Button
-                                                            className="flex-1 h-10 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-500 dark:text-white dark:hover:bg-purple-600 shadow-md shadow-purple-500/10 transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-0 px-2"
-                                                            onClick={() => window.open(virtualLink, '_blank')}
-                                                        >
-                                                            <Video size={14} />
-                                                            <span className="truncate">Join Stream</span>
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            className="flex-1 h-10 rounded-xl text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-md transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-0 px-2"
-                                                            onClick={() => window.location.href = `/ticket/${ticket.id}`}
-                                                        >
-                                                            <Eye size={14} />
-                                                            <span className="truncate">Access Pass</span>
-                                                        </Button>
-                                                    )
-                                                ) : (
-                                                    <Button
-                                                        className="flex-1 h-10 rounded-xl text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-md transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-0 px-2"
-                                                        onClick={() => handleViewQR(ticket)}
-                                                    >
-                                                        <QrCode size={14} />
-                                                        <span className="truncate">Show Code</span>
-                                                    </Button>
-                                                )}
-                                                {ticket.status === 'valid' && !isVirtual && (
-                                                    <Button
-                                                        variant="outline"
-                                                        className="flex-1 h-10 rounded-xl border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-all active:scale-95 bg-white dark:bg-transparent font-bold flex items-center justify-center gap-1.5 whitespace-nowrap min-w-0 px-2"
-                                                        onClick={() => handleTransfer(ticket)}
-                                                    >
-                                                        <Share2 size={14} />
-                                                        <span className="truncate">Transfer</span>
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
+                                        </article>
                                     )
                                 })}
-                                {instalments.map((instalment) => (
-                                    <div 
-                                        key={instalment.id} 
-                                        className="group relative glass-card border border-amber-500/20 dark:border-amber-500/30 rounded-3xl overflow-hidden hover:shadow-2xl hover:shadow-amber-500/[0.02] hover:-translate-y-1 transition-all duration-300 h-[280px]"
-                                    >
-                                        {/* Ticket Stub Effect: Dashed Line & Notches */}
-                                        <div className="absolute top-[72%] left-0 right-0 h-px border-t-2 border-dashed border-amber-500/20 dark:border-amber-500/30" />
-                                        <div className="absolute top-[72%] -left-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border border-amber-500/20 dark:border-amber-500/30 dark:border-l-transparent dark:border-t-transparent border-r-transparent border-b-transparent rotate-45 z-10" />
-                                        <div className="absolute top-[72%] -right-3 -translate-y-1/2 w-6 h-6 bg-white dark:bg-black rounded-full border border-amber-500/20 dark:border-amber-500/30 dark:border-l-transparent dark:border-t-transparent border-l-transparent border-t-transparent -rotate-45 z-10" />
 
-                                        {/* Upper Section: Info */}
-                                        <div className="p-6 h-[72%] flex flex-col justify-between relative bg-amber-50/20 dark:bg-amber-500/[0.01]">
-                                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-[100px] blur-xl pointer-events-none group-hover:bg-amber-500/10 transition-colors" />
-                                            {/* Content */}
-                                            <div className="relative z-10">
-                                                <div className="flex justify-between items-start mb-6">
-                                                    <div className="space-y-1.5 min-w-0 pr-2">
-                                                        <p className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.15em] truncate">
-                                                            {instalment.reservations?.ticket_tiers?.name || 'General Access'} x{instalment.reservations?.quantity || 1}
-                                                        </p>
-                                                        <p className="text-xs font-mono font-medium text-zinc-400 dark:text-zinc-500 lowercase tracking-wide">
-                                                            Instalment Plan: #{instalment.id.slice(0, 8)}
-                                                        </p>
+                                {eventInstalments.map((plan) => {
+                                    const remaining = Math.max(0, plan.total_amount - plan.amount_paid)
+                                    const progress = plan.total_amount > 0 ? Math.min(100, Math.max(0, plan.amount_paid / plan.total_amount * 100)) : 0
+                                    const currency = plan.currency || plan.reservations?.ticket_tiers?.currency || 'GHS'
+                                    const eventEnded = hasEventEnded(event, now)
+                                    const dueDate = plan.next_instalment_due_at ? new Date(plan.next_instalment_due_at) : null
+                                    const dueLabel = dueDate && !Number.isNaN(dueDate.getTime()) && plan.status === 'active'
+                                        ? `${dueDate.getTime() < now ? 'Payment was due' : 'Next payment'} ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                                        : `Plan #${plan.id.slice(0, 8)}`
+                                    return (
+                                        <article key={plan.id} className="px-4 py-5 sm:px-6">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex min-w-0 items-start gap-3">
+                                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f3f3f3] text-[#444] dark:bg-[#222] dark:text-[#ccc]">
+                                                        <CreditCard className="size-4" strokeWidth={1.7} aria-hidden="true" />
                                                     </div>
-                                                    <div className="shrink-0 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
-                                                        {instalment.status === 'active' ? 'Paying' : instalment.status}
+                                                    <div className="min-w-0">
+                                                        <h3 className="text-[15px] font-semibold leading-5">Payment plan</h3>
+                                                        <p className="mt-1 text-[12px] text-[#777] dark:text-[#aaa]">{displayTierName(plan.reservations?.ticket_tiers?.name)} · {plan.reservations?.quantity || 1} {plan.reservations?.quantity === 1 ? 'ticket' : 'tickets'}</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col mt-4">
-                                                    <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5">Paid Status</span>
-                                                    <div className="text-xl font-bold font-mono text-zinc-900 dark:text-white mt-1">
-                                                        <span className="text-zinc-900 dark:text-white">{formatCurrency(instalment.amount_paid)}</span>
-                                                        <span className="text-sm text-zinc-400 dark:text-zinc-500 tracking-tighter"> / {formatCurrency(instalment.total_amount)}</span>
-                                                    </div>
+                                                <span className="inline-flex shrink-0 items-center gap-1.5 pt-1 text-[11px] font-medium capitalize text-[#666] dark:text-[#aaa]"><span className="size-1.5 rounded-full bg-[#111] dark:bg-white" />{plan.status === 'active' ? eventEnded ? 'Event ended' : 'In progress' : plan.status}</span>
+                                            </div>
+                                            <div className="mt-4 pl-12">
+                                                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[13px]">
+                                                    <span><strong className="font-semibold">{formatCurrency(plan.amount_paid, currency)}</strong><span className="text-[#777] dark:text-[#aaa]"> of {formatCurrency(plan.total_amount, currency)} paid</span></span>
+                                                    <span className="font-semibold">{formatCurrency(remaining, currency)} remaining</span>
+                                                </div>
+                                                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#e9e9e9] dark:bg-[#333]" role="progressbar" aria-label="Payment progress" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}>
+                                                    <div className="h-full rounded-full bg-[#111] dark:bg-white" style={{ width: `${progress}%` }} />
+                                                </div>
+                                                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                                    <p className="text-[12px] text-[#777] dark:text-[#aaa]">{dueLabel}</p>
+                                                    <Link href={`/my-tickets/instalments/${plan.id}`} className={secondaryAction}>Manage plan <ArrowRight className="size-3.5" aria-hidden="true" /></Link>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        {/* Lower Section: Actions */}
-                                        <div className="absolute bottom-0 left-0 right-0 h-[28%] bg-zinc-50/30 dark:bg-white/[0.01] px-4 flex items-center gap-2 border-t border-dashed border-amber-500/20 dark:border-amber-500/30 backdrop-blur-sm">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider leading-none mb-1">Due</p>
-                                                <strong className="text-base text-zinc-900 dark:text-white font-black font-mono leading-none">
-                                                    {formatCurrency(instalment.total_amount - instalment.amount_paid)}
-                                                </strong>
-                                            </div>
-                                            <Button
-                                                className="h-10 rounded-xl text-xs font-bold bg-amber-400 text-amber-950 hover:bg-amber-500 shadow-sm transition-all active:scale-95 gap-1.5 whitespace-nowrap justify-center min-w-[110px] px-4 border border-amber-500/20 shadow-amber-500/10"
-                                                onClick={() => window.location.href = `/my-tickets/instalments/${instalment.id}`}
-                                            >
-                                                <span className="truncate">Manage</span>
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
+                                        </article>
+                                    )
+                                })}
                             </div>
-                        </div>
+                        </section>
                     ))}
                 </div>
             )}
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-zinc-200/50 dark:border-white/5 relative z-20">
-                    <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500">
-                        Showing {startIndex + 1}–{Math.min(endIndex, sortedGroups.length)} of {sortedGroups.length} events
-                    </span>
-                    
-                    <div className="flex items-center justify-center flex-wrap gap-1.5 w-full sm:w-auto">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                setCurrentPage(prev => Math.max(1, prev - 1))
-                                window.scrollTo({ top: 0, behavior: 'smooth' })
-                            }}
-                            disabled={validCurrentPage === 1}
-                            className="h-9 px-3 rounded-xl border-zinc-200/80 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40"
-                        >
-                            Previous
-                        </Button>
-                        
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                            <button
-                                key={page}
-                                onClick={() => {
-                                    setCurrentPage(page)
-                                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                                }}
-                                className={`w-9 h-9 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                    validCurrentPage === page
-                                        ? 'bg-zinc-900 text-white dark:bg-white dark:text-black font-extrabold shadow-md'
-                                        : 'bg-zinc-100/40 hover:bg-zinc-100 dark:bg-zinc-900/30 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/20 dark:border-zinc-800/20'
-                                }`}
-                            >
-                                {page}
-                            </button>
-                        ))}
-                        
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                setCurrentPage(prev => Math.min(totalPages, prev + 1))
-                                window.scrollTo({ top: 0, behavior: 'smooth' })
-                            }}
-                            disabled={validCurrentPage === totalPages}
-                            className="h-9 px-3 rounded-xl border-zinc-200/80 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 disabled:opacity-40"
-                        >
-                            Next
-                        </Button>
+                <nav aria-label="Ticket pages" className="mt-8 flex items-center justify-between border-t border-[#e8e8e8] pt-5 dark:border-[#303030]">
+                    <span className="text-[12px] text-[#777] dark:text-[#aaa]">Page {page} of {totalPages}</span>
+                    <div className="flex gap-2">
+                        <button type="button" disabled={page === 1} onClick={() => { setCurrentPage(page - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${secondaryAction} disabled:cursor-not-allowed disabled:opacity-40`}>Previous</button>
+                        <button type="button" disabled={page === totalPages} onClick={() => { setCurrentPage(page + 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${secondaryAction} disabled:cursor-not-allowed disabled:opacity-40`}>Next</button>
                     </div>
-                </div>
+                </nav>
             )}
 
-            {
-                selectedTicket && (
-                    <TransferModal
-                        isOpen={isTransferring}
-                        onClose={() => { setIsTransferring(false); setSelectedTicket(null); }}
-                        ticketId={selectedTicket?.id || ''}
-                        eventName={selectedTicket?.events?.title || 'Event'}
-                        onTransferCreated={() => {
-                            // refresh page or state? For now user can manually refresh or we can add a router refresh
-                        }}
-                    />
-                )
-            }
+            {selectedTicket && (
+                <TransferModal
+                    isOpen={isTransferring}
+                    onClose={() => { setIsTransferring(false); setSelectedTicket(null) }}
+                    ticketId={selectedTicket.id}
+                    eventName={selectedTicket.events?.title || 'Event'}
+                    onTransferCreated={() => router.refresh()}
+                />
+            )}
 
-            <Dialog open={showQR} onOpenChange={setShowQR}>
-                <DialogContent className="sm:max-w-sm flex flex-col items-center p-8">
-                    <h3 className="text-lg font-bold mb-6 text-center">Scan at Entry</h3>
-                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-inner">
-                        <QRCode value={selectedTicket?.qr_code_hash || ''} size={200} />
+            <Dialog open={showQR} onOpenChange={(open) => { setShowQR(open); if (!open) setSelectedTicket(null) }}>
+                <DialogContent role="dialog" aria-modal="true" aria-labelledby="entry-code-title" className="mx-4 max-w-[360px] rounded-[20px] border-[#e5e5e5] p-6 shadow-xl dark:border-[#303030] dark:bg-[#111]">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <h2 id="entry-code-title" className="text-[22px] font-semibold tracking-[-0.04em]">Entry code</h2>
+                            <p className="mt-1 text-[13px] text-[#666] dark:text-[#aaa]">Show this at the door.</p>
+                        </div>
+                        <button type="button" onClick={() => { setShowQR(false); setSelectedTicket(null) }} aria-label="Close entry code" className="flex size-8 shrink-0 items-center justify-center rounded-full hover:bg-[#f3f3f3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:hover:bg-[#292929] dark:focus-visible:ring-white"><X className="size-4" aria-hidden="true" /></button>
                     </div>
-                    <div className="mt-6 text-center">
-                        <p className="font-bold text-lg mb-1">{selectedTicket?.events?.title}</p>
-                        <p className="text-sm text-gray-500 mb-4">{selectedTicket?.ticket_tiers?.name}</p>
-                        <p className="text-xs font-mono text-gray-400 bg-gray-50 dark:bg-zinc-800 px-3 py-1 rounded-full">
-                            {selectedTicket?.qr_code_hash?.slice(0, 16)}...
-                        </p>
-                    </div>
+                    <div className="mt-6 flex justify-center rounded-xl border border-[#eaeaea] bg-white p-5"><QRCode value={selectedTicket?.qr_code_hash || ''} size={200} /></div>
+                    <p className="mt-5 text-center text-[15px] font-semibold">{selectedTicket?.events?.title}</p>
+                    <p className="mt-1 text-center text-[12px] text-[#777] dark:text-[#aaa]">{displayTierName(selectedTicket?.ticket_tiers?.name)} · #{selectedTicket?.id.slice(0, 8)}</p>
                 </DialogContent>
             </Dialog>
-        </div >
+        </div>
     )
 }

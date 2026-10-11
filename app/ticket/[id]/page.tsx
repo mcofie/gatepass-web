@@ -1,166 +1,109 @@
-
 import { createClient } from '@supabase/supabase-js'
-import { Metadata } from 'next'
-import Image from 'next/image'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { MapPin, Calendar, Ticket, ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { GatePassMark } from '@/components/branding/GatePassMark'
 import { PublicTicketActions } from '@/components/ticket/PublicTicketActions'
 import { TicketPass } from '@/components/ticket/TicketPass'
-import { ImmersiveBackground } from '@/components/ticket/ImmersiveBackground'
-// Actually, for a public page, a react component is better/cleaner if installed.
-// The email used: https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=...
-// I'll stick to the API for consistency and zero-dep for now, or just use an img tag.
 
-// Force dynamic to ensure we always fetch fresh data
 export const dynamic = 'force-dynamic'
 
 interface Props {
     params: Promise<{ id: string }>
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const { id } = await params
-    return {
-        title: `Ticket - ${id.substring(0, 8).toUpperCase()}`,
-        description: 'View your event ticket'
-    }
+export const metadata: Metadata = {
+    title: 'Event pass',
+    description: 'View your GatePass event pass.',
+    robots: { index: false, follow: false },
 }
 
 export default async function PublicTicketPage({ params }: Props) {
     const { id } = await params
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    // 1. Init Supabase with Service Role to bypass RLS
-    // We only have read access to one specific ID, so this is safe pattern for "magic link" style access
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-    if (!serviceRoleKey) {
-        console.error('Missing SUPABASE_SERVICE_ROLE_KEY')
-        return <div className="p-10 text-center">System Configuration Error</div>
+    if (!supabaseUrl || !serviceRoleKey) {
+        console.error('Missing Supabase configuration for ticket page')
+        return <div className="p-10 text-center">This pass is temporarily unavailable.</div>
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey)
-
-    // 2. Fetch Ticket
     const { data: ticket, error } = await supabase
         .schema('gatepass')
         .from('tickets')
         .select(`
             *,
-            events (
-                *,
-                organizers (name, logo_url)
-            ),
+            events (*),
             ticket_tiers (*),
-            profiles:user_id (*)
+            profiles:user_id (full_name)
         `)
         .eq('id', id)
         .single()
 
-    if (error || !ticket) {
-        console.error('Ticket Fetch Error:', error)
-        return notFound()
-    }
+    if (error || !ticket || !ticket.events || !ticket.ticket_tiers) notFound()
 
-    // 3. Format Data
     const event = ticket.events
     const tier = ticket.ticket_tiers
-    const profile = ticket.profiles // might be null if guest checkout? 
-    // Wait, ticket table usually has user_id. Guest checkout logic might put a profile or not?
-    // In `payment.ts`, we saw `reservation.guest_name`. Ticket table might not capture guest name if it just links to user_id.
-    // Let's check if there's a reservation link?
-    // `tickets` has `reservation_id`. We might need to fetch reservation to get guest name if user_id is null/anon.
-    // For now, let's try to get what we can.
-
-    // Fetch Reservation if needed for guest name
-    let guestName = profile?.full_name || 'Guest'
-    if (!profile) {
-        const { data: res } = await supabase.schema('gatepass').from('reservations').select('guest_name').eq('id', ticket.reservation_id).single()
-        if (res?.guest_name) guestName = res.guest_name
+    let guestName = ticket.profiles?.full_name || 'Guest'
+    if (!ticket.profiles?.full_name && ticket.reservation_id) {
+        const { data: reservation } = await supabase
+            .schema('gatepass')
+            .from('reservations')
+            .select('guest_name')
+            .eq('id', ticket.reservation_id)
+            .single()
+        if (reservation?.guest_name) guestName = reservation.guest_name
     }
 
-    const qrData = ticket.qr_code_hash || ticket.id
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${qrData}`
-
-    const eventDate = new Date(event.starts_at).toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-    })
-    const eventTime = new Date(event.starts_at).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: 'numeric'
-    })
+    const eventStart = new Date(event.starts_at).getTime()
+    const eventEnd = event.ends_at ? new Date(event.ends_at).getTime() : eventStart + 4 * 60 * 60 * 1000
+    const eventEnded = eventEnd < Date.now()
+    const pass = {
+        id: ticket.id,
+        qr_code_hash: ticket.qr_code_hash,
+        status: ticket.status,
+        reservations: { guest_name: guestName },
+    }
+    const passProps = {
+        event: { ...event, venue_address: event.venue_address || '' },
+        ticket: pass,
+        tierName: tier.name,
+        isVirtual: Boolean(tier.is_virtual),
+        eventEnded,
+        virtualLink: tier.virtual_link,
+        virtualInstructions: tier.virtual_instructions,
+    }
 
     return (
-        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden" style={{ backgroundColor: '#171717' }}>
+        <div className="min-h-svh bg-[#f7f7f7] text-[#111] dark:bg-[#080808] dark:text-white">
+            <header className="mx-auto flex w-full max-w-[1040px] items-center justify-between px-5 py-6 sm:px-8">
+                <Link href="/" className="inline-flex items-center gap-2 text-[15px] font-semibold tracking-[-0.03em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white">
+                    <GatePassMark className="size-6" />GatePass
+                </Link>
+                <Link href="/my-tickets" className="inline-flex items-center gap-2 rounded-full border border-[#dedede] bg-white px-4 py-2 text-[12px] font-semibold transition-colors hover:border-[#aaa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-[#383838] dark:bg-[#111] dark:focus-visible:ring-white">
+                    <ArrowLeft className="size-3.5" aria-hidden="true" />My tickets
+                </Link>
+            </header>
 
-            {/* Immersive Mesh Gradient Background */}
-            <ImmersiveBackground posterUrl={event.poster_url} />
-
-
-            {/* Ticket Container */}
-            <div className="w-full max-w-sm relative z-10 animate-fade-in-up flex flex-col items-center">
-
-                {/* 1. Visible Ticket */}
-                <TicketPass
-                    id="ticket-pass-card"
-                    event={{
-                        ...event,
-                        venue_address: event.venue_address || ''
-                    }}
-                    ticket={{
-                        ...ticket,
-                        reservations: {
-                            guest_name: guestName
-                        }
-                    }}
-                    tierName={tier.name}
-                    logoUrl={event.organizers?.logo_url}
-                    isPrint={false}
-                    isVirtual={tier.is_virtual}
-                    virtualLink={tier.virtual_link}
-                    virtualInstructions={tier.virtual_instructions}
-                />
-
-                {/* 2. Hidden Ticket for Print */}
-                <div className="absolute top-0 left-[-9999px]">
-                    <div id="ticket-print-target">
-                        <TicketPass
-                            event={{
-                                ...event,
-                                venue_address: event.venue_address || ''
-                            }}
-                            ticket={{
-                                ...ticket,
-                                reservations: {
-                                    guest_name: guestName
-                                }
-                            }}
-                            tierName={tier.name}
-                            logoUrl={event.organizers?.logo_url}
-                            isPrint={true}
-                            isVirtual={tier.is_virtual}
-                            virtualLink={tier.virtual_link}
-                            virtualInstructions={tier.virtual_instructions}
-                        />
-                    </div>
+            <main className="mx-auto w-full max-w-[620px] px-4 pb-16 pt-7 sm:px-6 sm:pt-10">
+                <div className="mb-6 px-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#777] dark:text-[#aaa]">Your pass</p>
+                    <h1 className="mt-2 text-[clamp(2.2rem,6vw,3.25rem)] font-semibold leading-[1.05] tracking-[-0.06em]">Ticket details</h1>
+                    <p className="mt-2 text-[14px] text-[#666] dark:text-[#aaa]">Your pass and event details, in one place.</p>
                 </div>
 
-                {/* Actions */}
-                <div className="w-full max-w-[300px] mt-6">
+                <TicketPass {...passProps} />
+
+                <div className="mt-5">
                     <PublicTicketActions ticketId={ticket.id} eventTitle={event.title} />
                 </div>
 
-                <div className="mt-8 flex justify-center opacity-30">
-                    <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#ffffff' }}>Verified Ticket</p>
+                <div aria-hidden="true" className="fixed left-[-10000px] top-0">
+                    <div id="ticket-print-target"><TicketPass {...passProps} isPrint /></div>
                 </div>
-
-            </div>
-
-            <p className="mt-8 text-xs font-medium opacity-50" style={{ color: '#71717a' }}>GatePass Inc.</p>
+            </main>
         </div>
     )
 }

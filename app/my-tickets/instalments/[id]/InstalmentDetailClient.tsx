@@ -1,368 +1,242 @@
 'use client'
 
-import React, { useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
-import {
-    ArrowLeft, CalendarClock, CheckCircle2, Clock, AlertCircle,
-    CreditCard, MapPin, Calendar, XCircle, Loader2
-} from 'lucide-react'
-import { formatCurrency } from '@/utils/format'
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Loader2, MapPin, Ticket as TicketIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatCurrency } from '@/utils/format'
 
-interface InstalmentDetailClientProps {
-    instalment: any
+interface PlanPayment {
+    id: string
+    instalment_number: number
+    amount: number
+    currency?: string | null
+    status: 'pending' | 'paid' | 'overdue' | 'failed'
+    due_at: string
+    paid_at?: string | null
 }
 
-export default function InstalmentDetailClient({ instalment }: InstalmentDetailClientProps) {
-    const router = useRouter()
-    const pathname = usePathname()
-    const isGuest = pathname?.includes('/checkout/')
-    const [loading, setLoading] = useState(false)
-    const [payingInstalmentId, setPayingInstalmentId] = useState<string | null>(null)
-    const [payingFull, setPayingFull] = useState(false)
+interface InstalmentDetail {
+    id: string
+    reservation_id: string
+    total_amount: number
+    amount_paid: number
+    currency?: string | null
+    status: 'active' | 'completed' | 'forfeited' | 'refunded'
+    contact_email?: string | null
+    instalment_payments?: PlanPayment[] | null
+    reservations?: {
+        guest_email?: string | null
+        quantity?: number | null
+        ticket_tiers?: { name: string } | null
+        events?: {
+            id: string
+            title: string
+            poster_url?: string | null
+            starts_at: string
+            ends_at?: string | null
+            venue_name?: string | null
+        } | null
+    } | null
+}
 
+function displayTierName(name?: string) {
+    if (!name) return 'General admission'
+    if (/^virtual\s*\/\s*livestream\s*\/\s*online$/i.test(name)) return 'Livestream'
+    if (/^pay[\s-]*what[\s-]*you[\s-]*want\s*\/\s*pay[\s-]*what[\s-]*you[\s-]*can$/i.test(name)) return 'Pay what you want'
+    return name
+}
+
+function formatDate(value?: string | null) {
+    if (!value) return ''
+    return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Accra' }).format(new Date(value))
+}
+
+function paymentLabel(payment: PlanPayment, now: number) {
+    if (payment.status === 'paid') return 'Paid'
+    if (payment.status === 'failed') return 'Failed'
+    if (payment.status === 'overdue' || new Date(payment.due_at).getTime() < now) return 'Overdue'
+    return 'Upcoming'
+}
+
+const primaryAction = 'inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#111] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-white dark:text-black dark:hover:bg-[#e5e5e5] dark:focus-visible:ring-white dark:focus-visible:ring-offset-[#080808]'
+const secondaryAction = 'inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#dedede] px-5 text-[13px] font-semibold text-[#222] transition-colors hover:border-[#aaa] hover:bg-[#f7f7f7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#383838] dark:text-white dark:hover:bg-[#202020] dark:focus-visible:ring-white'
+
+export default function InstalmentDetailClient({ instalment }: { instalment: InstalmentDetail }) {
+    const [processing, setProcessing] = useState<'next' | 'full' | null>(null)
     const reservation = instalment.reservations
     const event = reservation?.events
-    const tier = reservation?.ticket_tiers
-    const payments = instalment.instalment_payments || []
-    const plan = instalment.payment_plans
+    const payments = [...(instalment.instalment_payments || [])].sort((a, b) => a.instalment_number - b.instalment_number)
+    const currency = instalment.currency || 'GHS'
+    const total = Number(instalment.total_amount) || 0
+    const paid = Number(instalment.amount_paid) || 0
+    const remaining = Math.max(0, total - paid)
+    const progress = total > 0 ? Math.min(100, Math.max(0, Math.round((paid / total) * 100))) : 0
+    const paidCount = payments.filter(payment => payment.status === 'paid').length
+    const unpaidPayments = payments.filter(payment => payment.status === 'pending' || payment.status === 'overdue')
+    const nextPayment = unpaidPayments[0]
+    const now = Date.now()
+    const eventStart = event ? new Date(event.starts_at).getTime() : 0
+    const eventEnd = event?.ends_at ? new Date(event.ends_at).getTime() : eventStart + 4 * 60 * 60 * 1000
+    const eventEnded = Boolean(event && eventEnd < now)
+    const canPay = Boolean(event && !eventEnded && instalment.status === 'active' && remaining > 0 && nextPayment)
+    const quantity = reservation?.quantity || 1
+    const planStatus = instalment.status === 'active' ? 'Plan active' : instalment.status === 'completed' ? 'Paid in full' : instalment.status === 'forfeited' ? 'Forfeited' : 'Refunded'
+    const displayStatus = eventEnded && instalment.status === 'active' ? 'Event ended' : planStatus
 
-    const progressPct = Math.round((instalment.amount_paid / instalment.total_amount) * 100)
-    const remaining = instalment.total_amount - instalment.amount_paid
-
-    // Find next pending payment
-    const nextPayment = payments
-        .filter((p: any) => p.status === 'pending' || p.status === 'overdue')
-        .sort((a: any, b: any) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())[0]
-
-    const handlePayInstalment = async (payment: any) => {
-        setLoading(true)
-        setPayingInstalmentId(payment.id)
-
-        try {
-            // Initialize Paystack for this instalment
-            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.so'
-            const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?instalment_payment_id=${payment.id}`
-
-            const response = await fetch('/api/paystack/initialize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email,
-                    amount: Math.round(payment.amount * 100), // In kobo/pesewas
-                    currency: payment.currency || instalment.currency || 'GHS',
-                    reservationIds: [instalment.reservation_id],
-                    callbackUrl,
-                    metadata: {
-                        instalment_reservation_id: instalment.id,
-                        instalment_payment_id: payment.id,
-                        instalment_number: payment.instalment_number,
-                        payment_type: 'instalment'
-                    }
-                })
-            })
-
-            const data = await response.json()
-            if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
-
-            window.location.href = data.authorization_url
-        } catch (error: any) {
-            console.error('Instalment Payment Error:', error)
-            toast.error(error.message || 'Failed to initialize payment')
-            setLoading(false)
-            setPayingInstalmentId(null)
+    const startPayment = async (kind: 'next' | 'full') => {
+        if (!canPay || processing || !nextPayment) return
+        if (eventEnd < Date.now()) {
+            toast.error('This event has ended. Contact support about the remaining balance.')
+            return
         }
-    }
+        const email = instalment.contact_email || reservation?.guest_email
+        if (!email) {
+            toast.error('A contact email is needed to continue. Please contact support.')
+            return
+        }
 
-    const handlePayFullRemaining = async () => {
-        setLoading(true)
-        setPayingFull(true)
+        const payment = kind === 'next' ? nextPayment : null
+        const amount = kind === 'next' ? Number(nextPayment.amount) : remaining
+        const query = payment ? `instalment_payment_id=${payment.id}` : 'full_settlement=true'
+        const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?${query}`
+        setProcessing(kind)
 
         try {
-            const email = instalment.contact_email || reservation?.guest_email || 'customer@gatepass.so'
-            const callbackUrl = `${window.location.origin}${window.location.pathname}/payment-callback?full_settlement=true`
-
             const response = await fetch('/api/paystack/initialize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email,
-                    amount: Math.round(remaining * 100), // In kobo/pesewas
-                    currency: instalment.currency || 'GHS',
+                    amount: Math.round(amount * 100),
+                    currency: payment?.currency || currency,
                     reservationIds: [instalment.reservation_id],
                     callbackUrl,
                     metadata: {
                         instalment_reservation_id: instalment.id,
+                        ...(payment ? {
+                            instalment_payment_id: payment.id,
+                            instalment_number: payment.instalment_number,
+                        } : { is_full_payment: true }),
                         payment_type: 'instalment',
-                        is_full_payment: true
-                    }
-                })
+                    },
+                }),
             })
-
             const data = await response.json()
-            if (!response.ok) throw new Error(data.error || 'Full payment initialization failed')
-
-            window.location.href = data.authorization_url
-        } catch (error: any) {
-            console.error('Full Payment Error:', error)
-            toast.error(error.message || 'Failed to initialize full payment')
-            setLoading(false)
-            setPayingFull(false)
-        }
-    }
-
-    const getPaymentStatusConfig = (status: string) => {
-        switch (status) {
-            case 'paid':
-                return { icon: <CheckCircle2 className="w-4 h-4 text-green-500" />, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-500/5', label: 'Paid' }
-            case 'pending':
-                return { icon: <Clock className="w-4 h-4 text-gray-400" />, color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-50 dark:bg-zinc-800', label: 'Pending' }
-            case 'overdue':
-                return { icon: <AlertCircle className="w-4 h-4 text-red-500" />, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-500/5', label: 'Overdue' }
-            case 'failed':
-                return { icon: <XCircle className="w-4 h-4 text-red-500" />, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-500/5', label: 'Failed' }
-            default:
-                return { icon: null, color: 'text-gray-500', bg: 'bg-gray-50', label: status }
+            if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Could not start this payment')
+            window.location.assign(data.authorization_url)
+        } catch (error) {
+            console.error('Instalment payment error:', error)
+            toast.error(error instanceof Error ? error.message : 'Could not start this payment')
+            setProcessing(null)
         }
     }
 
     return (
-        <div className="w-full">
-            <div className="w-full">
-                {/* Back */}
-                {!isGuest && (
-                    <button
-                        onClick={() => router.push('/my-tickets')}
-                        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-black dark:hover:text-white mb-6 transition-colors"
-                    >
-                        <ArrowLeft className="w-4 h-4" /> Back to My Tickets
-                    </button>
-                )}
+        <div>
+            <Link href="/my-tickets" className="inline-flex items-center gap-2 text-[13px] font-medium text-[#666] transition-colors hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:text-[#aaa] dark:hover:text-white dark:focus-visible:ring-white">
+                <ArrowLeft className="size-4" aria-hidden="true" />My tickets
+            </Link>
 
-                {/* Event Info */}
-                <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+            <div className="mb-8 mt-8">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-[#777] dark:text-[#aaa]">Payment plan</p>
+                <h1 className="mt-2 text-[clamp(2.6rem,5vw,4rem)] font-semibold leading-[1.03] tracking-[-0.06em]">Plan details</h1>
+                <p className="mt-3 text-[14px] text-[#666] dark:text-[#aaa]">Track your payments for {event?.title || 'your event'}.</p>
+            </div>
+
+            <section aria-labelledby="plan-event-title" className="overflow-hidden rounded-[20px] border border-[#e5e5e5] dark:border-[#303030]">
+                <div className="flex items-center gap-4 border-b border-[#eaeaea] bg-[#fafafa] px-5 py-5 sm:px-7 dark:border-[#303030] dark:bg-[#111]">
+                    <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-[#e9e9e9] dark:bg-[#222]">
+                        {event?.poster_url ? <Image src={event.poster_url} alt="" fill className="object-cover" sizes="56px" /> : <TicketIcon className="absolute left-4 top-4 size-6 text-[#777]" aria-hidden="true" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h2 id="plan-event-title" className="text-[18px] font-semibold leading-6 tracking-[-0.035em] sm:text-[20px]">{event?.title || 'Event'}</h2>
+                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-[#666] dark:text-[#aaa]">
+                            {event?.starts_at && <span className="inline-flex items-center gap-1"><CalendarDays className="size-3.5" aria-hidden="true" />{formatDate(event.starts_at)}</span>}
+                            {event?.venue_name && <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" aria-hidden="true" />{event.venue_name}</span>}
+                        </p>
+                        <p className="mt-1 text-[12px] text-[#777] dark:text-[#aaa]">{quantity} {quantity === 1 ? 'ticket' : 'tickets'} · {displayTierName(reservation?.ticket_tiers?.name)}</p>
+                    </div>
+                    <span className={`hidden shrink-0 items-center gap-1.5 text-[11px] font-medium sm:inline-flex ${instalment.status === 'forfeited' ? 'text-red-600 dark:text-red-400' : 'text-[#666] dark:text-[#aaa]'}`}><span className={`size-1.5 rounded-full ${instalment.status === 'forfeited' ? 'bg-red-500' : 'bg-[#111] dark:bg-white'}`} aria-hidden="true" />{displayStatus}</span>
+                </div>
+
+                <div className="px-5 py-6 sm:px-7 sm:py-8">
+                    <div className="flex items-start justify-between gap-4">
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{event?.title}</h1>
-                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                {event?.venue_name && (
-                                    <span className="flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" /> {event.venue_name}
-                                    </span>
-                                )}
-                                {event?.starts_at && (
-                                    <span className="flex items-center gap-1">
-                                        <Calendar className="w-3 h-3" />
-                                        {new Date(event.starts_at).toLocaleDateString('en-US', {
-                                            month: 'short', day: 'numeric', year: 'numeric'
-                                        })}
-                                    </span>
-                                )}
-                            </div>
+                            <p className="text-[13px] font-medium text-[#666] dark:text-[#aaa]">Remaining balance</p>
+                            <p className="mt-1 text-[clamp(2.3rem,6vw,3.25rem)] font-semibold leading-none tracking-[-0.06em]">{formatCurrency(remaining, currency)}</p>
                         </div>
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${instalment.status === 'completed' ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400' :
-                            instalment.status === 'forfeited' ? 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400' :
-                                'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                            }`}>
-                            {instalment.status === 'completed' ? <CheckCircle2 className="w-3.5 h-3.5" /> :
-                                instalment.status === 'forfeited' ? <XCircle className="w-3.5 h-3.5" /> :
-                                    <CalendarClock className="w-3.5 h-3.5" />}
-                            {instalment.status.charAt(0).toUpperCase() + instalment.status.slice(1)}
-                        </div>
+                        <span className="pt-1 text-[12px] font-medium text-[#777] sm:hidden dark:text-[#aaa]">{displayStatus}</span>
                     </div>
 
-                    {/* Ticket Info */}
-                    <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 flex justify-between items-center gap-4">
-                        <div className="min-w-0">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Ticket</span>
-                            <p className="font-bold text-gray-900 dark:text-white truncate">
-                                {reservation?.quantity || 1}x {typeof tier === 'object' && !Array.isArray(tier) ? tier.name : 'Ticket'}
-                            </p>
-                        </div>
-                        {instalment.status === 'completed' && (
-                            <Link
-                                href="/my-tickets"
-                                className="bg-green-500 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-600 transition-colors whitespace-nowrap"
-                            >
-                                View Tickets
-                            </Link>
-                        )}
+                    <div className="mt-7 h-1.5 overflow-hidden rounded-full bg-[#e9e9e9] dark:bg-[#333]" role="progressbar" aria-label="Payment progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+                        <div className="h-full rounded-full bg-[#111] dark:bg-white" style={{ width: `${progress}%` }} />
                     </div>
-                </div>
-
-                {/* Progress Card */}
-                <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Payment Progress</h2>
-
-                    {/* Progress Bar */}
-                    <div className="mb-6">
-                        <div className="flex flex-col sm:flex-row justify-between text-sm mb-2 gap-1">
-                            <span className="font-bold text-gray-900 dark:text-white">{progressPct}% Complete</span>
-                            <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-mono">
-                                {formatCurrency(instalment.amount_paid, instalment.currency)} / {formatCurrency(instalment.total_amount, instalment.currency)}
-                            </span>
-                        </div>
-                        <div className="bg-gray-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all duration-1000 ease-out ${instalment.status === 'completed' ? 'bg-gradient-to-r from-green-400 to-green-500' :
-                                    instalment.status === 'forfeited' ? 'bg-red-500' :
-                                        'bg-gradient-to-r from-amber-400 to-amber-500'
-                                    }`}
-                                style={{ width: `${progressPct}%` }}
-                            />
-                        </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-[#666] dark:text-[#aaa]">
+                        <span>{formatCurrency(paid, currency)} paid of {formatCurrency(total, currency)}</span>
+                        <span>{progress}% paid</span>
                     </div>
 
-                    {/* Summary Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="flex sm:flex-col justify-between p-3 px-4 sm:px-3 bg-green-50 dark:bg-green-500/5 rounded-xl">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Paid</span>
-                            <p className="font-bold text-green-700 dark:text-green-300 font-mono">
-                                {formatCurrency(instalment.amount_paid, instalment.currency)}
-                            </p>
+                    {eventEnded && instalment.status === 'active' && remaining > 0 && (
+                        <div className="mt-7 rounded-[14px] border border-[#e7e7e7] bg-[#fafafa] p-4 dark:border-[#333] dark:bg-[#1b1b1b]">
+                            <p className="text-[14px] font-semibold">This event has ended</p>
+                            <p className="mt-1 text-[13px] leading-5 text-[#666] dark:text-[#aaa]">The plan is still marked active, but further payments are unavailable here. Contact support before paying the remaining balance.</p>
+                            <a href="mailto:support@gatepass.so" className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white">Contact support <ArrowRight className="size-3.5" aria-hidden="true" /></a>
                         </div>
-                        <div className="flex sm:flex-col justify-between p-3 px-4 sm:px-3 bg-amber-50 dark:bg-amber-500/5 rounded-xl">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Remaining</span>
-                            <p className="font-bold text-amber-700 dark:text-amber-300 font-mono">
-                                {formatCurrency(remaining, instalment.currency)}
-                            </p>
-                        </div>
-                        <div className="flex sm:flex-col justify-between p-3 px-4 sm:px-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Total</span>
-                            <p className="font-bold text-gray-900 dark:text-white font-mono">
-                                {formatCurrency(instalment.total_amount, instalment.currency)}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Pay All Remaining Button */}
-                    {instalment.status === 'active' && remaining > 0 && payments.filter((p: any) => p.status !== 'paid').length > 1 && (
-                        <button
-                            onClick={handlePayFullRemaining}
-                            disabled={loading}
-                            className="w-full mt-8 group relative overflow-hidden bg-zinc-900 dark:bg-white text-white dark:text-black py-4 rounded-2xl font-bold hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-xl shadow-black/10 dark:shadow-white/5 border border-white/5 dark:border-black/5 disabled:opacity-50"
-                        >
-                            {/* Subtle glossy overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                            
-                            {loading && payingFull ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : null}
-                            
-                            <div className="flex flex-col items-center leading-none">
-                                <span className="text-[10px] opacity-60 font-bold uppercase tracking-widest mb-1.5 text-center">Pay Remaining Balance</span>
-                                <span className="text-xl font-black font-mono text-center">
-                                    {formatCurrency(remaining, instalment.currency)}
-                                </span>
-                            </div>
-                        </button>
                     )}
+
+                    {canPay && nextPayment && (
+                        <div className="mt-7 border-t border-[#eaeaea] pt-6 dark:border-[#303030]">
+                            <p className="mb-3 text-[12px] text-[#666] dark:text-[#aaa]">Payment {nextPayment.instalment_number} {paymentLabel(nextPayment, now) === 'Overdue' ? 'was due' : 'is due'} {formatDate(nextPayment.due_at)}.</p>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <button type="button" onClick={() => startPayment('next')} disabled={Boolean(processing)} className={`${primaryAction} sm:flex-1`}>
+                                    {processing === 'next' && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}Pay next · {formatCurrency(Number(nextPayment.amount), nextPayment.currency || currency)}
+                                </button>
+                                {unpaidPayments.length > 1 && <button type="button" onClick={() => startPayment('full')} disabled={Boolean(processing)} className={`${secondaryAction} sm:flex-1`}>{processing === 'full' && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}Pay balance · {formatCurrency(remaining, currency)}</button>}
+                            </div>
+                        </div>
+                    )}
+
+                    {instalment.status === 'completed' && <Link href="/my-tickets" className={`${primaryAction} mt-7`}>View tickets <ArrowRight className="size-4" aria-hidden="true" /></Link>}
+                    {instalment.status === 'forfeited' && <p className="mt-7 text-[13px] leading-5 text-[#666] dark:text-[#aaa]">This plan was forfeited. Contact support if you have questions about previous payments.</p>}
+                    {instalment.status === 'refunded' && <p className="mt-7 text-[13px] leading-5 text-[#666] dark:text-[#aaa]">This plan has been refunded.</p>}
                 </div>
+            </section>
 
-                {/* Payment Schedule */}
-                <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 mb-4">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Payment Schedule</h2>
-                    <div className="space-y-4">
-                        {payments.map((payment: any, index: number) => {
-                            const config = getPaymentStatusConfig(payment.status)
-                            const isNext = nextPayment?.id === payment.id
-                            const isOverdue = payment.status === 'overdue' || (payment.status === 'pending' && new Date(payment.due_at) < new Date())
-                            const isPayable = (payment.status === 'pending' || payment.status === 'overdue') && instalment.status === 'active'
-
+            <section aria-labelledby="payment-schedule-title" className="mt-6 overflow-hidden rounded-[20px] border border-[#e5e5e5] dark:border-[#303030]">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#eaeaea] px-5 py-5 sm:px-7 dark:border-[#303030]">
+                    <h2 id="payment-schedule-title" className="text-[20px] font-semibold tracking-[-0.04em]">Payment schedule</h2>
+                    <span className="text-[12px] text-[#777] dark:text-[#aaa]">{paidCount} of {payments.length} paid</span>
+                </div>
+                {payments.length === 0 ? (
+                    <p className="px-5 py-7 text-[13px] text-[#666] sm:px-7 dark:text-[#aaa]">The payment schedule is unavailable. Contact support for help.</p>
+                ) : (
+                    <ol className="divide-y divide-[#eaeaea] px-5 sm:px-7 dark:divide-[#303030]">
+                        {payments.map(payment => {
+                            const label = paymentLabel(payment, now)
+                            const isNext = nextPayment?.id === payment.id && instalment.status === 'active'
                             return (
-                                <div
-                                    key={payment.id}
-                                    className={`rounded-2xl border-2 p-5 transition-all ${isNext
-                                        ? isOverdue
-                                            ? 'border-red-300 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5'
-                                            : 'border-amber-300 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5'
-                                        : payment.status === 'paid'
-                                            ? 'border-green-100 dark:border-green-500/10 bg-green-50/30 dark:bg-green-500/[0.02]'
-                                            : 'border-gray-100 dark:border-zinc-800'
-                                        }`}
-                                >
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${config.bg}`}>
-                                                {config.icon}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 dark:text-white">
-                                                    Payment {payment.instalment_number}
-                                                </p>
-                                                <p className={`text-xs font-medium ${config.color}`}>
-                                                    {payment.status === 'paid'
-                                                        ? `Paid ${payment.paid_at ? new Date(payment.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`
-                                                        : `Due ${new Date(payment.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                                                    }
-                                                </p>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-50 dark:border-zinc-800">
-                                            <span className="font-black text-gray-900 dark:text-white font-mono text-lg">
-                                                {formatCurrency(payment.amount, payment.currency)}
-                                            </span>
-                                            {isPayable && (
-                                                <button
-                                                    onClick={() => handlePayInstalment(payment)}
-                                                    disabled={loading}
-                                                    className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${isOverdue
-                                                        ? 'bg-red-500 hover:bg-red-600 text-white'
-                                                        : 'bg-amber-500 hover:bg-amber-600 text-white'
-                                                        } disabled:opacity-50 active:scale-95`}
-                                                >
-                                                    {loading && payingInstalmentId === payment.id ? (
-                                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                                    ) : (
-                                                        <CreditCard className="w-3 h-3" />
-                                                    )}
-                                                    Pay Now
-                                                </button>
-                                            )}
+                                <li key={payment.id} className="flex items-start justify-between gap-4 py-4">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <span className={`flex size-8 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold ${payment.status === 'paid' ? 'border-[#111] bg-[#111] text-white dark:border-white dark:bg-white dark:text-black' : 'border-[#dedede] text-[#777] dark:border-[#444] dark:text-[#aaa]'}`}>
+                                            {payment.status === 'paid' ? <Check className="size-4" aria-hidden="true" /> : payment.instalment_number}
+                                        </span>
+                                        <div>
+                                            <p className="text-[14px] font-semibold">Payment {payment.instalment_number}{isNext && !eventEnded ? <span className="ml-2 text-[11px] font-medium text-[#777] dark:text-[#aaa]">Next</span> : null}</p>
+                                            <p className="mt-0.5 text-[12px] text-[#777] dark:text-[#aaa]">{payment.status === 'paid' ? `Paid ${formatDate(payment.paid_at || payment.due_at)}` : `Due ${formatDate(payment.due_at)}`}</p>
                                         </div>
                                     </div>
-
-                                    {/* Timeline connector - only visible on desktop or if not stacking? No, hide on mobile for cleaner look */}
-                                    {index < payments.length - 1 && (
-                                        <div className="hidden sm:block ml-5 mt-2 mb-[-24px]">
-                                            <div className={`w-0.5 h-6 ${payment.status === 'paid' ? 'bg-green-200 dark:bg-green-500/20' : 'bg-gray-200 dark:bg-zinc-700'
-                                                }`} />
-                                        </div>
-                                    )}
-                                </div>
+                                    <div className="shrink-0 text-right">
+                                        <p className="text-[14px] font-semibold">{formatCurrency(Number(payment.amount), payment.currency || currency)}</p>
+                                        <p className={`mt-0.5 text-[11px] font-medium ${label === 'Overdue' || label === 'Failed' ? 'text-red-600 dark:text-red-400' : 'text-[#777] dark:text-[#aaa]'}`}>{label}</p>
+                                    </div>
+                                </li>
                             )
                         })}
-                    </div>
-                </div>
-
-                {/* Completed Notice */}
-                {instalment.status === 'completed' && (
-                    <div className="bg-green-50 dark:bg-green-500/5 border border-green-200 dark:border-green-500/20 rounded-2xl p-6 text-center mb-4">
-                        <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-                        <h3 className="font-bold text-green-800 dark:text-green-300 text-lg mb-1">All Payments Complete! 🎉</h3>
-                        <p className="text-sm text-green-600 dark:text-green-400 mb-4">Your tickets have been issued and sent to your email.</p>
-                        <Link
-                            href="/my-tickets"
-                            className="inline-block bg-green-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-green-600 transition-colors"
-                        >
-                            View My Tickets
-                        </Link>
-                    </div>
+                    </ol>
                 )}
-
-                {/* Forfeited Notice */}
-                {instalment.status === 'forfeited' && (
-                    <div className="bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 rounded-2xl p-6 text-center mb-4">
-                        <XCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
-                        <h3 className="font-bold text-red-800 dark:text-red-300 text-lg mb-1">Plan Forfeited</h3>
-                        <p className="text-sm text-red-600 dark:text-red-400">
-                            This payment plan was forfeited due to missed payments. Contact the event organizer for refund inquiries.
-                        </p>
-                    </div>
-                )}
-            </div>
+            </section>
         </div>
     )
 }

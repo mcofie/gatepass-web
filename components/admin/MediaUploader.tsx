@@ -16,6 +16,8 @@ interface MediaUploaderProps {
     maxSizeMB?: number // Default 50 for video, 5 for image
     className?: string
     disabled?: boolean
+    label?: string
+    compact?: boolean
 }
 
 export function MediaUploader({
@@ -27,7 +29,9 @@ export function MediaUploader({
     maxSizeMB = type === 'video' ? 50 : 5,
     className,
     aspectRatio = 'video',
-    disabled = false
+    disabled = false,
+    label,
+    compact = false
 }: MediaUploaderProps & { aspectRatio?: 'video' | 'square' | 'auto' }) {
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
@@ -176,8 +180,10 @@ export function MediaUploader({
                     </div>
                     {!disabled && (
                         <button
+                            type="button"
+                            aria-label="Remove uploaded image"
                             onClick={() => onChange('')}
-                            className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black"
+                            className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity hover:bg-black"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -217,8 +223,18 @@ export function MediaUploader({
                     onDragOver={!disabled ? handleDrag : undefined}
                     onDrop={!disabled ? handleDrop : undefined}
                     onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
+                    onKeyDown={(event) => {
+                        if (!disabled && !isUploading && (event.key === 'Enter' || event.key === ' ')) {
+                            event.preventDefault()
+                            fileInputRef.current?.click()
+                        }
+                    }}
+                    role="button"
+                    tabIndex={disabled || isUploading ? -1 : 0}
+                    aria-label={label || `Upload ${type === 'video' ? 'video' : 'cover image'}`}
                     className={clsx(
-                        "w-full rounded-3xl border-2 border-dashed flex flex-col items-center justify-center transition-all duration-300 group relative overflow-hidden",
+                        "w-full border-2 border-dashed flex flex-col items-center justify-center transition-all duration-300 group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white",
+                        compact ? 'rounded-2xl' : 'rounded-3xl',
                         aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : '',
                         isDragging ? "border-black dark:border-white bg-gray-50 dark:bg-white/10 scale-[1.02]" : "border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/30 hover:bg-gray-50/50 dark:hover:bg-white/5",
                         (isUploading || disabled) && "pointer-events-none opacity-80"
@@ -232,7 +248,9 @@ export function MediaUploader({
                         onChange={handleFileSelect}
                     />
 
-                    {isUploading ? (
+                    {isUploading && compact ? (
+                        <Loader2 className="size-5 animate-spin text-gray-500" aria-label="Uploading" />
+                    ) : isUploading ? (
                         <div className="flex flex-col items-center gap-4 z-10 p-6 w-full max-w-xs text-center">
                             {isTranscoding ? (
                                 <>
@@ -252,6 +270,13 @@ export function MediaUploader({
                                 </>
                             )}
                         </div>
+                    ) : compact ? (
+                        <div className="flex flex-col items-center gap-1.5 p-2 text-center">
+                            <ImageIcon className="size-5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                            <span className="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-200">
+                                {isDragging ? 'Drop image' : label || 'Add image'}
+                            </span>
+                        </div>
                     ) : (
                         <div className="flex flex-col items-center gap-3 text-center p-6 group-hover:scale-105 transition-transform duration-300">
                             <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-400 dark:text-gray-500 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-colors">
@@ -259,7 +284,7 @@ export function MediaUploader({
                             </div>
                             <div>
                                 <p className="font-bold text-gray-900 dark:text-white">
-                                    {isDragging ? 'Drop to upload' : `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
+                                    {isDragging ? 'Drop to upload' : label || `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">
                                     {type === 'video' ? 'MP4, MOV (max 50MB)' : 'JPG, PNG (max 5MB)'}

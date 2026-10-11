@@ -1,0 +1,113 @@
+.heroEnter {
+    animation: hero-enter 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.heroDelayOne { animation-delay: 0.08s; }
+.heroDelayTwo { animation-delay: 0.18s; }
+.heroDelayThree { animation-delay: 0.28s; }
+.heroDelayFour { animation-delay: 0.36s; }
+
+.heroAura {
+    animation: aura-breathe 8s ease-in-out infinite alternate;
+}
+
+.posterFloat {
+    animation: poster-float 7s ease-in-out infinite;
+}
+
+.ticketFloat {
+    animation: ticket-float 7s ease-in-out 0.5s infinite;
+}
+
+.posterArt {
+    isolation: isolate;
+    background:
+        radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.22), transparent 27%),
+        radial-gradient(circle at 24% 58%, rgba(255, 255, 255, 0.13), transparent 31%),
+        linear-gradient(145deg, #3b3b3b 0%, #111 55%, #050505 100%);
+}
+
+.posterArt::before,
+.miniPoster::before {
+    position: absolute;
+    z-index: 0;
+    width: 65%;
+    height: 145%;
+    top: -22%;
+    left: 18%;
+    content: '';
+    transform: rotate(30deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+    filter: blur(7px);
+    animation: light-sweep 9s ease-in-out infinite alternate;
+}
+
+.posterArt::after {
+    position: absolute;
+    z-index: 0;
+    top: 10%;
+    right: -45%;
+    width: 105%;
+    aspect-ratio: 1;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 50%;
+    content: '';
+    box-shadow: 0 0 0 36px rgba(255, 255, 255, 0.035), 0 0 0 74px rgba(255, 255, 255, 0.025);
+}
+
+.miniPoster {
+    isolation: isolate;
+    background:
+        radial-gradient(circle at 75% 25%, rgba(255, 255, 255, 0.25), transparent 28%),
+        linear-gradient(145deg, #5c5c5c, #1d1d1d 57%, #080808);
+}
+
+.progressFill {
+    transform-origin: left center;
+    animation: progress-in 1.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hero-enter {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes aura-breathe {
+    from { opacity: 0.65; transform: translate(-50%, -50%) scale(0.92); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+@keyframes poster-float {
+    0%, 100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-10px) rotate(-4deg); }
+}
+
+@keyframes ticket-float {
+    0%, 100% { transform: translateY(0) rotate(5deg); }
+    50% { transform: translateY(-9px) rotate(4deg); }
+}
+
+@keyframes light-sweep {
+    from { left: -12%; opacity: 0.55; }
+    to { left: 42%; opacity: 0.9; }
+}
+
+@keyframes progress-in {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .heroEnter,
+    .heroAura,
+    .posterFloat,
+    .ticketFloat,
+    .posterArt::before,
+    .miniPoster::before,
+    .progressFill {
+        animation: none;
+    }
+
+    .posterFloat { transform: rotate(-5deg); }
+    .ticketFloat { transform: rotate(5deg); }
+}
