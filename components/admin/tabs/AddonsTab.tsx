@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { Plus, X, Image as ImageIcon, Trash2, Edit2, Loader2, Package, Check } from 'lucide-react'
+import { Plus, Image as ImageIcon, Trash2, Pencil, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
 import { EventAddon, TicketTier } from '@/types/gatepass'
 import { MediaUploader } from '@/components/admin/MediaUploader'
+import { Field, Panel, PrimaryButton, SecondaryButton, Switch, inputClass, textareaClass } from '@/components/dashboard/ui'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { formatCurrency } from '@/utils/format'
 import { cn } from '@/lib/utils'
 
@@ -11,389 +13,278 @@ interface AddonsTabProps {
     addons: EventAddon[]
     eventId: string
     organizationId: string
+    currency: string
     onUpdate: () => void
     tiers: TicketTier[]
 }
 
-export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: AddonsTabProps) {
+type AddonForm = Pick<EventAddon, 'name' | 'price' | 'is_active' | 'selection_type'> & {
+    description: string
+    image_url: string
+    tier_id: string | null
+}
+
+const EMPTY_FORM: AddonForm = { name: '', description: '', price: 0, image_url: '', is_active: true, selection_type: 'quantity', tier_id: null }
+
+const SELECTION_OPTIONS = [
+    { id: 'quantity', label: 'Any quantity', description: 'Guests can add more than one, like drinks or parking.' },
+    { id: 'toggle', label: 'One per order', description: 'A single yes or no, like a VIP upgrade.' },
+] as const
+
+const errorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
+
+export function AddonsTab({ addons, eventId, organizationId, currency, onUpdate, tiers }: AddonsTabProps) {
     const supabase = createClient()
-    const [isCreating, setIsCreating] = useState(false)
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const [loading, setLoading] = useState(false)
+    const [editing, setEditing] = useState<'new' | string | null>(null)
+    const [saving, setSaving] = useState(false)
+    const [busyId, setBusyId] = useState<string | null>(null)
+    const [form, setForm] = useState<AddonForm>(EMPTY_FORM)
 
-    const [form, setForm] = useState<Partial<EventAddon>>({
-        name: '',
-        description: '',
-        price: 0,
-        currency: 'GHS',
-        image_url: '',
-        is_active: true,
-        selection_type: 'quantity',
-        tier_id: null
-    })
-
-    const resetForm = () => {
-        setForm({
-            name: '',
-            description: '',
-            price: 0,
-            currency: 'GHS',
-            image_url: '',
-            is_active: true,
-            selection_type: 'quantity',
-            tier_id: null
-        })
-        setIsCreating(false)
-        setEditingId(null)
+    const close = () => {
+        setForm(EMPTY_FORM)
+        setEditing(null)
     }
 
-    const validateForm = () => {
-        if (!form.name) {
-            toast.error('Name is required')
-            return false
-        }
-        if (form.price === undefined || form.price < 0) {
-            toast.error('Valid price is required')
-            return false
-        }
-        return true
+    const startEdit = (addon: EventAddon) => {
+        setForm({
+            name: addon.name,
+            description: addon.description ?? '',
+            price: addon.price,
+            image_url: addon.image_url ?? '',
+            is_active: addon.is_active,
+            selection_type: addon.selection_type,
+            tier_id: addon.tier_id ?? null,
+        })
+        setEditing(addon.id)
     }
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!validateForm()) return
+        if (!form.name.trim()) return toast.error('Give the add-on a name')
+        if (!Number.isFinite(form.price) || form.price < 0) return toast.error('Enter a price of 0 or more')
 
-        setLoading(true)
+        const values = {
+            name: form.name.trim(),
+            description: form.description.trim() || null,
+            price: form.price,
+            image_url: form.image_url || null,
+            is_active: form.is_active,
+            selection_type: form.selection_type,
+            tier_id: form.tier_id || null,
+        }
+
+        setSaving(true)
         try {
-            if (editingId) {
-                const { error } = await supabase
-                    .schema('gatepass')
-                    .from('event_addons')
-                    .update({
-                        name: form.name,
-                        description: form.description,
-                        price: form.price,
-                        image_url: form.image_url,
-                        is_active: form.is_active,
-                        selection_type: form.selection_type,
-                        tier_id: form.tier_id || null
-                    })
-                    .eq('id', editingId)
-
-                if (error) throw error
-                toast.success('Add-on updated successfully')
-            } else {
-                const { error } = await supabase
-                    .schema('gatepass')
-                    .from('event_addons')
-                    .insert({
-                        event_id: eventId,
-                        name: form.name,
-                        description: form.description,
-                        price: form.price,
-                        currency: 'GHS', // Default to GHS for now
-                        image_url: form.image_url,
-                        is_active: true,
-                        selection_type: form.selection_type || 'quantity',
-                        tier_id: form.tier_id || null
-                    })
-
-                if (error) throw error
-                toast.success('Add-on created successfully')
-            }
+            const { error } = editing === 'new'
+                ? await supabase.schema('gatepass').from('event_addons').insert({ ...values, event_id: eventId, currency })
+                : await supabase.schema('gatepass').from('event_addons').update(values).eq('id', editing!)
+            if (error) throw error
+            toast.success(editing === 'new' ? 'Add-on created' : 'Add-on saved')
             onUpdate()
-            resetForm()
-        } catch (error: any) {
-            console.error('Error saving addon:', error)
-            toast.error(error.message || 'Failed to save add-on')
+            close()
+        } catch (error) {
+            toast.error(errorMessage(error, 'Could not save the add-on'))
         } finally {
-            setLoading(false)
+            setSaving(false)
         }
     }
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this add-on?')) return
-
-        setLoading(true) // Global loading or local to item? Using global for simplicity here
+    const toggleActive = async (addon: EventAddon, isActive: boolean) => {
+        setBusyId(addon.id)
         try {
-            const { error } = await supabase
-                .schema('gatepass')
-                .from('event_addons')
-                .delete()
-                .eq('id', id)
+            const { error } = await supabase.schema('gatepass').from('event_addons').update({ is_active: isActive }).eq('id', addon.id)
+            if (error) throw error
+            onUpdate()
+        } catch (error) {
+            toast.error(errorMessage(error, 'Could not update the add-on'))
+        } finally {
+            setBusyId(null)
+        }
+    }
 
+    const handleDelete = async (addon: EventAddon) => {
+        if (!confirm(`Delete ${addon.name}? Guests who already bought it keep it.`)) return
+        setBusyId(addon.id)
+        try {
+            const { error } = await supabase.schema('gatepass').from('event_addons').delete().eq('id', addon.id)
             if (error) throw error
             toast.success('Add-on deleted')
             onUpdate()
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to delete add-on')
+        } catch (error) {
+            toast.error(errorMessage(error, 'Could not delete the add-on'))
         } finally {
-            setLoading(false)
+            setBusyId(null)
         }
     }
 
-    const startEdit = (addon: EventAddon) => {
-        setForm(addon)
-        setEditingId(addon.id)
-        setIsCreating(true)
-    }
-
-    if (isCreating) {
+    if (editing) {
         return (
-            <div className="max-w-2xl space-y-5 animate-in fade-in duration-200">
+            <form onSubmit={handleSave} className="max-w-2xl space-y-5 animate-in fade-in duration-200">
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={resetForm} aria-label="Back to add-ons" className="rounded-lg border border-gray-200 p-2 transition-colors hover:border-gray-400 dark:border-white/10">
-                        <X className="w-5 h-5 text-gray-500" />
+                    <button type="button" onClick={close} aria-label="Back to add-ons" className="flex size-10 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
+                        <ArrowLeft className="size-4" aria-hidden="true" />
                     </button>
-                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{editingId ? 'Edit add-on' : 'New add-on'}</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{editing === 'new' ? 'New add-on' : 'Edit add-on'}</h2>
                 </div>
 
-                <form onSubmit={handleSave} className="space-y-5">
-                    {/* Basic Info Card */}
-                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                        <div>
-                            <label htmlFor="addon-name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
-                            <input
-                                id="addon-name"
-                                required
-                                value={form.name}
-                                onChange={e => setForm({ ...form, name: e.target.value })}
-                                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                placeholder="e.g. VIP Parking Pass"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="addon-price" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Price (GHS)</label>
-                            <input
-                                id="addon-price"
-                                type="number"
-                                required
-                                min="0"
-                                step="0.01"
-                                value={form.price}
-                                onChange={e => setForm({ ...form, price: parseFloat(e.target.value) })}
-                                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                placeholder="0.00"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="addon-description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-                            <textarea
-                                id="addon-description"
-                                value={form.description || ''}
-                                onChange={e => setForm({ ...form, description: e.target.value })}
-                                className="min-h-24 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                placeholder="Describe the item..."
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="addon-tier" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Available with</label>
-                            <div className="relative">
-                                <select
-                                    id="addon-tier"
-                                    value={form.tier_id || ''}
-                                    onChange={e => setForm({ ...form, tier_id: e.target.value || null })}
-                                    className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                >
-                                    <option value="">All ticket types</option>
-                                    {tiers.map(t => (
-                                        <option key={t.id} value={t.id}>{t.name}</option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                </div>
+                <Panel title="Details">
+                    <div className="space-y-5">
+                        <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_112px]">
+                            <div className="space-y-5">
+                                <Field label="Name" htmlFor="addon-name">
+                                    <input id="addon-name" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Parking pass" />
+                                </Field>
+                                <Field label={`Price (${currency})`} htmlFor="addon-price" hint="Use 0 for a free extra.">
+                                    <input
+                                        id="addon-price"
+                                        type="number"
+                                        inputMode="decimal"
+                                        required
+                                        min="0"
+                                        step="0.01"
+                                        value={Number.isNaN(form.price) ? '' : form.price}
+                                        onChange={e => setForm({ ...form, price: e.target.valueAsNumber })}
+                                        className={inputClass}
+                                    />
+                                </Field>
                             </div>
-                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                Limit this item to one ticket type, or offer it to everyone.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Selection Type Card */}
-                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">How guests select it</p>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <button
-                                type="button"
-                                onClick={() => setForm({ ...form, selection_type: 'quantity' })}
-                                aria-pressed={form.selection_type === 'quantity'}
-                                className={cn(
-                                    "rounded-xl border p-4 text-left transition-colors",
-                                    form.selection_type === 'quantity'
-                                        ? "border-black bg-gray-50 dark:border-white dark:bg-white/5"
-                                        : "border-gray-200 hover:border-gray-400 dark:border-white/10 dark:hover:border-white/30"
-                                )}
-                            >
-                                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                                    <Package className="w-3.5 h-3.5" />
-                                    Quantity
+                            <Field label="Image" optional>
+                                <div className="w-28">
+                                    <MediaUploader
+                                        type="image"
+                                        path={`${organizationId}/addons`}
+                                        value={form.image_url}
+                                        onChange={url => setForm({ ...form, image_url: url })}
+                                        aspectRatio="square"
+                                        compact
+                                        label="Add image"
+                                    />
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Guests can add more than one.</div>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setForm({ ...form, selection_type: 'toggle' })}
-                                aria-pressed={form.selection_type === 'toggle'}
-                                className={cn(
-                                    "rounded-xl border p-4 text-left transition-colors",
-                                    form.selection_type === 'toggle'
-                                        ? "border-black bg-gray-50 dark:border-white dark:bg-white/5"
-                                        : "border-gray-200 hover:border-gray-400 dark:border-white/10 dark:hover:border-white/30"
-                                )}
-                            >
-                                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                                    <Check className="w-3.5 h-3.5" />
-                                    Toggle
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Guests can add it once.</div>
-                            </button>
+                            </Field>
+                        </div>
+                        <Field label="Description" htmlFor="addon-description" optional>
+                            <textarea id="addon-description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className={textareaClass} placeholder="What guests get" />
+                        </Field>
+                    </div>
+                </Panel>
+
+                <Panel title="Who can buy it">
+                    <div className="space-y-5">
+                        <Field label="Available with" htmlFor="addon-tier" hint="Offer it to everyone, or only with one ticket type.">
+                            <select id="addon-tier" value={form.tier_id ?? ''} onChange={e => setForm({ ...form, tier_id: e.target.value || null })} className={inputClass}>
+                                <option value="">All ticket types</option>
+                                {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                        </Field>
+                        <fieldset className="space-y-2">
+                            <legend className="mb-2 text-sm font-medium text-gray-950 dark:text-white">How guests choose it</legend>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {SELECTION_OPTIONS.map(option => {
+                                    const selected = form.selection_type === option.id
+                                    return (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            aria-pressed={selected}
+                                            onClick={() => setForm({ ...form, selection_type: option.id })}
+                                            className={cn(
+                                                'rounded-2xl border p-4 text-left transition-colors',
+                                                selected ? 'border-gray-950 bg-gray-50 dark:border-white dark:bg-white/5' : 'border-gray-200 hover:border-gray-400 dark:border-white/10 dark:hover:border-white/30',
+                                            )}
+                                        >
+                                            <span className="block text-sm font-semibold text-gray-950 dark:text-white">{option.label}</span>
+                                            <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{option.description}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </fieldset>
+                        <div className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50 px-4 py-3 dark:bg-white/5">
+                            <div>
+                                <p className="text-sm font-medium text-gray-950 dark:text-white">On sale</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Hidden add-ons don&apos;t appear at checkout.</p>
+                            </div>
+                            <Switch label="On sale" checked={form.is_active} onChange={checked => setForm({ ...form, is_active: checked })} />
                         </div>
                     </div>
+                </Panel>
 
-                    {/* Image Upload */}
-                    <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                        <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Image <span className="font-normal text-gray-400">Optional</span></p>
-                        <div className="w-28">
-                            <MediaUploader
-                                type="image"
-                                path={`${organizationId}/addons`}
-                                value={form.image_url || ''}
-                                onChange={(url) => setForm({ ...form, image_url: url })}
-                                aspectRatio="square"
-                                compact
-                                label="Add image"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={resetForm}
-                            className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 dark:border-white/10 dark:text-gray-300"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex h-10 items-center justify-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
-                        >
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingId ? 'Save add-on' : 'Create add-on')}
-                        </button>
-                    </div>
-                </form >
-            </div >
+                <div className="flex flex-wrap justify-end gap-2">
+                    <SecondaryButton type="button" onClick={close}>Cancel</SecondaryButton>
+                    <PrimaryButton type="submit" loading={saving}>{editing === 'new' ? 'Create add-on' : 'Save changes'}</PrimaryButton>
+                </div>
+            </form>
         )
     }
 
-    // LIST VIEW
     return (
         <div className="space-y-5 animate-in fade-in duration-200">
-            {/* Header / Empty State */}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Add-ons</h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Extras guests can buy with their tickets, like merch, parking or upgrades.</p>
+                </div>
+                {addons.length > 0 && (
+                    <PrimaryButton type="button" onClick={() => setEditing('new')}>
+                        <Plus className="size-4" aria-hidden="true" /> New add-on
+                    </PrimaryButton>
+                )}
+            </div>
+
             {addons.length === 0 ? (
-                <div className="rounded-3xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#0b0b0b]">
-                    <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10">
-                        <Package className="h-5 w-5 text-gray-500" />
-                    </div>
-                    <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">No add-ons yet</h3>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8 text-sm leading-relaxed">
-                        Enhance your event revenue by selling merchandise, parking passes, or upgrades alongside your tickets.
-                    </p>
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="inline-flex h-10 items-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Add an item
-                    </button>
+                <div className="rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
+                    <EmptyState
+                        illustration="gift"
+                        title="No add-ons yet"
+                        description="Sell merch, parking or upgrades alongside tickets. Guests pick them at checkout."
+                        action={
+                            <PrimaryButton type="button" onClick={() => setEditing('new')}>
+                                <Plus className="size-4" aria-hidden="true" /> New add-on
+                            </PrimaryButton>
+                        }
+                    />
                 </div>
             ) : (
-                <>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Add-ons</h2>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage merchandise and upgrades.</p>
-                        </div>
-                        <button
-                            onClick={() => setIsCreating(true)}
-                            className="inline-flex h-10 items-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add item
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                        {addons.map(addon => (
-                            <div key={addon.id} className="group grid grid-cols-[72px_minmax(0,1fr)] gap-4 rounded-3xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#0b0b0b] sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:p-5">
-                                {/* Image */}
-                                <div className="relative h-[72px] w-[72px] overflow-hidden rounded-lg bg-gray-100 dark:bg-white/5 sm:h-20 sm:w-20">
+                <ul className="divide-y divide-gray-100 overflow-hidden rounded-3xl border border-gray-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-[#0b0b0b]">
+                    {addons.map(addon => {
+                        const tierName = addon.tier_id ? tiers.find(t => t.id === addon.tier_id)?.name ?? 'one ticket type' : null
+                        return (
+                            <li key={addon.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:flex-nowrap sm:px-6', !addon.is_active && 'opacity-60')}>
+                                <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gray-100 dark:bg-white/5">
                                     {addon.image_url ? (
                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={addon.image_url} alt={addon.name} className="h-full w-full object-cover" />
+                                        <img src={addon.image_url} alt="" className="size-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/20">
-                                            <ImageIcon className="w-8 h-8" />
-                                        </div>
+                                        <ImageIcon className="size-5 text-gray-400" aria-hidden="true" />
                                     )}
                                 </div>
-
-                                {/* Content */}
-                                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <h4 className="font-bold text-lg text-gray-900 dark:text-white truncate">{addon.name}</h4>
-                                        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
-                                            {addon.selection_type === 'toggle' ? 'Single choice' : 'Multiple'}
-                                        </span>
-                                        {addon.tier_id && (
-                                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
-                                                For {tiers.find(t => t.id === addon.tier_id)?.name || 'ticket type'}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {addon.description && (
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 font-medium">{addon.description}</p>
-                                    )}
-
-                                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                                        <p className="text-base font-semibold text-gray-950 dark:text-white">
-                                            {formatCurrency(addon.price, addon.currency)}
-                                        </p>
-                                        <div className="h-4 w-px bg-gray-200 dark:bg-white/10" />
-                                        <span className="text-xs font-bold text-gray-400 flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
-                                            {addon.quantity_sold || 0} Sold
-                                        </span>
-                                    </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[15px] font-semibold text-gray-950 dark:text-white">{addon.name}</p>
+                                    <p className="text-sm font-semibold tabular-nums text-gray-950 dark:text-white sm:hidden">{addon.price === 0 ? 'Free' : formatCurrency(addon.price, addon.currency)}</p>
+                                    <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">
+                                        {[
+                                            addon.selection_type === 'toggle' ? 'One per order' : 'Any quantity',
+                                            tierName ? `With ${tierName}` : 'All tickets',
+                                            `${addon.quantity_sold || 0} sold`,
+                                        ].join(' · ')}
+                                    </p>
                                 </div>
-
-                                {/* Actions */}
-                                <div className="col-span-2 flex items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-white/10 sm:col-span-1 sm:border-0 sm:pt-0">
-                                    <button
-                                        onClick={() => startEdit(addon)}
-                                        className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-black dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
-                                    >
-                                        <Edit2 className="w-3.5 h-3.5" />
-                                        Edit
+                                <p className="hidden text-[15px] font-semibold tabular-nums text-gray-950 dark:text-white sm:block">
+                                    {addon.price === 0 ? 'Free' : formatCurrency(addon.price, addon.currency)}
+                                </p>
+                                <div className="flex w-full items-center justify-end gap-1 border-t border-gray-100 pt-3 dark:border-white/10 sm:w-auto sm:border-0 sm:pt-0">
+                                    <Switch label={`${addon.name} on sale`} checked={addon.is_active} disabled={busyId === addon.id} onChange={checked => toggleActive(addon, checked)} />
+                                    <button type="button" onClick={() => startEdit(addon)} aria-label={`Edit ${addon.name}`} className="ml-2 flex size-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:hover:bg-white/5 dark:hover:text-white">
+                                        <Pencil className="size-4" aria-hidden="true" />
                                     </button>
-                                    <button
-                                        onClick={() => handleDelete(addon.id)}
-                                        aria-label={`Delete ${addon.name}`}
-                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
+                                    <button type="button" onClick={() => handleDelete(addon)} disabled={busyId === addon.id} aria-label={`Delete ${addon.name}`} className="flex size-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-500/10">
+                                        <Trash2 className="size-4" aria-hidden="true" />
                                     </button>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                </>
+                            </li>
+                        )
+                    })}
+                </ul>
             )}
         </div>
     )
