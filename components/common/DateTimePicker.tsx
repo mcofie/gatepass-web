@@ -12,9 +12,11 @@ interface DateTimePickerProps {
     label?: string
     required?: boolean
     disabled?: boolean
+    /** Earliest allowed moment. Earlier days are disabled and earlier times snap forward. */
+    minDate?: Date
 }
 
-export function DateTimePicker({ date, setDate, label, required, disabled = false }: DateTimePickerProps) {
+export function DateTimePicker({ date, setDate, label, required, disabled = false, minDate }: DateTimePickerProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [timeValue, setTimeValue] = useState<string>(date ? format(date, 'HH:mm') : '12:00')
 
@@ -46,10 +48,11 @@ export function DateTimePicker({ date, setDate, label, required, disabled = fals
 
         // Preserve existing time or use current time value
         const [hours, minutes] = timeValue.split(':').map(Number)
-        const dateWithTime = set(newDate, { hours, minutes })
-
-        setDate(dateWithTime)
+        setDate(clampToMin(set(newDate, { hours, minutes })))
     }
+
+    // A time earlier than the minimum on the minimum day moves to the minimum
+    const clampToMin = (value: Date) => (minDate && value < minDate ? new Date(minDate) : value)
 
     const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newTime = e.target.value
@@ -57,8 +60,7 @@ export function DateTimePicker({ date, setDate, label, required, disabled = fals
 
         if (date) {
             const [hours, minutes] = newTime.split(':').map(Number)
-            const newDateTime = set(date, { hours, minutes })
-            setDate(newDateTime)
+            setDate(clampToMin(set(date, { hours, minutes })))
         }
     }
 
@@ -99,6 +101,8 @@ export function DateTimePicker({ date, setDate, label, required, disabled = fals
                                 mode="single"
                                 selected={date}
                                 onSelect={handleDateSelect}
+                                disabled={minDate ? { before: new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) } : undefined}
+                                startMonth={minDate}
                                 showOutsideDays
                                 className="border-0"
                             />

@@ -45,7 +45,7 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
     if (error) return null
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#111]" aria-busy={!billing}>
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#0b0b0b]" aria-busy={!billing}>
             <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">GatePass plan</h3>
 
             {!billing ? (
@@ -62,6 +62,9 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
 
                     <ul className="space-y-2.5 text-sm">
                         <ChecklistItem done={billing.covered} label={billing.covered ? 'Platform fee covered' : `Platform fee due: ${formatCurrency(billing.amountDueMinor / 100, billing.currency)}`} />
+                        {billing.hasPaidTickets && billing.currencySupported === false && (
+                            <ChecklistItem done={false} label={`${billing.currencyNote}. Change it under Payments`} />
+                        )}
                         {billing.hasPaidTickets && (
                             <ChecklistItem
                                 done={billing.hasPaymentProvider}

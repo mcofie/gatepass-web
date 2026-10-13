@@ -162,7 +162,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
     return (
         <div className="space-y-5 animate-in fade-in duration-200">
             <div>
-                <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Instalments</h2>
+                <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Instalments</h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Track payment plans and outstanding balances.</p>
             </div>
             {/* Stats Cards */}
@@ -172,7 +172,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                     { label: 'Paid to date', value: stats.totalPaid, detail: 'Collected so far' },
                     { label: 'Remaining', value: stats.totalBalance, detail: 'Yet to be paid' },
                 ].map((metric) => (
-                    <div key={metric.label} className="col-span-1 min-w-0 rounded-2xl border border-gray-200 bg-white p-4 first:col-span-2 dark:border-white/10 dark:bg-[#111] md:first:col-span-1 sm:p-5">
+                    <div key={metric.label} className="col-span-1 min-w-0 rounded-3xl border border-gray-200 bg-white p-4 first:col-span-2 dark:border-white/10 dark:bg-[#0b0b0b] md:first:col-span-1 sm:p-5">
                         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{metric.label}</p>
                         <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white" title={formatCurrency(metric.value, event.currency || 'GHS')}>{loading && page === 0 ? 'Loading…' : formatCurrency(metric.value, event.currency || 'GHS')}</p>
                         <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{count > reservations.length ? 'On this page' : metric.detail}</p>
@@ -181,7 +181,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
             </div>
 
             {/* List Table Card */}
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+            <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
                 <div className="flex flex-col gap-4 border-b border-gray-100 p-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between lg:p-6">
                     <div>
                         <div>
@@ -207,7 +207,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                                 const csv = generateCSV(reservations)
                                 downloadCSV(csv, `${event.slug}-instalments.csv`)
                             }}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
                         >
                             <Download className="w-4 h-4 text-gray-400" />
                             Export page
@@ -346,13 +346,13 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                         className="pointer-events-auto fixed inset-0 bg-black/50"
                         onClick={() => setSelectedRes(null)}
                     />
-                    <div role="dialog" aria-modal="true" aria-label="Payment plan details" className="pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#111] sm:max-h-[calc(100dvh-2.5rem)]">
+                    <div role="dialog" aria-modal="true" aria-label="Payment plan details" className="pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b0b0b] sm:max-h-[calc(100dvh-2.5rem)]">
 
                         {/* Modal Header */}
                         <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-5 dark:border-white/10 sm:px-6">
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <h2 className="truncate text-xl font-semibold tracking-tight text-gray-950 dark:text-white">{selectedRes.contact_name || 'Guest'}</h2>
+                                    <h2 className="truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{selectedRes.contact_name || 'Guest'}</h2>
                                     <span className={clsx(
                                         "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
                                         getStatusColor(selectedRes.status)
@@ -373,7 +373,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                                     )}
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setSelectedRes(null)} aria-label="Close payment plan details" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
+                            <button type="button" onClick={() => setSelectedRes(null)} aria-label="Close payment plan details" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
@@ -437,7 +437,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                                                             handleSendReminder(selectedRes.contact_phone, selectedRes.contact_name, p.amount, p.id, 'specific')
                                                         }}
                                                         disabled={isSending === p.id}
-                                                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-700 disabled:opacity-40 dark:border-white/10 dark:text-gray-300"
+                                                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-700 disabled:opacity-40 dark:border-white/10 dark:text-gray-300"
                                                         title="Send SMS reminder"
                                                         aria-label={`Send SMS reminder for payment ${p.instalment_number}`}
                                                     >
@@ -460,7 +460,7 @@ export function InstalmentsTab({ event }: InstalmentsTabProps) {
                             <button
                                 onClick={() => handleSendReminder(selectedRes.contact_phone, selectedRes.contact_name, selectedRes.total_amount - selectedRes.amount_paid, selectedRes.id, 'general')}
                                 disabled={!!isSending || selectedRes.status === 'completed'}
-                                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
+                                className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
                             >
                                 {isSending === 'general' ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />

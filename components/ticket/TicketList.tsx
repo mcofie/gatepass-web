@@ -2,6 +2,7 @@
 
 import React from 'react'
 import QRCode from 'react-qr-code'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import { Ticket } from '@/types/gatepass'
 import { formatDateTime } from '@/utils/format'
 import { MapPin, Calendar, ExternalLink } from 'lucide-react'
@@ -99,6 +100,8 @@ export function TicketList({ tickets }: TicketListProps) {
                                 <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Ticket ID</p>
                                 <p className="font-mono text-xs text-gray-600 dark:text-gray-300">{ticket.id.slice(0, 8)}</p>
                             </div>
+
+                            <AddToAppleWallet ticketId={ticket.id} className="w-full" />
 
                             <Link href={`/ticket/${ticket.id}`} className="w-full">
                                 <button className="w-full py-3 bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/20 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">

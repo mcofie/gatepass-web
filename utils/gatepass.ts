@@ -1,5 +1,5 @@
-import { createClient } from '@/utils/supabase/client'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { getBrowserSupabase } from '@/utils/supabase/lazy'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const createReservation = async (
     eventId: string,
@@ -12,7 +12,7 @@ export const createReservation = async (
     addons?: Record<string, number>,
     metadata?: Record<string, unknown>
 ) => {
-    const client = supabaseClient || createClient()
+    const client = supabaseClient || await getBrowserSupabase()
 
     // Verify virtual ticket tier quantity cap on server side
     const { data: tier } = await client

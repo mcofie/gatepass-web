@@ -1,14 +1,19 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { headers } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { getEventPaymentIntegration } from '@/lib/integrations/store'
+import { getProvider, providerSupportsCurrency } from '@/lib/integrations/providers'
 import { getPlatformFeeQuote, hasPaymentProvider, startPlatformFeeCheckout, type PlatformFeeQuote, type PricingTier } from '@/lib/billing'
 
 export type EventBillingSummary = PlatformFeeQuote & {
     hasPaidTickets: boolean
     hasPaymentProvider: boolean
+    /** null when there's no provider to check against */
+    currencySupported: boolean | null
+    currencyNote: string | null
 }
 
 async function requireEventManager(eventId: string) {
@@ -44,12 +49,24 @@ async function requireSuperAdmin() {
 
 export async function getEventBilling(eventId: string): Promise<EventBillingSummary> {
     await requireEventManager(eventId)
-    const [quote, provider, { count }] = await Promise.all([
+    const admin = createAdminClient()
+    const [quote, provider, { count }, integration, { data: event }] = await Promise.all([
         getPlatformFeeQuote(eventId),
         hasPaymentProvider(eventId),
-        createAdminClient().schema('gatepass').from('ticket_tiers').select('id', { count: 'exact', head: true }).eq('event_id', eventId).gt('price', 0),
+        admin.schema('gatepass').from('ticket_tiers').select('id', { count: 'exact', head: true }).eq('event_id', eventId).gt('price', 0),
+        getEventPaymentIntegration(eventId),
+        admin.schema('gatepass').from('events').select('currency').eq('id', eventId).single(),
     ])
-    return { ...quote, hasPaidTickets: (count ?? 0) > 0, hasPaymentProvider: provider }
+    const currency = (event?.currency as string | undefined)?.toUpperCase() ?? 'GHS'
+    const currencySupported = integration ? providerSupportsCurrency(integration.provider, currency) : null
+    const providerName = integration ? getProvider('payments', integration.provider)?.name : null
+    return {
+        ...quote,
+        hasPaidTickets: (count ?? 0) > 0,
+        hasPaymentProvider: provider,
+        currencySupported,
+        currencyNote: currencySupported === false ? `${providerName} can't charge in ${currency}` : null,
+    }
 }
 
 export async function payPlatformFee(eventId: string): Promise<{ redirectUrl: string }> {
@@ -99,4 +116,5 @@ export async function savePricingTiers(tiers: Array<Omit<PricingTier, 'id'> & { 
 
     revalidatePath('/admin/settings')
     revalidatePath('/our-offering')
+    revalidateTag('pricing-tiers', 'max')
 }

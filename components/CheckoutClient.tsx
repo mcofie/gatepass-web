@@ -4,35 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-
-// Simple Timer Hook
-const useTimer = (expiresAt: string | undefined) => {
-    const [timeLeft, setTimeLeft] = useState('')
-
-    useEffect(() => {
-        if (!expiresAt) return
-
-        const end = new Date(expiresAt).getTime()
-        const timer = setInterval(() => {
-            const now = new Date().getTime()
-            const dist = end - now
-
-            if (dist < 0) {
-                clearInterval(timer)
-                setTimeLeft('EXPIRED')
-                return
-            }
-
-            const m = Math.floor((dist % (1000 * 60 * 60)) / (1000 * 60))
-            const s = Math.floor((dist % (1000 * 60)) / 1000)
-            setTimeLeft(`${m}m ${s}s`)
-        }, 1000)
-
-        return () => clearInterval(timer)
-    }, [expiresAt])
-
-    return timeLeft
-}
+import { ReservationTimer, useReservationCountdown } from '@/components/checkout/ReservationTimer'
 
 import { Reservation, Event, TicketTier, EventAddon } from '@/types/gatepass'
 import { Button } from '@/components/ui/Button'
@@ -54,7 +26,7 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
     const router = useRouter()
     const supabase = createClient()
     const [paying, setPaying] = useState(false)
-    const timeLeft = useTimer(reservation.expires_at)
+    const countdown = useReservationCountdown(reservation.expires_at)
     const [user, setUser] = useState<any>(null)
 
     const [guestForm, setGuestForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
@@ -241,15 +213,13 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                         </div>
                     </div>
 
-                    {/* Timer - Integrated Pill */}
-                    <div className="flex justify-center mb-8">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-950/30 border border-amber-500/20 rounded-full text-xs font-semibold text-amber-500 tracking-wide">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <span>RESERVATION EXPIRES IN {timeLeft || '...'}</span>
-                        </div>
+                    <div className="mb-8">
+                        <ReservationTimer
+                            countdown={countdown}
+                            tone="dark"
+                            onRestart={() => router.push(reservation.events?.slug ? `/events/${reservation.events.slug}` : '/')}
+                        />
                     </div>
-
-
 
                     {/* STEPS PROGRESS */}
                     <div className="flex flex-col items-center mb-8">
@@ -487,7 +457,7 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                             <div className="mt-8">
                                 <Button
                                     onClick={handlePayment}
-                                    disabled={paying}
+                                    disabled={paying || countdown.expired}
                                     className="w-full h-14 text-lg bg-white text-black hover:bg-gray-200 font-bold shadow-xl shadow-white/10 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
                                 >
                                     {paying ? 'Processing Securely...' : 'Pay Now'}

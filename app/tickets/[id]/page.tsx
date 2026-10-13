@@ -1,4 +1,5 @@
 
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
@@ -83,6 +84,11 @@ export default async function PublicTicketPage({ params }: { params: Promise<{ i
                             />
                         </div>
                     </div>
+                    {!tier?.is_virtual && (
+                        <div className="-mt-4 mb-8 flex justify-center">
+                            <AddToAppleWallet ticketId={ticket.id} />
+                        </div>
+                    )}
 
                     <div className="space-y-4 border-t border-gray-100 pt-6">
                         <div className="flex items-center justify-between">

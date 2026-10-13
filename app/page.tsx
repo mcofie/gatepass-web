@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { Suspense } from 'react'
 
 import { Metadata } from 'next'
+import { withSafeDescription } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ const getFeaturedEvents = unstable_cache(async () => {
   if (error) throw error
 
   return (data || []).map(event => ({
-    ...event,
+    ...withSafeDescription(event),
     ticket_tiers: [...(event.ticket_tiers || [])].sort((a: any, b: any) => a.price - b.price),
   }))
 }, ['featured-events-v1'], { revalidate: 15 })

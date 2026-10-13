@@ -5,34 +5,19 @@ import { LandingHeader } from '@/components/LandingHeader'
 import React, { cache } from 'react'
 import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
-import { getFeeSettings } from '@/utils/settings'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl, formatFacebookUrl } from '@/utils/social'
 import { TrackingScripts } from '@/components/TrackingScripts'
-import { getMarketingIds } from '@/lib/integrations/store'
+import { getCachedMarketingIds, getEventBySlug, getEventPaymentProviderId, getEventPurchaseData } from '@/lib/public-data'
+import { withSafeDescription } from '@/lib/sanitize'
 
 interface PageProps {
     params: Promise<{ slug: string }>
 }
 
+// Shared by generateMetadata and the page within one request; cached across requests briefly
 const getEvent = cache(async (slug: string) => {
-    const supabase = await createClient()
-
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
-
-    let query = supabase
-        .schema('gatepass')
-        .from('events')
-        .select('*, organizers(user_id, name, description, website, instagram, twitter)')
-
-    if (isUuid) {
-        query = query.eq('id', slug)
-    } else {
-        query = query.eq('slug', slug)
-    }
-
-    const { data, error } = await query.single()
-    if (error && error.code !== 'PGRST116') throw error
-    return data
+    const event = await getEventBySlug(slug)
+    return event ? withSafeDescription(event) : null
 })
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -92,36 +77,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 async function EventPurchase({ event }: { event: Event }) {
-    const supabase = await createClient()
-    const tiersQuery = supabase
-        .schema('gatepass')
-        .from('ticket_tiers')
-        .select('*, payment_plans(*)')
-        .eq('event_id', event.id)
-        .neq('is_visible', false)
-        .order('sort_order', { ascending: true })
-
-    const addonsQuery = supabase
-        .schema('gatepass')
-        .from('event_addons')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('is_active', true)
-        .order('price', { ascending: true })
-
-    const [{ data: tiers }, { data: addons }, feeSettings] = await Promise.all([
-        tiersQuery,
-        addonsQuery,
-        getFeeSettings(),
+    const [{ tiers, addons }, paymentProvider] = await Promise.all([
+        getEventPurchaseData(event.id),
+        event.organization_id ? getEventPaymentProviderId(event.id, event.organization_id, event.payment_integration_id ?? null) : null,
     ])
-
     return (
         <EventDetailClient
             event={event}
-            tiers={(tiers as TicketTier[]) || []}
+            tiers={tiers as TicketTier[]}
             layoutId={`event-card-${event.id}`}
-            feeRates={feeSettings}
-            availableAddons={addons || []}
+            availableAddons={addons}
+            paymentProvider={paymentProvider}
         />
     )
 }
@@ -183,7 +149,7 @@ export default async function EventPage({ params }: PageProps) {
         )
     }
 
-    const tracking = event.organization_id ? await getMarketingIds(event.organization_id) : {}
+    const tracking = event.organization_id ? await getCachedMarketingIds(event.organization_id) : {}
 
     return (
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">

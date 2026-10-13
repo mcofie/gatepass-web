@@ -1,18 +1,19 @@
 import {
     Body,
-    Container,
+    Button,
     Column,
+    Container,
     Head,
     Heading,
+    Hr,
     Html,
     Img,
     Link,
     Preview,
     Row,
     Section,
-    Text,
     Tailwind,
-    Button,
+    Text,
 } from "@react-email/components";
 import * as React from "react";
 
@@ -30,376 +31,204 @@ interface TicketGroup {
     isVirtual?: boolean
     virtualLink?: string | null
     virtualInstructions?: string | null
-    tickets: {
-        id: string
-        qrCodeUrl: string
-    }[]
+    tickets: { id: string; qrCodeUrl: string }[]
 }
 
 interface TicketEmailProps {
     eventName?: string;
     eventDate?: string;
     venueName?: string;
-    // Legacy props for single ticket (optional now)
+    // Single ticket (legacy callers)
     ticketType?: string;
     qrCodeUrl?: string;
     ticketId?: string;
     isVirtual?: boolean;
     virtualLink?: string | null;
     virtualInstructions?: string | null;
-    // Prop for multiple tickets (flat list)
+    // One tier, flat list
     tickets?: TicketItem[];
-    // NEW: Grouped tickets by tier (for multi-tier orders)
+    // Several tiers
     ticketGroups?: TicketGroup[];
     customerName?: string;
     posterUrl?: string;
     reservationId?: string;
 }
 
-export const TicketEmail = ({
-    eventName = "Exclusive Event",
-    eventDate = "Dec 25, 2025 • 8:00 PM",
-    venueName = "The Grand Arena, Accra",
-    ticketType = "VIP Access",
-    qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=GATEPASS-DEMO",
-    customerName = "Guest",
-    ticketId = "GP-123456",
-    isVirtual,
-    virtualLink,
-    virtualInstructions,
-    tickets = [],
-    ticketGroups = [],
-    posterUrl,
-    reservationId,
-}: TicketEmailProps) => {
-    // Determine total ticket count for preview text
-    const totalTicketCount = ticketGroups.length > 0
-        ? ticketGroups.reduce((sum, g) => sum + g.tickets.length, 0)
-        : (tickets.length > 0 ? tickets.length : 1);
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://gatepass.so").replace(/\/$/, "");
+// Above this, the email lists codes and points to My Tickets instead of rendering every QR
+const MAX_QR_CODES = 10;
 
-    const previewText = `Your ${totalTicketCount > 1 ? 'tickets' : 'ticket'} for ${eventName}`;
-    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName)}`;
+const shortCode = (id: string) => id.substring(0, 8).toUpperCase();
 
-    // Use ticketGroups if provided, otherwise fallback to flat tickets array
-    const useGroupedView = ticketGroups.length > 0;
+/** Every caller shape becomes a list of tier groups. */
+function toGroups(props: TicketEmailProps): TicketGroup[] {
+    if (props.ticketGroups?.length) return props.ticketGroups;
+    const tickets = props.tickets?.length
+        ? props.tickets
+        : [{ id: props.ticketId ?? "", qrCodeUrl: props.qrCodeUrl ?? "", type: props.ticketType ?? "Ticket", isVirtual: props.isVirtual, virtualLink: props.virtualLink, virtualInstructions: props.virtualInstructions }];
+    const first = tickets[0];
+    return [{
+        tierName: first.type,
+        isVirtual: first.isVirtual,
+        virtualLink: first.virtualLink,
+        virtualInstructions: first.virtualInstructions,
+        tickets: tickets.map(t => ({ id: t.id, qrCodeUrl: t.qrCodeUrl })),
+    }];
+}
 
-    // Normalize flat tickets for legacy compatibility
-    const allTickets = tickets.length > 0 ? tickets : [{ id: ticketId, qrCodeUrl, type: ticketType, isVirtual, virtualLink, virtualInstructions }];
-    const primaryTicket = allTickets[0];
-    const guestTickets = allTickets.slice(1);
+export const TicketEmail = (props: TicketEmailProps) => {
+    const {
+        eventName = "Your event",
+        eventDate = "",
+        venueName = "",
+        customerName = "Guest",
+        posterUrl,
+        reservationId,
+    } = props;
+
+    const groups = toGroups(props);
+    const ticketCount = groups.reduce((sum, g) => sum + g.tickets.length, 0);
+    const physicalCount = groups.filter(g => !g.isVirtual).reduce((sum, g) => sum + g.tickets.length, 0);
+    const showEveryQr = physicalCount <= MAX_QR_CODES;
+    const firstName = customerName.split(" ")[0];
+    const mapUrl = venueName ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueName)}` : null;
 
     return (
         <Html>
-            <Preview>{previewText}</Preview>
+            <Head />
+            <Preview>{`You're going to ${eventName}. ${ticketCount > 1 ? `Your ${ticketCount} tickets are` : "Your ticket is"} inside.`}</Preview>
             <Tailwind
                 config={{
                     theme: {
                         extend: {
-                            colors: {
-                                black: "#000",
-                                gray: {
-                                    50: "#f9fafb",
-                                    100: "#f3f4f6",
-                                    200: "#e5e7eb",
-                                    800: "#1f2937",
-                                    900: "#111827",
-                                },
-                            },
                             fontFamily: {
-                                sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+                                sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica", "Arial", "sans-serif"],
                             },
                         },
                     },
                 }}
             >
-                <Head />
-                <Body className="bg-white my-auto mx-auto font-sans antialiased text-black">
-                    <Container className="my-[40px] mx-auto p-0 max-w-[420px]">
-
-                        {/* Logo Header */}
-                        <Section className="text-center mb-8">
-                            <Text className="text-2xl font-black tracking-tighter m-0">GATEPASS</Text>
+                <Body className="m-0 bg-[#f4f4f4] font-sans text-[#0d0d0d] antialiased">
+                    <Container className="mx-auto my-0 max-w-[480px] px-4 py-10">
+                        <Section className="mb-8">
+                            <Row>
+                                <Column className="w-[36px] align-middle">
+                                    <Img src={`${SITE_URL}/email/gatepass-mark.png`} width="28" height="28" alt="GatePass" className="block rounded-[7px]" />
+                                </Column>
+                                <Column className="align-middle">
+                                    <Text className="m-0 text-[18px] font-semibold tracking-[-0.03em]">GatePass</Text>
+                                </Column>
+                            </Row>
                         </Section>
 
-                        {/* PRIMARY TICKET CARD */}
-                        <Section className="mb-4 border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
-                            {/* Header Image (Only if poster exists) */}
-                            {posterUrl && (
-                                <Section className="bg-gray-100 relative">
-                                    <Img
-                                        src={posterUrl}
-                                        width="100%"
-                                        alt={eventName}
-                                        className="w-full object-cover rounded-t-3xl"
-                                    />
-                                </Section>
-                            )}
+                        <Section className="overflow-hidden rounded-[28px] bg-white">
+                            {posterUrl && <Img src={posterUrl} width="480" alt="" className="block w-full" />}
 
-                            <Section className="p-8 bg-white" style={{ borderTop: posterUrl ? 'none' : '1px solid #e5e7eb', borderRadius: posterUrl ? '0 0 24px 24px' : '24px' }}>
-                                {/* Event Title */}
-                                <Heading className="text-2xl font-black text-gray-900 leading-tight mb-2 text-center">
-                                    {eventName}
-                                </Heading>
-                                <Text className="text-sm text-gray-500 text-center m-0 mb-8 font-medium">
-                                    {totalTicketCount > 1 ? `${totalTicketCount} Tickets` : 'Admit One'} • {customerName}
+                            <Section className="px-7 pb-2 pt-8">
+                                <Text className="m-0 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8a8a8a]">You&apos;re going</Text>
+                                <Heading className="m-0 mt-3 text-[30px] font-semibold leading-[1.1] tracking-[-0.04em]">{eventName}</Heading>
+                                <Text className="m-0 mt-3 text-[15px] leading-6 text-[#555]">
+                                    Hi {firstName}, {ticketCount > 1 ? `here are your ${ticketCount} tickets` : "here's your ticket"}.{" "}
+                                    {physicalCount === 0
+                                        ? "Your livestream details are below."
+                                        : physicalCount > 1
+                                            ? "Show each code at the door, or add them to Apple Wallet."
+                                            : "Show the code at the door, or add it to Apple Wallet."}
                                 </Text>
+                            </Section>
 
-                                {/* Info Grid */}
-                                <Section className="bg-gray-50 rounded-2xl p-6 mb-8 border border-gray-100">
-                                    <Row className="mb-4">
-                                        <Column align="left">
-                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">DATE</Text>
-                                            <Text className="text-sm font-bold text-gray-900 m-0">{eventDate}</Text>
-                                        </Column>
-                                        {!useGroupedView && (
-                                            <Column align="right">
-                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">TIER</Text>
-                                                <Text className="text-sm font-bold text-gray-900 m-0">{primaryTicket.type}</Text>
-                                            </Column>
-                                        )}
+                            <Section className="px-7 pt-4">
+                                {eventDate && (
+                                    <Row className="border-0 border-b border-solid border-[#eeeeee]">
+                                        <Column className="w-[90px] py-3 align-top"><Text className="m-0 text-[13px] text-[#8a8a8a]">When</Text></Column>
+                                        <Column className="py-3"><Text className="m-0 text-[14px] font-medium">{eventDate}</Text></Column>
                                     </Row>
-                                    <Row>
-                                        <Column align="left">
-                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-1">VENUE</Text>
-                                            <Link href={mapUrl} className="text-sm font-bold text-gray-900 m-0 underline decoration-gray-300 underline-offset-2">
-                                                {venueName}
-                                            </Link>
-                                        </Column>
-                                    </Row>
-                                </Section>
-
-                                {/* CONDITIONAL: Grouped View vs Legacy Single Ticket View */}
-                                {useGroupedView ? (
-                                    /* GROUPED TICKETS VIEW - Show each tier as a section */
-                                    <>
-                                        {ticketGroups.map((group, gIndex) => {
-                                            const primaryOfGroup = group.tickets[0];
-                                            const additionalOfGroup = group.tickets.slice(1);
-                                            return (
-                                                <Section key={gIndex} className="mb-6 pb-6 border-b border-gray-100 last:border-b-0 last:mb-0 last:pb-0">
-                                                    <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-widest m-0 mb-3 text-center">
-                                                        {group.tierName} ({group.tickets.length})
-                                                    </Text>
-
-                                                    {/* QR Code or Virtual View for primary ticket of this tier */}
-                                                    {group.isVirtual ? (
-                                                        /* Virtual View */
-                                                        <Section className="text-center mb-6">
-                                                            {group.virtualLink ? (
-                                                                <>
-                                                                    <Button
-                                                                        href={group.virtualLink}
-                                                                        className="bg-purple-600 text-white text-sm font-bold no-underline text-center block w-full py-3.5 rounded-xl shadow-lg hover:bg-purple-700 transition-colors"
-                                                                    >
-                                                                        Join Livestream
-                                                                    </Button>
-                                                                    {group.virtualInstructions && (
-                                                                        <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
-                                                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
-                                                                                Access Instructions
-                                                                            </Text>
-                                                                            <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap">
-                                                                                {group.virtualInstructions}
-                                                                            </Text>
-                                                                        </Section>
-                                                                    )}
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Section className="bg-amber-50 rounded-2xl p-5 border border-amber-100 text-center">
-                                                                        <Text className="text-xs font-bold text-amber-800 m-0 mb-1">
-                                                                            Livestream Link Coming Soon
-                                                                        </Text>
-                                                                        <Text className="text-[11px] leading-[16px] text-amber-700 m-0">
-                                                                            The organizer hasn&apos;t set the livestream link yet. You will be notified via email & SMS as soon as it goes live.
-                                                                        </Text>
-                                                                    </Section>
-                                                                    {group.virtualInstructions && (
-                                                                        <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
-                                                                            <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
-                                                                                Pre-event Instructions
-                                                                            </Text>
-                                                                            <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap">
-                                                                                {group.virtualInstructions}
-                                                                            </Text>
-                                                                        </Section>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </Section>
-                                                    ) : (
-                                                        /* Physical QR Code View */
-                                                        <Section className="text-center mb-4">
-                                                            <div className="bg-white p-2 border-2 border-dashed border-gray-200 rounded-xl inline-block">
-                                                                <Img
-                                                                    src={primaryOfGroup.qrCodeUrl}
-                                                                    width="120"
-                                                                    height="120"
-                                                                    alt={`QR Code - ${group.tierName}`}
-                                                                    className="rounded-lg mix-blend-multiply"
-                                                                />
-                                                            </div>
-                                                            <Text className="text-[10px] font-mono text-gray-400 mt-2 tracking-[0.15em] uppercase m-0">
-                                                                {primaryOfGroup.id.substring(0, 8).toUpperCase()}
-                                                            </Text>
-                                                        </Section>
-                                                    )}
-
-                                                    {/* Additional tickets in this tier */}
-                                                    {additionalOfGroup.length > 0 && (
-                                                        <Section className="mt-3">
-                                                            {additionalOfGroup.map((ticket, tIndex) => (
-                                                                <Row key={ticket.id} className="mb-2">
-                                                                    <Column className="text-center">
-                                                                        <Text className="text-[10px] text-gray-500 m-0">
-                                                                            +{tIndex + 1} Guest Ticket: <span className="font-mono tracking-wide">{ticket.id.substring(0, 8).toUpperCase()}</span>
-                                                                        </Text>
-                                                                    </Column>
-                                                                </Row>
-                                                            ))}
-                                                        </Section>
-                                                    )}
-                                                </Section>
-                                            );
-                                        })}
-                                    </>
-                                ) : (
-                                    /* LEGACY: Single Ticket / Flat List View */
-                                    <>
-                                        {primaryTicket.isVirtual ? (
-                                            /* Virtual View */
-                                            <Section className="text-center mb-8">
-                                                {primaryTicket.virtualLink ? (
-                                                    <>
-                                                        <Button
-                                                            href={primaryTicket.virtualLink}
-                                                            className="bg-purple-600 text-white text-sm font-bold no-underline text-center block w-full py-3.5 rounded-xl shadow-lg hover:bg-purple-700 transition-colors"
-                                                        >
-                                                            Join Livestream
-                                                        </Button>
-                                                        {primaryTicket.virtualInstructions && (
-                                                            <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
-                                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
-                                                                    Access Instructions
-                                                                </Text>
-                                                                <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap font-medium">
-                                                                    {primaryTicket.virtualInstructions}
-                                                                </Text>
-                                                            </Section>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Section className="bg-amber-50 rounded-2xl p-5 border border-amber-100 text-center">
-                                                            <Text className="text-xs font-bold text-amber-800 m-0 mb-1 text-center">
-                                                                Livestream Link Coming Soon
-                                                            </Text>
-                                                            <Text className="text-[11px] leading-[16px] text-amber-700 m-0 text-center">
-                                                                The organizer hasn&apos;t set the livestream link yet. You will be notified via email & SMS as soon as it goes live.
-                                                            </Text>
-                                                        </Section>
-                                                        {primaryTicket.virtualInstructions && (
-                                                            <Section className="bg-gray-50 rounded-xl p-4 mt-4 text-left border border-gray-100">
-                                                                <Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider m-0 mb-1">
-                                                                    Pre-event Instructions
-                                                                </Text>
-                                                                <Text className="text-xs leading-[18px] m-0 text-gray-800 whitespace-pre-wrap font-medium">
-                                                                    {primaryTicket.virtualInstructions}
-                                                                </Text>
-                                                            </Section>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </Section>
-                                        ) : (
-                                            /* Physical QR Code View */
-                                            <Section className="text-center mb-8">
-                                                <div className="bg-white p-3 border-2 border-dashed border-gray-200 rounded-2xl inline-block">
-                                                    <Img
-                                                        src={primaryTicket.qrCodeUrl}
-                                                        width="160"
-                                                        height="160"
-                                                        alt="QR Code"
-                                                        className="rounded-lg mix-blend-multiply"
-                                                    />
-                                                </div>
-                                                <Text className="text-xs font-mono text-gray-400 mt-4 tracking-[0.2em] uppercase">
-                                                    {primaryTicket.id.substring(0, 8).toUpperCase()}
-                                                </Text>
-                                            </Section>
-                                        )}
-                                    </>
                                 )}
+                                {venueName && (
+                                    <Row className="border-0 border-b border-solid border-[#eeeeee]">
+                                        <Column className="w-[90px] py-3 align-top"><Text className="m-0 text-[13px] text-[#8a8a8a]">Where</Text></Column>
+                                        <Column className="py-3"><Link href={mapUrl!} className="text-[14px] font-medium text-[#0d0d0d] underline">{venueName}</Link></Column>
+                                    </Row>
+                                )}
+                                <Row>
+                                    <Column className="w-[90px] py-3 align-top"><Text className="m-0 text-[13px] text-[#8a8a8a]">Tickets</Text></Column>
+                                    <Column className="py-3">
+                                        <Text className="m-0 text-[14px] font-medium">
+                                            {groups.map(g => `${g.tickets.length} × ${g.tierName}`).join(", ")}
+                                        </Text>
+                                    </Column>
+                                </Row>
+                            </Section>
 
-                                {/* CTAs */}
-                                <Button
-                                    href={`https://gatepass.so/my-tickets`}
-                                    className="bg-black text-white px-8 py-4 rounded-xl text-base font-bold no-underline block w-[200px] mx-auto text-center shadow-lg shadow-black/20 hover:bg-gray-900 transition-all"
-                                >
-                                    {useGroupedView ? 'View All Tickets' : 'Access Ticket'}
+                            {groups.map((group, gIndex) => (
+                                <Section key={gIndex} className="px-7 pt-6">
+                                    <Hr className="m-0 mb-6 border-[#eeeeee]" />
+                                    {groups.length > 1 && (
+                                        <Text className="m-0 mb-4 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8a8a8a]">{group.tierName}</Text>
+                                    )}
+
+                                    {group.isVirtual ? (
+                                        <Section>
+                                            {group.virtualLink ? (
+                                                <Button href={group.virtualLink} className="block rounded-full bg-[#0d0d0d] py-3.5 text-center text-[14px] font-semibold text-white no-underline">
+                                                    Join livestream
+                                                </Button>
+                                            ) : (
+                                                <Text className="m-0 rounded-2xl bg-[#f4f4f4] p-4 text-[14px] leading-6 text-[#555]">
+                                                    The livestream link isn&apos;t ready yet. We&apos;ll email and text you as soon as it is.
+                                                </Text>
+                                            )}
+                                            {group.virtualInstructions && (
+                                                <Text className="m-0 mt-4 whitespace-pre-wrap text-[13px] leading-5 text-[#555]">{group.virtualInstructions}</Text>
+                                            )}
+                                        </Section>
+                                    ) : showEveryQr ? (
+                                        group.tickets.map((ticket, tIndex) => (
+                                            <Section key={ticket.id} className={`text-center ${tIndex > 0 ? "mt-8" : ""}`}>
+                                                <Img src={ticket.qrCodeUrl} width="180" height="180" alt={`Entry code for ticket ${shortCode(ticket.id)}`} className="mx-auto block" />
+                                                <Text className="m-0 mt-3 font-mono text-[12px] tracking-[0.2em] text-[#8a8a8a]">
+                                                    {group.tickets.length > 1 ? `${tIndex + 1} of ${group.tickets.length} · ` : ""}{shortCode(ticket.id)}
+                                                </Text>
+                                                <Link href={`${SITE_URL}/api/wallet/apple?ticketId=${ticket.id}`} className="mt-3 inline-block rounded-full bg-[#0d0d0d] px-4 py-2 text-[12px] font-semibold text-white no-underline">
+                                                    Add to Apple Wallet
+                                                </Link>
+                                            </Section>
+                                        ))
+                                    ) : (
+                                        <Text className="m-0 text-[14px] leading-6 text-[#555]">
+                                            {group.tickets.length} tickets: {group.tickets.map(t => shortCode(t.id)).join(", ")}. Open My Tickets to show each code at the door.
+                                        </Text>
+                                    )}
+                                </Section>
+                            ))}
+
+                            <Section className="px-7 pb-8 pt-8">
+                                <Button href={`${SITE_URL}/my-tickets`} className="block rounded-full bg-[#0d0d0d] py-4 text-center text-[15px] font-semibold text-white no-underline">
+                                    View in My Tickets
                                 </Button>
+                                {ticketCount > 1 && (
+                                    <Text className="m-0 mt-4 text-center text-[13px] leading-5 text-[#8a8a8a]">
+                                        Going with friends? Send them their tickets from My Tickets.
+                                    </Text>
+                                )}
                             </Section>
                         </Section>
 
-                        {/* GUEST TICKETS LIST - Only for legacy flat list view */}
-                        {!useGroupedView && guestTickets.length > 0 && (
-                            <Section className="mb-8">
-                                <Text className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">
-                                    Guest Tickets ({guestTickets.length})
-                                </Text>
-
-                                {guestTickets.map((ticket, index) => (
-                                    <Section key={ticket.id} className="bg-white border border-gray-200 rounded-2xl p-4 mb-3 flex flex-row items-center shadow-sm">
-                                        <Row>
-                                            <Column className="w-12 pr-4">
-                                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-500">
-                                                    +{index + 1}
-                                                </div>
-                                            </Column>
-                                            <Column>
-                                                <Text className="text-sm font-bold text-gray-900 m-0">
-                                                    {ticket.type}
-                                                </Text>
-                                                <Text className="text-xs text-gray-500 m-0 mt-0.5">
-                                                    Unassigned Guest Ticket
-                                                </Text>
-                                            </Column>
-                                        </Row>
-                                    </Section>
-                                ))}
-
-                                <Button
-                                    href="https://gatepass.so/my-tickets"
-                                    className="bg-white text-black border border-gray-200 px-6 py-3 rounded-xl text-sm font-bold no-underline block w-full text-center hover:bg-gray-50 transition-all mt-4"
-                                >
-                                    Invite Friends to Claim
-                                </Button>
-                            </Section>
-                        )}
-
-
-                        {reservationId && (
-                            <Section className="mt-8 text-center">
-                                <Link
-                                    href={`https://gatepass.so/api/reservations/${reservationId}/receipt`}
-                                    className="text-xs font-bold text-gray-400 underline decoration-gray-200 underline-offset-4 hover:text-black transition-colors"
-                                >
-                                    Download Purchase Receipt
+                        <Section className="px-2 pt-6">
+                            {reservationId && (
+                                <Link href={`${SITE_URL}/api/reservations/${reservationId}/receipt`} className="text-[13px] text-[#555] underline">
+                                    Download receipt
                                 </Link>
-                            </Section>
-                        )}
-
-                        {/* Footer */}
-                        <Section className="mt-8 text-center">
-                            <Text className="text-xs text-gray-400 m-0">
-                                © 2025 GatePass. All rights reserved.
+                            )}
+                            <Text className="m-0 mt-4 text-[12px] leading-5 text-[#8a8a8a]">
+                                Payment for this order was made to the event organizer. GatePass issued your tickets.
                             </Text>
+                            <Text className="m-0 mt-2 text-[12px] text-[#8a8a8a]">© {new Date().getFullYear()} GatePass · Accra, Ghana</Text>
                         </Section>
-
                     </Container>
                 </Body>
             </Tailwind>
-        </Html >
+        </Html>
     );
 };
 

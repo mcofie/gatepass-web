@@ -17,7 +17,8 @@ interface TeamMemberRecord {
     organization: Record<string, unknown> | null
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+    const { tab } = await searchParams
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -170,6 +171,7 @@ export default async function SettingsPage() {
         <SettingsClient
             initialOrganizer={organizer}
             initialIntegrations={integrations}
+            initialTab={tab}
             initialProfile={profile}
             userRole={role}
             teamInfo={teamInfo}

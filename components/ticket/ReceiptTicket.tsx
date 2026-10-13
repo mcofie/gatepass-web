@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import Image from 'next/image'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 
 interface ReceiptTicketProps {
     id?: string
@@ -169,6 +170,7 @@ export const ReceiptTicket = ({ id, event, ticket, logoUrl, tierName, forceExpan
                                 />
                             </div>
                             <p className="text-center text-[10px] font-mono mt-3 tracking-widest uppercase" style={{ color: gray400 }}>Scan at entry</p>
+                            {!isPrint && <AddToAppleWallet ticketId={ticket.id} className="mt-4" />}
                         </div>
                         <p className="text-center text-[9px] font-mono tracking-[0.2em] mt-1" style={{ color: '#d1d5db' }}>{ticket.qr_code_hash?.substring(0, 12)}</p>
 

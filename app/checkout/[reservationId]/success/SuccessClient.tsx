@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import { createClient } from '@/utils/supabase/client'
 import { CheckCircle, Calendar, MapPin, Ticket, ArrowRight, HelpCircle, Loader2 } from 'lucide-react'
 import { EventFormQuestion, Reservation, Ticket as TicketType } from '@/types/gatepass'
@@ -347,7 +348,8 @@ export function SuccessClient({ reservation, tickets = [], questions = [] }: Suc
                                             #{t.id.substring(0, 8).toUpperCase()}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        {!t.ticket_tiers?.is_virtual && <AddToAppleWallet ticketId={t.id} className="h-9 rounded-lg px-3 text-xs" />}
                                         <Link
                                             href={`/ticket/${t.id}`}
                                             className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"

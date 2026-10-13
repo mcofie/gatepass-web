@@ -12,25 +12,18 @@ import {
     ResponsiveContainer,
 } from 'recharts'
 import {
-    Share2,
     Copy,
     Check,
-    TrendingUp,
-    Users,
-    ShoppingCart,
-    DollarSign,
-    Target,
     Search,
     Download,
     Trash2,
-    MessageSquare,
     Send,
-    AlertCircle,
-    Loader2
+    Loader2,
 } from 'lucide-react'
 import { sendSMSBlast } from '@/app/actions/communications'
 import { toast } from 'sonner'
 import { formatCompactNumber, formatCompactCurrency } from '@/utils/format'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface MarketingStat {
     id: string
@@ -85,6 +78,7 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
     // Code Validation State
     const [isCodeValid, setIsCodeValid] = useState<boolean | null>(null)
     const [isValidating, setIsValidating] = useState(false)
+    const [section, setSection] = useState<'performance' | 'links' | 'messages'>('performance')
     const [smsMessage, setSmsMessage] = useState('')
     const [isSendingSms, setIsSendingSms] = useState(false)
 
@@ -259,523 +253,327 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
         }
     }
 
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-white">Performance</h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Attributed activity from your shared links</p>
-                </div>
+    const inputCls = 'h-11 w-full rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-950 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-white/60'
+    const labelCls = 'text-sm font-medium text-gray-950 dark:text-white'
+    const selectedEventTitle = events.find(e => e.id === selectedEventId)?.title
 
-                <div className="flex items-center gap-2">
-                    <label htmlFor="marketing-event-scope" className="text-xs font-medium text-gray-500 dark:text-gray-400">Event</label>
+    return (
+        <div className="space-y-10">
+            <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                    <h1 className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[44px]">Marketing</h1>
+                    <p className="mt-3 max-w-xl text-[15px] text-gray-500 dark:text-gray-400">See which links sell, create new ones, and message your guests.</p>
+                </div>
+                <div className="self-start sm:self-auto">
+                    <label htmlFor="marketing-event-scope" className="sr-only">Event</label>
                     <select
                         id="marketing-event-scope"
                         value={selectedEventId}
                         onChange={(e) => setSelectedEventId(e.target.value)}
-                        className="h-10 min-w-[200px] rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-900 outline-none transition-colors focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-white"
+                        className="h-10 min-w-[220px] rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-950 outline-none focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white"
                     >
                         <option value="all">All events</option>
                         {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
                     </select>
                 </div>
-            </div>
+            </header>
 
-            {/* Performance Snapshot */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-                <StatCard
-                    label="Views"
-                    value={formatCompactNumber(aggregates.views)}
-                    icon={Users}
-                    description="Tracked link opens"
-                />
-                <StatCard
-                    label="Checkouts"
-                    value={formatCompactNumber(aggregates.checkouts)}
-                    icon={Target}
-                    description="Checkout starts"
-                />
-                <StatCard
-                    label="Sales"
-                    value={formatCompactNumber(aggregates.transactions)}
-                    icon={ShoppingCart}
-                    description="Completed orders"
-                />
-                <StatCard
-                    label="Revenue"
-                    value={formatCompactCurrency(aggregates.revenue, 'GHS')}
-                    icon={DollarSign}
-                    description="Attributed gross"
-                />
-                <StatCard
-                    label="Conversion"
-                    value={`${aggregates.convRate.toFixed(2)}%`}
-                    icon={TrendingUp}
-                    description="Views to sales"
-                />
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-                {/* Main Performance Chart */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6 lg:col-span-8">
-                    <div className="mb-7 flex items-center justify-between">
-                        <div>
-                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Revenue by source</h3>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Attributed revenue across marketing channels</p>
-                        </div>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-gray-200 bg-gray-200 dark:border-white/10 dark:bg-white/10 md:grid-cols-5">
+                {[
+                    { label: 'Link views', value: formatCompactNumber(aggregates.views) },
+                    { label: 'Checkouts', value: formatCompactNumber(aggregates.checkouts) },
+                    { label: 'Orders', value: formatCompactNumber(aggregates.transactions) },
+                    { label: 'Revenue', value: formatCompactCurrency(aggregates.revenue, 'GHS') },
+                    { label: 'Conversion', value: `${aggregates.convRate.toFixed(1)}%` },
+                ].map(stat => (
+                    <div key={stat.label} className="bg-white p-5 dark:bg-[#0b0b0b] sm:p-6">
+                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">{stat.label}</dt>
+                        <dd className="mt-3 truncate text-[26px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-gray-950 dark:text-white sm:text-[30px]">{stat.value}</dd>
                     </div>
+                ))}
+            </dl>
 
-                    <div className="mt-4 h-[260px] w-full text-gray-900 dark:text-white sm:h-[320px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8888881a" />
-                                <XAxis
-                                    dataKey="name"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
-                                    dy={15}
-                                />
-                                <YAxis hide />
-                                <Tooltip
-                                    cursor={{ fill: 'rgba(0,0,0,0.02)', radius: 12 }}
-                                    content={({ active, payload }) => {
-                                        if (active && payload && payload.length) {
-                                            const data = payload[0].payload;
-                                            return (
-                                                <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md dark:border-white/10 dark:bg-[#1a1a1a]">
-                                                    <p className="mb-1 text-xs text-gray-500">{data.name}</p>
-                                                    <p className="text-base font-semibold dark:text-white">GHS {data.revenue.toLocaleString()}</p>
-                                                    <p className="mt-1 text-xs text-gray-500">{data.views.toLocaleString()} views</p>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    }}
-                                />
-                                <Bar dataKey="revenue" fill="currentColor" radius={[8, 8, 0, 0]} barSize={40} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+            <div className="space-y-6">
+                <div role="tablist" aria-label="Marketing sections" className="-mx-4 flex gap-1 overflow-x-auto border-b border-gray-200 px-4 pb-3 dark:border-white/10 lg:mx-0 lg:px-0">
+                    {([['performance', 'Performance'], ['links', 'Tracking links'], ['messages', 'Messages']] as const).map(([id, label]) => (
+                        <button
+                            key={id}
+                            type="button"
+                            role="tab"
+                            aria-selected={section === id}
+                            onClick={() => setSection(id)}
+                            className={`inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors ${section === id
+                                ? 'bg-gray-950 text-white dark:bg-white dark:text-black'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white'}`}
+                        >
+                            {label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Conversion Funnel */}
-                <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6 lg:col-span-4">
-                    <div className="mb-8">
-                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Conversion journey</h3>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">From views to completed orders</p>
-                    </div>
-
-                    <div className="space-y-8 flex-1 flex flex-col justify-center">
-                        {funnelData.map((item, idx) => (
-                            <div key={item.step} className="space-y-3">
-                                <div className="flex justify-between items-end">
-                                    <div className="space-y-0.5">
-                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{item.step}</span>
-                                        <div className="text-xl font-semibold dark:text-white">{item.count.toLocaleString()}</div>
-                                    </div>
-                                    {idx > 0 && (
-                                        <div className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 dark:bg-white/10">
-                                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{item.percentage === null ? '—' : `${item.percentage}%`}</span>
+                {section === 'performance' && (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-7 lg:col-span-8">
+                                <h2 className="text-base font-semibold text-gray-950 dark:text-white">Revenue by source</h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Sales attributed to each link or promo code.</p>
+                                <div className="mt-6 h-[260px] w-full text-gray-950 dark:text-white sm:h-[300px]">
+                                    {chartData.length === 0 ? (
+                                        <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-gray-200 text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                                            No attributed sales yet. Share a tracking link to start measuring.
                                         </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#8888881a" />
+                                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} dy={12} />
+                                                <YAxis hide />
+                                                <Tooltip
+                                                    cursor={{ fill: 'rgba(0,0,0,0.03)', radius: 12 }}
+                                                    content={({ active, payload }) => {
+                                                        if (!active || !payload?.length) return null
+                                                        const data = payload[0].payload
+                                                        return (
+                                                            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-md dark:border-white/10 dark:bg-[#1a1a1a]">
+                                                                <p className="mb-1 text-xs text-gray-500">{data.name}</p>
+                                                                <p className="text-base font-semibold dark:text-white">GHS {data.revenue.toLocaleString()}</p>
+                                                                <p className="mt-1 text-xs text-gray-500">{data.views.toLocaleString()} views</p>
+                                                            </div>
+                                                        )
+                                                    }}
+                                                />
+                                                <Bar dataKey="revenue" fill="currentColor" radius={[8, 8, 0, 0]} barSize={40} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
                                     )}
                                 </div>
-                                <div className="h-1.5 bg-gray-50 dark:bg-white/5 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full bg-gray-900 transition-[width] duration-700 ease-out dark:bg-white"
-                                        style={{ width: `${idx === 0 ? 100 : item.percentage ?? 0}%` }}
+                            </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-7 lg:col-span-4">
+                                <h2 className="text-base font-semibold text-gray-950 dark:text-white">From view to order</h2>
+                                <ol className="mt-6 space-y-6">
+                                    {funnelData.map((item, idx) => (
+                                        <li key={item.step}>
+                                            <div className="flex items-end justify-between">
+                                                <div>
+                                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{item.step}</p>
+                                                    <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-950 dark:text-white">{item.count.toLocaleString()}</p>
+                                                </div>
+                                                {idx > 0 && <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">{item.percentage === null ? '—' : `${item.percentage}%`}</span>}
+                                            </div>
+                                            <div className="mt-2 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
+                                                <div className="h-full rounded-full bg-gray-950 transition-[width] duration-700 dark:bg-white" style={{ width: `${idx === 0 ? 100 : item.percentage ?? 0}%` }} />
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ol>
+                            </section>
+                        </div>
+
+                        <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
+                            <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                                <div>
+                                    <h2 className="text-base font-semibold text-gray-950 dark:text-white">Sources</h2>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Views and sales for each link and promo code.</p>
+                                </div>
+                                <div className="relative w-full sm:max-w-[280px]">
+                                    <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                                    <input placeholder="Search sources" aria-label="Search marketing sources" value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 w-full rounded-full border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-white/50" />
+                                </div>
+                            </div>
+                            {filteredStats.length === 0 ? (
+                                <div className="border-t border-gray-100 dark:border-white/10">
+                                    <EmptyState
+                                        compact
+                                        illustration="megaphone"
+                                        title={stats.length === 0 ? 'No tracked sources yet' : 'No sources match'}
+                                        description={stats.length === 0 ? 'Create a tracking link and share it to see where sales come from.' : undefined}
+                                        action={stats.length === 0 ? <button type="button" onClick={() => setSection('links')} className="text-sm font-medium text-gray-950 underline underline-offset-4 dark:text-white">Create a tracking link</button> : undefined}
                                     />
                                 </div>
-                            </div>
-                        ))}
+                            ) : (
+                                <div className="overflow-x-auto border-t border-gray-100 dark:border-white/10">
+                                    <table className="w-full min-w-[640px] text-sm">
+                                        <thead className="text-xs text-gray-500 dark:text-gray-400">
+                                            <tr>
+                                                <th className="px-7 py-3 text-left font-medium">Source</th>
+                                                <th className="px-4 py-3 text-right font-medium">Views</th>
+                                                <th className="px-4 py-3 text-right font-medium">Orders</th>
+                                                <th className="px-4 py-3 text-right font-medium">Revenue</th>
+                                                <th className="px-4 py-3 text-right font-medium">Conversion</th>
+                                                <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-white/10">
+                                            {filteredStats.map((stat) => (
+                                                <tr key={stat.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]">
+                                                    <td className="px-7 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium text-gray-950 dark:text-white">{stat.utm_source}</span>
+                                                            {stat.utm_campaign && <span className="rounded-full border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">{stat.utm_campaign}</span>}
+                                                        </div>
+                                                        <p className="mt-0.5 max-w-[240px] truncate text-xs text-gray-500 dark:text-gray-400">{stat.events.title}</p>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-right tabular-nums text-gray-950 dark:text-white">{stat.views.toLocaleString()}</td>
+                                                    <td className="px-4 py-4 text-right tabular-nums text-gray-950 dark:text-white">{stat.transactions.toLocaleString()}</td>
+                                                    <td className="px-4 py-4 text-right font-semibold tabular-nums text-gray-950 dark:text-white">GHS {stat.revenue.toLocaleString()}</td>
+                                                    <td className="px-4 py-4 text-right tabular-nums text-gray-950 dark:text-white">{stat.views > 0 ? `${((stat.transactions / stat.views) * 100).toFixed(1)}%` : '—'}</td>
+                                                    <td className="px-4 py-4 text-right">
+                                                        <button onClick={() => handleDeleteStat(stat.id)} aria-label={`Delete ${stat.utm_source}`} className="flex size-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10">
+                                                            <Trash2 className="size-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </section>
                     </div>
+                )}
 
-                </div>
-            </div>
-
-            {/* Source Details & Campaign Builder */}
-            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-                {/* Channel Detail Table */}
-                <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111] lg:col-span-8">
-                    <div className="flex flex-col gap-4 border-b border-gray-100 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                        <div>
-                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Sources</h3>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Traffic and sales by campaign source</p>
-                        </div>
-                        <div className="relative w-full sm:max-w-[280px]">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                                placeholder="Search sources"
-                                aria-label="Search marketing sources"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:focus:border-white/40"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="min-h-[280px] overflow-x-auto">
-                        <table className="w-full min-w-[670px]">
-                            <thead>
-                                <tr className="border-b border-gray-50 dark:border-white/5 bg-gray-50 dark:bg-white/5">
-                                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500">Source</th>
-                                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500">Views</th>
-                                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500">Orders</th>
-                                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500">Revenue</th>
-                                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500">Rate</th>
-                                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-500"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                                {filteredStats.map((stat) => (
-                                    <tr key={stat.id} className="group hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{stat.utm_source}</span>
-                                                    {stat.utm_campaign && (
-                                                        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                                                            {stat.utm_campaign}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="text-[10px] font-medium text-gray-400 truncate max-w-[200px]">{stat.events.title}</p>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right font-medium text-sm dark:text-white">{stat.views.toLocaleString()}</td>
-                                        <td className="px-6 py-4 text-right font-medium text-sm dark:text-white">{stat.transactions.toLocaleString()}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">GHS {stat.revenue.toLocaleString()}</p>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                {stat.views > 0 ? `${((stat.transactions / stat.views) * 100).toFixed(1)}%` : '—'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button
-                                                onClick={() => handleDeleteStat(stat.id)}
-                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
-                                                title="Delete Record"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filteredStats.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="p-16 text-center text-sm text-gray-500 dark:text-gray-400">No sources match this search.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Tracking Link Generator */}
-                <div className="h-full overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 dark:border-white/10 dark:bg-[#111] dark:text-white sm:p-6 lg:col-span-4">
-
-                    <div className="flex h-full flex-col justify-between space-y-7">
-                        <div>
-                            <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10">
-                                <Share2 className="h-4 w-4 text-gray-700 dark:text-white" />
-                            </div>
-                            <div className="flex items-center justify-between mb-1">
-                                <h3 className="text-base font-semibold">Tracking links</h3>
-                                <div className="flex rounded-lg border border-gray-200 p-0.5 dark:border-white/10">
-                                    <button
-                                        onClick={() => setLinkMode('simple')}
-                                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${linkMode === 'simple' ? 'bg-gray-100 text-gray-900 dark:bg-white/10 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
-                                    >Simple</button>
-                                    <button
-                                        onClick={() => setLinkMode('standard')}
-                                        className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${linkMode === 'standard' ? 'bg-gray-100 text-gray-900 dark:bg-white/10 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
-                                    >Advanced</button>
+                {section === 'links' && (
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                        <section className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-7">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="text-base font-semibold text-gray-950 dark:text-white">Create a tracking link</h2>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Share it anywhere. Views and sales show up under Performance.</p>
+                                </div>
+                                <div className="flex shrink-0 rounded-full border border-gray-200 p-0.5 dark:border-white/10" role="group" aria-label="Link options">
+                                    {([['simple', 'Simple'], ['standard', 'Advanced']] as const).map(([mode, label]) => (
+                                        <button key={mode} type="button" onClick={() => setLinkMode(mode)} aria-pressed={linkMode === mode} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${linkMode === mode ? 'bg-gray-950 text-white dark:bg-white dark:text-black' : 'text-gray-500 dark:text-gray-400'}`}>{label}</button>
+                                    ))}
                                 </div>
                             </div>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Create shareable links to measure traffic.</p>
-                        </div>
 
-                        <div className="space-y-6">
                             <div className="space-y-2">
-                                <label htmlFor="marketing-link-event" className="text-sm font-medium text-gray-700 dark:text-gray-300">Destination event</label>
-                                <select
-                                    id="marketing-link-event"
-                                    value={genEventId}
-                                    onChange={(e) => setGenEventId(e.target.value)}
-                                    className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors appearance-none text-gray-900 dark:text-white"
-                                >
-                                    <option value="" disabled className="text-black">Select an event...</option>
-                                    {events.map(e => <option key={e.id} value={e.id} className="text-black">{e.title}</option>)}
+                                <label htmlFor="marketing-link-event" className={labelCls}>Event</label>
+                                <select id="marketing-link-event" value={genEventId} onChange={(e) => setGenEventId(e.target.value)} className={inputCls}>
+                                    <option value="" disabled>Choose an event</option>
+                                    {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
                                 </select>
                             </div>
 
-                            {linkMode === 'simple' ? (
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label htmlFor="marketing-link-name" className="text-sm font-medium text-gray-700 dark:text-gray-300">Source name</label>
-                                        <input
-                                            id="marketing-link-name"
-                                            value={genSource}
-                                            onChange={(e) => setGenSource(e.target.value)}
-                                            placeholder="affiliate"
-                                            className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors text-gray-900 dark:text-white placeholder:text-gray-400 dark:text-gray-500"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between ml-1">
-                                            <label htmlFor="marketing-link-promo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Promo code</label>
-                                            {genAffiliateCode && (
-                                                <div className="flex items-center gap-1.5 translate-y-[-2px]">
-                                                    {isValidating ? (
-                                                        <div className="w-2.5 h-2.5 border border-white/20 border-t-white rounded-full animate-spin" />
-                                                    ) : isCodeValid ? (
-                                                        <div className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-tighter">
-                                                            <Check className="w-2.5 h-2.5" />
-                                                            Verified
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">
-                                                            Code Missing
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <select
-                                            id="marketing-link-promo"
-                                            value={genAffiliateCode}
-                                            onChange={(e) => setGenAffiliateCode(e.target.value)}
-                                            className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors text-gray-900 dark:text-white appearance-none"
-                                        >
-                                            <option value="" className="text-black">No Promo Code</option>
-                                            {eventPromos.map(p => (
-                                                <option key={p.id} value={p.code} className="text-black">
-                                                    {p.code}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 px-1">Links directly to the discount code for auto-apply.</p>
-                                    </div>
+                            <div className={linkMode === 'standard' ? 'grid gap-5 sm:grid-cols-2' : 'space-y-5'}>
+                                <div className="space-y-2">
+                                    <label htmlFor="marketing-link-source" className={labelCls}>{linkMode === 'simple' ? 'Name this link' : 'Source'}</label>
+                                    <input id="marketing-link-source" value={genSource} onChange={(e) => setGenSource(e.target.value)} placeholder={linkMode === 'simple' ? 'e.g. instagram-bio' : 'instagram'} className={inputCls} />
                                 </div>
-                            ) : (
-                                <>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                        {/* Source Selection */}
-                                        <div className="space-y-3">
-                                            <label htmlFor="marketing-link-source" className="text-sm font-medium text-gray-700 dark:text-gray-300">Source</label>
-                                            <input
-                                                id="marketing-link-source"
-                                                value={genSource}
-                                                onChange={(e) => setGenSource(e.target.value)}
-                                                placeholder="instagram"
-                                                className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors text-gray-900 dark:text-white placeholder:text-gray-400 dark:text-gray-500"
-                                            />
-                                        </div>
-
-                                        {/* Medium Selection */}
-                                        <div className="space-y-3">
-                                            <label htmlFor="marketing-link-medium" className="text-sm font-medium text-gray-700 dark:text-gray-300">Medium</label>
-                                            <input
-                                                id="marketing-link-medium"
-                                                value={genMedium}
-                                                onChange={(e) => setGenMedium(e.target.value)}
-                                                placeholder="ad"
-                                                className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors text-gray-900 dark:text-white placeholder:text-gray-400 dark:text-gray-500"
-                                            />
-                                        </div>
-                                    </div>
-
+                                {linkMode === 'standard' && (
                                     <div className="space-y-2">
-                                        <label htmlFor="marketing-link-campaign" className="text-sm font-medium text-gray-700 dark:text-gray-300">Campaign (optional)</label>
-                                        <input
-                                            id="marketing-link-campaign"
-                                            value={genCampaign}
-                                            onChange={(e) => setGenCampaign(e.target.value)}
-                                            placeholder="launch_campaign"
-                                            className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors text-gray-900 dark:text-white placeholder:text-gray-400 dark:text-gray-500"
-                                        />
+                                        <label htmlFor="marketing-link-medium" className={labelCls}>Medium</label>
+                                        <input id="marketing-link-medium" value={genMedium} onChange={(e) => setGenMedium(e.target.value)} placeholder="ad" className={inputCls} />
                                     </div>
-
-                                    <div className="space-y-2 pt-2">
-                                        <label htmlFor="marketing-link-advanced-promo" className="text-sm font-medium text-gray-700 dark:text-gray-300">Promo code</label>
-                                        <select
-                                            id="marketing-link-advanced-promo"
-                                            value={genAffiliateCode}
-                                            onChange={(e) => setGenAffiliateCode(e.target.value)}
-                                            className="w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-gray-500 transition-colors text-gray-900 dark:text-white appearance-none"
-                                        >
-                                            <option value="" className="text-black">None</option>
-                                            {eventPromos.map(p => (
-                                                <option key={p.id} value={p.code} className="text-black">
-                                                    {p.code}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="pt-6">
-                            {generatedLink ? (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 group">
-                                        <div className="w-20 h-20 bg-white p-1 rounded-lg flex-shrink-0">
-                                            <img
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(generatedLink)}&bgcolor=ffffff&color=000000`}
-                                                alt="Campaign QR"
-                                                className="w-full h-full object-contain"
-                                            />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="mb-1.5 text-xs font-medium text-gray-500">Generated link</p>
-                                            <div className="p-2.5 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-100 dark:border-white/5">
-                                                <p className="text-[10px] font-mono break-all text-gray-900 dark:text-white font-medium line-clamp-2 leading-relaxed">{generatedLink}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={handleCopy}
-                                            className="flex-1 bg-black hover:opacity-80 dark:bg-white text-white dark:text-black font-semibold py-3 rounded-lg transition-opacity text-sm flex items-center justify-center gap-2"
-                                        >
-                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                            {copied ? 'Link Copied' : 'Copy Link'}
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                const link = document.createElement('a');
-                                                link.href = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(generatedLink)}`;
-                                                link.download = `qr_${genSource}_${genCampaign}.png`;
-                                                link.target = '_blank';
-                                                link.click();
-                                            }}
-                                            className="w-12 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-lg flex items-center justify-center transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
-                                            title="Download QR Code"
-                                        >
-                                            <Download className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="p-5 border border-dashed border-gray-200 dark:border-white/10 rounded-lg text-center">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Select an event to create a link
-                                    </p>
+                                )}
+                            </div>
+                            {linkMode === 'standard' && (
+                                <div className="space-y-2">
+                                    <label htmlFor="marketing-link-campaign" className="flex items-baseline justify-between text-sm font-medium text-gray-950 dark:text-white">Campaign <span className="text-xs font-normal text-gray-400">Optional</span></label>
+                                    <input id="marketing-link-campaign" value={genCampaign} onChange={(e) => setGenCampaign(e.target.value)} placeholder="launch" className={inputCls} />
                                 </div>
                             )}
-                        </div>
-                    </div>
-                </div>
-                
-                {/* SMS Blast Tool */}
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6 lg:col-span-12">
-                    <div className="mb-6 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300">
-                            <MessageSquare className="h-4 w-4" />
-                        </div>
-                        <div>
-                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Message attendees</h3>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Send an SMS to confirmed guests of the selected event.</p>
-                        </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                        <div className="space-y-6">
                             <div className="space-y-2">
-                                <label htmlFor="marketing-sms-message" className="text-sm font-medium text-gray-700 dark:text-gray-300">Message</label>
+                                <label htmlFor="marketing-link-promo" className="flex items-baseline justify-between text-sm font-medium text-gray-950 dark:text-white">
+                                    Promo code
+                                    {genAffiliateCode && (
+                                        <span className="text-xs font-normal">
+                                            {isValidating ? <span className="text-gray-400">Checking…</span> : isCodeValid ? <span className="text-emerald-600 dark:text-emerald-400">Active</span> : <span className="text-red-600 dark:text-red-400">Not found</span>}
+                                        </span>
+                                    )}
+                                </label>
+                                <select id="marketing-link-promo" value={genAffiliateCode} onChange={(e) => setGenAffiliateCode(e.target.value)} className={inputCls}>
+                                    <option value="">None</option>
+                                    {eventPromos.map(p => <option key={p.id} value={p.code}>{p.code}</option>)}
+                                </select>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Applied automatically when someone opens the link.</p>
+                            </div>
+                        </section>
+
+                        <section className="flex flex-col rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-7">
+                            <h2 className="text-base font-semibold text-gray-950 dark:text-white">Your link</h2>
+                            {generatedLink ? (
+                                <div className="mt-6 flex flex-1 flex-col gap-6">
+                                    <div className="flex justify-center rounded-2xl bg-gray-50 p-6 dark:bg-white/5">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(generatedLink)}&bgcolor=ffffff&color=000000`} alt="QR code for this link" className="size-40 rounded-xl bg-white p-2" />
+                                    </div>
+                                    <p className="break-all rounded-2xl border border-gray-200 px-4 py-3 font-mono text-xs leading-relaxed text-gray-950 dark:border-white/10 dark:text-white">{generatedLink}</p>
+                                    <div className="mt-auto flex gap-2">
+                                        <button onClick={handleCopy} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-gray-950 text-sm font-semibold text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-black">
+                                            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                                            {copied ? 'Copied' : 'Copy link'}
+                                        </button>
+                                        <a
+                                            href={`https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(generatedLink)}`}
+                                            download={`qr_${genSource}.png`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-gray-200 px-5 text-sm font-medium text-gray-950 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+                                        >
+                                            <Download className="size-4" aria-hidden="true" /> QR code
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mt-6 flex flex-1 items-center justify-center rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                                    Choose an event to create a link.
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+
+                {section === 'messages' && (
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                        <section className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-7 lg:col-span-8">
+                            <div>
+                                <h2 className="text-base font-semibold text-gray-950 dark:text-white">Text your guests</h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    {selectedEventId === 'all'
+                                        ? 'Choose an event at the top of the page to message its guests.'
+                                        : <>Sends to confirmed guests of <span className="font-medium text-gray-950 dark:text-white">{selectedEventTitle}</span> who gave a phone number.</>}
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <label htmlFor="marketing-sms-message" className={labelCls}>Message</label>
                                 <textarea
                                     id="marketing-sms-message"
                                     value={smsMessage}
                                     onChange={(e) => setSmsMessage(e.target.value)}
-                                    placeholder="e.g. Hello! Don't forget our event starts at 6 PM tonight. See you there!"
+                                    placeholder="Doors open at 6pm tonight. Bring your ticket and see you there!"
                                     rows={5}
-                                    className="w-full resize-none rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-900 outline-none transition-colors focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-white/40"
+                                    className="w-full resize-none rounded-xl border border-gray-200 bg-white p-4 text-sm leading-relaxed text-gray-950 outline-none transition-colors placeholder:text-gray-400 focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-white/60"
                                 />
-                                <div className="flex justify-between items-center px-1">
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {smsMessage.length} characters • {Math.ceil(smsMessage.length / 160)} segments
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {160 - (smsMessage.length % 160)} chars left in segment
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <button
-                                onClick={handleSendSMS}
-                                disabled={isSendingSms || !smsMessage.trim() || selectedEventId === 'all'}
-                                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-white dark:text-black"
-                            >
-                                {isSendingSms ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Sending...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Send className="w-4 h-4" />
-                                        Send message
-                                    </>
-                                )}
-                            </button>
-                        </div>
-
-                        <div className="flex flex-col justify-between rounded-lg border border-gray-200 bg-gray-50 p-5 dark:border-white/10 dark:bg-white/5">
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                                    <AlertCircle className="w-4 h-4" />
-                                    <span className="text-sm font-semibold">Before you send</span>
-                                </div>
-                                <ul className="space-y-3">
-                                    <li className="flex items-start gap-3">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Must have a carrier token connected in <strong>Settings</strong>.</p>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Messages are sent to <strong>confirmed</strong> guests only.</p>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 mt-1.5" />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Each 160 characters counts as 1 SMS segment.</p>
-                                    </li>
-                                </ul>
-                            </div>
-                            
-                            <div className="pt-6 border-t border-gray-200 dark:border-white/5 mt-6">
-                                <p className="text-[10px] text-gray-400 font-medium italic leading-relaxed text-center">
-                                    Broadcasts can take up to 5 minutes to complete depending on carrier throughput. Avoid closing this tab during transmission.
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {smsMessage.length} characters · {Math.max(1, Math.ceil(smsMessage.length / 160))} SMS per guest
                                 </p>
                             </div>
-                        </div>
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={handleSendSMS}
+                                    disabled={isSendingSms || !smsMessage.trim() || selectedEventId === 'all'}
+                                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gray-950 px-6 text-sm font-semibold text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black"
+                                >
+                                    {isSendingSms ? <><Loader2 className="size-4 animate-spin" /> Sending…</> : <><Send className="size-4" aria-hidden="true" /> Send message</>}
+                                </button>
+                            </div>
+                        </section>
+
+                        <aside className="rounded-3xl bg-gray-50 p-5 text-sm leading-relaxed text-gray-600 dark:bg-white/5 dark:text-gray-300 sm:p-7 lg:col-span-4">
+                            <p className="font-medium text-gray-950 dark:text-white">Before you send</p>
+                            <ul className="mt-3 space-y-2">
+                                <li>Messages go through your own SMS account. Connect one in <a href="/dashboard/settings?tab=messaging" className="font-medium text-gray-950 underline underline-offset-4 dark:text-white">Settings → Messaging</a>.</li>
+                                <li>Only confirmed guests with a phone number receive it.</li>
+                                <li>Every 160 characters is one SMS, billed by your provider.</li>
+                                <li>Large sends can take a few minutes. Keep this tab open until it finishes.</li>
+                            </ul>
+                        </aside>
                     </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-interface StatCardProps {
-    label: string
-    value: string
-    icon: React.ElementType
-    description: string
-}
-
-function StatCard({ label, value, icon: Icon, description }: StatCardProps) {
-    return (
-        <div className="flex min-h-[130px] flex-col justify-between rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111]">
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</span>
-                <Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />
-            </div>
-            <div className="mt-4 min-w-0">
-                <h4 className="truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white" title={value}>{value}</h4>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{description}</p>
+                )}
             </div>
         </div>
     )

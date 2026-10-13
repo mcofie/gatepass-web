@@ -13,7 +13,7 @@ interface MediaUploaderProps {
     bucket?: string
     path: string
     type: 'image' | 'video'
-    maxSizeMB?: number // Default 50 for video, 5 for image
+    maxSizeMB?: number // Default 300 for video (compressed before upload), 5 for image
     className?: string
     disabled?: boolean
     label?: string
@@ -26,7 +26,7 @@ export function MediaUploader({
     bucket = 'event-media',
     path,
     type,
-    maxSizeMB = type === 'video' ? 50 : 5,
+    maxSizeMB = type === 'video' ? 300 : 5,
     className,
     aspectRatio = 'video',
     disabled = false,
@@ -78,24 +78,24 @@ export function MediaUploader({
             let fileExt = file.name.split('.').pop()
             let contentType = file.type
 
-            // Video Transcoding Logic
-            if (type === 'video' && file.type !== 'video/webm') {
+            // Videos are compressed in the browser first; only the small MP4 is uploaded
+            if (type === 'video') {
                 setIsTranscoding(true)
                 try {
-                    toast.info('Optimizing video for web... This may take a minute.')
-                    const blob = await transcoder.convertToWebM(file, (pct) => {
-                        setProgress(pct)
-                    })
-                    fileToUpload = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webm", { type: 'video/webm' })
-                    fileExt = 'webm'
-                    contentType = 'video/webm'
-                    setIsTranscoding(false)
-                    setProgress(0) // Reset for upload phase
+                    const optimized = await transcoder.optimize(file, pct => setProgress(pct))
+                    fileToUpload = new File([optimized.blob], file.name.replace(/\.[^/.]+$/, '') + '.mp4', { type: optimized.contentType })
+                    fileExt = optimized.extension
+                    contentType = optimized.contentType
+                    const savedPct = Math.max(0, Math.round((1 - optimized.blob.size / file.size) * 100))
+                    toast.success(`Video optimized (${optimized.orientation}, ${(optimized.blob.size / 1024 / 1024).toFixed(1)} MB${savedPct ? `, ${savedPct}% smaller` : ''})`)
+                    setProgress(0)
                 } catch (e) {
                     console.error('Transcode error', e)
-                    toast.error('Failed to optimize video. Uploading original.')
+                    // Large originals would exceed the storage upload limit, so only small files fall back
+                    if (file.size > 45 * 1024 * 1024) throw new Error('Couldn\u2019t optimize this video. Try a shorter clip or export it as MP4 under 45 MB.')
+                    toast.warning('Couldn\u2019t optimize this video, uploading the original.')
+                } finally {
                     setIsTranscoding(false)
-                    // Fallback to original
                 }
             }
 
@@ -262,7 +262,7 @@ export function MediaUploader({
                                     </div>
                                     <div>
                                         <p className="font-bold text-gray-900 dark:text-white">Optimizing Video...</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Converting to WebM for best performance</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Compressing in your browser so it loads fast</p>
                                     </div>
                                 </>
                             ) : (
@@ -289,7 +289,7 @@ export function MediaUploader({
                                     {isDragging ? 'Drop to upload' : label || `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
                                 </p>
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    {type === 'video' ? 'MP4, MOV (max 50MB)' : 'JPG, PNG (max 5MB)'}
+                                    {type === 'video' ? 'MP4, MOV or WebM up to 300 MB · portrait or landscape' : 'JPG, PNG (max 5MB)'}
                                 </p>
                             </div>
                         </div>

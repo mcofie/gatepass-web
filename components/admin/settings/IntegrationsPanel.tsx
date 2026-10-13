@@ -69,6 +69,133 @@ function Monogram({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
     )
 }
 
+/** Provider logo from /public/brands, falling back to initials. */
+function BrandLogo({ provider, size = 'md' }: { provider: ProviderDefinition; size?: 'md' | 'lg' }) {
+    const [failed, setFailed] = React.useState(false)
+    if (failed) return <Monogram name={provider.name} size={size} />
+    return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={`/brands/${provider.id}.png`}
+            alt=""
+            onError={() => setFailed(true)}
+            className={`shrink-0 rounded-xl object-cover ring-1 ring-black/[0.06] dark:ring-white/10 ${size === 'lg' ? 'size-12' : 'size-10'}`}
+        />
+    )
+}
+
+function timeAgo(iso: string | null): string {
+    if (!iso) return 'Not checked yet'
+    const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`
+    const days = Math.round(hours / 24)
+    return days < 30 ? `${days} day${days === 1 ? '' : 's'} ago` : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/** The provider every event uses by default: status, mode, key in use, last check and webhook. */
+function DefaultProviderCard({ organizerId, category, provider, integration, canEdit, onManage, onUpdated }: {
+    organizerId: string
+    category: IntegrationCategory
+    provider: ProviderDefinition
+    integration: IntegrationSummary
+    canEdit: boolean
+    onManage: () => void
+    onUpdated: (integration: IntegrationSummary) => void
+}) {
+    const [testing, setTesting] = React.useState(false)
+    const [copied, setCopied] = React.useState(false)
+    const healthy = integration.status === 'connected'
+    const keyField = provider.fields.find(f => f.secret && integration.credentialHints[f.key])
+
+    const handleTest = async () => {
+        setTesting(true)
+        try {
+            const result = await testIntegration(organizerId, integration.id)
+            onUpdated(result)
+            if (result.status === 'connected') toast.success(`${provider.name} is working`)
+            else toast.error(result.statusMessage ?? 'Verification failed')
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Could not test the connection')
+        } finally {
+            setTesting(false)
+        }
+    }
+
+    const details = [
+        keyField && `${keyField.label} ••••${integration.credentialHints[keyField.key]}`,
+        `Checked ${timeAgo(integration.lastVerifiedAt).toLowerCase()}`,
+    ].filter(Boolean).join(' · ')
+
+    return (
+        <section aria-label={`Default ${category === 'payments' ? 'payment' : 'SMS'} provider`} className="rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
+            <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                <div className="flex min-w-0 items-center gap-4">
+                    <BrandLogo provider={provider} size="lg" />
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{provider.name}</p>
+                            <span className="rounded-full bg-gray-950 px-2.5 py-0.5 text-[11px] font-medium text-white dark:bg-white dark:text-black">Default</span>
+                            <StatusPill status={integration.status} />
+                            {provider.supportsTestMode && integration.mode === 'test' && (
+                                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-400/10 dark:text-amber-300">Test mode</span>
+                            )}
+                        </div>
+                        <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{details}</p>
+                    </div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                    {canEdit && (
+                        <button
+                            type="button"
+                            onClick={handleTest}
+                            disabled={testing}
+                            className="inline-flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-950 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+                        >
+                            {testing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                            Test
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={onManage}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-gray-950 px-4 text-sm font-medium text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-black"
+                    >
+                        Manage <ArrowUpRight className="size-4" aria-hidden="true" />
+                    </button>
+                </div>
+            </div>
+
+            {!healthy && integration.statusMessage && (
+                <p role="alert" className="mx-5 mb-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300 sm:mx-6">
+                    {integration.statusMessage}
+                </p>
+            )}
+
+            {category === 'payments' && (
+                <div className="flex items-center gap-3 border-t border-gray-100 px-5 py-3 dark:border-white/10 sm:px-6">
+                    <p className="shrink-0 text-xs text-gray-500 dark:text-gray-400">Webhook</p>
+                    <p className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 dark:text-gray-300">{integration.webhookUrl}</p>
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            await navigator.clipboard.writeText(integration.webhookUrl)
+                            setCopied(true)
+                            setTimeout(() => setCopied(false), 1500)
+                        }}
+                        className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-950 hover:underline dark:text-white"
+                    >
+                        {copied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+                        {copied ? 'Copied' : 'Copy'}
+                    </button>
+                </div>
+            )}
+        </section>
+    )
+}
+
 export function IntegrationsPanel({
     organizerId,
     category,
@@ -108,26 +235,15 @@ export function IntegrationsPanel({
 
             {copy.hasDefault && (
                 defaultIntegration && defaultProvider ? (
-                    <div className="rounded-3xl bg-gray-950 p-6 text-white dark:bg-white dark:text-black sm:p-8">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-60">Default provider</p>
-                        <div className="mt-5 flex flex-wrap items-end justify-between gap-6">
-                            <div>
-                                <p className="text-3xl font-semibold tracking-tight sm:text-4xl">{defaultProvider.name}</p>
-                                <p className="mt-2 text-sm opacity-70">
-                                    {defaultIntegration.mode === 'test' ? 'Test mode · ' : ''}
-                                    {STATUS_STYLE[defaultIntegration.status].label}
-                                    {defaultIntegration.statusMessage ? ` · ${defaultIntegration.statusMessage}` : ''}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setOpenProvider(defaultProvider)}
-                                className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-5 text-sm font-medium text-black transition-opacity hover:opacity-85 dark:bg-black dark:text-white"
-                            >
-                                Manage <ArrowUpRight className="size-4" aria-hidden="true" />
-                            </button>
-                        </div>
-                    </div>
+                    <DefaultProviderCard
+                        organizerId={organizerId}
+                        category={category}
+                        provider={defaultProvider}
+                        integration={defaultIntegration}
+                        canEdit={canEdit}
+                        onManage={() => setOpenProvider(defaultProvider)}
+                        onUpdated={upsertLocal}
+                    />
                 ) : (
                     <div className="rounded-3xl border border-dashed border-gray-300 p-6 dark:border-white/15 sm:p-8">
                         <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">No provider connected yet</p>
@@ -153,7 +269,7 @@ export function IntegrationsPanel({
                                     className="group flex h-full w-full flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left transition-colors hover:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:hover:border-white/60"
                                 >
                                     <div className="flex w-full items-start justify-between gap-3">
-                                        <Monogram name={provider.name} />
+                                        <BrandLogo provider={provider} />
                                         <div className="flex items-center gap-2">
                                             {integration?.isDefault && copy.hasDefault && (
                                                 <span className="rounded-full bg-gray-950 px-2.5 py-1 text-[11px] font-medium text-white dark:bg-white dark:text-black">Default</span>
@@ -280,7 +396,7 @@ function ProviderSheet({
             >
                 <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-6 dark:border-white/10">
                     <div className="flex items-center gap-4">
-                        <Monogram name={provider.name} size="lg" />
+                        <BrandLogo provider={provider} size="lg" />
                         <div>
                             <h2 id="provider-sheet-title" className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{provider.name}</h2>
                             <div className="mt-1"><StatusPill status={status} /></div>

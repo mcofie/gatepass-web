@@ -3,15 +3,11 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, Organizer } from '@/types/gatepass'
-import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, Save, RefreshCw, Ticket } from 'lucide-react'
+import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, RefreshCw, Ticket } from 'lucide-react'
 import { format } from 'date-fns'
-import { updateOrganizerFee } from '@/app/actions/fees'
 import { suspendUser, unsuspendUser, deleteUser, toggleSuperAdmin, deleteOrganization } from '@/app/actions/admin'
 import { resendTicketEmail } from '@/utils/actions/ticket'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
-import { PLATFORM_FEE_PERCENT } from '@/utils/fees'
 
 interface UserDetailProps {
     profile: Profile
@@ -23,22 +19,7 @@ interface UserDetailProps {
 
 function OrganizerCard({ organizer }: { organizer: Organizer }) {
     const router = useRouter()
-    const [feeSaving, setFeeSaving] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
-    const [feeInput, setFeeInput] = useState<string>(organizer.platform_fee_percent ? (organizer.platform_fee_percent * 100).toString() : '')
-
-    const handleSaveFee = async () => {
-        setFeeSaving(true)
-        try {
-            const val = feeInput ? parseFloat(feeInput) / 100 : null
-            await updateOrganizerFee(organizer.id, val)
-            toast.success(`Fee updated for ${organizer.name}`)
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setFeeSaving(false)
-        }
-    }
 
     const handleDelete = async () => {
         const confirm = window.confirm(`Are you sure you want to PERMANENTLY delete the organization "${organizer.name}"? This action cannot be undone.`)
@@ -93,33 +74,6 @@ function OrganizerCard({ organizer }: { organizer: Organizer }) {
                 </div>
                 <div>
                     <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-white/5">{organizer.slug}</p>
-                </div>
-                <div className="pt-4 border-t border-gray-100 dark:border-white/5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-2">Platform Fee Override (%)</label>
-                    <div className="flex gap-2">
-                        <Input
-                            value={feeInput}
-                            onChange={(e) => setFeeInput(e.target.value)}
-                            placeholder="Default (4%)"
-                            className="h-9 text-sm"
-                            type="number"
-                        />
-                        <Button
-                            size="sm"
-                            onClick={handleSaveFee}
-                            disabled={feeSaving}
-                            className="h-9 px-3 bg-black dark:bg-white text-white dark:text-black hover:opacity-90"
-                        >
-                            {feeSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                        </Button>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
-                        Effective Rate: <span className="font-bold text-gray-900 dark:text-white">
-                            {((organizer.platform_fee_percent && organizer.platform_fee_percent > 0)
-                                ? organizer.platform_fee_percent * 100
-                                : PLATFORM_FEE_PERCENT * 100).toFixed(2)}%
-                        </span>
-                    </p>
                 </div>
             </div>
         </div>

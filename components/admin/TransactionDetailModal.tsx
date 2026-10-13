@@ -1,379 +1,238 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { X, Calendar, User, Mail, CreditCard, Hash, Receipt, CheckCircle, Clock } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
+import { Check, Copy, X } from 'lucide-react'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 import { createClient } from '@/utils/supabase/client'
+import { getProvider } from '@/lib/integrations/providers'
+import { cn } from '@/lib/utils'
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- transactions and reservations arrive as loosely typed joined rows */
 
 interface TransactionDetailModalProps {
     transaction: any
     isOpen: boolean
     onClose: () => void
+    /** Kept for callers; fees are charged by the organizer's own provider, so they aren't shown here */
     eventFeeBearer?: 'customer' | 'organizer'
 }
 
-export function TransactionDetailModal({ transaction, isOpen, onClose, eventFeeBearer = 'customer' }: TransactionDetailModalProps) {
+type LineItem = { label: string; detail?: string; amount: number; tone?: 'muted' | 'discount' }
+
+const STATUS: Record<string, { label: string; dot: string }> = {
+    success: { label: 'Paid', dot: 'bg-emerald-500' },
+    pending: { label: 'Pending', dot: 'bg-amber-500' },
+    failed: { label: 'Failed', dot: 'bg-red-500' },
+    refunded: { label: 'Refunded', dot: 'bg-gray-400' },
+}
+
+/** Reservation ids for an order: direct link first, then whatever the payment metadata carried. */
+function reservationIdsOf(tx: any): string[] {
+    const meta = tx.metadata ?? {}
+    let ids = meta.reservation_ids ?? meta.metadata?.reservation_ids
+    if (!ids) {
+        const fields = meta.custom_fields || meta.metadata?.custom_fields
+        const field = Array.isArray(fields) ? fields.find((x: any) => x.variable_name === 'reservation_ids') : null
+        if (field?.value) ids = String(field.value).split(',').map((s: string) => s.trim())
+    }
+    if (Array.isArray(ids) && ids.length) return ids
+    return tx.reservation_id ? [tx.reservation_id] : []
+}
+
+function CopyValue({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
+    const [copied, setCopied] = useState(false)
+    return (
+        <div className="flex items-center justify-between gap-3 py-3">
+            <dt className="shrink-0 text-sm text-gray-500 dark:text-gray-400">{label}</dt>
+            <dd className="flex min-w-0 items-center gap-1">
+                <span className={cn('truncate text-sm text-gray-950 dark:text-white', mono && 'font-mono text-[13px]')} title={value}>{value}</span>
+                <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+                    aria-label={`Copy ${label.toLowerCase()}`}
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:hover:bg-white/10 dark:hover:text-white"
+                >
+                    {copied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+                </button>
+            </dd>
+        </div>
+    )
+}
+
+export function TransactionDetailModal({ transaction, isOpen, onClose }: TransactionDetailModalProps) {
     const [reservations, setReservations] = useState<any[]>([])
-    const [addonDetails, setAddonDetails] = useState<Record<string, { name: string, price: number }>>({})
-    const supabase = createClient()
+    const [addonNames, setAddonNames] = useState<Record<string, { name: string; price: number }>>({})
+    const [loading, setLoading] = useState(true)
+    const supabase = useMemo(() => createClient(), [])
 
     useEffect(() => {
-        if (!transaction) return
+        if (!isOpen || !transaction) return
+        let active = true
+        const load = async () => {
+            setLoading(true)
+            const ids = reservationIdsOf(transaction)
+            const { data } = ids.length
+                ? await supabase.schema('gatepass').from('reservations').select('*, ticket_tiers(*), discounts(*), profiles(full_name, email)').in('id', ids)
+                : { data: null }
+            const rows = data?.length ? data : transaction.reservations ? [transaction.reservations] : []
 
-        const fetchReservations = async () => {
-            // Try to get reservation ID(s)
-            let reservationIds: string[] = []
+            const addonIds = [...new Set(rows.flatMap((r: any) => (r.addons && typeof r.addons === 'object' ? Object.keys(r.addons) : [])))]
+            const { data: addons } = addonIds.length
+                ? await supabase.schema('gatepass').from('event_addons').select('id, name, price').in('id', addonIds)
+                : { data: null }
 
-            // Check direct reservation link
-            if (transaction.reservation_id) {
-                reservationIds = [transaction.reservation_id]
-            }
-
-            // Also check metadata for multi-reservation
-            let metaIds = transaction.metadata?.reservation_ids
-
-            // Fallback: Nested Metadata
-            if (!metaIds && transaction.metadata?.metadata?.reservation_ids) {
-                metaIds = transaction.metadata.metadata.reservation_ids
-            }
-
-            // Fallback: Custom Fields
-            if (!metaIds) {
-                const fields = transaction.metadata?.custom_fields || transaction.metadata?.metadata?.custom_fields
-                if (Array.isArray(fields)) {
-                    const f = fields.find((x: any) => x.variable_name === 'reservation_ids')
-                    if (f?.value) {
-                        metaIds = f.value.split(',').map((s: string) => s.trim())
-                    }
-                }
-            }
-
-            if (Array.isArray(metaIds) && metaIds.length > 0) {
-                reservationIds = metaIds
-            }
-
-            // Always fetch fresh data with full relations
-            if (reservationIds.length > 0) {
-                const { data } = await supabase
-                    .schema('gatepass')
-                    .from('reservations')
-                    .select('*, ticket_tiers(*), events(*), discounts(*), profiles(full_name, email)')
-                    .in('id', reservationIds)
-
-                if (data && data.length > 0) {
-                    setReservations(data)
-
-                    // Collect all addon IDs and fetch their details
-                    const allAddonIds: string[] = []
-                    data.forEach(r => {
-                        if (r.addons && typeof r.addons === 'object') {
-                            Object.keys(r.addons).forEach(id => {
-                                if (!allAddonIds.includes(id)) allAddonIds.push(id)
-                            })
-                        }
-                    })
-
-                    if (allAddonIds.length > 0) {
-                        const { data: addonsData } = await supabase
-                            .schema('gatepass')
-                            .from('event_addons')
-                            .select('id, name, price')
-                            .in('id', allAddonIds)
-
-                        if (addonsData) {
-                            const addonMap: Record<string, { name: string, price: number }> = {}
-                            addonsData.forEach(a => {
-                                addonMap[a.id] = { name: a.name, price: a.price }
-                            })
-                            setAddonDetails(addonMap)
-                        }
-                    }
-                    return
-                }
-            }
-
-            // Fallback to joined reservation if available
-            if (transaction.reservations) {
-                setReservations([transaction.reservations])
-            }
+            if (!active) return
+            setReservations(rows)
+            setAddonNames(Object.fromEntries((addons ?? []).map(a => [a.id, { name: a.name, price: a.price }])))
+            setLoading(false)
         }
+        load()
+        return () => { active = false }
+    }, [isOpen, transaction, supabase])
 
-        fetchReservations()
-    }, [transaction?.id, transaction?.metadata, isOpen])
+    useEffect(() => {
+        if (!isOpen) return
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [isOpen, onClose])
 
     if (!isOpen || !transaction) return null
 
-    // Aggregation Logic
-    let totalQuantity = 0
-    let totalTicketRevenueRaw = 0
-    let totalDiscountAmount = 0
-    let discountCode: string | null = null
-    let discountPercent: number | null = null
-    let hasAddons = false
-    let addonData: Record<string, number> = {}
+    const currency = transaction.currency || 'GHS'
+    const meta = transaction.metadata ?? {}
+    const isInstalment = meta.payment_type === 'instalment' || meta.metadata?.payment_type === 'instalment'
+    const providerId: string | undefined = meta.provider || (transaction.reference?.startsWith('gpfree') ? 'free' : undefined)
+    const provider = providerId && providerId !== 'free' ? getProvider('payments', providerId) : undefined
+    const status = STATUS[transaction.status] ?? { label: transaction.status, dot: 'bg-gray-400' }
 
-    // We use the first reservation for generic profile/event info
-    const primaryRes = reservations.length > 0 ? reservations[0] : transaction.reservations
-
-    reservations.forEach(r => {
+    // What was bought, from the reservations (the amount paid is the provider's figure)
+    const items: LineItem[] = []
+    for (const r of reservations) {
         const qty = r.quantity || 1
-        const basePrice = r.ticket_tiers?.price || 0
         const tier = r.ticket_tiers
-        let tierSubtotal = basePrice * qty
-        if (tier && tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
-            const discountValue = tier.discount_value || 0
-            if (tier.discount_type === 'percentage') {
-                tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
-            } else if (tier.discount_type === 'fixed') {
-                tierSubtotal = Math.max(0, tierSubtotal - discountValue)
-            }
+        let subtotal = (tier?.price || 0) * qty
+        if (tier?.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
+            subtotal = tier.discount_type === 'percentage' ? subtotal * (1 - tier.discount_value / 100) : Math.max(0, subtotal - tier.discount_value)
         }
-        totalQuantity += qty
-        totalTicketRevenueRaw += tierSubtotal
-        const price = qty > 0 ? (tierSubtotal / qty) : basePrice
+        items.push({ label: tier?.name || 'Ticket', detail: `× ${qty}`, amount: subtotal })
 
-        // Discount
         const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
-        if (discount && discount.value) {
-            discountCode = discount.code || discountCode
-            if (discount.type === 'fixed') {
-                totalDiscountAmount += discount.value
-            } else if (discount.type === 'percentage') {
-                discountPercent = discount.value
-                totalDiscountAmount += (price * qty) * (discount.value / 100)
-            }
+        if (discount?.value) {
+            const off = discount.type === 'percentage' ? subtotal * (discount.value / 100) : discount.value
+            items.push({ label: `Promo ${discount.code ?? ''}`.trim(), detail: discount.type === 'percentage' ? `${discount.value}% off` : undefined, amount: -off, tone: 'discount' })
         }
 
-        // Addons
-        if (r.addons && typeof r.addons === 'object' && Object.keys(r.addons).length > 0) {
-            hasAddons = true
-            addonData = { ...addonData, ...r.addons }
-        }
-    })
-
-    const totalPaid = transaction.amount
-    const feeBearer = eventFeeBearer
-
-    // Detect instalment payment
-    const isInstalment = transaction.metadata?.payment_type === 'instalment' ||
-        transaction.metadata?.metadata?.payment_type === 'instalment'
-
-    // Effective Calculations
-    // For instalments, the platform fee should be based on the instalment amount, not full ticket price
-    // Net Ticket Revenue (Base for Platform Fee)
-    const ticketRevenueNetBase = Math.max(0, totalTicketRevenueRaw - totalDiscountAmount)
-
-    // Normalize old 2% rate to current 1.95% for consistent display
-    const storedProcessorRate = transaction.applied_processor_rate
-    const normalizedProcessorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
-        ? 0.0195
-        : storedProcessorRate
-
-    const effectiveRates = {
-        platformFeePercent: transaction.applied_fee_rate ?? 0.04,
-        processorFeePercent: normalizedProcessorRate
-    }
-
-    // Recalc Fees - use stored platform_fee if available, otherwise calculate
-    // For instalments: platform fee is proportional to the instalment amount, not the full ticket price
-    const calcPlatformFee = (transaction.platform_fee != null && transaction.platform_fee > 0)
-        ? transaction.platform_fee  // Use the stored fee (already calculated proportionally at payment time)
-        : isInstalment
-            ? totalPaid * effectiveRates.platformFeePercent  // Proportional to instalment amount
-            : ticketRevenueNetBase * effectiveRates.platformFeePercent  // Standard: % of ticket revenue
-    const calcProcessorFee = totalPaid * effectiveRates.processorFeePercent
-
-    // Payout: When customer bears fees, processor fee is NOT deducted from organizer
-    // (Paystack charges it to the platform account via bearer:'account')
-    const expectedPayout = feeBearer === 'customer'
-        ? totalPaid - calcPlatformFee  // Customer bears: organizer only pays platform fee
-        : totalPaid - calcPlatformFee - calcProcessorFee  // Organizer bears: pays both fees
-
-    // Calculate actual add-on revenue from fetched details
-    let addonRevenue = 0
-    const addonItems: { name: string, quantity: number, total: number }[] = []
-
-    if (hasAddons && Object.keys(addonData).length > 0) {
-        Object.entries(addonData).forEach(([addonId, qty]) => {
-            const detail = addonDetails[addonId]
-            if (detail && qty > 0) {
-                const total = detail.price * (qty as number)
-                addonRevenue += total
-                addonItems.push({ name: detail.name, quantity: qty as number, total })
+        if (r.addons && typeof r.addons === 'object') {
+            for (const [id, q] of Object.entries(r.addons as Record<string, number>)) {
+                const addon = addonNames[id]
+                if (addon && q > 0) items.push({ label: addon.name, detail: `× ${q}`, amount: addon.price * q, tone: 'muted' })
             }
-        })
+        }
     }
 
-    // Variables for Display
-    const displayPlatformFee = calcPlatformFee
-    const displayProcessorFee = calcProcessorFee
-    const organizerPayout = expectedPayout
+    // Anything above the items is what the buyer paid on top, like processing fees passed on at checkout
+    const itemsTotal = items.reduce((sum, item) => sum + item.amount, 0)
+    const extra = Number(transaction.amount) - itemsTotal
+    if (!isInstalment && items.length > 0 && extra > 0.009) items.push({ label: 'Fees paid by buyer', amount: extra, tone: 'muted' })
+
+    const buyer = reservations[0]
+    const buyerName = buyer?.profiles?.full_name || buyer?.guest_name || 'Guest'
+    const buyerEmail = buyer?.profiles?.email || buyer?.guest_email || meta.customer?.email || null
+    const channel = transaction.channel && transaction.channel !== 'free' ? String(transaction.channel).replace(/_/g, ' ') : null
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-[#111] rounded-3xl w-full max-w-lg shadow-2xl relative animate-in zoom-in-95 duration-200 overflow-hidden border border-transparent dark:border-white/10">
-                {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/5">
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Transaction Details</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">{transaction.id}</p>
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-5">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} aria-hidden="true" />
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Order details"
+                className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl animate-in slide-in-from-bottom-8 duration-300 dark:bg-[#0b0b0b] sm:max-w-[460px] sm:rounded-[28px] sm:border sm:border-gray-200 sm:slide-in-from-bottom-0 sm:zoom-in-95 dark:sm:border-white/10"
+            >
+                <div className="overflow-y-auto p-6 sm:p-7">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                                <span className={cn('size-1.5 rounded-full', status.dot)} aria-hidden="true" />
+                                {status.label}{isInstalment ? ' · Instalment' : ''}
+                            </p>
+                            <p className="mt-2 text-[40px] font-semibold leading-none tracking-[-0.05em] tabular-nums text-gray-950 dark:text-white">
+                                {Number(transaction.amount) === 0 ? 'Free' : formatCurrency(transaction.amount, currency)}
+                            </p>
+                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{formatDateTime(transaction.paid_at || transaction.created_at)}</p>
+                        </div>
+                        <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 -mt-1 flex size-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:hover:bg-white/10 dark:hover:text-white">
+                            <X className="size-4" aria-hidden="true" />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
-                        <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                    </button>
-                </div>
 
-                <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
-
-                    {/* Status Badge */}
-                    <div className="flex justify-center">
-                        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold capitalize ${transaction.status === 'success'
-                            ? 'bg-green-100 text-green-700 border border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20'
-                            : 'bg-gray-100 text-gray-600 border border-gray-200 dark:bg-white/10 dark:text-gray-400 dark:border-white/10'
-                            }`}>
-                            {transaction.status === 'success' ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                            Payment {transaction.status}
+                    {/* Buyer */}
+                    <div className="mt-6 flex items-center gap-3 rounded-2xl bg-gray-50 p-3.5 dark:bg-white/5">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gray-950 text-sm font-semibold text-white dark:bg-white dark:text-black">
+                            {buyerName.charAt(0).toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                            <p className="truncate text-[15px] font-semibold text-gray-950 dark:text-white">{buyerName}</p>
+                            {buyerEmail && <a href={`mailto:${buyerEmail}`} className="block truncate text-sm text-gray-500 hover:underline dark:text-gray-400">{buyerEmail}</a>}
                         </div>
                     </div>
 
-                    {/* Financial Breakdown (Receipt Style) */}
-                    <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-6 space-y-3 border border-gray-100 dark:border-white/10">
-
-                        {/* 1. GROSS REVENUE SECTION */}
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500 dark:text-gray-400">Tickets ({totalQuantity}x)</span>
-                            <span className="font-medium dark:text-gray-200">{formatCurrency(totalTicketRevenueRaw, transaction.currency)}</span>
-                        </div>
-
-                        {/* Detail of Tiers if multiple */}
-                        {reservations.length > 1 && (
-                            <div className="pl-4 border-l-2 border-gray-200 dark:border-white/10 space-y-1 mb-2">
-                                {reservations.map(r => {
-                                    const basePrice = r.ticket_tiers?.price || 0
-                                    const qty = r.quantity || 1
-                                    const tier = r.ticket_tiers
-                                    let tierSubtotal = basePrice * qty
-                                    if (tier && tier.min_quantity && qty >= tier.min_quantity && tier.discount_value) {
-                                        const discountValue = tier.discount_value || 0
-                                        if (tier.discount_type === 'percentage') {
-                                            tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
-                                        } else if (tier.discount_type === 'fixed') {
-                                            tierSubtotal = Math.max(0, tierSubtotal - discountValue)
-                                        }
-                                    }
-                                    return (
-                                        <div key={r.id} className="flex justify-between text-xs text-gray-400">
-                                            <span>{r.ticket_tiers?.name} ({qty}x)</span>
-                                            <span>{formatCurrency(tierSubtotal, transaction.currency)}</span>
-                                        </div>
-                                    )
-                                })}
+                    {/* Items */}
+                    <section className="mt-6">
+                        <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Order</h3>
+                        {loading ? (
+                            <div className="mt-3 space-y-2" aria-hidden="true">
+                                <div className="h-5 animate-pulse rounded-md bg-gray-100 dark:bg-white/5" />
+                                <div className="h-5 w-2/3 animate-pulse rounded-md bg-gray-100 dark:bg-white/5" />
                             </div>
-                        )}
-
-                        {addonItems.length > 0 && (
-                            <>
-                                {addonItems.map((addon, idx) => (
-                                    <div key={idx} className="flex justify-between text-sm">
-                                        <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                                            <span className="w-3 h-3 flex items-center justify-center text-[10px]">+</span>
-                                            {addon.name} ({addon.quantity}x)
+                        ) : (
+                            <ul className="mt-2 divide-y divide-gray-100 dark:divide-white/10">
+                                {items.map((item, i) => (
+                                    <li key={i} className="flex items-baseline justify-between gap-4 py-2.5 text-sm">
+                                        <span className={cn('min-w-0', item.tone === 'discount' ? 'text-gray-500 dark:text-gray-400' : 'text-gray-950 dark:text-white')}>
+                                            {item.label}
+                                            {item.detail && <span className="ml-1.5 text-gray-400">{item.detail}</span>}
                                         </span>
-                                        <span className="font-medium text-purple-600 dark:text-purple-400">
-                                            {formatCurrency(addon.total, transaction.currency)}
+                                        <span className={cn('shrink-0 tabular-nums', item.tone === 'discount' ? 'text-gray-500 dark:text-gray-400' : 'text-gray-950 dark:text-white')}>
+                                            {item.amount < 0 ? `−${formatCurrency(-item.amount, currency)}` : formatCurrency(item.amount, currency)}
                                         </span>
-                                    </div>
+                                    </li>
                                 ))}
-                            </>
+                                <li className="flex items-baseline justify-between gap-4 pt-3 text-[15px] font-semibold text-gray-950 dark:text-white">
+                                    <span>{isInstalment ? 'This payment' : 'Total paid'}</span>
+                                    <span className="tabular-nums">{formatCurrency(transaction.amount, currency)}</span>
+                                </li>
+                            </ul>
                         )}
+                    </section>
 
-                        <div className="border-b border-gray-200 dark:border-white/10 border-dashed my-2 opacity-50"></div>
-
-                        {/* 2. DEDUCTIONS SECTION */}
-                        {totalDiscountAmount > 0 && (
-                            <div className="flex justify-between text-sm text-orange-600 dark:text-orange-400">
-                                <span className="flex items-center gap-1">
-                                    <Receipt className="w-3 h-3" />
-                                    Discount
-                                    {discountCode && (
-                                        <span className="ml-1 px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-500/20 text-[10px] font-bold">
-                                            {discountCode}
-                                        </span>
-                                    )}
-                                    {discountPercent && (
-                                        <span className="text-xs opacity-70">({discountPercent}% off)</span>
-                                    )}
-                                </span>
-                                <span>- {formatCurrency(totalDiscountAmount, transaction.currency)}</span>
+                    {/* Payment */}
+                    <section className="mt-6">
+                        <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Payment</h3>
+                        <dl className="mt-1 divide-y divide-gray-100 dark:divide-white/10">
+                            <div className="flex items-center justify-between gap-3 py-3">
+                                <dt className="text-sm text-gray-500 dark:text-gray-400">Paid with</dt>
+                                <dd className="flex items-center gap-2 text-sm font-medium text-gray-950 dark:text-white">
+                                    {provider && <Image src={`/brands/${provider.id}.png`} alt="" width={20} height={20} className="size-5 rounded-md bg-white object-contain" />}
+                                    {providerId === 'free' ? 'No payment needed' : provider?.name ?? 'Payment provider'}
+                                    {channel && <span className="capitalize text-gray-400">· {channel}</span>}
+                                </dd>
                             </div>
+                            <div className="flex items-center justify-between gap-3 py-3">
+                                <dt className="text-sm text-gray-500 dark:text-gray-400">GatePass fee</dt>
+                                <dd className="text-sm font-medium text-gray-950 dark:text-white">None per ticket</dd>
+                            </div>
+                            {transaction.reference && <CopyValue label="Reference" value={transaction.reference} />}
+                            {meta.provider_reference && meta.provider_reference !== transaction.reference && <CopyValue label="Provider ref." value={String(meta.provider_reference)} />}
+                        </dl>
+                        {provider && (
+                            <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                The money went straight to your {provider.name} account. Processing fees and refunds are handled in your {provider.name} dashboard.
+                            </p>
                         )}
-
-                        <div className="flex justify-between text-sm text-red-500">
-                            <span className="flex items-center gap-1">
-                                <span>Platform Fee ({effectiveRates.platformFeePercent * 100}%)</span>
-                            </span>
-                            <span>- {formatCurrency(displayPlatformFee, transaction.currency)}</span>
-                        </div>
-
-                        <div className={`flex justify-between text-sm ${feeBearer === 'customer' ? 'text-gray-400 dark:text-gray-500' : 'text-red-500'}`}>
-                            <span className="flex items-center gap-1">
-                                <span>Processor Fee ({(effectiveRates.processorFeePercent * 100).toFixed(2)}%)</span>
-                                {feeBearer === 'customer' && (
-                                    <span className="text-[10px] bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded font-bold">Paid by buyer</span>
-                                )}
-                            </span>
-                            <span>{feeBearer === 'customer' ? '' : '- '}{formatCurrency(displayProcessorFee, transaction.currency)}</span>
-                        </div>
-
-                        {/* 3. NET PAYOUT SECTION */}
-                        <div className="mt-4 pt-4 border-t-2 border-gray-200 dark:border-white/10">
-                            <div className="flex justify-between items-center">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-gray-900 dark:text-white text-lg">Net Payout</span>
-                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Transferable Balance</span>
-                                </div>
-                                <span className="font-black text-2xl text-green-600 dark:text-green-400 tracking-tight">
-                                    {formatCurrency(organizerPayout, transaction.currency)}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Meta Data Grid */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                <Calendar className="w-3 h-3" /> Date
-                            </div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDateTime(transaction.created_at)}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                <Hash className="w-3 h-3" /> Reference
-                            </div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white break-all">{transaction.reference || 'N/A'}</p>
-                        </div>
-                        <div className="col-span-2 space-y-1">
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                <User className="w-3 h-3" /> Customer
-                            </div>
-                            <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-white/5">
-                                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-400">
-                                    {(primaryRes?.profiles?.full_name || primaryRes?.guest_name || '?')[0]}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{primaryRes?.profiles?.full_name || primaryRes?.guest_name}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{primaryRes?.profiles?.email || primaryRes?.guest_email}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-                <div className="p-6 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/5 flex justify-end">
-                    <button onClick={onClose} className="px-6 py-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        Close
-                    </button>
+                    </section>
                 </div>
             </div>
         </div>

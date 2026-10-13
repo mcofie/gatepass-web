@@ -1,187 +1,127 @@
 'use client'
 
 import React from 'react'
-import { createClient } from '@/utils/supabase/client'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
-import { toast } from 'sonner'
-import { logActivity } from '@/app/actions/logger'
-import { Loader2 } from 'lucide-react'
-import { MediaUploader } from '@/components/admin/MediaUploader'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { createClient } from '@/utils/supabase/client'
+import { MediaUploader } from '@/components/admin/MediaUploader'
+import { Field, Notice, Panel, PrimaryButton, SectionIntro, inputClass, textareaClass } from '@/components/dashboard/ui'
 
-export function OrganizationSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
+type Organizer = {
+    id: string
+    name?: string | null
+    slug?: string | null
+    website?: string | null
+    description?: string | null
+    twitter?: string | null
+    instagram?: string | null
+    logo_url?: string | null
+}
+
+const toHandle = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+export function OrganizationSettings({ organizer, userRole }: { organizer: Organizer | null; userRole: string }) {
     if (!organizer) return null
+    return <OrganizationForm organizer={organizer} canEdit={userRole === 'Owner' || userRole === 'Admin'} />
+}
 
-    const [loading, setLoading] = React.useState(false)
+function OrganizationForm({ organizer, canEdit }: { organizer: Organizer; canEdit: boolean }) {
     const router = useRouter()
-    const canEdit = userRole === 'Owner' || userRole === 'Admin'
-    const [name, setName] = React.useState(organizer?.name || '')
-    const [website, setWebsite] = React.useState(organizer?.website || '')
-    const [slug, setSlug] = React.useState(organizer?.slug || '')
-    const [description, setDescription] = React.useState(organizer?.description || '')
-    const [twitter, setTwitter] = React.useState(organizer?.twitter || '')
-    const [instagram, setInstagram] = React.useState(organizer?.instagram || '')
-    const [logoUrl, setLogoUrl] = React.useState(organizer?.logo_url || '')
-
-    const supabase = createClient()
+    const supabase = React.useMemo(() => createClient(), [])
+    const [loading, setLoading] = React.useState(false)
+    const [name, setName] = React.useState(organizer.name || '')
+    const [slug, setSlug] = React.useState(organizer.slug || '')
+    const [website, setWebsite] = React.useState(organizer.website || '')
+    const [description, setDescription] = React.useState(organizer.description || '')
+    const [twitter, setTwitter] = React.useState(organizer.twitter || '')
+    const [instagram, setInstagram] = React.useState(organizer.instagram || '')
+    const [logoUrl, setLogoUrl] = React.useState(organizer.logo_url || '')
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-
         try {
-            // Uniqueness Check for Slug
-            const formattedSlug = slug.toLowerCase().trim().replace(/\s+/g, '-')
-            if (formattedSlug !== organizer.slug) {
-                const { data: existing } = await supabase
-                    .schema('gatepass')
-                    .from('organizers')
-                    .select('id')
-                    .eq('slug', formattedSlug)
-                    .neq('id', organizer.id)
-                    .single()
-
-                if (existing) {
-                    throw new Error('This slug is already taken. Please choose another one.')
-                }
+            const handle = toHandle(slug)
+            if (!name.trim()) throw new Error('Add your organization name.')
+            if (!handle) throw new Error('Add a handle.')
+            if (handle !== organizer.slug) {
+                const { data: existing } = await supabase.schema('gatepass').from('organizers').select('id').eq('slug', handle).neq('id', organizer.id).maybeSingle()
+                if (existing) throw new Error('That handle is taken. Try another one.')
             }
 
-            const { error } = await supabase
-                .schema('gatepass')
-                .from('organizers')
-                .update({
-                    name,
-                    website,
-                    slug: formattedSlug,
-                    description,
-                    twitter,
-                    instagram,
-                    logo_url: logoUrl
-                })
-                .eq('id', organizer.id)
-
+            const { error } = await supabase.schema('gatepass').from('organizers').update({
+                name: name.trim(),
+                slug: handle,
+                website: website.trim() || null,
+                description: description.trim() || null,
+                twitter: twitter.trim().replace(/^@+/, '') || null,
+                instagram: instagram.trim().replace(/^@+/, '') || null,
+                logo_url: logoUrl || null,
+            }).eq('id', organizer.id)
             if (error) throw error
+
+            setSlug(handle)
             toast.success('Organization saved')
             router.refresh()
-        } catch (error: any) {
-            toast.error(error.message)
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Could not save')
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className="max-w-2xl bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
-            <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">General Information</h3>
+        <div className="max-w-3xl space-y-8">
+            <SectionIntro eyebrow="Organization" title="Your brand." description="Shown on your event pages, tickets and emails." />
+
             <form onSubmit={handleSave} className="space-y-6">
-                <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Organization Logo</label>
-                    <div className={`w-32 ${!canEdit ? 'pointer-events-none opacity-80' : ''}`}>
-                        <MediaUploader
-                            type="image"
-                            path={`organizers/${organizer.id}`}
-                            value={logoUrl}
-                            onChange={(url) => setLogoUrl(url)}
-                            aspectRatio="square"
-                        />
-                    </div>
-                    {canEdit && <p className="text-[10px] text-gray-400 ml-1 italic">Professional logos help build trust with your guests.</p>}
-                </div>
+                <fieldset disabled={!canEdit} className="space-y-6">
+                    <Panel title="Identity">
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-5">
+                                <div className={`size-24 shrink-0 ${!canEdit ? 'pointer-events-none' : ''}`}>
+                                    <MediaUploader type="image" path={`organizers/${organizer.id}`} value={logoUrl} onChange={setLogoUrl} aspectRatio="square" compact label="Add logo" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-gray-950 dark:text-white">Logo</p>
+                                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">Square works best. JPG, PNG or WebP up to 5 MB.</p>
+                                </div>
+                            </div>
+                            <div className="grid gap-5 sm:grid-cols-2">
+                                <Field label="Name" htmlFor="organization-name">
+                                    <input id="organization-name" autoComplete="organization" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
+                                </Field>
+                                <Field label="Handle" htmlFor="organization-slug" hint="Lowercase letters, numbers and dashes.">
+                                    <div className="relative">
+                                        <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-gray-400">@</span>
+                                        <input id="organization-slug" autoCapitalize="none" spellCheck={false} value={slug} onChange={e => setSlug(e.target.value)} onBlur={() => setSlug(toHandle(slug))} className={`${inputClass} pl-8`} />
+                                    </div>
+                                </Field>
+                            </div>
+                            <Field label="About" htmlFor="organization-bio" optional>
+                                <textarea id="organization-bio" value={description} onChange={e => setDescription(e.target.value)} className={textareaClass} placeholder="What kind of events do you create?" />
+                            </Field>
+                        </div>
+                    </Panel>
 
-                <div className="space-y-2">
-                    <label htmlFor="organization-name" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Organization name</label>
-                    <Input
-                        id="organization-name"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        disabled={!canEdit}
-                        className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
-                        placeholder="My Awesome Org"
-                    />
-                </div>
+                    <Panel title="Links" description="Guests see these on your event pages.">
+                        <div className="grid gap-5 sm:grid-cols-3">
+                            <Field label="Website" htmlFor="organization-website" optional>
+                                <input id="organization-website" type="url" autoComplete="url" value={website} onChange={e => setWebsite(e.target.value)} className={inputClass} placeholder="https://" />
+                            </Field>
+                            <Field label="X" htmlFor="organization-x" optional>
+                                <input id="organization-x" autoCapitalize="none" value={twitter} onChange={e => setTwitter(e.target.value)} className={inputClass} placeholder="@username" />
+                            </Field>
+                            <Field label="Instagram" htmlFor="organization-instagram" optional>
+                                <input id="organization-instagram" autoCapitalize="none" value={instagram} onChange={e => setInstagram(e.target.value)} className={inputClass} placeholder="@username" />
+                            </Field>
+                        </div>
+                    </Panel>
+                </fieldset>
 
-                <div className="space-y-2">
-                    <label htmlFor="organization-bio" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Bio</label>
-                    <textarea
-                        id="organization-bio"
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        disabled={!canEdit}
-                        className="w-full min-h-[100px] bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 focus:border-black dark:focus:border-white/20 transition-all resize-y dark:text-white disabled:opacity-50"
-                        placeholder="Tell us about what you do..."
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <label htmlFor="organization-website" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Website</label>
-                        <Input
-                            id="organization-website"
-                            value={website}
-                            onChange={e => setWebsite(e.target.value)}
-                            disabled={!canEdit}
-                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
-                            placeholder="https://example.com"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label htmlFor="organization-slug" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Public link</label>
-                        <Input
-                            id="organization-slug"
-                            value={slug}
-                            onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                            disabled={!canEdit}
-                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
-                            placeholder="my-org"
-                        />
-                    </div>
-                </div>
-
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <label htmlFor="organization-x" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">X profile</label>
-                        <Input
-                            id="organization-x"
-                            value={twitter}
-                            onChange={e => setTwitter(e.target.value)}
-                            disabled={!canEdit}
-                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
-                            placeholder="@username"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label htmlFor="organization-instagram" className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Instagram</label>
-                        <Input
-                            id="organization-instagram"
-                            value={instagram}
-                            onChange={e => setInstagram(e.target.value)}
-                            disabled={!canEdit}
-                            className="h-12 bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
-                            placeholder="@username"
-                        />
-                    </div>
-                </div>
-
-                {canEdit ? (
-                    <div className="pt-4">
-                        <Button
-                            type="submit"
-                            disabled={loading}
-                            className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all "
-                        >
-                            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Save Changes
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="pt-4 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">
-                            You are viewing this organization in read-only mode. Only Owners and Admins can modify these settings.
-                        </p>
-                    </div>
-                )}
+                {canEdit
+                    ? <div className="flex justify-end"><PrimaryButton type="submit" loading={loading}>Save changes</PrimaryButton></div>
+                    : <Notice>Only owners and admins can change organization details.</Notice>}
             </form>
         </div>
     )
