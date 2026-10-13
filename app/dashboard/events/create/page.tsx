@@ -78,6 +78,8 @@ export default function CreateEventPage() {
     // Currencies the workspace's default payment provider can charge in (all, if none connected yet)
     const [providerId, setProviderId] = useState<string | null>(null)
     const restored = useRef(false)
+    // Rounded to the next minute: the earliest an event can start
+    const [now] = useState(() => new Date(Math.ceil(Date.now() / 60000) * 60000))
 
     // Workspace, pricing plans and any saved draft
     useEffect(() => {
@@ -333,11 +335,11 @@ export default function CreateEventPage() {
 
                                 <div className="grid gap-5 sm:grid-cols-2">
                                     <Field label="Starts">
-                                        <DateTimePicker date={startsAt} setDate={d => update('starts_at', d ? d.toISOString() : null)} required />
+                                        <DateTimePicker date={startsAt} setDate={d => update('starts_at', d ? d.toISOString() : null)} required minDate={now} />
                                         {errorText('starts_at')}
                                     </Field>
                                     <Field label="Ends" optional>
-                                        <DateTimePicker date={endsAt} setDate={d => update('ends_at', d ? d.toISOString() : null)} />
+                                        <DateTimePicker date={endsAt} setDate={d => update('ends_at', d ? d.toISOString() : null)} minDate={startsAt ?? now} />
                                         {errorText('ends_at')}
                                     </Field>
                                 </div>

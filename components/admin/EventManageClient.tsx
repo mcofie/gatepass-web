@@ -253,6 +253,13 @@ export function EventManageClient({
                 throw new Error('This URL slug is already taken. Please choose a different one.')
             }
 
+            if (event.starts_at && event.starts_at !== initialEvent.starts_at && new Date(event.starts_at).getTime() < Date.now()) {
+                throw new Error('The start time is in the past.')
+            }
+            if (event.ends_at && event.starts_at && new Date(event.ends_at) <= new Date(event.starts_at)) {
+                throw new Error('The event has to end after it starts.')
+            }
+
             if (event.is_published && tiers.length === 0) {
                 throw new Error('You must create at least one ticket tier before publishing.')
             }
@@ -1151,6 +1158,8 @@ export function EventManageClient({
                                             <DateTimePicker
                                                 date={event.starts_at ? new Date(event.starts_at) : undefined}
                                                 setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
+                                                // No moving into the past, but an event that already started keeps its date
+                                                minDate={new Date(Math.min(Date.now(), new Date(initialEvent.starts_at).getTime()))}
                                                 disabled={isStaff}
                                             />
                                         </div>
@@ -1159,6 +1168,7 @@ export function EventManageClient({
                                             <DateTimePicker
                                                 date={event.ends_at ? new Date(event.ends_at) : undefined}
                                                 setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
+                                                minDate={event.starts_at ? new Date(event.starts_at) : undefined}
                                                 disabled={isStaff}
                                             />
                                         </div>
