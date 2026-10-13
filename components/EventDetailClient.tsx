@@ -73,7 +73,19 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const viewTransition = undefined
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
-    const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
+    // ?select=<ticketId>:<qty>,... preselects tickets (checkout links from the MCP server and SDKs)
+    const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>(() => {
+        const picks: Record<string, number> = {}
+        for (const part of (searchParams.get('select') ?? '').split(',')) {
+            const [id, raw] = part.split(':')
+            const tier = tiers.find(t => t.id === id)
+            const qty = Math.floor(Number(raw))
+            if (!tier || !(qty > 0)) continue
+            const remaining = tier.total_quantity == null ? Infinity : tier.total_quantity - (tier.quantity_sold ?? 0)
+            picks[id] = Math.min(qty, tier.max_per_order || qty, remaining)
+        }
+        return picks
+    })
     const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({})
     const [reservations, setReservations] = useState<any[]>([])
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])

@@ -188,6 +188,12 @@ export function WidgetsTab({ event }: { event: Event }) {
                             </button>
                         </div>
                         <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                            <li>
+                                AI assistants (Claude, ChatGPT and other MCP clients) can find this event and hand people a checkout link. Add GatePass as a connector with{' '}
+                                <button type="button" onClick={() => copy(`${origin}/api/mcp`, 'mcp')} className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-950 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/15">
+                                    {origin}/api/mcp {copied === 'mcp' ? <Check className="size-3" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
+                                </button>
+                            </li>
                             <li><code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-white/10">GatePass.open(&apos;{slug}&apos;)</code> opens checkout from any click handler.</li>
                             <li className="flex flex-wrap items-center gap-1.5">
                                 Event data as JSON:
