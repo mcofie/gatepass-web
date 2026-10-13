@@ -84,6 +84,134 @@ function BrandLogo({ provider, size = 'md' }: { provider: ProviderDefinition; si
     )
 }
 
+function timeAgo(iso: string | null): string {
+    if (!iso) return 'Not checked yet'
+    const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`
+    const days = Math.round(hours / 24)
+    return days < 30 ? `${days} day${days === 1 ? '' : 's'} ago` : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/** The provider every event uses by default: status, mode, key in use, last check and webhook. */
+function DefaultProviderCard({ organizerId, category, provider, integration, canEdit, onManage, onUpdated }: {
+    organizerId: string
+    category: IntegrationCategory
+    provider: ProviderDefinition
+    integration: IntegrationSummary
+    canEdit: boolean
+    onManage: () => void
+    onUpdated: (integration: IntegrationSummary) => void
+}) {
+    const [testing, setTesting] = React.useState(false)
+    const [copied, setCopied] = React.useState(false)
+    const healthy = integration.status === 'connected'
+    const keyField = provider.fields.find(f => f.secret && integration.credentialHints[f.key])
+
+    const handleTest = async () => {
+        setTesting(true)
+        try {
+            const result = await testIntegration(organizerId, integration.id)
+            onUpdated(result)
+            if (result.status === 'connected') toast.success(`${provider.name} is working`)
+            else toast.error(result.statusMessage ?? 'Verification failed')
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Could not test the connection')
+        } finally {
+            setTesting(false)
+        }
+    }
+
+    const facts: { label: string; value: React.ReactNode }[] = [
+        ...(keyField ? [{ label: keyField.label, value: <span className="font-mono">••••{integration.credentialHints[keyField.key]}</span> }] : []),
+        { label: 'Last checked', value: timeAgo(integration.lastVerifiedAt) },
+        { label: 'Used for', value: category === 'payments' ? 'All events by default' : 'Reminders and blasts' },
+    ]
+
+    return (
+        <div className="overflow-hidden rounded-3xl bg-gray-950 text-white dark:bg-white dark:text-black">
+            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
+                <div className="flex min-w-0 items-center gap-4">
+                    <BrandLogo provider={provider} size="lg" />
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-60">Default {category === 'payments' ? 'payment provider' : 'SMS provider'}</p>
+                        <p className="mt-1 truncate text-2xl font-semibold tracking-tight sm:text-3xl">{provider.name}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${healthy ? 'bg-emerald-400/15 text-emerald-300 dark:bg-emerald-600/10 dark:text-emerald-700' : 'bg-red-400/15 text-red-300 dark:bg-red-600/10 dark:text-red-700'}`}>
+                                <span className={`size-1.5 rounded-full ${healthy ? 'bg-emerald-400 dark:bg-emerald-600' : 'bg-red-400 dark:bg-red-600'}`} aria-hidden="true" />
+                                {STATUS_STYLE[integration.status].label}
+                            </span>
+                            {provider.supportsTestMode && (
+                                <span className={`rounded-full px-2.5 py-1 ${integration.mode === 'test' ? 'bg-amber-400/15 text-amber-300 dark:bg-amber-500/15 dark:text-amber-800' : 'bg-white/10 dark:bg-black/5'}`}>
+                                    {integration.mode === 'test' ? 'Test mode: no real charges' : 'Live'}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                    {canEdit && (
+                        <button
+                            type="button"
+                            onClick={handleTest}
+                            disabled={testing}
+                            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/20 px-4 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50 dark:border-black/15 dark:hover:bg-black/5"
+                        >
+                            {testing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                            Test connection
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={onManage}
+                        className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-5 text-sm font-medium text-black transition-opacity hover:opacity-85 dark:bg-black dark:text-white"
+                    >
+                        Manage <ArrowUpRight className="size-4" aria-hidden="true" />
+                    </button>
+                </div>
+            </div>
+
+            {!healthy && integration.statusMessage && (
+                <p role="alert" className="mx-6 mb-2 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-200 dark:bg-red-600/10 dark:text-red-800 sm:mx-8">
+                    {integration.statusMessage}
+                </p>
+            )}
+
+            <dl className="grid gap-px border-t border-white/10 bg-white/10 dark:border-black/10 dark:bg-black/10 sm:grid-cols-3">
+                {facts.map(fact => (
+                    <div key={fact.label} className="bg-gray-950 px-6 py-4 dark:bg-white sm:px-8">
+                        <dt className="text-xs opacity-60">{fact.label}</dt>
+                        <dd className="mt-1 truncate text-sm font-medium">{fact.value}</dd>
+                    </div>
+                ))}
+            </dl>
+
+            {category === 'payments' && (
+                <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-4 dark:border-black/10 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+                    <div className="min-w-0">
+                        <p className="text-xs opacity-60">Webhook URL · add it in your {provider.name} dashboard</p>
+                        <p className="mt-1 truncate font-mono text-xs opacity-80">{integration.webhookUrl}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            await navigator.clipboard.writeText(integration.webhookUrl)
+                            setCopied(true)
+                            setTimeout(() => setCopied(false), 1500)
+                        }}
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 self-start rounded-full bg-white/10 px-3.5 text-xs font-medium transition-colors hover:bg-white/15 dark:bg-black/5 dark:hover:bg-black/10 sm:self-auto"
+                    >
+                        {copied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+                        {copied ? 'Copied' : 'Copy'}
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
 export function IntegrationsPanel({
     organizerId,
     category,
@@ -123,29 +251,15 @@ export function IntegrationsPanel({
 
             {copy.hasDefault && (
                 defaultIntegration && defaultProvider ? (
-                    <div className="rounded-3xl bg-gray-950 p-6 text-white dark:bg-white dark:text-black sm:p-8">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-60">Default provider</p>
-                        <div className="mt-5 flex flex-wrap items-end justify-between gap-6">
-                            <div>
-                                <div className="flex items-center gap-4">
-                                    <BrandLogo provider={defaultProvider} size="lg" />
-                                    <p className="text-3xl font-semibold tracking-tight sm:text-4xl">{defaultProvider.name}</p>
-                                </div>
-                                <p className="mt-2 text-sm opacity-70">
-                                    {defaultIntegration.mode === 'test' ? 'Test mode · ' : ''}
-                                    {STATUS_STYLE[defaultIntegration.status].label}
-                                    {defaultIntegration.statusMessage ? ` · ${defaultIntegration.statusMessage}` : ''}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setOpenProvider(defaultProvider)}
-                                className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-5 text-sm font-medium text-black transition-opacity hover:opacity-85 dark:bg-black dark:text-white"
-                            >
-                                Manage <ArrowUpRight className="size-4" aria-hidden="true" />
-                            </button>
-                        </div>
-                    </div>
+                    <DefaultProviderCard
+                        organizerId={organizerId}
+                        category={category}
+                        provider={defaultProvider}
+                        integration={defaultIntegration}
+                        canEdit={canEdit}
+                        onManage={() => setOpenProvider(defaultProvider)}
+                        onUpdated={upsertLocal}
+                    />
                 ) : (
                     <div className="rounded-3xl border border-dashed border-gray-300 p-6 dark:border-white/15 sm:p-8">
                         <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">No provider connected yet</p>
