@@ -3,16 +3,16 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { Volume2, VolumeX } from 'lucide-react'
-import { motion } from 'framer-motion'
 
 interface EventBackgroundProps {
     videoUrl: string | null
     posterUrl: string | null
     forcePause?: boolean
+    /** Kept for callers; shared-layout transitions are no longer used here */
     layoutId?: string
 }
 
-export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: EventBackgroundProps) {
+export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgroundProps) {
     const [isMuted, setIsMuted] = useState(true)
     const [showVideo, setShowVideo] = useState(false)
     const videoRef = useRef<HTMLVideoElement>(null)
@@ -63,7 +63,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
     }
 
     return (
-        <motion.div className="absolute inset-0 z-0" layoutId={layoutId}>
+        <div className="absolute inset-0 z-0">
             {/* Poster Image (Always visible as base/fallback) */}
             {posterUrl && (
                 <Image
@@ -107,6 +107,6 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
                     )}
                 </button>
             )}
-        </motion.div>
+        </div>
     )
 }

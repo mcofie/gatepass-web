@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 // import confetti from 'canvas-confetti'
 import { Event, TicketTier, Discount, PaymentPlan, EventAddon, EventFormQuestion } from '@/types/gatepass'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/utils/supabase/client'
+import { getBrowserSupabase } from '@/utils/supabase/lazy'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 
@@ -26,7 +26,8 @@ import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { ReservationTimer, useReservationCountdown, type ReservationCountdown } from '@/components/checkout/ReservationTimer'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl } from '@/utils/social'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion'
+import { LazyMotionProvider } from '@/components/motion/LazyMotionProvider'
 
 interface EventDetailClientProps {
     event: Event
@@ -43,7 +44,6 @@ interface EventDetailClientProps {
 export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [], variant = 'page' }: EventDetailClientProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const supabase = createClient()
     const isEmbed = variant === 'embed'
     // Embeds can open straight on ticket selection: ?view=tickets or ?hideDetails=true
     // ?view=tickets (and the embed's legacy ?hideDetails=true) open straight on ticket selection
@@ -94,6 +94,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         if (!isAutoApply) setDiscount(null)
 
         try {
+            const supabase = await getBrowserSupabase()
             const { data, error } = await supabase
                 .schema('gatepass')
                 .from('discounts')
@@ -151,7 +152,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         } finally {
             if (!isAutoApply) setApplyingDiscount(false)
         }
-    }, [promoCode, event.id, tiers, selectedTickets, reservations, supabase])
+    }, [promoCode, event.id, tiers, selectedTickets, reservations])
 
     // Track View Count & UTM Marketing
     useEffect(() => {
@@ -159,6 +160,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             // Skip incrementing views for previews
             if (event.id === 'preview-id') return
 
+            getBrowserSupabase().then(supabase => {
             // 1. Standard View Count
             supabase.rpc('increment_event_view', { event_id: event.id })
                 .then(({ error }) => {
@@ -201,9 +203,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         })
                 }
             }
-
+            })
         }
-    }, [event.id, isFeedItem, searchParams, supabase, applyPromoCode])
+    }, [event.id, isFeedItem, searchParams, applyPromoCode])
 
     // Filter addons: only show general addons or ones tied to currently selected ticket tiers
     const activeTierIds = Object.keys(selectedTickets).filter(tierId => selectedTickets[tierId] > 0)
@@ -276,13 +278,13 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         if (newView === 'checkout' && dir === 'forward') {
             const utm_source = searchParams.get('utm_source')
             if (utm_source) {
-                supabase.schema('gatepass').rpc('track_marketing_event', {
+                getBrowserSupabase().then(supabase => supabase.schema('gatepass').rpc('track_marketing_event', {
                     p_event_id: event.id,
                     p_utm_source: utm_source,
                     p_utm_medium: searchParams.get('utm_medium'),
                     p_utm_campaign: searchParams.get('utm_campaign'),
                     p_event_type: 'checkout'
-                })
+                }))
             }
         }
     }
@@ -347,6 +349,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
     useEffect(() => {
         const checkUser = async () => {
+            const supabase = await getBrowserSupabase()
             const { data: { user } } = await supabase.auth.getUser()
             if (user && !user.is_anonymous) {
                 const { data: profile } = await supabase.schema('gatepass').from('profiles').select('*').eq('id', user.id).single()
@@ -490,6 +493,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         setLoading(true)
         try {
             let userId: string | null = null
+            const supabase = await getBrowserSupabase()
 
             // robust user check
             const { data: { session } } = await supabase.auth.getSession()
@@ -582,7 +586,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     if (res.discount_id !== discount.id) {
                         if (discount.tier_id && res.ticket_tier_id !== discount.tier_id) continue
 
-                        await supabase.rpc('apply_reservation_discount', {
+                        await (await getBrowserSupabase()).rpc('apply_reservation_discount', {
                             p_reservation_id: res.id,
                             p_discount_code: promoCode
                         })
@@ -761,7 +765,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     }
 
     return (
-        <>
+        <LazyMotionProvider>
 
             {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
             {!isEmbed && (isModalExpanded || isExpanded) && (
@@ -779,7 +783,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             )}
 
             {/* Floating Card / Modal Container */}
-            <motion.div
+            <m.div
                 ref={cardRef}
                 layoutId={isFeedItem ? layoutId : undefined}
                 onClick={expandCard}
@@ -800,7 +804,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             `}>
                 <AnimatePresence mode="wait" initial={false} custom={direction}>
                 {view === 'details' && (
-                    <motion.div key="details" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                    <m.div key="details" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         {!isExpanded && <EventMobilePreview event={event} cheapestTier={cheapestTier} onExpand={expandCard} />}
                         <div className={!isExpanded ? 'hidden md:block' : 'block'}>
                             <DetailsView
@@ -815,10 +819,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                                 isFeedItem={isFeedItem}
                             />
                         </div>
-                    </motion.div>
+                    </m.div>
                 )}
                 {view === 'tickets' && (
-                    <motion.div key="tickets" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                    <m.div key="tickets" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <TicketsView
                             tiers={tiers}
                             selectedTickets={selectedTickets}
@@ -828,10 +832,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             total={calculatedTotal}
                             hasSelection={hasTicketsSelected}
                         />
-                    </motion.div>
+                    </m.div>
                 )}
                 {view === 'addons' && (
-                    <motion.div key="addons" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                    <m.div key="addons" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <AddonsView
                             availableAddons={filteredAddons}
                             selectedAddons={selectedAddons}
@@ -839,10 +843,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             onContinue={() => navigate('checkout', 'forward')}
                             onBack={() => navigate('tickets', 'back')}
                         />
-                    </motion.div>
+                    </m.div>
                 )}
                 {view === 'checkout' && (
-                    <motion.div key="checkout" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                    <m.div key="checkout" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <CheckoutFormView
                             guestName={guestName} setGuestName={setGuestName}
                             guestEmail={guestEmail} setGuestEmail={setGuestEmail}
@@ -858,10 +862,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             loading={loading}
                             hasTicketsSelected={hasTicketsSelected}
                         />
-                    </motion.div>
+                    </m.div>
                 )}
                 {view === 'summary' && (
-                    <motion.div key="summary" className="flex-1 min-h-0 flex flex-col h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                    <m.div key="summary" className="flex-1 min-h-0 flex flex-col h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <SummaryView
                             event={event}
                             tiers={tiers}
@@ -897,10 +901,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             feeBearer={event.fee_bearer as 'customer' | 'organizer'}
                             hasMultiTierInstalmentConflict={hasMultiTierInstalmentConflict}
                         />
-                    </motion.div>
+                    </m.div>
                 )}
                 {view === 'success' && purchasedTickets.length > 0 && (
-                    <motion.div key="success" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
+                    <m.div key="success" className="h-full" custom={direction} variants={viewVariants} initial={prefersReducedMotion ? false : 'enter'} animate="center" exit="exit" transition={viewTransition}>
                         <SuccessView
                             event={event}
                             tickets={purchasedTickets}
@@ -910,12 +914,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                                 collapse()
                             }}
                         />
-                    </motion.div>
+                    </m.div>
                 )}
                 </AnimatePresence>
 
-            </motion.div>
-        </>
+            </m.div>
+        </LazyMotionProvider>
     )
 }
 
@@ -2151,7 +2155,6 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, count
 }
 
 const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tickets: any[], tierName: string | undefined, onClose: () => void }) => {
-    const supabase = createClient()
     const [downloading, setDownloading] = useState(false)
     const [questions, setQuestions] = useState<EventFormQuestion[]>([])
     const [fetchingQuestions, setFetchingQuestions] = useState(true)
@@ -2170,6 +2173,7 @@ const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tick
             }
 
             try {
+                const supabase = await getBrowserSupabase()
                 // 1. Fetch questions for this event
                 const { data: qData, error: qError } = await supabase
                     .schema('gatepass')
@@ -2204,7 +2208,7 @@ const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tick
         }
 
         loadQuestionsAndResponses()
-    }, [event.id, activeTicket, supabase])
+    }, [event.id, activeTicket])
 
     const handleInputChange = (questionId: string, value: string | boolean) => {
         setAnswers(prev => ({
@@ -2257,7 +2261,7 @@ const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tick
                 }
             })
 
-            const { error } = await supabase
+            const { error } = await (await getBrowserSupabase())
                 .schema('gatepass')
                 .from('event_form_responses')
                 .insert(responseData)

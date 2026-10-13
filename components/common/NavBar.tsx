@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
-import { User } from '@supabase/supabase-js'
+import { getBrowserSupabase } from '@/utils/supabase/lazy'
+import type { User } from '@supabase/supabase-js'
 import { ThemeToggle } from './ThemeToggle'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 
@@ -13,26 +13,28 @@ export function NavBar() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const router = useRouter()
     const pathname = usePathname()
-    const supabase = createClient()
 
+    // The nav is in the root layout, so the Supabase client loads on demand instead of in every page's JS
     useEffect(() => {
-        // Get initial session
-        supabase.auth.getUser().then(({ data: { user } }) => {
+        let unsubscribe: (() => void) | undefined
+        let cancelled = false
+        getBrowserSupabase().then(async supabase => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (cancelled) return
             setUser(user)
+            const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+                setUser(session?.user ?? null)
+            })
+            unsubscribe = () => subscription.unsubscribe()
         })
-
-        // Listen for changes
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null)
-        })
-
-        return () => subscription.unsubscribe()
+        return () => {
+            cancelled = true
+            unsubscribe?.()
+        }
     }, [])
 
     const handleLogout = async () => {
-        await supabase.auth.signOut()
+        await (await getBrowserSupabase()).auth.signOut()
         router.push('/login')
         router.refresh()
         setIsMobileMenuOpen(false)

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { ArrowUpRight, ChevronDown, X, User, LogOut, LayoutDashboard, Ticket } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/client'
+import { getBrowserSupabase } from '@/utils/supabase/lazy'
 import { useRouter } from 'next/navigation'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 
@@ -20,7 +20,6 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
     const [mounted, setMounted] = useState(false)
     const leftMenuButtonRef = React.useRef<HTMLButtonElement>(null)
     const rightMenuButtonRef = React.useRef<HTMLButtonElement>(null)
-    const supabase = createClient()
     const router = useRouter()
 
     useEffect(() => {
@@ -51,22 +50,27 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
         return () => window.removeEventListener('keydown', closeOnEscape)
     }, [isRightOpen])
 
+    // Sign-in state loads after the page is interactive (the Supabase client is fetched on demand)
     useEffect(() => {
-        const getUser = async () => {
+        let unsubscribe: (() => void) | undefined
+        let cancelled = false
+        getBrowserSupabase().then(async supabase => {
             const { data: { user } } = await supabase.auth.getUser()
+            if (cancelled) return
             setUser(user)
-        }
-        getUser()
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null)
+            const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+                setUser(session?.user ?? null)
+            })
+            unsubscribe = () => subscription.unsubscribe()
         })
-
-        return () => subscription.unsubscribe()
-    }, [supabase])
+        return () => {
+            cancelled = true
+            unsubscribe?.()
+        }
+    }, [])
 
     const handleLogout = async () => {
-        await supabase.auth.signOut()
+        await (await getBrowserSupabase()).auth.signOut()
         setIsRightOpen(false)
         router.push('/')
     }
