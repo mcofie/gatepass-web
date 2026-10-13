@@ -124,31 +124,26 @@ function DefaultProviderCard({ organizerId, category, provider, integration, can
         }
     }
 
-    const facts: { label: string; value: React.ReactNode }[] = [
-        ...(keyField ? [{ label: keyField.label, value: <span className="font-mono">••••{integration.credentialHints[keyField.key]}</span> }] : []),
-        { label: 'Last checked', value: timeAgo(integration.lastVerifiedAt) },
-        { label: 'Used for', value: category === 'payments' ? 'All events by default' : 'Reminders and blasts' },
-    ]
+    const details = [
+        keyField && `${keyField.label} ••••${integration.credentialHints[keyField.key]}`,
+        `Checked ${timeAgo(integration.lastVerifiedAt).toLowerCase()}`,
+    ].filter(Boolean).join(' · ')
 
     return (
-        <div className="overflow-hidden rounded-3xl bg-gray-950 text-white dark:bg-white dark:text-black">
-            <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
+        <section aria-label={`Default ${category === 'payments' ? 'payment' : 'SMS'} provider`} className="rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
+            <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                 <div className="flex min-w-0 items-center gap-4">
                     <BrandLogo provider={provider} size="lg" />
                     <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-60">Default {category === 'payments' ? 'payment provider' : 'SMS provider'}</p>
-                        <p className="mt-1 truncate text-2xl font-semibold tracking-tight sm:text-3xl">{provider.name}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium">
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${healthy ? 'bg-emerald-400/15 text-emerald-300 dark:bg-emerald-600/10 dark:text-emerald-700' : 'bg-red-400/15 text-red-300 dark:bg-red-600/10 dark:text-red-700'}`}>
-                                <span className={`size-1.5 rounded-full ${healthy ? 'bg-emerald-400 dark:bg-emerald-600' : 'bg-red-400 dark:bg-red-600'}`} aria-hidden="true" />
-                                {STATUS_STYLE[integration.status].label}
-                            </span>
-                            {provider.supportsTestMode && (
-                                <span className={`rounded-full px-2.5 py-1 ${integration.mode === 'test' ? 'bg-amber-400/15 text-amber-300 dark:bg-amber-500/15 dark:text-amber-800' : 'bg-white/10 dark:bg-black/5'}`}>
-                                    {integration.mode === 'test' ? 'Test mode: no real charges' : 'Live'}
-                                </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{provider.name}</p>
+                            <span className="rounded-full bg-gray-950 px-2.5 py-0.5 text-[11px] font-medium text-white dark:bg-white dark:text-black">Default</span>
+                            <StatusPill status={integration.status} />
+                            {provider.supportsTestMode && integration.mode === 'test' && (
+                                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-400/10 dark:text-amber-300">Test mode</span>
                             )}
                         </div>
+                        <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{details}</p>
                     </div>
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -157,16 +152,16 @@ function DefaultProviderCard({ organizerId, category, provider, integration, can
                             type="button"
                             onClick={handleTest}
                             disabled={testing}
-                            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/20 px-4 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50 dark:border-black/15 dark:hover:bg-black/5"
+                            className="inline-flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-950 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
                         >
                             {testing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-                            Test connection
+                            Test
                         </button>
                     )}
                     <button
                         type="button"
                         onClick={onManage}
-                        className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-5 text-sm font-medium text-black transition-opacity hover:opacity-85 dark:bg-black dark:text-white"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-gray-950 px-4 text-sm font-medium text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-black"
                     >
                         Manage <ArrowUpRight className="size-4" aria-hidden="true" />
                     </button>
@@ -174,26 +169,15 @@ function DefaultProviderCard({ organizerId, category, provider, integration, can
             </div>
 
             {!healthy && integration.statusMessage && (
-                <p role="alert" className="mx-6 mb-2 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-200 dark:bg-red-600/10 dark:text-red-800 sm:mx-8">
+                <p role="alert" className="mx-5 mb-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300 sm:mx-6">
                     {integration.statusMessage}
                 </p>
             )}
 
-            <dl className="grid gap-px border-t border-white/10 bg-white/10 dark:border-black/10 dark:bg-black/10 sm:grid-cols-3">
-                {facts.map(fact => (
-                    <div key={fact.label} className="bg-gray-950 px-6 py-4 dark:bg-white sm:px-8">
-                        <dt className="text-xs opacity-60">{fact.label}</dt>
-                        <dd className="mt-1 truncate text-sm font-medium">{fact.value}</dd>
-                    </div>
-                ))}
-            </dl>
-
             {category === 'payments' && (
-                <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-4 dark:border-black/10 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-                    <div className="min-w-0">
-                        <p className="text-xs opacity-60">Webhook URL · add it in your {provider.name} dashboard</p>
-                        <p className="mt-1 truncate font-mono text-xs opacity-80">{integration.webhookUrl}</p>
-                    </div>
+                <div className="flex items-center gap-3 border-t border-gray-100 px-5 py-3 dark:border-white/10 sm:px-6">
+                    <p className="shrink-0 text-xs text-gray-500 dark:text-gray-400">Webhook</p>
+                    <p className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 dark:text-gray-300">{integration.webhookUrl}</p>
                     <button
                         type="button"
                         onClick={async () => {
@@ -201,14 +185,14 @@ function DefaultProviderCard({ organizerId, category, provider, integration, can
                             setCopied(true)
                             setTimeout(() => setCopied(false), 1500)
                         }}
-                        className="inline-flex h-9 shrink-0 items-center gap-1.5 self-start rounded-full bg-white/10 px-3.5 text-xs font-medium transition-colors hover:bg-white/15 dark:bg-black/5 dark:hover:bg-black/10 sm:self-auto"
+                        className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-950 hover:underline dark:text-white"
                     >
                         {copied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
                         {copied ? 'Copied' : 'Copy'}
                     </button>
                 </div>
             )}
-        </div>
+        </section>
     )
 }
 
