@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { NextResponse } from 'next/server'
 import { renderToStream } from '@react-pdf/renderer'
-import { TicketPdf } from '@/components/pdf/TicketPdf'
+import { TicketPdf, withQrCodes } from '@/components/pdf/TicketPdf'
 
 export async function GET(
     request: Request,
@@ -59,7 +59,9 @@ export async function GET(
                     starts_at,
                     venue_name,
                     venue_address,
-                    poster_url
+                    poster_url,
+                    currency,
+                    organizers ( name )
                 ),
                 profiles ( full_name )
             `)
@@ -89,7 +91,7 @@ export async function GET(
         }))
 
         // 3. Render Stream
-        const stream = await renderToStream(<TicketPdf event={event} tickets={processedTickets} />)
+        const stream = await renderToStream(<TicketPdf event={event} tickets={await withQrCodes(processedTickets)} />)
 
         // 4. Return Response
         return new NextResponse(stream as unknown as BodyInit, {

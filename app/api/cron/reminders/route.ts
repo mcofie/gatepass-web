@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { NextResponse } from 'next/server'
 import { sendSmsForOrganizer } from '@/lib/integrations/sms'
 import { notifyDiscord } from '@/utils/discord'
@@ -12,12 +12,14 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: Request) {
     // 1. Authorization Check (Simple Secret Implementation)
-    const authHeader = request.headers.get('authorization')
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    // Refuse to run without a configured secret, so a missing env var can't open the endpoint
+    const secret = process.env.CRON_SECRET
+    if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = await createClient()
+    // No user session on a cron call: read and update across organizers with the service role
+    const supabase = createAdminClient()
     const now = new Date()
     
     // Define Time Windows

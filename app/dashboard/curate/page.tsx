@@ -14,8 +14,9 @@ export default async function CurationPage() {
         redirect('/login')
     }
 
-    const allowedEmails = ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com']
-    if (!allowedEmails.includes(user.email?.toLowerCase() || '')) {
+    // Platform admins only, by flag
+    const { data: profile } = await supabase.schema('gatepass').from('profiles').select('is_super_admin').eq('id', user.id).maybeSingle()
+    if (!profile?.is_super_admin) {
         redirect('/dashboard')
     }
 

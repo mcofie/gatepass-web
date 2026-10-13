@@ -75,7 +75,7 @@ export function LegalSection({ number, title, children }: { number: string; titl
             <span aria-hidden="true" className="pt-1 text-[12px] font-semibold tabular-nums text-[#999] dark:text-[#777]">{number}</span>
             <div>
                 <h2 className="text-[20px] font-semibold leading-[1.25] tracking-[-0.035em] sm:text-[22px]">{title}</h2>
-                <p className="mt-4 text-[15px] leading-[1.8] text-[#555] sm:text-[16px] dark:text-[#b5b5b5]">{children}</p>
+                <div className="mt-4 space-y-4 text-[15px] leading-[1.8] text-[#555] sm:text-[16px] dark:text-[#b5b5b5] [&_a]:font-medium [&_a]:text-black [&_a]:underline [&_a]:underline-offset-4 dark:[&_a]:text-white [&_strong]:font-semibold [&_strong]:text-black dark:[&_strong]:text-white [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">{children}</div>
             </div>
         </section>
     )
