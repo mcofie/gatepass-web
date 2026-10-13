@@ -7,9 +7,11 @@ import type { IntegrationSummary } from '@/app/actions/integrations'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowLeft, ArrowUpRight, Calendar, MapPin, Ticket, Plus, ScanLine, Check, Eye, Copy, Download, ShieldCheck, Loader2, CopyPlus, X } from 'lucide-react'
-import { Event, TicketTier, Discount } from '@/types/gatepass'
+import { ArrowLeft, ArrowUpRight, Calendar, MapPin, Ticket, ScanLine, Check, Eye, Download, ShieldCheck, Loader2, CopyPlus } from 'lucide-react'
+import { Event, TicketTier } from '@/types/gatepass'
 import { FormsTab } from '@/components/admin/tabs/FormsTab'
+import { PromotionsTab } from '@/components/admin/tabs/PromotionsTab'
+import { EventSectionNav } from '@/components/admin/EventSectionNav'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
@@ -120,7 +122,6 @@ export function EventManageClient({
         url.searchParams.delete('billing')
         window.history.replaceState(null, '', url)
     }
-    const sectionNavRef = React.useRef<HTMLElement>(null)
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
 
@@ -129,30 +130,6 @@ export function EventManageClient({
 
 
 
-
-    // Discounts State
-    const [discounts, setDiscounts] = useState<Discount[]>([])
-    const [discountPage, setDiscountPage] = useState(0)
-
-    React.useEffect(() => {
-        if (discountPage > 0 && discountPage * 5 >= discounts.length) {
-            setDiscountPage(Math.max(0, Math.ceil(discounts.length / 5) - 1))
-        }
-    }, [discounts.length, discountPage])
-    const [discountForm, setDiscountForm] = useState({
-        code: '',
-        type: 'percentage' as 'percentage' | 'fixed',
-        value: 0,
-        max_uses: 0,
-        tier_id: '',
-        expires_at: '',
-        linked_utm_campaign: '',
-        affiliate_email: '',
-        affiliate_commission_percent: 10
-    })
-    const [creatingDiscount, setCreatingDiscount] = useState(false)
-    const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
-    const [showDiscountForm, setShowDiscountForm] = useState(false)
 
     // Sales State
     const [salesStats, setSalesStats] = useState({ totalCollected: 0, transactionCount: 0, totalAddons: 0 })
@@ -231,15 +208,6 @@ export function EventManageClient({
             .eq('event_id', event.id)
             .order('price', { ascending: true })
         if (addonsData) setAddons(addonsData)
-    }
-
-    const [copiedId, setCopiedId] = useState<string | null>(null)
-
-    const copyCode = (code: string, id: string) => {
-        navigator.clipboard.writeText(code)
-        setCopiedId(id)
-        toast.success('Code copied!')
-        setTimeout(() => setCopiedId(null), 2000)
     }
 
     const router = useRouter()
@@ -323,127 +291,6 @@ export function EventManageClient({
             setLoading(false)
         }
     }
-
-    // ---------------- DISCOUNTS LOGIC ----------------
-    const fetchDiscounts = async () => {
-        const { data } = await supabase.schema('gatepass').from('discounts').select('*').eq('event_id', event.id).order('created_at', { ascending: false })
-        if (data) {
-            console.log('Fetched Discounts:', data)
-            setDiscounts(data as Discount[])
-        }
-    }
-
-    const handleSaveDiscount = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setCreatingDiscount(true)
-        try {
-            if (editingDiscountId) {
-                const { error } = await supabase.schema('gatepass').from('discounts').update({
-                    code: discountForm.code.toUpperCase(),
-                    type: discountForm.type,
-                    value: discountForm.value,
-                    max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
-                    tier_id: discountForm.tier_id || null,
-                    expires_at: discountForm.expires_at || null,
-                    linked_utm_campaign: discountForm.linked_utm_campaign || null,
-                    affiliate_email: discountForm.affiliate_email || null,
-                    affiliate_commission_percent: discountForm.affiliate_commission_percent
-                }).eq('id', editingDiscountId)
-
-                if (error) throw error
-                toast.success('Discount updated!')
-                setEditingDiscountId(null)
-            } else {
-                const { error } = await supabase.schema('gatepass').from('discounts').insert({
-                    event_id: event.id,
-                    code: discountForm.code.toUpperCase(),
-                    type: discountForm.type,
-                    value: discountForm.value,
-                    max_uses: discountForm.max_uses > 0 ? discountForm.max_uses : null,
-                    used_count: 0,
-                    tier_id: discountForm.tier_id || null,
-                    expires_at: discountForm.expires_at || null,
-                    linked_utm_campaign: discountForm.linked_utm_campaign || null,
-                    affiliate_email: discountForm.affiliate_email || null,
-                    affiliate_commission_percent: discountForm.affiliate_commission_percent
-                })
-
-                if (error) throw error
-                toast.success('Discount code created!')
-            }
-
-            await fetchDiscounts()
-            setShowDiscountForm(false)
-            setDiscountForm({
-                code: '',
-                type: 'percentage',
-                value: 0,
-                max_uses: 0,
-                tier_id: '',
-                expires_at: '',
-                linked_utm_campaign: '',
-                affiliate_email: '',
-                affiliate_commission_percent: 10
-            })
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setCreatingDiscount(false)
-        }
-    }
-
-    const startEditingDiscount = (discount: Discount) => {
-        setEditingDiscountId(discount.id)
-        setShowDiscountForm(true)
-        setDiscountForm({
-            code: discount.code,
-            type: discount.type,
-            value: discount.value,
-            max_uses: discount.max_uses || 0,
-            tier_id: discount.tier_id || '',
-            expires_at: discount.expires_at || '',
-            linked_utm_campaign: discount.linked_utm_campaign || '',
-            affiliate_email: discount.affiliate_email || '',
-            affiliate_commission_percent: discount.affiliate_commission_percent || 10
-        })
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-
-    const cancelEditingDiscount = () => {
-        setEditingDiscountId(null)
-        setShowDiscountForm(false)
-        setDiscountForm({
-            code: '',
-            type: 'percentage',
-            value: 0,
-            max_uses: 0,
-            tier_id: '',
-            expires_at: '',
-            linked_utm_campaign: '',
-            affiliate_email: '',
-            affiliate_commission_percent: 10
-        })
-    }
-
-    const deleteDiscount = (id: string) => {
-        toast('Are you sure you want to delete this discount code?', {
-            action: {
-                label: 'Delete',
-                onClick: async () => {
-                    const { error } = await supabase.schema('gatepass').from('discounts').delete().eq('id', id)
-                    if (error) toast.error(error.message)
-                    else {
-                        await fetchDiscounts()
-                        toast.success('Discount deleted')
-                    }
-                }
-            }
-        })
-    }
-
-
-
-
 
     // ... (rest of code)
 
@@ -539,29 +386,7 @@ export function EventManageClient({
 
 
 
-    // On Tab Change
-    React.useEffect(() => {
-        if (activeTab === 'discounts') {
-            fetchDiscounts()
-        }
-    }, [activeTab])
 
-    const tabClass = (tab: string) => clsx(
-        "inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors",
-        activeTab === tab
-            ? "bg-gray-950 text-white dark:bg-white dark:text-black"
-            : "text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-    )
-
-    React.useEffect(() => {
-        const nav = sectionNavRef.current
-        const selected = nav?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]')
-        if (!nav || !selected) return
-        const navBounds = nav.getBoundingClientRect()
-        const selectedBounds = selected.getBoundingClientRect()
-        const left = nav.scrollLeft + selectedBounds.left - navBounds.left - (nav.clientWidth - selectedBounds.width) / 2
-        nav.scrollTo({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
-    }, [activeTab])
 
 
 
@@ -638,29 +463,7 @@ export function EventManageClient({
                 </div>
             </div>
 
-            {/* Navigation Tabs */}
-            <nav ref={sectionNavRef} className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0" aria-label="Event sections">
-                <div className="flex min-w-max items-center gap-1 border-b border-gray-200 pb-3 dark:border-white/10">
-                    <button aria-pressed={activeTab === 'details'} onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
-                    <button aria-pressed={activeTab === 'tickets'} onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
-                    <button aria-pressed={activeTab === 'attendees'} onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest list</button>
-                    {isAdmin && (
-                        <button aria-pressed={activeTab === 'discounts'} onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
-                    )}
-                    {isAdmin && (
-                        <button aria-pressed={activeTab === 'sales'} onClick={() => setActiveTab('sales')} className={tabClass('sales')}>Sales</button>
-                    )}
-                    {isAdmin && (
-                        <button aria-pressed={activeTab === 'instalments'} onClick={() => setActiveTab('instalments')} className={tabClass('instalments')}>Instalments</button>
-                    )}
-                    {isAdmin && (
-                        <button aria-pressed={activeTab === 'forms'} onClick={() => setActiveTab('forms')} className={tabClass('forms')}>Forms</button>
-                    )}
-                    <button aria-pressed={activeTab === 'addons'} onClick={() => setActiveTab('addons')} className={tabClass('addons')}>Add-ons</button>
-                    <button aria-pressed={activeTab === 'widgets'} onClick={() => setActiveTab('widgets')} className={tabClass('widgets')}>Widgets</button>
-                    <button aria-pressed={activeTab === 'team'} onClick={() => setActiveTab('team')} className={tabClass('team')}>Team</button>
-                </div>
-            </nav>
+            <EventSectionNav active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} />
 
 
             {/* PAYOUTS TAB */}
@@ -1216,265 +1019,14 @@ export function EventManageClient({
             {/* ATTENDEES TAB */}
             {
                 activeTab === 'attendees' && (
-                    <AttendeesTab event={event} isStaff={isStaff} />
+                    <AttendeesTab event={event} tiers={tiers} isStaff={isStaff} />
                 )
             }
 
-            {/* DISCOUNTS TAB */}
-            {
-                activeTab === 'discounts' && (
-                    <div className="space-y-5 animate-in fade-in duration-200">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Discount codes</h2>
-                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Create offers and track how often they are used.</p>
-                            </div>
-                            <button type="button" onClick={() => showDiscountForm ? cancelEditingDiscount() : setShowDiscountForm(true)} aria-expanded={showDiscountForm} className={showDiscountForm ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-[#111] dark:text-gray-300 dark:hover:bg-white/10" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"}>
-                                {showDiscountForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                                {showDiscountForm ? 'Close form' : 'Create code'}
-                            </button>
-                        </div>
-                        {showDiscountForm && <div className="max-w-4xl rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-semibold text-gray-950 dark:text-white">{editingDiscountId ? 'Edit discount code' : 'New discount code'}</h3>
-                                {editingDiscountId && (
-                                    <button
-                                        onClick={cancelEditingDiscount}
-                                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
-                                    >
-                                        Cancel edit
-                                    </button>
-                                )}
-                            </div>
-                            <form onSubmit={handleSaveDiscount} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                <div className="md:col-span-1">
-                                    <label htmlFor="discount-code" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Discount code</label>
-                                    <input
-                                        id="discount-code"
-                                        required
-                                        value={discountForm.code}
-                                        onChange={e => setDiscountForm({ ...discountForm, code: e.target.value })}
-                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium uppercase text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        placeholder="e.g. EARLYBIRD"
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="discount-type" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Discount type</label>
-                                    <div className="relative">
-                                        <select
-                                            id="discount-type"
-                                            value={discountForm.type}
-                                            onChange={e => setDiscountForm({ ...discountForm, type: e.target.value as 'percentage' | 'fixed' })}
-                                            className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        >
-                                            <option value="percentage">Percent (%)</option>
-                                            <option value="fixed">Fixed Amount</option>
-                                        </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label htmlFor="discount-value" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{discountForm.type === 'percentage' ? 'Percent off' : 'Amount off'}</label>
-                                    <input
-                                        id="discount-value"
-                                        type="number"
-                                        required
-                                        min="0"
-                                        step="0.01"
-                                        max={discountForm.type === 'percentage' ? 100 : undefined}
-                                        value={isNaN(discountForm.value) ? '' : discountForm.value}
-                                        onChange={e => {
-                                            const val = parseFloat(e.target.value)
-                                            setDiscountForm({ ...discountForm, value: isNaN(val) ? 0 : val })
-                                        }}
-                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                    />
-                                </div>
-                                <details className="md:col-span-3 rounded-xl border border-gray-200 dark:border-white/10">
-                                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 [&::-webkit-details-marker]:hidden">Usage, expiry, and affiliate options</summary>
-                                    <div className="grid grid-cols-1 gap-4 border-t border-gray-200 px-4 py-4 dark:border-white/10 md:grid-cols-3">
-                                <div>
-                                    <label htmlFor="discount-limit" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Usage limit</label>
-                                    <input
-                                        id="discount-limit"
-                                        type="number"
-                                        min="0"
-                                        value={discountForm.max_uses}
-                                        onChange={e => setDiscountForm({ ...discountForm, max_uses: parseInt(e.target.value) })}
-                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        placeholder="∞"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Expires</label>
-                                    <DateTimePicker
-                                        date={discountForm.expires_at ? new Date(discountForm.expires_at) : undefined}
-                                        setDate={(date) => setDiscountForm({ ...discountForm, expires_at: date ? date.toISOString() : '' })}
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="discount-tier" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Ticket types</label>
-                                    <div className="relative">
-                                        <select
-                                            id="discount-tier"
-                                            value={discountForm.tier_id || ''}
-                                            onChange={e => setDiscountForm({ ...discountForm, tier_id: e.target.value })}
-                                            className="h-11 w-full appearance-none truncate rounded-lg border border-gray-200 bg-white pl-3 pr-8 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        >
-                                            <option value="">All ticket types</option>
-                                            {tiers.map(t => (
-                                                <option key={t.id} value={t.id}>{t.name}</option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label htmlFor="discount-campaign" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Campaign key</label>
-                                    <input
-                                        id="discount-campaign"
-                                        value={discountForm.linked_utm_campaign}
-                                        onChange={e => setDiscountForm({ ...discountForm, linked_utm_campaign: e.target.value })}
-                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        placeholder="e.g. summer_promo"
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="discount-commission" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Promoter commission (%)</label>
-                                    <input
-                                        id="discount-commission"
-                                        type="number"
-                                        value={discountForm.affiliate_commission_percent}
-                                        onChange={e => setDiscountForm({ ...discountForm, affiliate_commission_percent: parseFloat(e.target.value) })}
-                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                    />
-                                </div>
-                                <div className="md:col-span-3">
-                                    <label htmlFor="discount-email" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Promoter email</label>
-                                    <input
-                                        id="discount-email"
-                                        type="email"
-                                        value={discountForm.affiliate_email}
-                                        onChange={e => setDiscountForm({ ...discountForm, affiliate_email: e.target.value })}
-                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        placeholder="promoter@email.com"
-                                    />
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Add an email to send this promoter sales notifications.</p>
-                                </div>
-                                    </div>
-                                </details>
-                                <div className="md:col-span-3 flex justify-end pt-2">
-                                    <button
-                                        disabled={creatingDiscount}
-                                        className="inline-flex h-11 items-center justify-center rounded-full bg-black px-5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
-                                    >
-                                        {creatingDiscount ? 'Saving...' : (editingDiscountId ? 'Update code' : 'Create code')}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>}
-
-                        <div className="grid gap-4">
-                            {discounts.slice(discountPage * 5, (discountPage + 1) * 5).map(discount => (
-                                <div key={discount.id} className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#0b0b0b] sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                                    <div className="flex min-w-0 items-start gap-3">
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-base font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-400">
-                                            %
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="mb-1 flex flex-wrap items-center gap-2">
-                                                <h4 className="break-all text-base font-semibold tracking-tight text-gray-950 dark:text-white">{discount.code}</h4>
-                                                <button
-                                                    onClick={() => copyCode(discount.code, discount.id)}
-                                                    className="text-gray-400 hover:text-black dark:hover:text-white transition-colors p-1"
-                                                    title="Copy Code"
-                                                    aria-label={`Copy code ${discount.code}`}
-                                                >
-                                                    {copiedId === discount.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                                </button>
-                                                {discount.linked_utm_campaign && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">Campaign: {discount.linked_utm_campaign}</span>}
-                                                {discount.affiliate_email && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">Promoter: {discount.affiliate_email} ({discount.affiliate_commission_percent}%)</span>}
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-                                                    <span className="font-medium text-gray-900 dark:text-white">{discount.type === 'percentage' ? `${discount.value}% off` : `${formatCurrency(discount.value, event.currency || 'GHS')} off`}</span>
-                                                    <span aria-hidden="true">·</span>
-                                                    <span>Used {discount.used_count || 0}{discount.max_uses ? ` of ${discount.max_uses}` : ' times'}</span>
-                                                    <span aria-hidden="true">·</span>
-                                                    <span>{discount.tier_id ? (tiers.find(t => t.id === discount.tier_id)?.name || 'Selected ticket type') : 'All ticket types'}</span>
-                                                    {discount.expires_at && <span>Expires {new Date(discount.expires_at).toLocaleDateString()}</span>}
-                                                </p>
-                                                <button type="button" className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white" onClick={() => {
-                                                    const link = `${window.location.origin}/events/${event.slug}?code=${discount.code}`;
-                                                    navigator.clipboard.writeText(link);
-                                                    toast.success('Checkout link copied');
-                                                }}>
-                                                    <Copy className="h-3.5 w-3.5" /> Copy checkout link
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex shrink-0 gap-2 border-t border-gray-100 pt-3 dark:border-white/10 sm:border-0 sm:pt-0">
-                                        <button
-                                            onClick={() => startEditingDiscount(discount)}
-                                            className="h-9 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:text-gray-300"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => deleteDiscount(discount.id)}
-                                            className="h-9 rounded-lg border border-gray-200 px-3 text-sm font-medium text-red-600 transition-colors hover:border-red-300 dark:border-white/10 dark:text-red-400"
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                            {discounts.length === 0 && (
-                                <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-5 py-14 text-center text-gray-500 dark:border-white/10 dark:bg-[#111] dark:text-gray-400">
-                                    <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400">
-                                        <span className="text-base font-semibold">%</span>
-                                    </div>
-                                    <p className="font-medium text-gray-900 dark:text-white">No discount codes yet</p>
-                                    <p className="mt-1 text-sm">Create one to offer a promotion for this event.</p>
-                                </div>
-                            )}
-
-                            {discounts.length > 5 && (
-                                <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#111]">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Showing <span className="font-medium">{discountPage * 5 + 1}</span> to <span className="font-medium">{Math.min((discountPage + 1) * 5, discounts.length)}</span> of <span className="font-medium">{discounts.length}</span>
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setDiscountPage(p => Math.max(0, p - 1))}
-                                            disabled={discountPage === 0}
-                                            className="px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                        >
-                                            Previous
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setDiscountPage(p => p + 1)}
-                                            disabled={(discountPage + 1) * 5 >= discounts.length}
-                                            className="px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                        >
-                                            Next
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )
-            }
-
-
+            {/* PROMOTIONS TAB */}
+            {activeTab === 'discounts' && (
+                <PromotionsTab eventId={event.id} eventSlug={event.slug} currency={eventCurrency} tiers={tiers} />
+            )}
 
             {/* FORMS TAB */}
             {activeTab === 'forms' && <FormsTab eventId={event.id} eventSlug={event.slug} />}
