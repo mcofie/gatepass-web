@@ -31,49 +31,12 @@ export function PublicTicketActions({ ticketId, eventTitle }: PublicTicketAction
         }
     }
 
-    const handleDownloadPdf = async () => {
-        const element = document.getElementById('ticket-print-target')
-        if (!element) {
-            toast.error('Could not prepare the PDF')
-            return
-        }
-
-        try {
-            const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-                import('html2canvas'),
-                import('jspdf'),
-            ])
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                onclone: (documentClone) => documentClone.documentElement.classList.remove('dark'),
-            })
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
-            const pageWidth = pdf.internal.pageSize.getWidth()
-            const pageHeight = pdf.internal.pageSize.getHeight()
-            const margin = 10
-            const availableWidth = pageWidth - margin * 2
-            const availableHeight = pageHeight - margin * 2
-            const imageData = canvas.toDataURL('image/png')
-            const imageRatio = canvas.width / canvas.height
-            const width = Math.min(availableWidth, availableHeight * imageRatio)
-            const height = width / imageRatio
-
-            pdf.addImage(imageData, 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height)
-            pdf.save(`gatepass-${eventTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${ticketId.slice(0, 8)}.pdf`)
-        } catch (error) {
-            console.error('PDF generation error:', error)
-            toast.error('Could not download the PDF')
-        }
-    }
-
     return (
         <div>
             <div className="grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={handleDownloadPdf} className={`${actionBase} bg-[#111] text-white hover:bg-[#333] dark:bg-white dark:text-black dark:hover:bg-[#e5e5e5]`}>
+                <a href={`/api/tickets/${ticketId}/download`} download className={`${actionBase} bg-[#111] text-white hover:bg-[#333] dark:bg-white dark:text-black dark:hover:bg-[#e5e5e5]`}>
                     <Download className="size-4" aria-hidden="true" />Download PDF
-                </button>
+                </a>
                 <button type="button" onClick={handleShare} className={`${actionBase} border border-[#dedede] bg-white text-[#222] hover:border-[#aaa] dark:border-[#383838] dark:bg-[#111] dark:text-white dark:hover:bg-[#202020]`}>
                     <Share2 className="size-4" aria-hidden="true" />Share link
                 </button>

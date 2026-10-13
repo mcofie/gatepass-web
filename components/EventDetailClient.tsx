@@ -6,8 +6,6 @@ import Image from 'next/image'
 import Script from 'next/script'
 import { useRouter, useSearchParams } from 'next/navigation'
 // Dynamic imports for heavy libraries
-// import html2canvas from 'html2canvas'
-// import jsPDF from 'jspdf'
 // import confetti from 'canvas-confetti'
 import { Event, TicketTier, Discount, PaymentPlan, EventAddon, EventFormQuestion } from '@/types/gatepass'
 import { cn } from '@/lib/utils'

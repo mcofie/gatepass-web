@@ -68,7 +68,7 @@ export async function withQrCodes(tickets: any[]): Promise<PdfTicket[]> {
 }
 
 // Events don't store a time zone yet; the currency is a good hint for where they happen
-const ZONE_BY_CURRENCY: Record<string, string> = {
+export const ZONE_BY_CURRENCY: Record<string, string> = {
     GHS: 'Africa/Accra', NGN: 'Africa/Lagos', KES: 'Africa/Nairobi', UGX: 'Africa/Kampala', TZS: 'Africa/Dar_es_Salaam',
     RWF: 'Africa/Kigali', ZAR: 'Africa/Johannesburg', ZMW: 'Africa/Lusaka', XOF: 'Africa/Dakar', XAF: 'Africa/Douala', GMD: 'Africa/Banjul',
 }

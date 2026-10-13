@@ -99,10 +99,6 @@ export default async function PublicTicketPage({ params }: Props) {
                 <div className="mt-5">
                     <PublicTicketActions ticketId={ticket.id} eventTitle={event.title} />
                 </div>
-
-                <div aria-hidden="true" className="fixed left-[-10000px] top-0">
-                    <div id="ticket-print-target"><TicketPass {...passProps} isPrint /></div>
-                </div>
             </main>
         </div>
     )
