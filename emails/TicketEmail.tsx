@@ -110,7 +110,16 @@ export const TicketEmail = (props: TicketEmailProps) => {
             >
                 <Body className="m-0 bg-[#f4f4f4] font-sans text-[#0d0d0d] antialiased">
                     <Container className="mx-auto my-0 max-w-[480px] px-4 py-10">
-                        <Text className="m-0 mb-8 text-[18px] font-semibold tracking-[-0.03em]">GatePass</Text>
+                        <Section className="mb-8">
+                            <Row>
+                                <Column className="w-[36px] align-middle">
+                                    <Img src={`${SITE_URL}/email/gatepass-mark.png`} width="28" height="28" alt="GatePass" className="block rounded-[7px]" />
+                                </Column>
+                                <Column className="align-middle">
+                                    <Text className="m-0 text-[18px] font-semibold tracking-[-0.03em]">GatePass</Text>
+                                </Column>
+                            </Row>
+                        </Section>
 
                         <Section className="overflow-hidden rounded-[28px] bg-white">
                             {posterUrl && <Img src={posterUrl} width="480" alt="" className="block w-full" />}
