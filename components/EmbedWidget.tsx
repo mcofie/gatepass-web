@@ -7,6 +7,7 @@ import { motion, AnimatePresence, Variants } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { Event, TicketTier, EventAddon, Discount } from '@/types/gatepass'
 import { FeeRates, calculateFees, getEffectiveFeeRates } from '@/utils/fees'
+import { ReservationTimer, useReservationCountdown } from '@/components/checkout/ReservationTimer'
 import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
 import { toast, Toaster } from 'sonner'
@@ -329,7 +330,6 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
     const [guestPhone, setGuestPhone] = useState('')
     const [purchasedTickets, setPurchasedTickets] = useState<any[]>([])
     const [verifying, setVerifying] = useState(false)
-    const [timeLeft, setTimeLeft] = useState(600)
     const [detailsSlide, setDetailsSlide] = useState<'description' | 'host' | 'lineup'>('description')
 
     // Discount State
@@ -362,14 +362,6 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
         })
     }, [selectedTickets, availableAddons])
 
-    // Timer Effect
-    useEffect(() => {
-        if (view === 'summary' && timeLeft > 0) {
-            const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000)
-            return () => clearInterval(timer)
-        }
-    }, [view, timeLeft])
-
     // Handle Initial View
     useEffect(() => {
         if (viewParam && ['details', 'tickets', 'addons', 'checkout', 'summary'].includes(viewParam)) {
@@ -379,11 +371,8 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
         }
     }, [viewParam, hideDetailsParam])
 
-    const formattedTime = (() => {
-        const m = Math.floor(timeLeft / 60)
-        const s = timeLeft % 60
-        return `${m}m ${s}s`
-    })()
+    // Counts down the real hold on the reservations created for this order
+    const countdown = useReservationCountdown(view === 'summary' ? purchasedTickets[0]?.expires_at : null)
 
     // Confetti on success
     useEffect(() => {
@@ -1121,17 +1110,6 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
 
     const renderSummary = () => {
         const { subtotal, addonSubtotal, fees, total, discountAmount } = calculateFinancials()
-        // Timer Logic for colors
-        let timerColor = "bg-black/80 backdrop-blur-md text-white border-white/10"
-        let dotColor = "bg-green-400 animate-pulse"
-        if (timeLeft <= 150) {
-            timerColor = "bg-red-500 text-white border-red-400"
-            dotColor = "bg-white animate-pulse"
-        } else if (timeLeft <= 300) {
-            timerColor = "bg-yellow-400 text-black border-yellow-300"
-            dotColor = "bg-black animate-pulse"
-        }
-
         return (
             <motion.div
                 key="summary"
@@ -1141,12 +1119,12 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 exit="exit"
                 className={cn("flex flex-col h-full relative", isDark ? "bg-zinc-950" : "bg-white")}
             >
-                {/* Immersive Timer */}
-                <div className="flex justify-center mt-6 mb-2 sticky top-4 z-20 pointer-events-none">
-                    <div className={`${timerColor} py-2 px-4 rounded-full text-[12px] font-medium shadow-xl flex items-center gap-2 border animate-fade-in-down transition-colors duration-500`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${formattedTime === 'EXPIRED' ? 'bg-red-500' : dotColor}`} />
-                        <span>Reservation expires in <span className="font-mono tracking-wider font-bold">{formattedTime}</span></span>
-                    </div>
+                <div className="sticky top-4 z-20 mx-4 mb-2 mt-6">
+                    <ReservationTimer
+                        countdown={countdown}
+                        tone={isDark ? 'dark' : 'auto'}
+                        onRestart={() => { setPurchasedTickets([]); setView('tickets') }}
+                    />
                 </div>
 
                 <div className="flex justify-between items-center px-6 pt-2 mb-6 flex-shrink-0">
@@ -1325,7 +1303,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 )}>
                     <button
                         onClick={handlePaystackPayment}
-                        disabled={loading}
+                        disabled={loading || countdown.expired}
                         style={{ backgroundColor: primaryColor, color: getContrastColor(primaryColor) }}
                         className="w-full h-10 rounded-lg text-[13px] font-bold tracking-wide hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
                     >

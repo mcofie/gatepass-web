@@ -10,6 +10,7 @@ type Reservation = {
     id: string
     event_id: string
     status: string
+    expires_at: string | null
     quantity: number | null
     addons: Record<string, number> | null
     discount_id: string | null
@@ -92,7 +93,7 @@ export async function priceCheckout(reservationIds: string[], metadata: Record<s
 
     const { data, error } = await db()
         .from('reservations')
-        .select('id, event_id, status, quantity, addons, discount_id, ticket_tiers(id, price, currency, min_quantity, discount_type, discount_value)')
+        .select('id, event_id, status, expires_at, quantity, addons, discount_id, ticket_tiers(id, price, currency, min_quantity, discount_type, discount_value)')
         .in('id', reservationIds)
     if (error) throw new Error(error.message)
     const reservations = (data ?? []) as Reservation[]
@@ -100,7 +101,9 @@ export async function priceCheckout(reservationIds: string[], metadata: Record<s
     if (reservations.length !== new Set(reservationIds).size) throw new PaymentProviderError('Reservation not found')
     if (new Set(reservations.map(r => r.event_id)).size > 1) throw new PaymentProviderError('All tickets must be for the same event')
     if (reservations.some(r => r.status === 'confirmed')) throw new PaymentProviderError('This order has already been paid')
-    if (reservations.some(r => r.status === 'cancelled')) throw new PaymentProviderError('This reservation has expired. Please start again.')
+    // Tickets are only held until expires_at; a lapsed hold can't start a new payment
+    const lapsed = reservations.some(r => r.status === 'cancelled' || (r.status === 'pending' && r.expires_at && new Date(r.expires_at).getTime() < Date.now()))
+    if (lapsed) throw new PaymentProviderError('Your hold on these tickets has ended. Please start again.')
 
     const tiers = reservations.map(r => one(r.ticket_tiers))
     if (tiers.some(t => !t)) throw new PaymentProviderError('Ticket type not found')

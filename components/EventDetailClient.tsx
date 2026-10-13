@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft, ArrowRight } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
+import { ReservationTimer, useReservationCountdown, type ReservationCountdown } from '@/components/checkout/ReservationTimer'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl } from '@/utils/social'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 
@@ -38,37 +39,6 @@ interface EventDetailClientProps {
 }
 
 // Simple Timer Hook
-const useTimer = (expiresAt: string | undefined): { label: string, seconds: number } => {
-    const [timeLeft, setTimeLeft] = useState({ label: '', seconds: 0 })
-
-    useEffect(() => {
-        if (!expiresAt) {
-            setTimeLeft({ label: '...', seconds: 0 }) // Or some default state
-            return
-        }
-
-        const end = new Date(expiresAt).getTime()
-        const timer = setInterval(() => {
-            const now = new Date().getTime()
-            const dist = end - now
-
-            if (dist < 0) {
-                clearInterval(timer)
-                setTimeLeft({ label: 'EXPIRED', seconds: 0 })
-                return
-            }
-
-            const m = Math.floor((dist % (1000 * 60 * 60)) / (1000 * 60))
-            const s = Math.floor((dist % (1000 * 60)) / 1000)
-            setTimeLeft({ label: `${m}m ${s}s`, seconds: Math.floor(dist / 1000) })
-        }, 1000)
-
-        return () => clearInterval(timer)
-    }, [expiresAt])
-
-    return timeLeft
-}
-
 export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [] }: EventDetailClientProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -277,7 +247,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const [guestEmail, setGuestEmail] = useState('')
     const [guestPhone, setGuestPhone] = useState('')
 
-    const timeLeft = useTimer(reservations[0]?.expires_at)
+    const countdown = useReservationCountdown(reservations[0]?.expires_at)
 
     // Handle Payment Callback (Redirect Flow)
     useEffect(() => {
@@ -830,7 +800,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             subtotal={ticketSubtotal}
                             fees={platformFees}
                             total={totalDue}
-                            timeLeft={timeLeft}
+                            countdown={countdown}
+                            onRestart={() => {
+                                // The hold lapsed: drop the stale reservations and pick tickets again
+                                setReservations([])
+                                navigate('tickets', 'back')
+                            }}
                             loading={loading}
                             onBack={() => navigate('checkout', 'back')}
                             onPay={paymentMode === 'instalment' ? handleInstalmentPayment : handlePaystackPayment}
@@ -1766,7 +1741,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
         </div>
     )
 }
-const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeLeft, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
+const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, countdown, onRestart, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number, // Ticket Subtotal
@@ -1783,7 +1758,8 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
     discountError: string,
     applyingDiscount: boolean,
     selectedTickets: Record<string, number>,
-    timeLeft: { label: string, seconds: number },
+    countdown: ReservationCountdown,
+    onRestart: () => void,
     availableAddons?: EventAddon[],
     selectedAddons?: Record<string, number>,
     instalmentPlans?: PaymentPlan[],
@@ -1795,7 +1771,6 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
 }) => {
     const [showPromo, setShowPromo] = useState(false)
 
-    const timerIsUrgent = timeLeft.label === 'EXPIRED' || (timeLeft.seconds > 0 && timeLeft.seconds <= 120)
     const currency = tiers[0]?.currency
     const promoReduction = discount ? (discount.type === 'fixed' ? discount.value : subtotal * discount.value / 100) : 0
     const orderValue = Math.max(0, subtotal + addonSubtotal - promoReduction)
@@ -1820,12 +1795,9 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                     <h2 className="text-[19px] font-semibold tracking-tight text-black dark:text-white">Review order</h2>
                 </div>
 
-                {timeLeft.label !== '...' && (
-                    <div className={`sticky top-0 z-20 flex items-center gap-2 bg-white dark:bg-zinc-900 px-1 pb-3 mb-1 border-b border-gray-100 dark:border-zinc-800 text-[12px] font-medium ${timerIsUrgent ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                        <Clock aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>{timeLeft.label === 'EXPIRED' ? 'Reservation expired' : <>Reservation expires in <span className="font-semibold tabular-nums">{timeLeft.label}</span></>}</span>
-                    </div>
-                )}
+                <div className="sticky top-0 z-20 -mx-1 bg-white px-1 pb-3 dark:bg-zinc-900">
+                    <ReservationTimer countdown={countdown} onRestart={onRestart} />
+                </div>
 
                 {/* Order details */}
                 <div className="mx-1 py-4 border-b border-gray-200 dark:border-zinc-800">
@@ -2086,10 +2058,10 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                     <button
                         type="button"
                         onClick={onPay}
-                        disabled={loading || timeLeft.label === 'EXPIRED'}
+                        disabled={loading || countdown.expired}
                         className={cn(
                             "w-full h-12 rounded-full text-[13px] font-semibold tracking-tight transition-colors active:scale-[0.98] flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black dark:focus-visible:ring-white",
-                            (loading || timeLeft.label === 'EXPIRED')
+                            (loading || countdown.expired)
                                 ? "bg-gray-200 text-gray-400 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed shadow-none"
                                 : "bg-[#111111] dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-gray-100"
                         )}
