@@ -1,378 +1,291 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Download, Loader2, Search } from 'lucide-react'
+import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
 import { formatCurrency, formatDateTime } from '@/utils/format'
-import { calculateFees } from '@/utils/fees'
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-
+import { downloadCSV } from '@/utils/analytics'
+import { PROVIDERS } from '@/lib/integrations/providers'
 import { TransactionDetailModal } from '@/components/admin/TransactionDetailModal'
+import { SecondaryButton } from '@/components/dashboard/ui'
 
-interface AllSalesClientProps {
-    orgId: string
+const PAGE_SIZE = 20
+const RANGES = [
+    { id: '7d', label: '7 days', days: 7 },
+    { id: '30d', label: '30 days', days: 30 },
+    { id: '90d', label: '90 days', days: 90 },
+    { id: 'all', label: 'All time', days: null },
+] as const
+type RangeId = typeof RANGES[number]['id']
+
+type Sale = {
+    id: string
+    created_at: string
+    amount: number
+    currency: string
+    channel: string | null
+    metadata: { provider?: string } | null
+    reservations: {
+        quantity: number | null
+        guest_name: string | null
+        guest_email: string | null
+        addons: Record<string, number> | null
+        profiles: { full_name: string | null; email: string | null } | null
+        ticket_tiers: { name: string | null; price: number | null } | null
+        events: { id: string; title: string; fee_bearer?: 'customer' | 'organizer' | null } | null
+    }
 }
 
-const ITEMS_PER_PAGE = 20
+const providerName = (sale: Sale) => {
+    const id = sale.metadata?.provider
+    // Sales before bring-your-own-keys went through GatePass's Paystack account
+    if (!id) return 'GatePass'
+    return PROVIDERS.find(p => p.category === 'payments' && p.id === id)?.name ?? id
+}
+const buyerName = (sale: Sale) => sale.reservations.profiles?.full_name || sale.reservations.guest_name || 'Guest'
+const buyerEmail = (sale: Sale) => sale.reservations.profiles?.email || sale.reservations.guest_email || ''
 
-export function AllSalesClient({ orgId }: AllSalesClientProps) {
-    const supabase = createClient()
-    const [loading, setLoading] = useState(true)
-    const [sales, setSales] = useState<any[]>([])
+export function AllSalesClient({ orgId }: { orgId: string }) {
+    const supabase = useMemo(() => createClient(), [])
+    const [events, setEvents] = useState<{ id: string; title: string }[]>([])
+    const [eventId, setEventId] = useState('all')
+    const [range, setRange] = useState<RangeId>('30d')
+    const [query, setQuery] = useState('')
+    const [search, setSearch] = useState('')
     const [page, setPage] = useState(0)
+    const [sales, setSales] = useState<Sale[]>([])
     const [count, setCount] = useState(0)
-    const [addonMap, setAddonMap] = useState<Record<string, string>>({}) // ID -> Name
-    const [addonPrices, setAddonPrices] = useState<Record<string, number>>({}) // ID -> Price
+    // Loading is derived: the request for the current filters hasn't come back yet
+    const [loadedKey, setLoadedKey] = useState<string | null>(null)
+    const [summary, setSummary] = useState<{ gross: number; orders: number; tickets: number; currency: string } | null>(null)
+    const [exporting, setExporting] = useState(false)
+    const [selected, setSelected] = useState<Sale | null>(null)
 
-    // Modal State
-    const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
-    const [isDetailOpen, setIsDetailOpen] = useState(false)
+    // Debounce the search box
+    useEffect(() => {
+        const timer = setTimeout(() => { setSearch(query.trim()); setPage(0) }, 300)
+        return () => clearTimeout(timer)
+    }, [query])
 
     useEffect(() => {
-        fetchSales()
-    }, [page, orgId])
+        supabase.schema('gatepass').from('events').select('id, title').eq('organization_id', orgId).order('starts_at', { ascending: false })
+            .then(({ data }) => setEvents(data ?? []))
+    }, [supabase, orgId])
 
-
-
-
-    const fetchSales = async () => {
-        setLoading(true)
-        try {
-            const start = page * ITEMS_PER_PAGE
-            const end = start + ITEMS_PER_PAGE - 1
-
-            const { data, error, count: totalCount } = await supabase
-                .schema('gatepass')
-                .from('transactions')
-                .select(`
-                    id,
-                    created_at,
-                    amount,
-                    currency,
-                    status,
-                    metadata,
-                    reservation_id,
-                    platform_fee,
-                    applied_processor_fee,
-                    applied_fee_rate, 
-                    applied_processor_rate,
-                    reservations!inner (
-                        quantity,
-                        guest_name,
-                        guest_email,
-                        profiles ( full_name, email ),
-                        ticket_tiers ( name, price ),
-                        events!inner ( 
-                            title, 
-                            organization_id, 
-                            fee_bearer, 
-                            platform_fee_percent,
-                            organizers ( platform_fee_percent ) 
-                        ),
-                        discounts ( type, value, code ),
-                        addons
-                    )
-                `, { count: 'exact' })
-                .eq('status', 'success')
-                .eq('reservations.events.organization_id', orgId)
-                .order('created_at', { ascending: false })
-                .range(start, end)
-
-            if (error) throw error
-
-            setSales(data || [])
-            setCount(totalCount || 0)
-
-            // Valid Sales with Addons
-            const addonIds = new Set<string>()
-            try {
-                data?.forEach((sale: any) => {
-                    const addons = sale.reservations?.addons
-                    if (addons && typeof addons === 'object') {
-                        Object.keys(addons).forEach(id => addonIds.add(id))
-                    }
-                })
-
-                if (addonIds.size > 0) {
-                    const { data: addonsData } = await supabase
-                        .schema('gatepass')
-                        .from('event_addons')
-                        .select('id, name, price')
-                        .in('id', Array.from(addonIds))
-
-                    if (addonsData) {
-                        const map: Record<string, string> = {}
-                        const prices: Record<string, number> = {}
-                        addonsData.forEach((a: any) => {
-                            map[a.id] = a.name
-                            prices[a.id] = a.price
-                        })
-                        setAddonMap(map)
-                        setAddonPrices(prices)
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to fetch addon details:', err)
-                // Do not fail the whole request, just show IDs or 'Add-on'
-            }
-
-        } catch (error) {
-            console.error('Error fetching sales:', error)
-            toast.error('Failed to load sales history')
-        } finally {
-            setLoading(false)
+    /** The same filters for the table, the summary and the export. */
+    const buildQuery = useCallback((select: string, options?: { count?: 'exact' }) => {
+        let q = supabase
+            .schema('gatepass')
+            .from('transactions')
+            .select(select, options)
+            .eq('status', 'success')
+            .eq('reservations.events.organization_id', orgId)
+        if (eventId !== 'all') q = q.eq('reservations.event_id', eventId)
+        const days = RANGES.find(r => r.id === range)!.days
+        if (days) q = q.gte('created_at', new Date(Date.now() - days * 86_400_000).toISOString())
+        if (search) {
+            const term = search.replace(/[%,()]/g, ' ')
+            q = q.or(`guest_name.ilike.%${term}%,guest_email.ilike.%${term}%`, { referencedTable: 'reservations' })
         }
+        return q
+    }, [supabase, orgId, eventId, range, search])
+
+    const SALE_FIELDS = `
+        id, created_at, amount, currency, channel, metadata,
+        platform_fee, applied_processor_fee, applied_fee_rate, applied_processor_rate, reservation_id,
+        reservations!inner (
+            quantity, guest_name, guest_email, addons,
+            profiles ( full_name, email ),
+            ticket_tiers ( name, price ),
+            discounts ( type, value, code ),
+            events!inner ( id, title, organization_id, fee_bearer )
+        )`
+
+    const requestKey = JSON.stringify({ eventId, range, search, page })
+    const loading = loadedKey !== requestKey
+
+    useEffect(() => {
+        let active = true
+        const start = page * PAGE_SIZE
+        Promise.all([
+            buildQuery(SALE_FIELDS, { count: 'exact' }).order('created_at', { ascending: false }).range(start, start + PAGE_SIZE - 1),
+            buildQuery('amount, currency, reservations!inner ( quantity, guest_name, guest_email, event_id, events!inner ( organization_id ) )'),
+        ]).then(([list, totals]) => {
+            if (!active) return
+            if (list.error) {
+                toast.error('Could not load sales')
+                console.error(list.error)
+            } else {
+                setSales((list.data ?? []) as unknown as Sale[])
+                setCount(list.count ?? 0)
+            }
+            const rows = (totals.data ?? []) as unknown as { amount: number; currency: string; reservations: { quantity: number | null } }[]
+            setSummary({
+                gross: rows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+                orders: rows.length,
+                tickets: rows.reduce((sum, r) => sum + (r.reservations?.quantity || 1), 0),
+                currency: rows[0]?.currency || 'GHS',
+            })
+            setLoadedKey(requestKey)
+        })
+        return () => { active = false }
+    }, [buildQuery, page, SALE_FIELDS, requestKey])
+
+    const handleExport = async () => {
+        setExporting(true)
+        const { data, error } = await buildQuery(SALE_FIELDS).order('created_at', { ascending: false }).limit(5000)
+        setExporting(false)
+        if (error) { toast.error('Export failed'); return }
+        const rows = (data ?? []) as unknown as Sale[]
+        const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
+        const csv = [
+            ['Date', 'Buyer', 'Email', 'Event', 'Ticket', 'Quantity', 'Amount', 'Currency', 'Paid via'].join(','),
+            ...rows.map(s => [
+                s.created_at, buyerName(s), buyerEmail(s), s.reservations.events?.title ?? '', s.reservations.ticket_tiers?.name ?? '',
+                s.reservations.quantity ?? 1, s.amount, s.currency, providerName(s),
+            ].map(escape).join(',')),
+        ].join('\n')
+        downloadCSV(csv, `gatepass-sales-${new Date().toISOString().slice(0, 10)}.csv`)
     }
 
-    const totalPages = Math.ceil(count / ITEMS_PER_PAGE)
+    const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
+    const filtersActive = eventId !== 'all' || range !== 'all' || !!search
 
     return (
-        <div className="space-y-7 pb-16">
-            <div>
+        <div className="space-y-10 pb-16">
+            <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
-                    <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Sales</h1>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Review ticket purchases and open a transaction for details.</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                    <h1 className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[44px]">Sales</h1>
+                    <p className="mt-3 max-w-xl text-[15px] text-gray-500 dark:text-gray-400">Every completed purchase. Money is paid straight into your own payment account.</p>
                 </div>
-            </div>
+                <SecondaryButton type="button" onClick={handleExport} loading={exporting} disabled={count === 0} className="self-start sm:self-auto">
+                    {!exporting && <Download className="size-4" aria-hidden="true" />} Export CSV
+                </SecondaryButton>
+            </header>
 
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
-                <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
-                    <div>
-                        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Transactions</h2>
-                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{count} completed sale{count === 1 ? '' : 's'}</p>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-gray-200 bg-gray-200 dark:border-white/10 dark:bg-white/10 lg:grid-cols-4">
+                {[
+                    { label: 'Gross sales', value: summary ? formatCurrency(summary.gross, summary.currency) : '…' },
+                    { label: 'Orders', value: summary ? summary.orders.toLocaleString() : '…' },
+                    { label: 'Tickets', value: summary ? summary.tickets.toLocaleString() : '…' },
+                    { label: 'Average order', value: summary ? formatCurrency(summary.orders ? summary.gross / summary.orders : 0, summary.currency) : '…' },
+                ].map(stat => (
+                    <div key={stat.label} className="bg-white p-5 dark:bg-[#0b0b0b] sm:p-6">
+                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">{stat.label}</dt>
+                        <dd className="mt-3 truncate text-[26px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-gray-950 dark:text-white sm:text-[32px]">{stat.value}</dd>
                     </div>
-                </div>
-                <div className="divide-y divide-gray-100 sm:hidden dark:divide-white/10">
-                    {loading && sales.length === 0 ? (
-                        <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>
-                    ) : sales.length === 0 ? (
-                        <div className="px-5 py-16 text-center"><p className="font-medium text-gray-900 dark:text-white">No sales yet</p><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Completed purchases will appear here.</p></div>
-                    ) : sales.map(sale => {
-                        const reservation = sale.reservations
-                        return (
+                ))}
+            </dl>
+
+            <div className="space-y-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div role="tablist" aria-label="Date range" className="-mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+                        {RANGES.map(r => (
                             <button
-                                key={sale.id}
+                                key={r.id}
                                 type="button"
-                                onClick={() => { setSelectedTransaction(sale); setIsDetailOpen(true) }}
-                                className="w-full px-5 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
+                                role="tab"
+                                aria-selected={range === r.id}
+                                onClick={() => { setRange(r.id); setPage(0) }}
+                                className={`inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors ${range === r.id
+                                    ? 'bg-gray-950 text-white dark:bg-white dark:text-black'
+                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white'}`}
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{reservation?.profiles?.full_name || reservation?.guest_name || 'Guest'}</p>
-                                        <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{reservation?.events?.title} · {reservation?.ticket_tiers?.name}</p>
-                                    </div>
-                                    <div className="shrink-0 text-right">
-                                        <p className="text-[11px] text-gray-500 dark:text-gray-400">Paid</p>
-                                        <p className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{formatCurrency(sale.amount, sale.currency)}</p>
-                                    </div>
-                                </div>
-                                <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                                    <span>{formatDateTime(sale.created_at)}</span>
-                                    <span>View details →</span>
-                                </div>
+                                {r.label}
                             </button>
-                        )
-                    })}
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="hidden min-w-[760px] w-full text-left text-sm sm:table">
-                        <thead className="border-b border-gray-100 bg-gray-50/70 text-xs font-medium text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
-                            <tr>
-                                <th className="px-6 py-4">Date</th>
-                                <th className="px-6 py-4">Guest</th>
-                                <th className="px-6 py-4">Event & Ticket</th>
-                                <th className="hidden px-6 py-4 xl:table-cell">Add-ons</th>
-                                <th className="px-6 py-4 text-center">Qty</th>
-                                <th className="px-6 py-4 text-right">Net Earnings</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                            {loading && sales.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-24 text-center">
-                                        <div className="flex justify-center">
-                                            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : sales.length > 0 ? (
-                                sales.map((sale) => {
-                                    const r = sale.reservations
-                                    const event = r?.events
-                                    const organizer = event?.organizers
-                                    const tier = r?.ticket_tiers
-                                    const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
-
-                                    const price = tier?.price || 0
-                                    const quantity = r?.quantity || 1
-
-                                    // 1. Calculate Discount
-                                    let discountAmount = 0
-                                    if (discount) {
-                                        if (discount.type === 'percentage') {
-                                            discountAmount = (price * quantity) * (discount.value / 100)
-                                        } else {
-                                            discountAmount = discount.value
-                                        }
-                                    }
-
-                                    // 2. Subtotal (Net of Discount)
-                                    const ticketRevenueNet = Math.max(0, (price * quantity) - discountAmount)
-
-                                    // 3. Detect instalment and fee bearer
-                                    const isInstalment = sale.metadata?.payment_type === 'instalment' ||
-                                        sale.metadata?.metadata?.payment_type === 'instalment'
-                                    const feeBearer = event?.fee_bearer || 'customer'
-
-                                    // 4. Fee Logic
-                                    const purchasedAddons = r.addons || {}
-                                    let addonRevenue = 0
-                                    if (typeof purchasedAddons === 'object') {
-                                        Object.entries(purchasedAddons).forEach(([id, qty]) => {
-                                            const p = addonPrices[id] || 0
-                                            addonRevenue += p * (qty as number)
-                                        })
-                                    }
-
-                                    // A stored 0 is a GatePass-era sale with no per-ticket fee; only missing rates fall back
-                                    const usedPlatformRate = sale.applied_fee_rate ?? 0.04
-
-                                    // Normalize old 2% rate to current 1.95%
-                                    const storedProcessorRate = sale.applied_processor_rate
-                                    const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
-                                        ? 0.0195
-                                        : storedProcessorRate
-
-                                    // Platform fee: use stored value, or calculate proportionally for instalments
-                                    let finalPlatformFee = sale.platform_fee
-                                    if (finalPlatformFee == null || finalPlatformFee === 0) {
-                                        finalPlatformFee = isInstalment
-                                            ? sale.amount * usedPlatformRate  // Proportional to instalment amount
-                                            : ticketRevenueNet * usedPlatformRate  // Standard: % of ticket revenue
-                                    }
-
-                                    const finalProcessorFee = (sale.applied_processor_fee != null)
-                                        ? sale.applied_processor_fee
-                                        : sale.amount * processorRate
-
-                                    // Payout: When customer bears fees, processor fee is NOT deducted from organizer
-                                    // (Paystack charges it to the platform account via bearer:'account')
-                                    const organizerPayout = feeBearer === 'customer'
-                                        ? sale.amount - finalPlatformFee  // Customer bears: organizer only pays platform fee
-                                        : sale.amount - finalPlatformFee - finalProcessorFee  // Organizer bears: pays both
-
-                                    // purchasedAddons already defined above
-                                    const visibleAddons = Object.entries(purchasedAddons).filter(([, qty]) => Number(qty) > 0)
-                                    const hasAddons = visibleAddons.length > 0
-
-                                    return (
-                                        <tr
-                                            key={sale.id}
-                                            tabIndex={0}
-                                            role="button"
-                                            aria-label={`Open transaction for ${r?.profiles?.full_name || r?.guest_name || 'Guest'}`}
-                                            onClick={() => {
-                                                setSelectedTransaction(sale)
-                                                setIsDetailOpen(true)
-                                            }}
-                                            onKeyDown={(event) => {
-                                                if (event.key === 'Enter' || event.key === ' ') {
-                                                    event.preventDefault()
-                                                    setSelectedTransaction(sale)
-                                                    setIsDetailOpen(true)
-                                                }
-                                            }}
-                                            className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group cursor-pointer"
-                                        >
-                                            <td className="px-6 py-4 font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                                                {formatDateTime(sale.created_at)}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 flex items-center justify-center text-xs font-bold">
-                                                        {r?.profiles?.full_name?.charAt(0) || r?.guest_name?.charAt(0) || 'G'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900 dark:text-white">{r?.profiles?.full_name || r?.guest_name || 'Guest'}</p>
-                                                        <p className="text-gray-500 dark:text-gray-400 text-xs">{r?.profiles?.email || r?.guest_email}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium text-gray-900 dark:text-white">{event?.title}</span>
-                                                    <span className="text-gray-500 dark:text-gray-400 text-xs">{tier?.name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="hidden px-6 py-4 xl:table-cell">
-                                                {hasAddons ? (
-                                                    <div className="space-y-1">
-                                                        {visibleAddons.map(([id, qty]) => (
-                                                            <div key={id} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
-                                                                <span className="font-medium bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{qty as number}x</span>
-                                                                <span>{addonMap[id] || 'Add-on'}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-gray-400 text-xs">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 font-medium">
-                                                {quantity}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
-                                                    {formatCurrency(organizerPayout, sale.currency)}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    )
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-24 text-center text-gray-400">
-                                        <div className="font-medium text-gray-900 dark:text-white">No sales yet</div>
-                                        <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Completed ticket purchases will appear here.</div>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-                {count > 0 && (
-                    <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/10">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Showing <span className="font-medium">{Math.min(count, page * ITEMS_PER_PAGE + 1)}</span> to <span className="font-medium">{Math.min(count, (page + 1) * ITEMS_PER_PAGE)}</span> of <span className="font-medium">{count}</span> results
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setPage(p => Math.max(0, p - 1))}
-                                disabled={page === 0}
-                                className="p-2 rounded-lg border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                                disabled={page >= totalPages - 1}
-                                className="p-2 rounded-lg border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
+                        ))}
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label htmlFor="sales-event" className="sr-only">Event</label>
+                        <select
+                            id="sales-event"
+                            value={eventId}
+                            onChange={e => { setEventId(e.target.value); setPage(0) }}
+                            className="h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-950 outline-none focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white sm:max-w-[220px]"
+                        >
+                            <option value="all">All events</option>
+                            {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                        </select>
+                        <div className="relative sm:w-64">
+                            <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                            <input
+                                type="search"
+                                aria-label="Search buyers"
+                                placeholder="Search buyer name or email"
+                                value={query}
+                                onChange={e => setQuery(e.target.value)}
+                                className="h-10 w-full rounded-full border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-950 outline-none focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-white/50"
+                            />
                         </div>
                     </div>
-                )}
+                </div>
+
+                <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]" aria-busy={loading}>
+                    {loading && sales.length === 0 ? (
+                        <div className="flex h-48 items-center justify-center"><Loader2 className="size-5 animate-spin text-gray-400" aria-label="Loading sales" /></div>
+                    ) : sales.length === 0 ? (
+                        <div className="px-6 py-16 text-center">
+                            <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{filtersActive ? 'No sales match these filters' : 'No sales yet'}</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{filtersActive ? 'Try a longer date range or another event.' : 'Completed purchases appear here.'}</p>
+                        </div>
+                    ) : (
+                        <ul className={`divide-y divide-gray-100 dark:divide-white/10 ${loading ? 'opacity-60' : ''}`}>
+                            {sales.map(sale => {
+                                const r = sale.reservations
+                                const addonCount = Object.values(r.addons ?? {}).reduce((sum, qty) => sum + Number(qty || 0), 0)
+                                return (
+                                    <li key={sale.id}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelected(sale)}
+                                            className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03] sm:px-6"
+                                        >
+                                            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                                                {buyerName(sale).charAt(0).toUpperCase()}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-medium text-gray-950 dark:text-white">{buyerName(sale)}</span>
+                                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                                                    {r.events?.title} · {r.quantity ?? 1} × {r.ticket_tiers?.name ?? 'Ticket'}{addonCount ? ` · ${addonCount} add-on${addonCount === 1 ? '' : 's'}` : ''}
+                                                </span>
+                                            </span>
+                                            <span className="hidden w-40 text-sm text-gray-500 dark:text-gray-400 md:block">{formatDateTime(sale.created_at)}</span>
+                                            <span className="hidden w-24 lg:block">
+                                                <span className="inline-flex rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">{providerName(sale)}</span>
+                                            </span>
+                                            <span className="w-28 text-right text-sm font-semibold tabular-nums text-gray-950 dark:text-white">{formatCurrency(sale.amount, sale.currency)}</span>
+                                        </button>
+                                    </li>
+                                )
+                            })}
+                        </ul>
+                    )}
+
+                    {count > PAGE_SIZE && (
+                        <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 dark:border-white/10 sm:px-6">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {page * PAGE_SIZE + 1}–{Math.min(count, (page + 1) * PAGE_SIZE)} of {count.toLocaleString()}
+                            </p>
+                            <div className="flex gap-1">
+                                <button type="button" aria-label="Previous page" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="flex size-9 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
+                                    <ChevronLeft className="size-4" />
+                                </button>
+                                <button type="button" aria-label="Next page" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="flex size-9 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
+                                    <ChevronRight className="size-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <TransactionDetailModal
-                isOpen={isDetailOpen}
-                onClose={() => setIsDetailOpen(false)}
-                transaction={selectedTransaction}
-                eventFeeBearer={selectedTransaction?.reservations?.events?.fee_bearer}
+                isOpen={!!selected}
+                onClose={() => setSelected(null)}
+                transaction={selected}
+                eventFeeBearer={selected?.reservations?.events?.fee_bearer ?? undefined}
             />
         </div>
     )
