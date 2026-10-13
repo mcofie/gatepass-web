@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function EmbedPage({ params, searchParams }: PageProps) {
     const supabase = await createClient()
     const { slug } = await params
-    const { theme } = await searchParams
+    const { theme, autosize } = await searchParams
     const embedTheme = theme === 'dark' ? 'dark' : 'light'
 
     const { data: event } = await supabase
@@ -63,7 +63,7 @@ export default async function EmbedPage({ params, searchParams }: PageProps) {
     return (
         <>
             <EmbedTheme theme={embedTheme} />
-            <div className="min-h-[100dvh] bg-white dark:bg-zinc-900">
+            <div className={autosize === '1' ? 'bg-white dark:bg-zinc-900' : 'min-h-[100dvh] bg-white dark:bg-zinc-900'}>
             <EventDetailClient
                 variant="embed"
                 event={event as Event}

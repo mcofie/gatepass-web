@@ -47,8 +47,18 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     const supabase = createClient()
     const isEmbed = variant === 'embed'
     // Embeds can open straight on ticket selection: ?view=tickets or ?hideDetails=true
+    // ?view=tickets (and the embed's legacy ?hideDetails=true) open straight on ticket selection
     const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>(() =>
-        isEmbed && (searchParams.get('view') === 'tickets' || searchParams.get('hideDetails') === 'true') ? 'tickets' : 'details')
+        searchParams.get('view') === 'tickets' || (isEmbed && searchParams.get('hideDetails') === 'true') ? 'tickets' : 'details')
+    // Set by embed.js: the host resizes the iframe to fit, so the widget sizes to its content
+    const autosize = isEmbed && searchParams.get('autosize') === '1'
+    const cardRef = React.useRef<HTMLDivElement>(null)
+
+    /** Tells the page hosting an embed what happened (embed.js turns these into DOM events). */
+    const emitToHost = React.useCallback((type: string, detail: Record<string, unknown> = {}) => {
+        if (!isEmbed || typeof window === 'undefined' || window.parent === window) return
+        window.parent.postMessage({ source: 'gatepass', type, event: event.slug || event.id, ...detail }, '*')
+    }, [isEmbed, event.slug, event.id])
     const [paymentMode, setPaymentMode] = useState<'full' | 'instalment'>('full')
     const [activePaymentPlan, setActivePaymentPlan] = useState<PaymentPlan | null>(null)
 
@@ -216,6 +226,20 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             return changed ? next : prev
         })
     }, [selectedTickets, availableAddons])
+
+    useEffect(() => {
+        if (!autosize || !cardRef.current) return
+        const report = () => emitToHost('resize', { height: Math.ceil(cardRef.current!.getBoundingClientRect().height) })
+        const observer = new ResizeObserver(report)
+        observer.observe(cardRef.current)
+        report()
+        return () => observer.disconnect()
+    }, [autosize, emitToHost])
+
+    useEffect(() => {
+        emitToHost('view', { view })
+        if (view === 'success') emitToHost('purchase_completed', { tickets: purchasedTickets.length })
+    }, [view, emitToHost, purchasedTickets.length])
 
     // Mobile Expansion State (an embed is always open)
     const [isExpanded, setIsExpanded] = useState(isEmbed)
@@ -548,6 +572,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         setLoading(true)
         const primaryTierId = reservations[0].ticket_tier_id
         const selectedTier = tiers.find(t => t.id === primaryTierId)
+        emitToHost('checkout_started', { amount: totalDue, currency: selectedTier?.currency || 'GHS', tickets: reservations.reduce((n, r) => n + (r.quantity || 1), 0) })
 
         try {
             // Check Sync for Discounts (Simple Loop)
@@ -562,6 +587,21 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         })
                     }
                 }
+            }
+
+            // Nothing to pay (free tickets or a 100% promo): issue the tickets directly
+            if (totalDue <= 0) {
+                const response = await fetch('/api/payments/free', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reservationIds: reservations.map(r => r.id) })
+                })
+                const result = await response.json()
+                if (!response.ok || !result.success) throw new Error(result.error || 'Could not confirm your tickets')
+                setPurchasedTickets(result.tickets || [])
+                setLoading(false)
+                navigate('success', 'forward')
+                return
             }
 
             // Call Initialize API (Gateway-agnostic)
@@ -739,11 +779,12 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
             {/* Floating Card / Modal Container */}
             <motion.div
+                ref={cardRef}
                 layoutId={layoutId}
                 onClick={expandCard}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={isEmbed
-                    ? `relative mx-auto flex min-h-[100dvh] w-full max-w-[520px] flex-col bg-white p-4 font-sans text-black select-none dark:bg-zinc-900 dark:text-white ${view === 'summary' ? 'max-h-[100dvh] overflow-hidden' : ''}`
+                    ? `relative mx-auto flex w-full max-w-[520px] flex-col bg-white p-4 font-sans text-black select-none dark:bg-zinc-900 dark:text-white ${autosize ? '' : `min-h-[100dvh] ${view === 'summary' ? 'max-h-[100dvh] overflow-hidden' : ''}`}`
                     : `
                 ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl ${(view === 'details' || view === 'success') ? 'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]' : ''} font-sans select-none
                 bottom-4 left-4 right-4 

@@ -188,3 +188,29 @@ export async function fetchConfirmedTransaction(reference: string): Promise<Norm
     if (confirmation.status !== 'success') throw new PaymentProviderError(confirmation.message)
     return confirmation.transaction
 }
+
+/**
+ * Issues tickets for an order the server prices at zero (free tickets, or a 100% promo code).
+ * No provider is involved, so the transaction is recorded as a GatePass "free" one.
+ */
+export async function completeFreeOrder(reservationIds: string[]): Promise<{ reference: string; transaction: NormalizedTransaction }> {
+    const price = await priceCheckout(reservationIds, {})
+    if (price.amountMinor !== 0) throw new PaymentProviderError('This order has a balance to pay')
+
+    const reference = `gpfree${randomBytes(12).toString('hex')}`
+    return {
+        reference,
+        transaction: {
+            status: 'success',
+            reference,
+            amount: 0,
+            currency: price.currency,
+            channel: 'free',
+            paid_at: new Date().toISOString(),
+            provider: 'free',
+            provider_reference: null,
+            customer: { email: null },
+            metadata: { reservation_ids: reservationIds, payment_type: 'free' },
+        },
+    }
+}
