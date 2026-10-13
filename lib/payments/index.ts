@@ -105,6 +105,7 @@ export async function startCheckout(input: {
     })
     if (error) throw new Error(error.message)
 
+    // If the provider refuses, close the session so it isn't left pending forever
     const result = await getAdapter(integration.provider).createCheckout(integration, {
         reference,
         amountMinor: price.amountMinor,
@@ -115,6 +116,9 @@ export async function startCheckout(input: {
         returnUrl: returnUrl.toString(),
         webhookUrl: webhookUrlFor(integration.provider, integration.id, integration.webhookToken),
         metadata: { ...metadata, reference, reservation_ids: input.reservationIds },
+    }).catch(async (providerError: unknown) => {
+        await sessions().update({ status: 'failed' }).eq('reference', reference).eq('status', 'pending')
+        throw providerError
     })
 
     if (result.providerReference) {

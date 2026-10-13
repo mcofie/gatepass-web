@@ -15,6 +15,14 @@ async function accessToken(integration: ResolvedIntegration): Promise<string> {
     return data.access_token
 }
 
+// Daraja issues a token for any app, but rejects it on STK endpoints unless the app has M-Pesa Express enabled
+export const MPESA_EXPRESS_NOT_ENABLED = 'Safaricom didn’t allow M-Pesa Express for these keys. In the Daraja portal, add the M-Pesa Express (Lipa na M-Pesa) product to your app, then paste its consumer key and secret into GatePass again.'
+
+function darajaError(data: { errorCode?: string; errorMessage?: string; ResponseDescription?: string }, fallback: string) {
+    if (data.errorCode === '404.001.03') return MPESA_EXPRESS_NOT_ENABLED
+    return data.errorMessage || data.ResponseDescription || fallback
+}
+
 /** Daraja wants yyyyMMddHHmmss in Kenyan time and base64(shortcode + passkey + timestamp). */
 function stkPassword(integration: ResolvedIntegration) {
     const eat = new Date(Date.now() + 3 * 60 * 60 * 1000)
@@ -57,7 +65,7 @@ export const mpesa: PaymentAdapter = {
             }),
         })
         const data = await readJson(response)
-        if (!response.ok || data.ResponseCode !== '0') throw new PaymentProviderError(data.errorMessage || data.ResponseDescription || 'M-Pesa could not send the payment prompt')
+        if (!response.ok || data.ResponseCode !== '0') throw new PaymentProviderError(darajaError(data, 'M-Pesa could not send the payment prompt'))
         // No hosted page: the buyer approves on their phone and our /pay page polls for the result
         return { providerReference: data.CheckoutRequestID }
     },
@@ -89,7 +97,7 @@ export const mpesa: PaymentAdapter = {
         }
         // Still waiting for the buyer: Daraja answers with an error until the prompt resolves
         if (!response.ok && String(data.errorCode ?? '').startsWith('500.001')) return { ...base, status: 'pending', paid_at: null }
-        if (!response.ok) throw new PaymentProviderError(data.errorMessage || 'M-Pesa status check failed')
+        if (!response.ok) throw new PaymentProviderError(darajaError(data, 'M-Pesa status check failed'))
 
         const code = String(data.ResultCode)
         return {
