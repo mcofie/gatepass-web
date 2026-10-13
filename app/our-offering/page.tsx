@@ -1,18 +1,8 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import {
-    ArrowRight,
-    ArrowUpRight,
-    BarChart3,
-    Check,
-    ChevronRight,
-    CirclePlay,
-    CreditCard,
-    ScanLine,
-    Ticket,
-    Users,
-} from 'lucide-react'
+import Image from 'next/image'
+import { ArrowRight, ArrowUpRight, Check, Lock } from 'lucide-react'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 import { OfferingReveal } from './OfferingReveal'
 import { getActivePricingTiers } from '@/lib/public-data'
@@ -21,30 +11,70 @@ import styles from './offering.module.css'
 
 export const metadata: Metadata = {
     title: 'For Organizers',
-    description: 'Bring your event to life with video-led discovery, flexible ticket payments, and tools for every moment from launch to last scan.',
+    description: 'Sell tickets through your own payment account. 0% per ticket, one flat fee per event. Event pages, embeds, SDKs and AI assistants, all from one place.',
 }
 
-const primaryLink = 'group inline-flex h-11 items-center justify-center gap-3 rounded-full bg-black px-6 text-[13px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-[#333] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-[#e7e7e7] dark:focus-visible:ring-white dark:focus-visible:ring-offset-black'
+const PAYMENT_BRANDS = [
+    { id: 'stripe', name: 'Stripe' },
+    { id: 'paystack', name: 'Paystack' },
+    { id: 'flutterwave', name: 'Flutterwave' },
+    { id: 'hubtel', name: 'Hubtel' },
+    { id: 'mpesa', name: 'M-Pesa' },
+    { id: 'wave', name: 'Wave' },
+]
 
-function FeatureCard({ number, title, description, children }: {
+const MESSAGING_BRANDS = [
+    { id: 'twilio', name: 'Twilio' },
+    { id: 'clicksend', name: 'ClickSend' },
+    { id: 'zend', name: 'Zend' },
+    { id: 'hubtel', name: 'Hubtel' },
+    { id: 'meta', name: 'Meta Pixel' },
+    { id: 'ga4', name: 'Google Analytics' },
+]
+
+const primaryLink = 'group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-black px-7 text-[14px] font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-[#333] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-[#e7e7e7] dark:focus-visible:ring-white dark:focus-visible:ring-offset-black'
+const invertedLink = 'group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-7 text-[14px] font-semibold text-black transition-[background-color,transform] duration-200 hover:bg-[#e7e7e7] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white'
+
+function Chapter({ number, label, title, children, dark = false, id }: {
     number: string
-    title: string
-    description: string
+    label: string
+    title: ReactNode
     children: ReactNode
+    dark?: boolean
+    id?: string
 }) {
     return (
-        <OfferingReveal className="min-w-0">
-            <div className="relative flex h-[270px] items-center justify-center overflow-hidden rounded-[18px] border border-black/[0.04] bg-[#f4f4f4] transition-colors duration-300 dark:border-white/10 dark:bg-[#1b1b1b] sm:h-[310px]">
+        <section id={id} className={`scroll-mt-16 px-5 py-24 sm:px-8 sm:py-32 lg:px-12 ${dark ? 'bg-black text-white' : ''}`}>
+            <div className="mx-auto max-w-[1280px]">
+                <OfferingReveal>
+                    <p className={`flex items-center gap-3 text-[13px] font-medium tabular-nums ${dark ? 'text-white/50' : 'text-[#777] dark:text-[#999]'}`}>
+                        <span>{number}</span>
+                        <span className={`h-px w-8 ${dark ? 'bg-white/30' : 'bg-black/20 dark:bg-white/25'}`} />
+                        <span>{label}</span>
+                    </p>
+                    <h2 className="mt-6 max-w-[920px] text-[clamp(2.6rem,6.4vw,6rem)] font-semibold leading-[0.98] tracking-[-0.065em] text-balance">{title}</h2>
+                </OfferingReveal>
                 {children}
             </div>
-            <div className="mt-5 flex items-start gap-5 border-t border-black/10 pt-5 dark:border-white/15">
-                <span className="pt-1 text-[11px] font-medium tabular-nums text-[#888] dark:text-[#999]">{number}</span>
-                <div>
-                    <h3 className="text-[22px] font-semibold tracking-[-0.035em] sm:text-[24px]">{title}</h3>
-                    <p className="mt-2 max-w-[360px] text-[14px] leading-[1.6] text-[#666] dark:text-[#aaa]">{description}</p>
-                </div>
-            </div>
-        </OfferingReveal>
+        </section>
+    )
+}
+
+function BrandTile({ id, name, dark = false }: { id: string; name: string; dark?: boolean }) {
+    return (
+        <div className={`flex items-center gap-3 rounded-3xl border p-4 sm:p-5 ${dark ? 'border-white/10 bg-white/[0.04]' : 'border-black/[0.07] bg-[#f6f6f6] dark:border-white/10 dark:bg-white/[0.04]'}`}>
+            <Image src={`/brands/${id}.png`} alt="" width={40} height={40} className="size-10 rounded-xl bg-white object-contain" />
+            <span className="text-[15px] font-semibold tracking-[-0.02em]">{name}</span>
+        </div>
+    )
+}
+
+function Point({ title, children, dark = false }: { title: string; children: ReactNode; dark?: boolean }) {
+    return (
+        <div className={`border-t pt-5 ${dark ? 'border-white/15' : 'border-black/10 dark:border-white/15'}`}>
+            <h3 className="text-[17px] font-semibold tracking-[-0.02em]">{title}</h3>
+            <p className={`mt-2 text-[14px] leading-[1.6] ${dark ? 'text-white/55' : 'text-[#666] dark:text-[#aaa]'}`}>{children}</p>
+        </div>
     )
 }
 
@@ -53,197 +83,184 @@ export default async function OurOfferingPage() {
 
     return (
         <div className="overflow-x-clip bg-white text-[#0d0d0d] dark:bg-[#0a0a0a] dark:text-white">
-            <header className="sticky top-0 z-40 border-b border-black/[0.07] bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-[#0a0a0a]/95">
-                <div className="mx-auto flex h-[68px] max-w-[1440px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
-                    <Link href="/" className="inline-flex shrink-0 items-center gap-2 text-[16px] font-semibold tracking-[-0.035em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white">
-                        <GatePassMark className="size-6" />
+            <header className="sticky top-0 z-40 border-b border-white/10 bg-black/90 text-white backdrop-blur-xl">
+                <div className="mx-auto flex h-[64px] max-w-[1440px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
+                    <Link href="/" className="inline-flex shrink-0 items-center gap-2 text-[16px] font-semibold tracking-[-0.035em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                        <GatePassMark className="size-6 invert" invertOnDark={false} />
                         GatePass
-                        <span className="ml-2 hidden border-l border-black/15 pl-3 text-[12px] font-normal tracking-normal text-[#777] dark:border-white/20 dark:text-[#aaa] sm:inline">For organizers</span>
+                        <span className="ml-2 hidden border-l border-white/20 pl-3 text-[12px] font-normal tracking-normal text-white/55 sm:inline">For organizers</span>
                     </Link>
-                    <nav aria-label="Page sections" className="hidden items-center gap-7 text-[12px] font-medium text-[#666] dark:text-[#aaa] md:flex">
-                        <a href="#platform" className="transition-colors hover:text-black focus-visible:outline-none focus-visible:underline dark:hover:text-white">Platform</a>
-                        <a href="#workflow" className="transition-colors hover:text-black focus-visible:outline-none focus-visible:underline dark:hover:text-white">How it works</a>
-                        <a href="#pricing" className="transition-colors hover:text-black focus-visible:outline-none focus-visible:underline dark:hover:text-white">Pricing</a>
+                    <nav aria-label="Page sections" className="hidden items-center gap-7 text-[13px] font-medium text-white/60 md:flex">
+                        <a href="#payments" className="transition-colors hover:text-white">Payments</a>
+                        <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
+                        <a href="#anywhere" className="transition-colors hover:text-white">Sell anywhere</a>
+                        <a href="#guests" className="transition-colors hover:text-white">Guests</a>
                     </nav>
-                    <Link href="/onboarding" className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-black/15 px-4 text-[12px] font-semibold transition-colors hover:bg-black hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-white/25 dark:hover:bg-white dark:hover:text-black dark:focus-visible:ring-white">
+                    <Link href="/onboarding" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-4 text-[13px] font-semibold text-black transition-colors hover:bg-[#e7e7e7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
                         Get started <ArrowUpRight aria-hidden="true" className="size-3.5" />
                     </Link>
                 </div>
             </header>
 
-            <div>
-                <section className="relative mx-auto max-w-[1440px] px-5 pb-12 pt-20 sm:px-8 sm:pt-24 lg:px-12 lg:pt-32">
-                    <div className="relative z-10 mx-auto max-w-[1050px] text-center">
-                        <p className={`${styles.heroEnter} text-[11px] font-semibold uppercase tracking-[0.2em] text-[#777] dark:text-[#aaa]`}>The platform for live experiences</p>
-                        <h1 className={`${styles.heroEnter} ${styles.heroDelayOne} mx-auto mt-6 max-w-[1000px] text-[clamp(3.3rem,9vw,8.4rem)] font-semibold leading-[0.96] tracking-[-0.08em] text-balance`}>
-                            The stage is yours.
+            {/* Hero */}
+            <section className="relative bg-black px-5 pb-20 pt-20 text-white sm:px-8 sm:pt-28 lg:px-12">
+                <div className="mx-auto grid max-w-[1280px] items-center gap-14 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div>
+                        <p className={`${styles.heroEnter} text-[13px] font-medium text-white/55`}>Ticketing for organizers</p>
+                        <h1 className={`${styles.heroEnter} ${styles.heroDelayOne} mt-5 text-[clamp(3.4rem,9.5vw,8.6rem)] font-semibold leading-[0.92] tracking-[-0.075em]`}>
+                            Your events.<br />Your money.
                         </h1>
-                        <p className={`${styles.heroEnter} ${styles.heroDelayTwo} mx-auto mt-7 max-w-[550px] text-[16px] leading-[1.6] text-[#666] dark:text-[#aaa] sm:text-[18px]`}>
-                            Create a page people feel. Sell tickets in a few taps. Run the room with confidence.
+                        <p className={`${styles.heroEnter} ${styles.heroDelayTwo} mt-7 max-w-[520px] text-[17px] leading-[1.6] text-white/60 sm:text-[19px]`}>
+                            Sell tickets through your own payment account. GatePass takes 0% of every ticket, just one flat fee per event.
                         </p>
-                        <div className={`${styles.heroEnter} ${styles.heroDelayThree} mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row`}>
-                            <Link href="/onboarding" className={primaryLink}>
+                        <div className={`${styles.heroEnter} ${styles.heroDelayThree} mt-9 flex flex-col gap-3 sm:flex-row sm:items-center`}>
+                            <Link href="/onboarding" className={invertedLink}>
                                 Create your event <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
                             </Link>
-                            <a href="#platform" className="inline-flex h-11 items-center gap-2 px-3 text-[13px] font-medium text-[#555] transition-colors hover:text-black focus-visible:outline-none focus-visible:underline dark:text-[#bbb] dark:hover:text-white">
-                                Explore the platform <ChevronRight aria-hidden="true" className="size-4" />
+                            <a href="#pricing" className="inline-flex h-12 items-center justify-center rounded-full border border-white/20 px-7 text-[14px] font-semibold transition-colors hover:bg-white/10">
+                                See pricing
                             </a>
                         </div>
                     </div>
 
-                    <div className={`${styles.heroEnter} ${styles.heroDelayFour} pointer-events-none relative mx-auto mt-14 h-[390px] w-full max-w-[760px] sm:mt-16 sm:h-[500px]`} aria-hidden="true">
-                        <div className={`${styles.heroAura} absolute left-1/2 top-1/2 h-[340px] w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ededed] blur-[70px] dark:bg-white/10 sm:h-[540px] sm:w-[540px]`} />
-                        <div className={`${styles.posterFloat} ${styles.posterArt} absolute left-[8%] top-0 flex h-[340px] w-[245px] flex-col overflow-hidden rounded-[22px] border border-white/15 bg-[#171717] p-5 text-white shadow-[0_28px_70px_rgba(0,0,0,0.23)] sm:left-[19%] sm:h-[435px] sm:w-[330px] sm:rounded-[28px] sm:p-7`}>
-                            <div className="relative z-10 flex items-start justify-between text-[9px] font-medium uppercase tracking-[0.17em] text-white/75 sm:text-[11px]">
-                                <span>GatePass presents</span>
-                                <span>01 / 03</span>
-                            </div>
-                            <div className="relative z-10 mt-auto">
-                                <span className="mb-3 block h-px w-10 bg-white/70" />
-                                <p className="text-[36px] font-semibold leading-[0.92] tracking-[-0.075em] sm:text-[54px]">THE NIGHT<br />SESSION</p>
-                                <p className="mt-4 text-[10px] uppercase tracking-[0.15em] text-white/70 sm:text-[11px]">Accra · Live experience</p>
-                            </div>
-                        </div>
-                        <div className={`${styles.ticketFloat} absolute right-[4%] top-[205px] w-[225px] rounded-[16px] border border-[#e7e7e7] bg-white p-4 text-black shadow-[0_22px_60px_rgba(0,0,0,0.16)] dark:border-[#555] sm:right-[11%] sm:top-[250px] sm:w-[310px] sm:rounded-[20px] sm:p-5`}>
-                            <div className="flex items-center justify-between border-b border-dashed border-black/20 pb-4">
-                                <div className="flex items-center gap-2 text-[12px] font-semibold sm:text-[14px]"><GatePassMark className="size-5 sm:size-6" invertOnDark={false} /> GatePass</div>
-                                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#777] sm:text-[10px]">Admit one</span>
-                            </div>
-                            <div className="py-4">
-                                <p className="text-[10px] text-[#777]">Your ticket</p>
-                                <p className="mt-1 text-[17px] font-semibold tracking-[-0.04em] sm:text-[22px]">The Night Session</p>
-                                <p className="mt-1 text-[10px] text-[#777] sm:text-[12px]">General admission · Accra</p>
-                            </div>
-                            <div className="h-7 w-full opacity-80 sm:h-9" style={{ background: 'repeating-linear-gradient(90deg, #111 0 2px, transparent 2px 4px, #111 4px 5px, transparent 5px 9px)' }} />
-                            <p className="mt-2 text-[9px] tracking-[0.2em] text-[#777]">GP — 0001 0426</p>
-                        </div>
-                    </div>
-                    <p className="mt-1 text-center text-[10px] text-[#999]">Illustrative product preview</p>
-
-                    <div className="mx-auto mt-20 grid max-w-[1100px] grid-cols-1 border-y border-black/10 py-5 text-[12px] font-medium text-[#666] dark:border-white/15 dark:text-[#aaa] sm:grid-cols-3 sm:divide-x sm:divide-black/10 sm:py-6 dark:sm:divide-white/15">
-                        <span className="py-2 text-center sm:py-0">Video-led discovery</span>
-                        <span className="py-2 text-center sm:py-0">Flexible ticket payments</span>
-                        <span className="py-2 text-center sm:py-0">Live event operations</span>
-                    </div>
-                </section>
-
-                <section id="platform" className="scroll-mt-20 px-5 py-24 sm:px-8 sm:py-32 lg:px-12">
-                    <div className="mx-auto max-w-[1280px]">
-                        <OfferingReveal className="max-w-[780px]">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#777] dark:text-[#aaa]">One connected platform</p>
-                            <h2 className="mt-5 text-[clamp(2.8rem,6vw,5.8rem)] font-semibold leading-[1.02] tracking-[-0.07em] text-balance">
-                                From first impression to final scan.
-                            </h2>
-                            <p className="mt-6 max-w-[600px] text-[16px] leading-[1.6] text-[#666] dark:text-[#aaa] sm:text-[18px]">
-                                Every step feels connected, for the people planning the event and the people showing up.
-                            </p>
-                        </OfferingReveal>
-
-                        <div className="mt-14 grid gap-12 md:grid-cols-3 md:gap-5">
-                            <FeatureCard number="01" title="Show the experience" description="Lead with video and give people a real feel for what is coming before they book.">
-                                <div aria-hidden="true" className="relative flex h-[230px] w-[160px] flex-col overflow-hidden rounded-[18px] border-[5px] border-[#171717] bg-[#171717] p-3 text-white shadow-[0_15px_35px_rgba(0,0,0,0.2)] sm:h-[265px] sm:w-[185px]">
-                                    <div className={`${styles.miniPoster} absolute inset-0`} />
-                                    <span className="relative z-10 text-[9px] font-medium tracking-[0.16em]">FEATURED EVENT</span>
-                                    <CirclePlay className="relative z-10 m-auto size-10 text-white/90" strokeWidth={1.2} />
-                                    <div className="relative z-10 mt-auto">
-                                        <p className="text-[17px] font-semibold leading-none tracking-[-0.06em]">THE NIGHT<br />SESSION</p>
-                                        <div className="mt-3 h-1.5 w-full rounded-full bg-white/25"><div className="h-full w-2/5 rounded-full bg-white" /></div>
+                    {/* Phone: the checkout guests see */}
+                    <div className={`${styles.heroEnter} ${styles.heroDelayFour} relative mx-auto w-full max-w-[340px]`} aria-hidden="true">
+                        <div className={`${styles.heroAura} absolute inset-0 -z-0 scale-125 rounded-full bg-white/10 blur-[80px]`} />
+                        <div className="relative rounded-[44px] border border-white/15 bg-[#111] p-3 shadow-[0_40px_120px_rgba(0,0,0,0.6)]">
+                            <div className="overflow-hidden rounded-[34px] bg-white text-black">
+                                <div className={`${styles.posterArt} relative h-[190px] p-5 text-white`}>
+                                    <p className="relative z-10 text-[10px] font-medium uppercase tracking-[0.18em] text-white/70">Sat 20 Dec · Accra</p>
+                                    <p className="relative z-10 mt-[86px] text-[30px] font-semibold leading-[0.92] tracking-[-0.07em]">THE NIGHT<br />SESSION</p>
+                                </div>
+                                <div className="space-y-3 p-5">
+                                    <div className="flex items-center justify-between text-[13px]"><span>2 × General admission</span><span className="font-semibold">GH₵240</span></div>
+                                    <div className="flex items-center justify-between text-[13px]"><span className="text-[#777]">GatePass fee</span><span className="font-semibold">GH₵0</span></div>
+                                    <div className="flex items-center justify-between border-t border-black/10 pt-3 text-[15px] font-semibold"><span>Total</span><span>GH₵240</span></div>
+                                    <div className="rounded-full bg-black py-3.5 text-center text-[13px] font-semibold text-white">Pay GH₵240</div>
+                                    <div className="flex items-center justify-center gap-1.5 pt-1 text-[10px] text-[#777]">
+                                        <Lock className="size-3" /> Secure payment by
+                                        <Image src="/brands/paystack.png" alt="" width={14} height={14} className="size-3.5 rounded" />
+                                        <span className="font-semibold text-black">Paystack</span>
                                     </div>
                                 </div>
-                            </FeatureCard>
-
-                            <FeatureCard number="02" title="Make checkout easy" description="Offer clear ticket choices and instalment plans where you enable them.">
-                                <div aria-hidden="true" className="w-[84%] max-w-[300px] rounded-[16px] border border-black/10 bg-white p-4 text-[#111] shadow-[0_16px_38px_rgba(0,0,0,0.08)]">
-                                    <div className="flex items-center justify-between border-b border-black/10 pb-3 text-[10px] font-semibold"><span>Choose your ticket</span><Ticket className="size-4" strokeWidth={1.5} /></div>
-                                    <div className="flex items-center justify-between py-4 text-[12px]"><span>General admission</span><span className="font-semibold">GH₵120</span></div>
-                                    <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-medium"><div className="rounded-[8px] border border-black bg-[#f5f5f5] py-2">Pay in full</div><div className="rounded-[8px] border border-black/10 py-2">Pay in 3</div></div>
-                                    <div className="mt-4 rounded-full bg-black py-2.5 text-center text-[10px] font-semibold text-white">Continue</div>
-                                </div>
-                            </FeatureCard>
-
-                            <FeatureCard number="03" title="Stay in control" description="See sales and check-ins as they happen, with your team working from one place.">
-                                <div aria-hidden="true" className="w-[88%] max-w-[325px] rounded-[16px] border border-white/10 bg-[#171717] p-4 text-white shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
-                                    <div className="flex items-center justify-between border-b border-white/15 pb-3 text-[10px]"><span className="font-semibold">Live monitor</span><span className="flex items-center gap-1.5 text-white/60"><span className="size-1.5 rounded-full bg-white" /> LIVE</span></div>
-                                    <div className="mt-4 flex items-end justify-between"><div><p className="text-[10px] text-white/50">Guests checked in</p><p className="mt-1 text-[30px] font-semibold leading-none tracking-[-0.06em]">824</p></div><ScanLine className="size-5 text-white/60" strokeWidth={1.4} /></div>
-                                    <div className="mt-5 flex h-14 items-end gap-1.5">{[40, 55, 48, 70, 62, 88, 75, 100, 90].map((height, index) => <div key={index} className="flex-1 rounded-t-[2px] bg-white/60" style={{ height: `${height}%` }} />)}</div>
-                                </div>
-                            </FeatureCard>
+                            </div>
                         </div>
                     </div>
-                </section>
+                </div>
 
-                <section id="workflow" className="scroll-mt-16 bg-[#111] px-5 py-24 text-white sm:px-8 sm:py-32 lg:px-12">
-                    <div className="mx-auto grid max-w-[1280px] items-center gap-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
-                        <OfferingReveal>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">Made for the whole journey</p>
-                            <h2 className="mt-5 max-w-[620px] text-[clamp(2.9rem,5.4vw,5.5rem)] font-semibold leading-[1.03] tracking-[-0.07em] text-balance">Make the plan. Fill the room. Own the night.</h2>
-                            <p className="mt-6 max-w-[510px] text-[16px] leading-[1.65] text-white/60">Publish your event, manage every ticket type, and give your team the tools to keep the doors moving.</p>
-                            <Link href="/onboarding" className="group mt-9 inline-flex items-center gap-3 border-b border-white/50 pb-2 text-[13px] font-semibold transition-colors hover:border-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-                                Start organizing <ArrowUpRight aria-hidden="true" className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                            </Link>
-                        </OfferingReveal>
+                <div className="mx-auto mt-20 grid max-w-[1280px] grid-cols-2 gap-y-8 border-t border-white/15 pt-8 sm:grid-cols-4">
+                    {[
+                        ['0%', 'GatePass fee per ticket'],
+                        ['6', 'Payment providers'],
+                        ['1', 'Flat fee per event'],
+                        ['3', 'Ways to sell: page, embed, AI'],
+                    ].map(([value, label]) => (
+                        <div key={label}>
+                            <p className="text-[clamp(2.2rem,4vw,3.4rem)] font-semibold leading-none tracking-[-0.06em]">{value}</p>
+                            <p className="mt-2 text-[13px] text-white/50">{label}</p>
+                        </div>
+                    ))}
+                </div>
+            </section>
 
-                        <OfferingReveal delay={0.1}>
-                            <div aria-hidden="true" className="overflow-hidden rounded-[20px] border border-white/15 bg-[#1b1b1b] shadow-[0_32px_80px_rgba(0,0,0,0.25)]">
-                                <div className="flex h-12 items-center justify-between border-b border-white/10 px-5 text-[11px]"><span className="flex items-center gap-2 font-semibold"><GatePassMark className="size-4 invert" invertOnDark={false} /> GatePass Studio</span><span className="text-white/45">Overview</span></div>
-                                <div className="p-5 sm:p-7">
-                                    <div className="flex items-start justify-between gap-4"><div><p className="text-[11px] text-white/45">Your event</p><p className="mt-1 text-[22px] font-semibold tracking-[-0.045em] sm:text-[28px]">The Night Session</p></div><span className="rounded-full border border-white/25 px-2.5 py-1 text-[10px] text-white/75">On sale</span></div>
-                                    <div className="mt-7 grid grid-cols-2 gap-3"><div className="rounded-[12px] border border-white/10 bg-white/[0.05] p-4"><Ticket className="size-4 text-white/55" strokeWidth={1.5} /><p className="mt-5 text-[25px] font-semibold leading-none tracking-[-0.05em] sm:text-[30px]">1,284</p><p className="mt-1 text-[10px] text-white/45">Tickets sold</p></div><div className="rounded-[12px] border border-white/10 bg-white/[0.05] p-4"><ScanLine className="size-4 text-white/55" strokeWidth={1.5} /><p className="mt-5 text-[25px] font-semibold leading-none tracking-[-0.05em] sm:text-[30px]">824</p><p className="mt-1 text-[10px] text-white/45">Checked in</p></div></div>
-                                    <div className="mt-3 rounded-[12px] border border-white/10 bg-white/[0.05] p-4"><div className="flex justify-between text-[10px]"><span className="text-white/50">Entry progress</span><span>64%</span></div><div className="mt-3 h-1.5 rounded-full bg-white/15"><div className={`${styles.progressFill} h-full w-[64%] rounded-full bg-white`} /></div></div>
-                                    <div className="mt-3 flex items-center gap-3 rounded-[12px] border border-white/10 bg-white/[0.05] p-3 text-[11px]"><div className="flex size-8 items-center justify-center rounded-[8px] bg-white/10"><Check className="size-4" /></div><span className="flex-1 text-white/65">A ticket was just checked in</span><span className="text-white/35">Now</span></div>
-                                </div>
-                            </div>
-                        </OfferingReveal>
-                    </div>
+            <Chapter id="payments" number="01" label="Payments" title="Paid straight to your account.">
+                <div className="mt-14 grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+                    <OfferingReveal className="space-y-8">
+                        <p className="max-w-[440px] text-[17px] leading-[1.65] text-[#666] dark:text-[#aaa]">
+                            Connect the payment account you already use. Guests pay you directly, by card or mobile money, and GatePass never holds your money.
+                        </p>
+                        <div className="space-y-6">
+                            <Point title="No payouts to wait for">Money lands in your provider balance as each order completes.</Point>
+                            <Point title="The right currency, every time">Each event sells in a currency your provider supports, from GHS and NGN to KES, XOF, USD and more.</Point>
+                            <Point title="Pick a default, change it per event">One provider for the whole organization, or a different one for a single event.</Point>
+                        </div>
+                    </OfferingReveal>
+                    <OfferingReveal delay={0.08} className="grid grid-cols-2 content-start gap-3 sm:grid-cols-3">
+                        {PAYMENT_BRANDS.map(brand => <BrandTile key={brand.id} {...brand} />)}
+                    </OfferingReveal>
+                </div>
+            </Chapter>
 
-                    <div className="mx-auto mt-20 grid max-w-[1280px] gap-8 border-t border-white/15 pt-9 sm:grid-cols-3 sm:gap-10">
-                        <OfferingReveal><div className="flex items-start gap-4"><CreditCard className="mt-0.5 size-5 shrink-0 text-white/60" strokeWidth={1.5} /><div><h3 className="text-[15px] font-semibold">Ticket flexibility</h3><p className="mt-2 text-[13px] leading-[1.6] text-white/50">Set up tiers, add-ons, and payment plans to suit your event.</p></div></div></OfferingReveal>
-                        <OfferingReveal delay={0.08}><div className="flex items-start gap-4"><Users className="mt-0.5 size-5 shrink-0 text-white/60" strokeWidth={1.5} /><div><h3 className="text-[15px] font-semibold">One team, one view</h3><p className="mt-2 text-[13px] leading-[1.6] text-white/50">Give collaborators access to the parts of the event they run.</p></div></div></OfferingReveal>
-                        <OfferingReveal delay={0.16}><div className="flex items-start gap-4"><BarChart3 className="mt-0.5 size-5 shrink-0 text-white/60" strokeWidth={1.5} /><div><h3 className="text-[15px] font-semibold">Useful insight</h3><p className="mt-2 text-[13px] leading-[1.6] text-white/50">Follow sales, guests, and performance from your dashboard.</p></div></div></OfferingReveal>
-                    </div>
-                </section>
-
-                <section id="pricing" className="scroll-mt-20 px-5 py-24 sm:px-8 sm:py-32 lg:px-12">
-                    <div className="mx-auto grid max-w-[1280px] gap-12 lg:grid-cols-2 lg:gap-24">
-                        <OfferingReveal>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#777] dark:text-[#aaa]">Straightforward pricing</p>
-                            <h2 className="mt-5 max-w-[650px] text-[clamp(2.9rem,5.4vw,5.5rem)] font-semibold leading-[1.03] tracking-[-0.07em] text-balance">One fee per event. None per ticket.</h2>
-                            <p className="mt-6 max-w-[470px] text-[16px] leading-[1.65] text-[#666] dark:text-[#aaa]">Pay once before you publish, based on how many tickets you&apos;re selling. Ticket money goes straight to your own Stripe, Paystack, Flutterwave, Hubtel, M-Pesa or Wave account.</p>
-                        </OfferingReveal>
-
-                        <OfferingReveal delay={0.1} className="border-t border-black/15 pt-6 dark:border-white/20 lg:pt-8">
-                            <p className="text-[12px] text-[#777] dark:text-[#aaa]">GatePass fee on ticket sales</p>
-                            <div className="mt-2 flex items-baseline gap-2"><strong className="text-[clamp(5rem,9vw,9rem)] font-semibold leading-none tracking-[-0.09em]">0</strong><span className="text-[clamp(2rem,3vw,3.3rem)] font-medium">%</span></div>
-                            <div className="mt-8 divide-y divide-black/10 border-y border-black/10 text-[13px] dark:divide-white/15 dark:border-white/15">
-                                {tiers.map((tier, index) => (
-                                    <div key={tier.name} className="flex justify-between gap-4 py-4">
-                                        <span className="text-[#666] dark:text-[#aaa]">
-                                            <span className="font-medium text-black dark:text-white">{tier.name}</span>
-                                            {' · '}
+            <Chapter id="pricing" number="02" label="Pricing" title={<>One fee per event.<br />None per ticket.</>} dark>
+                <div className="mt-14 grid gap-12 lg:grid-cols-2 lg:gap-20">
+                    <OfferingReveal>
+                        <p className="text-[13px] text-white/50">GatePass fee on ticket sales</p>
+                        <p className="mt-2 flex items-baseline gap-2">
+                            <strong className="text-[clamp(6rem,14vw,12rem)] font-semibold leading-[0.85] tracking-[-0.09em]">0</strong>
+                            <span className="text-[clamp(2rem,4vw,4rem)] font-medium">%</span>
+                        </p>
+                        <p className="mt-8 max-w-[440px] text-[16px] leading-[1.65] text-white/60">
+                            Pay once before you publish, sized to how many tickets you&apos;re selling. Free events stay free.
+                        </p>
+                    </OfferingReveal>
+                    <OfferingReveal delay={0.08}>
+                        <div className="divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/15">
+                            {tiers.map((tier, index) => (
+                                <div key={tier.name} className="flex items-center justify-between gap-4 px-6 py-5">
+                                    <div>
+                                        <p className="text-[16px] font-semibold">{tier.name}</p>
+                                        <p className="mt-0.5 text-[13px] text-white/50">
                                             {tier.max_tickets === null
                                                 ? `${((tiers[index - 1]?.max_tickets ?? 0) + 1).toLocaleString()}+ tickets`
                                                 : `Up to ${tier.max_tickets.toLocaleString()} tickets`}
-                                        </span>
-                                        <span className="font-medium tabular-nums">{tier.price_minor === 0 ? 'Free' : formatCurrency(tier.price_minor / 100, tier.currency)}</span>
+                                        </p>
                                     </div>
-                                ))}
-                            </div>
-                            <p className="mt-4 max-w-[500px] text-[11px] leading-[1.5] text-[#888] dark:text-[#999]">One-time, per event. Your payment provider charges its own processing fees.</p>
-                        </OfferingReveal>
-                    </div>
-                </section>
-
-                <section className="border-t border-black/10 px-5 py-24 dark:border-white/15 sm:px-8 sm:py-32 lg:px-12">
-                    <OfferingReveal className="mx-auto max-w-[1280px] text-center">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#777] dark:text-[#aaa]">Ready when you are</p>
-                        <h2 className="mx-auto mt-5 max-w-[840px] text-[clamp(3rem,7vw,7rem)] font-semibold leading-[1] tracking-[-0.075em] text-balance">Make something worth showing up for.</h2>
-                        <p className="mx-auto mt-6 max-w-[480px] text-[16px] leading-[1.6] text-[#666] dark:text-[#aaa]">Set the date. Tell the story. We will help with everything between the first ticket and the last scan.</p>
-                        <Link href="/onboarding" className={`${primaryLink} mt-9`}>
-                            Create your event <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
-                        </Link>
+                                    <p className="text-[22px] font-semibold tabular-nums tracking-[-0.03em]">{tier.price_minor === 0 ? 'Free' : formatCurrency(tier.price_minor / 100, tier.currency)}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-4 text-[12px] leading-[1.5] text-white/40">One-time, per event. Your payment provider charges its own processing fees.</p>
                     </OfferingReveal>
-                </section>
-            </div>
+                </div>
+            </Chapter>
+
+            <Chapter id="anywhere" number="03" label="Distribution" title="Sell wherever your audience is.">
+                <div className="mt-14 grid gap-5 md:grid-cols-3">
+                    {[
+                        { title: 'Event pages', body: 'A video-led page for every event, with checkout built in and a link that previews well anywhere you share it.', tag: 'gatepass.so/events/…' },
+                        { title: 'Your website', body: 'Drop in one script tag, or use the React, Vue and Nuxt packages. Same checkout, in your own design.', tag: '<script src="…/embed.js">' },
+                        { title: 'AI assistants', body: 'Guests can ask an assistant for tickets. GatePass’s MCP server finds your event and hands them a checkout link.', tag: 'gatepass.so/api/mcp' },
+                    ].map((card, index) => (
+                        <OfferingReveal key={card.title} delay={index * 0.06} className="flex flex-col rounded-3xl bg-[#f4f4f4] p-6 dark:bg-white/[0.05] sm:p-8">
+                            <p className="text-[13px] font-medium tabular-nums text-[#888]">{String(index + 1).padStart(2, '0')}</p>
+                            <h3 className="mt-10 text-[26px] font-semibold tracking-[-0.045em]">{card.title}</h3>
+                            <p className="mt-3 text-[14px] leading-[1.6] text-[#666] dark:text-[#aaa]">{card.body}</p>
+                            <code className="mt-8 block truncate rounded-2xl bg-white px-4 py-3 font-mono text-[12px] text-[#444] dark:bg-black/40 dark:text-[#ccc]">{card.tag}</code>
+                        </OfferingReveal>
+                    ))}
+                </div>
+            </Chapter>
+
+            <Chapter id="guests" number="04" label="Guests" title="Know your crowd. Look after them." dark>
+                <div className="mt-14 grid gap-12 lg:grid-cols-2 lg:gap-20">
+                    <OfferingReveal className="grid gap-6 sm:grid-cols-2">
+                        <Point dark title="Passes in their wallet">Every ticket works with Apple Wallet, email and a QR code at the door.</Point>
+                        <Point dark title="Profiles guests choose to share">Interests, dietary and access needs, so you can plan for the people coming.</Point>
+                        <Point dark title="Forms and add-ons">Ask for sizes or preferences, and sell merch, parking or upgrades at checkout.</Point>
+                        <Point dark title="See what sells">Tracking links, sales by source and every order in one place.</Point>
+                    </OfferingReveal>
+                    <OfferingReveal delay={0.08}>
+                        <p className="text-[13px] text-white/50">Messages and analytics, through your own accounts</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            {MESSAGING_BRANDS.map(brand => <BrandTile key={`${brand.id}-${brand.name}`} {...brand} dark />)}
+                        </div>
+                    </OfferingReveal>
+                </div>
+            </Chapter>
+
+            <section className="px-5 py-24 sm:px-8 sm:py-36 lg:px-12">
+                <OfferingReveal className="mx-auto max-w-[1280px] text-center">
+                    <h2 className="mx-auto max-w-[900px] text-[clamp(3rem,8vw,7.5rem)] font-semibold leading-[0.95] tracking-[-0.075em] text-balance">Make something worth showing up for.</h2>
+                    <ul className="mx-auto mt-8 flex max-w-[640px] flex-wrap justify-center gap-x-6 gap-y-2 text-[14px] text-[#666] dark:text-[#aaa]">
+                        {['Your payment account', '0% per ticket', 'Live in minutes'].map(item => (
+                            <li key={item} className="inline-flex items-center gap-1.5"><Check className="size-4" aria-hidden="true" />{item}</li>
+                        ))}
+                    </ul>
+                    <Link href="/onboarding" className={`${primaryLink} mt-10`}>
+                        Create your event <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                </OfferingReveal>
+            </section>
         </div>
     )
 }
