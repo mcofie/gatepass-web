@@ -69,6 +69,21 @@ function Monogram({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
     )
 }
 
+/** Provider logo from /public/brands, falling back to initials. */
+function BrandLogo({ provider, size = 'md' }: { provider: ProviderDefinition; size?: 'md' | 'lg' }) {
+    const [failed, setFailed] = React.useState(false)
+    if (failed) return <Monogram name={provider.name} size={size} />
+    return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+            src={`/brands/${provider.id}.png`}
+            alt=""
+            onError={() => setFailed(true)}
+            className={`shrink-0 rounded-xl object-cover ring-1 ring-black/[0.06] dark:ring-white/10 ${size === 'lg' ? 'size-12' : 'size-10'}`}
+        />
+    )
+}
+
 export function IntegrationsPanel({
     organizerId,
     category,
@@ -112,7 +127,10 @@ export function IntegrationsPanel({
                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-60">Default provider</p>
                         <div className="mt-5 flex flex-wrap items-end justify-between gap-6">
                             <div>
-                                <p className="text-3xl font-semibold tracking-tight sm:text-4xl">{defaultProvider.name}</p>
+                                <div className="flex items-center gap-4">
+                                    <BrandLogo provider={defaultProvider} size="lg" />
+                                    <p className="text-3xl font-semibold tracking-tight sm:text-4xl">{defaultProvider.name}</p>
+                                </div>
                                 <p className="mt-2 text-sm opacity-70">
                                     {defaultIntegration.mode === 'test' ? 'Test mode · ' : ''}
                                     {STATUS_STYLE[defaultIntegration.status].label}
@@ -153,7 +171,7 @@ export function IntegrationsPanel({
                                     className="group flex h-full w-full flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-left transition-colors hover:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:hover:border-white/60"
                                 >
                                     <div className="flex w-full items-start justify-between gap-3">
-                                        <Monogram name={provider.name} />
+                                        <BrandLogo provider={provider} />
                                         <div className="flex items-center gap-2">
                                             {integration?.isDefault && copy.hasDefault && (
                                                 <span className="rounded-full bg-gray-950 px-2.5 py-1 text-[11px] font-medium text-white dark:bg-white dark:text-black">Default</span>
@@ -280,7 +298,7 @@ function ProviderSheet({
             >
                 <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-6 dark:border-white/10">
                     <div className="flex items-center gap-4">
-                        <Monogram name={provider.name} size="lg" />
+                        <BrandLogo provider={provider} size="lg" />
                         <div>
                             <h2 id="provider-sheet-title" className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{provider.name}</h2>
                             <div className="mt-1"><StatusPill status={status} /></div>

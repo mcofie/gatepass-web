@@ -1,132 +1,74 @@
 'use client'
 
 import React, { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { toast } from 'sonner'
-import { Loader2, Bell, Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { createClient } from '@/utils/supabase/client'
+import { Field, Notice, Panel, PrimaryButton, SectionIntro, Switch, inputClass } from '@/components/dashboard/ui'
 
-export function NotificationSettings({ organizer, userRole }: { organizer: any, userRole: string }) {
+type Organizer = { id: string; notify_on_sale?: boolean | null; notification_email?: string | null }
+
+export function NotificationSettings({ organizer, userRole }: { organizer: Organizer | null; userRole: string }) {
     if (!organizer) return null
+    return <NotificationForm organizer={organizer} canEdit={userRole === 'Owner' || userRole === 'Admin'} />
+}
 
-    const [loading, setLoading] = useState(false)
+function NotificationForm({ organizer, canEdit }: { organizer: Organizer; canEdit: boolean }) {
     const router = useRouter()
-    const canEdit = userRole === 'Owner' || userRole === 'Admin'
-
-    const [notifyOnSale, setNotifyOnSale] = useState(organizer?.notify_on_sale ?? false)
-    const [notificationEmail, setNotificationEmail] = useState(organizer?.notification_email || '')
-
-    const supabase = createClient()
+    const supabase = React.useMemo(() => createClient(), [])
+    const [loading, setLoading] = useState(false)
+    const [notifyOnSale, setNotifyOnSale] = useState(organizer.notify_on_sale ?? false)
+    const [notificationEmail, setNotificationEmail] = useState(organizer.notification_email || '')
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-
         try {
-            // Validate email if notification is on
-            if (notifyOnSale && !notificationEmail.trim()) {
-                throw new Error('Please provide a notification email address.')
-            }
+            const address = notificationEmail.trim()
+            if (notifyOnSale && !address) throw new Error('Add the email address to notify.')
+            if (address && !/^\S+@\S+\.\S+$/.test(address)) throw new Error('Enter a valid email address.')
 
-            if (notifyOnSale && notificationEmail && !/^\S+@\S+\.\S+$/.test(notificationEmail)) {
-                throw new Error('Please provide a valid email address.')
-            }
-
-            const { error } = await supabase
-                .schema('gatepass')
-                .from('organizers')
-                .update({
-                    notify_on_sale: notifyOnSale,
-                    notification_email: notificationEmail.trim() || null
-                })
-                .eq('id', organizer.id)
-
+            const { error } = await supabase.schema('gatepass').from('organizers').update({
+                notify_on_sale: notifyOnSale,
+                notification_email: address || null,
+            }).eq('id', organizer.id)
             if (error) throw error
-            toast.success('Notification preferences saved')
+
+            toast.success('Notifications saved')
             router.refresh()
-        } catch (error: any) {
-            toast.error(error.message)
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Could not save')
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className="max-w-2xl bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 p-5 sm:p-7">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-black dark:bg-white flex items-center justify-center">
-                    <Bell className="w-5 h-5 text-white dark:text-black" />
-                </div>
-                <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notification Settings</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Configure how you want to be notified about ticket sales</p>
-                </div>
-            </div>
+        <div className="max-w-3xl space-y-8">
+            <SectionIntro eyebrow="Notifications" title="Know when you sell." description="Get an email the moment someone buys a ticket." />
 
             <form onSubmit={handleSave} className="space-y-6">
-                {/* Sale Notifications Toggle */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-500/20 flex items-center justify-center">
-                                <Mail className="w-4 h-4 text-green-600 dark:text-green-400" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-gray-900 dark:text-white">Email on Ticket Sale</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Receive an email whenever someone buys a ticket</p>
-                            </div>
+                <Panel>
+                    <div className="flex items-start justify-between gap-6">
+                        <div>
+                            <label htmlFor="notify-on-sale" className="text-sm font-medium text-gray-950 dark:text-white">Email me on every sale</label>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Includes the buyer, ticket type and amount.</p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={notifyOnSale}
-                                onChange={(e) => setNotifyOnSale(e.target.checked)}
-                                disabled={!canEdit}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/5 dark:peer-focus:ring-white/10 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-black dark:peer-checked:bg-white peer-disabled:opacity-50" />
-                        </label>
+                        <Switch id="notify-on-sale" label="Email me on every sale" checked={notifyOnSale} onChange={setNotifyOnSale} disabled={!canEdit} />
                     </div>
 
-                    {/* Email Input (shown when enabled) */}
                     {notifyOnSale && (
-                        <div className="pt-4 border-t border-gray-200 dark:border-white/10 space-y-2 animate-fade-in">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Notification Email</label>
-                            <Input
-                                type="email"
-                                value={notificationEmail}
-                                onChange={e => setNotificationEmail(e.target.value)}
-                                disabled={!canEdit}
-                                className="h-12 bg-white dark:bg-black/30 border-gray-200 dark:border-white/10 rounded-lg px-4 shadow-none dark:text-white disabled:opacity-50"
-                                placeholder="your@email.com"
-                            />
-                            <p className="text-xs text-gray-400 ml-1">
-                                We'll send sale notifications to this email address
-                            </p>
+                        <div className="mt-6 border-t border-gray-100 pt-6 dark:border-white/10">
+                            <Field label="Send to" htmlFor="notification-email">
+                                <input id="notification-email" type="email" autoComplete="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} disabled={!canEdit} className={inputClass} placeholder="sales@yourteam.com" />
+                            </Field>
                         </div>
                     )}
-                </div>
+                </Panel>
 
-                {canEdit ? (
-                    <div className="pt-2">
-                        <Button
-                            type="submit"
-                            disabled={loading}
-                            className="h-12 px-8 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-all "
-                        >
-                            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Save Preferences
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">
-                            Only Owners and Admins can modify notification settings.
-                        </p>
-                    </div>
-                )}
+                {canEdit
+                    ? <div className="flex justify-end"><PrimaryButton type="submit" loading={loading}>Save notifications</PrimaryButton></div>
+                    : <Notice>Only owners and admins can change notifications.</Notice>}
             </form>
         </div>
     )
