@@ -33,10 +33,10 @@ export function SuccessClient({ reservation, tickets = [], questions = [] }: Suc
             const verifyPayment = async () => {
                 setVerifyingPayment(true)
                 try {
-                    const response = await fetch('/api/paystack/verify', {
+                    const response = await fetch('/api/payments/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ reference, reservationId: reservation.id })
+                        body: JSON.stringify({ reference })
                     })
                     const result = await response.json()
                     

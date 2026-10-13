@@ -9,14 +9,10 @@ import {
     LogOut,
     LayoutDashboard,
     Settings,
-    Activity,
     Users,
-    ScanLine,
-    History,
     ShieldAlert,
     BarChart3,
     ReceiptText,
-
     ChevronDown,
     Plus,
     Menu,
@@ -186,7 +182,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
 
         try {
             // Smart Redirect: Stay on current page if it's a general section, otherwise go to dashboard
-            const safeCurrentPath = ['/dashboard/settings', '/dashboard/events', '/dashboard/sales', '/dashboard/customers', '/dashboard/scan', '/dashboard/monitor', '/dashboard/activity', '/dashboard']
+            const safeCurrentPath = ['/dashboard/settings', '/dashboard/events', '/dashboard/sales', '/dashboard/customers', '/dashboard']
             const redirectTo = safeCurrentPath.includes(pathname) ? pathname : '/dashboard'
 
             await switchOrganization(orgId, redirectTo)
@@ -222,12 +218,9 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             { name: 'Sales', path: '/dashboard/sales', icon: ReceiptText },
             { name: 'Customers', path: '/dashboard/customers', icon: Users },
             { name: 'Marketing', path: '/dashboard/marketing', icon: BarChart3 },
-            ...(role !== 'Staff' ? [{ name: 'Live Monitor', path: '/dashboard/monitor', icon: Activity }] : []),
-            { name: 'Scan Tickets', path: '/dashboard/scan', icon: ScanLine },
-            ...(isOwner ? [{ name: 'Activity Log', path: '/dashboard/activity', icon: History }] : []),
             { name: 'Settings', path: '/dashboard/settings', icon: Settings },
         ]
-    }, [isOwner, role])
+    }, [])
 
     return (
         <>

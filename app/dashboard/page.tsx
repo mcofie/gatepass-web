@@ -321,7 +321,7 @@ export default async function DashboardPage() {
             const platformRate = t.applied_fee_rate ?? 0.04
             // Normalize old 2% rate to current 1.95%
             const storedProcessorRate = t.applied_processor_rate
-            const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+            const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
                 ? 0.0195
                 : storedProcessorRate
 
@@ -408,7 +408,7 @@ export default async function DashboardPage() {
                                     const ticketRevenue = Math.max(0, price * quantity - discountAmount)
                                     const platformRate = s.applied_fee_rate ?? 0.04
                                     const storedProcessorRate = s.applied_processor_rate
-                                    const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate) ? 0.0195 : storedProcessorRate
+                                    const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null) ? 0.0195 : storedProcessorRate
                                     let platformFee = s.platform_fee
                                     if (platformFee == null || platformFee === 0) platformFee = isInstalment ? s.amount * platformRate : ticketRevenue * platformRate
                                     const processorFee = s.applied_processor_fee != null ? s.applied_processor_fee : s.amount * processorRate

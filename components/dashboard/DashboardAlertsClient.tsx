@@ -5,15 +5,15 @@ import Link from 'next/link'
 import { ArrowUpRight, ChevronDown } from 'lucide-react'
 
 interface DashboardAlertsClientProps {
-    needsSettlement: boolean
+    needsPayments: boolean
     needsSetup: boolean
     missingOrg: boolean
     missingProfile: boolean
 }
 
-export function DashboardAlertsClient({ needsSettlement, needsSetup, missingOrg, missingProfile }: DashboardAlertsClientProps) {
-    const [expanded, setExpanded] = useState(needsSettlement)
-    const count = Number(needsSettlement) + Number(needsSetup)
+export function DashboardAlertsClient({ needsPayments, needsSetup, missingOrg, missingProfile }: DashboardAlertsClientProps) {
+    const [expanded, setExpanded] = useState(needsPayments)
+    const count = Number(needsPayments) + Number(needsSetup)
     if (!count) return null
 
     const missingDetails = [missingOrg && 'organization details', missingProfile && 'your profile'].filter(Boolean).join(' and ')
@@ -30,8 +30,8 @@ export function DashboardAlertsClient({ needsSettlement, needsSetup, missingOrg,
             </button>
             {expanded && (
                 <div className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-white/10 dark:border-white/10">
-                    {needsSettlement && <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                        <div><h3 className="text-sm font-semibold text-gray-950 dark:text-white">Connect a settlement account</h3><p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Add a bank account or mobile money to receive ticket payouts.</p></div>
+                    {needsPayments && <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <div><h3 className="text-sm font-semibold text-gray-950 dark:text-white">Connect a payment provider</h3><p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Ticket revenue is paid straight into your own Stripe, Paystack, Flutterwave, Hubtel, M-Pesa or Wave account.</p></div>
                         <Link href="/dashboard/settings" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-gray-950 hover:underline dark:text-white">Open settings <ArrowUpRight className="size-3.5" aria-hidden="true" /></Link>
                     </div>}
                     {needsSetup && <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

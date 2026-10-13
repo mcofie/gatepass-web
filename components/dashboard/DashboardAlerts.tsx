@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { DashboardAlertsClient } from './DashboardAlertsClient'
+import { getDefaultIntegration } from '@/lib/integrations/store'
 
 export async function DashboardAlerts() {
     const supabase = await createClient()
@@ -7,7 +8,7 @@ export async function DashboardAlerts() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    // 1. Determine Organization Context and Settlement Status
+    // 1. Determine Organization Context
     let { data: org } = await supabase
         .schema('gatepass')
         .from('organizers')
@@ -42,15 +43,14 @@ export async function DashboardAlerts() {
     const missingProfile = !profile?.full_name || !profile?.username || !profile?.phone_number
     const needsSetup = (missingOrg || missingProfile) && !!org // Only show setup nudge if they actually have an org shell or checking personal profile
 
-    // Settlement Logic: Only relevant if they are an owner/admin of an org
-    // Actually org.paystack_subaccount_code presence determines if they can receive money.
-    const needsSettlement = org ? !org.paystack_subaccount_code : false
+    // Paid events need the organizer's own payment provider
+    const needsPayments = org ? !(await getDefaultIntegration(org.id, 'payments')) : false
 
-    if (!needsSetup && !needsSettlement) return null
+    if (!needsSetup && !needsPayments) return null
 
     return (
         <DashboardAlertsClient
-            needsSettlement={needsSettlement}
+            needsPayments={needsPayments}
             needsSetup={needsSetup}
             missingOrg={missingOrg}
             missingProfile={missingProfile}

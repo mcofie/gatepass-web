@@ -293,10 +293,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             const verifyPayment = async () => {
                 setVerifying(true)
                 try {
-                    const response = await fetch('/api/paystack/verify', {
+                    const response = await fetch('/api/payments/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ reference, reservationId: reference })
+                        body: JSON.stringify({ reference })
                     })
                     const result = await response.json()
 
@@ -578,6 +578,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: guestEmail || 'customer@gatepass.com',
+                    phone: guestPhone || undefined,
                     amount: Math.round(totalDue * 100),
                     currency: selectedTier?.currency || 'GHS',
                     reservationIds: reservations.map(r => r.id), // Pass Array
@@ -617,9 +618,6 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         const initialPercent = activePaymentPlan.initial_percent || 50
         const firstInstalmentOrderShare = Math.round(orderValue * initialPercent / 100 * 100) / 100
 
-        // Fees will be calculated by Paystack on this amount automatically.
-        // We send the order share as the amount; the /api/paystack/initialize route
-        // handles fee calculation and adds it on top (if customer-bears-fees).
 
         try {
             const response = await fetch('/api/payments/initialize', {
@@ -629,7 +627,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     email: guestEmail || 'customer@gatepass.com',
                     amount: Math.round(firstInstalmentOrderShare * 100),
                     currency: selectedTier?.currency || 'GHS',
+                    phone: guestPhone || undefined,
                     reservationIds: [primaryRes.id],
+                    // Marks this as a deposit so the webhook and /verify never issue full tickets for it
+                    metadata: { payment_type: 'instalment_first', payment_plan_id: activePaymentPlan.id },
                     callbackUrl: `${window.location.protocol}//${window.location.host}/my-tickets/instalments/callback?event_id=${event.id}&plan_id=${activePaymentPlan.id}&reservation_id=${primaryRes.id}`
                 })
             })
@@ -1901,10 +1902,12 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                                     <span className="tabular-nums">{formatCurrency(addonSubtotal, tiers[0]?.currency)}</span>
                                 </div>
                             )}
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500 dark:text-gray-400">Service & payment fees</span>
-                                <span className="font-medium text-gray-900 dark:text-white tabular-nums">{formatCurrency(fees, tiers[0]?.currency)}</span>
-                            </div>
+                            {fees > 0 && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 dark:text-gray-400">Service & payment fees</span>
+                                    <span className="font-medium text-gray-900 dark:text-white tabular-nums">{formatCurrency(fees, tiers[0]?.currency)}</span>
+                                </div>
+                            )}
 
                             {/* Discount Row */}
                             {discount && (
@@ -2048,7 +2051,7 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, timeL
                                             })()}
                                             <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-zinc-800 mt-1">
                                                 <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                                                    Your ticket is reserved today and issued after the final payment. Fees apply to each payment.
+                                                    Your ticket is reserved today and issued after the final payment.
                                                 </p>
                                                 <p className="text-[11px] text-red-700 dark:text-red-400 leading-relaxed">
                                                     Missed payments may forfeit your reservation without a refund.

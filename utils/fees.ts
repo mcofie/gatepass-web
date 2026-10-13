@@ -1,18 +1,28 @@
-export const PLATFORM_FEE_PERCENT = 0.04
-export const PROCESSOR_FEE_PERCENT = 0.0195
+// GatePass no longer takes a cut of ticket sales. Organizers pay a one-time fee per event
+// (lib/billing) and their own payment provider charges its processing fees directly, so the
+// buyer pays exactly the ticket price. Historical transactions keep the fees stored on them.
+export const PLATFORM_FEE_PERCENT = 0
+export const PROCESSOR_FEE_PERCENT = 0
 
-/**
- * Resolves the effective fee rates for a specific event, prioritizing event-specific overrides
- * over global settings, and falling back to system defaults.
- */
+/** Ticket-time fee rates. Always zero; kept so existing checkout maths stays in one place. */
 export const getEffectiveFeeRates = (
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _globalRates?: FeeRates,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _eventOverride?: { platform_fee_percent?: number | null },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _organizerOverride?: { platform_fee_percent?: number | null }
+): FeeRates => ({ platformFeePercent: 0, processorFeePercent: 0 })
+
+/** @deprecated Pre-BYOK per-ticket fee resolution, kept only for reading historical data. */
+export const getLegacyFeeRates = (
     globalRates?: FeeRates,
     eventOverride?: { platform_fee_percent?: number | null },
     organizerOverride?: { platform_fee_percent?: number | null }
 ): FeeRates => {
     // 1. Determine Platform Fee
     // Precedence: Event Override > Organizer Override > Global Setting > Default
-    let platformRate = PLATFORM_FEE_PERCENT
+    let platformRate = 0.04
 
     if (eventOverride?.platform_fee_percent !== undefined && eventOverride.platform_fee_percent !== null) {
         platformRate = eventOverride.platform_fee_percent
@@ -26,7 +36,7 @@ export const getEffectiveFeeRates = (
     // Currently only global or default (no event-specific override supported yet)
     const processorRate = (typeof globalRates?.processorFeePercent === 'number')
         ? globalRates.processorFeePercent
-        : PROCESSOR_FEE_PERCENT
+        : 0.0195
 
     return {
         platformFeePercent: platformRate,

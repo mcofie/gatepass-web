@@ -106,7 +106,6 @@
 ### Staff & Access Management
 - **Event Staff** — Add door staff with name, email, and access codes
 - **Staff Access Emails** — Automated email with access credentials sent to event staff
-- **Web-Based QR Scanner** — Built-in QR code scanner at `/dashboard/scan` for ticket check-in using device camera
 - **Check-in Tracking** — Records who checked in each ticket and when
 
 ### Attendee Management
@@ -134,7 +133,6 @@
 - **View Count Analytics** — Track event page views with RPC-based increment
 
 ### Live Monitoring
-- **Live Monitor** — Real-time event monitoring dashboard at `/dashboard/monitor` with live check-in feeds and stats
 
 ### Activity Logging
 - **Activity Feed** — Chronological log of all organization actions (event updates, sales, check-ins, etc.)

@@ -24,7 +24,7 @@ function InstalmentCallbackContent() {
             }
 
             try {
-                const response = await fetch('/api/paystack/verify-instalment', {
+                const response = await fetch('/api/payments/verify-instalment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ reference, reservationId, paymentPlanId: planId })

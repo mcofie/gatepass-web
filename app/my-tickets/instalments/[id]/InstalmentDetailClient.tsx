@@ -104,7 +104,7 @@ export default function InstalmentDetailClient({ instalment }: { instalment: Ins
         setProcessing(kind)
 
         try {
-            const response = await fetch('/api/paystack/initialize', {
+            const response = await fetch('/api/payments/initialize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

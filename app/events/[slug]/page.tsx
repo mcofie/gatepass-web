@@ -8,6 +8,7 @@ import { Metadata } from 'next'
 import { getFeeSettings } from '@/utils/settings'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl, formatFacebookUrl } from '@/utils/social'
 import { TrackingScripts } from '@/components/TrackingScripts'
+import { getMarketingIds } from '@/lib/integrations/store'
 
 interface PageProps {
     params: Promise<{ slug: string }>
@@ -21,7 +22,7 @@ const getEvent = cache(async (slug: string) => {
     let query = supabase
         .schema('gatepass')
         .from('events')
-        .select('*, organizers(user_id, name, description, website, instagram, twitter, meta_pixel_id, ga4_measurement_id)')
+        .select('*, organizers(user_id, name, description, website, instagram, twitter)')
 
     if (isUuid) {
         query = query.eq('id', slug)
@@ -182,11 +183,13 @@ export default async function EventPage({ params }: PageProps) {
         )
     }
 
+    const tracking = event.organization_id ? await getMarketingIds(event.organization_id) : {}
+
     return (
         <div className="h-[100dvh] w-full bg-black relative overflow-hidden">
             <TrackingScripts
-                metaPixelId={event.organizers?.meta_pixel_id}
-                ga4Id={event.organizers?.ga4_measurement_id}
+                metaPixelId={tracking.metaPixelId}
+                ga4Id={tracking.ga4Id}
             />
             {/* Full Screen Background */}
             <EventBackground

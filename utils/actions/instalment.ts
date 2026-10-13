@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { verifyPaystackTransaction } from '@/lib/paystack'
+import { fetchConfirmedTransaction } from '@/lib/payments'
 import { calculateFees, getEffectiveFeeRates } from '@/utils/fees'
 import { getFeeSettings } from '@/utils/settings'
 import { randomBytes } from 'crypto'
@@ -44,7 +44,7 @@ export async function createInstalmentReservation(
     let tx = transactionData
     if (!tx) {
         try {
-            tx = await verifyPaystackTransaction(reference)
+            tx = await fetchConfirmedTransaction(reference)
         } catch (e) {
             return { success: false, error: 'Payment verification failed' }
         }
@@ -360,7 +360,7 @@ export async function processInstalmentPayment(
     let tx = transactionData
     if (!tx) {
         try {
-            tx = await verifyPaystackTransaction(reference)
+            tx = await fetchConfirmedTransaction(reference)
         } catch (e) {
             return { success: false, error: 'Payment verification failed' }
         }
@@ -536,8 +536,7 @@ export async function processFullInstalmentPayment(
     let tx = transactionData
     if (!tx) {
         try {
-            const { verifyPaystackTransaction } = await import('@/lib/paystack')
-            tx = await verifyPaystackTransaction(reference)
+            tx = await fetchConfirmedTransaction(reference)
         } catch (e) {
             return { success: false, error: 'Payment verification failed' }
         }

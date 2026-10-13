@@ -135,7 +135,7 @@ export function FinanceDashboard({ adminMode = false, feeRates }: FinanceDashboa
                 const platformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
                 // Normalize old 2% rate to current 1.95% for consistent display
                 const storedProcessorRate = tx.applied_processor_rate
-                const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
                     ? effectiveRates.processorFeePercent
                     : storedProcessorRate
 

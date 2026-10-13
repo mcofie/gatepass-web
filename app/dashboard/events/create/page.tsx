@@ -678,24 +678,6 @@ export default function CreateEventPage() {
                                         </div>
                                     </div>
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fee Bearer</label>
-                                    <div className="relative">
-                                        <select
-                                            name="fee_bearer"
-                                            value={formData.fee_bearer}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, fee_bearer: e.target.value as 'customer' | 'organizer' }))}
-                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent focus:bg-white dark:focus:bg-[#111] transition-all outline-none font-medium appearance-none text-gray-900 dark:text-white"
-                                        >
-                                            <option value="customer" className="dark:bg-[#111]">Customer pays fees</option>
-                                            <option value="organizer" className="dark:bg-[#111]">Organizer pays fees</option>
-                                        </select>
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         )}
                     </div>

@@ -7,7 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import { format } from 'date-fns'
 import { DateTimePicker } from '@/components/common/DateTimePicker'
 
-type ReportType = 'transactions' | 'users' | 'events' | 'payouts'
+type ReportType = 'transactions' | 'users' | 'events'
 
 export function ReportsClient() {
     const [reportType, setReportType] = useState<ReportType>('transactions')
@@ -113,7 +113,7 @@ export function ReportsClient() {
                             <div>
                                 <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">Report Type</label>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {['transactions', 'users', 'events', 'payouts'].map((type) => (
+                                    {['transactions', 'users', 'events'].map((type) => (
                                         <button
                                             key={type}
                                             onClick={() => setReportType(type as ReportType)}
@@ -125,7 +125,6 @@ export function ReportsClient() {
                                             {type === 'transactions' && <FileSpreadsheet className="w-5 h-5" />}
                                             {type === 'users' && <FileText className="w-5 h-5" />}
                                             {type === 'events' && <Calendar className="w-5 h-5" />}
-                                            {type === 'payouts' && <Download className="w-5 h-5" />}
                                             <span className="capitalize">{type}</span>
                                         </button>
                                     ))}

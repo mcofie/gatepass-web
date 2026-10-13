@@ -26,7 +26,7 @@ function PaymentCallbackContent({ paramsPromise }: { paramsPromise: Promise<{ id
             }
 
             try {
-                const response = await fetch('/api/paystack/pay-instalment', {
+                const response = await fetch('/api/payments/pay-instalment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 

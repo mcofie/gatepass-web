@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { verifyPaystackTransaction } from '@/lib/paystack'
+import { fetchConfirmedTransaction } from '@/lib/payments'
 import { Ticket } from '@/types/gatepass'
 import { calculateFees, getEffectiveFeeRates } from '@/utils/fees'
 import { getFeeSettings } from '@/utils/settings'
@@ -28,7 +28,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
     let tx = transactionData
     if (!tx) {
         try {
-            tx = await verifyPaystackTransaction(reference)
+            tx = await fetchConfirmedTransaction(reference)
         } catch (e) {
             console.error('Failed to verify transaction for history:', e)
             return { success: false, error: 'Payment verification failed' }
@@ -105,8 +105,9 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
     // Check Organizer for primary
     let primaryOrganizer = null
-    if (primaryEvent?.organizer_id) {
-        const { data: org } = await supabase.schema('gatepass').from('organizers').select('*').eq('id', primaryEvent.organizer_id).single()
+    // events.organizer_id is the creating user; the organization lives in organization_id
+    if (primaryEvent?.organization_id) {
+        const { data: org } = await supabase.schema('gatepass').from('organizers').select('*').eq('id', primaryEvent.organization_id).single()
         primaryOrganizer = org
     }
 
@@ -116,9 +117,9 @@ export async function processSuccessfulPayment(reference: string, reservationId?
         // Ensure organizer attached
         if (event.id === primaryEvent.id && primaryOrganizer) {
             event.organizers = primaryOrganizer
-        } else if (event.organizer_id) {
+        } else if (event.organization_id) {
             // Fetch if specific event different
-            const { data: org } = await supabase.schema('gatepass').from('organizers').select('*').eq('id', event.organizer_id).single()
+            const { data: org } = await supabase.schema('gatepass').from('organizers').select('*').eq('id', event.organization_id).single()
             event.organizers = org
         }
 

@@ -1,6 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { EventPaymentProvider } from '@/components/admin/EventPaymentProvider'
+import { EventBillingCard } from '@/components/admin/EventBillingCard'
+import type { IntegrationSummary } from '@/app/actions/integrations'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
@@ -13,8 +16,6 @@ import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import dynamic from 'next/dynamic'
 import { generateCSV, downloadCSV } from '@/utils/analytics'
 import { logActivity } from '@/app/actions/logger'
-import { updateEventFee, updateEventFeeBearer } from '@/app/actions/fees'
-import { requestPayout } from '@/app/actions/payouts'
 import { duplicateEvent } from '@/app/actions/events'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -45,6 +46,7 @@ interface EventManageClientProps {
     userRole: string
     feeRates?: FeeRates
     isSuperAdmin?: boolean
+    paymentIntegrations?: IntegrationSummary[]
 }
 
 export function EventManageClient({
@@ -54,13 +56,14 @@ export function EventManageClient({
     initialTotalDiscountValue = 0,
     userRole,
     feeRates,
-    isSuperAdmin = false
+    isSuperAdmin = false,
+    paymentIntegrations = []
 }: EventManageClientProps) {
     const isStaff = userRole === 'Staff'
     const isAdmin = userRole === 'Owner' || userRole === 'Admin' || isSuperAdmin
     const [event, setEvent] = useState(initialEvent)
     const supabase = createClient()
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'payouts' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments' | 'forms'>('details')
+    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'sales' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments' | 'forms'>('details')
     const sectionNavRef = React.useRef<HTMLElement>(null)
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
@@ -112,34 +115,22 @@ export function EventManageClient({
     const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null)
     const [showDiscountForm, setShowDiscountForm] = useState(false)
 
-    // Payouts State
-    const [payoutStats, setPayoutStats] = useState({ totalCollected: 0, platformFee: 0, organizerNet: 0, transactionCount: 0, totalAddons: 0 })
+    // Sales State
+    const [salesStats, setSalesStats] = useState({ totalCollected: 0, transactionCount: 0, totalAddons: 0 })
     const [transactions, setTransactions] = useState<any[]>([])
-    const [loadingPayouts, setLoadingPayouts] = useState(false)
+    const [loadingSales, setLoadingSales] = useState(false)
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
-    const [payoutPage, setPayoutPage] = useState(0)
-    const [payoutCount, setPayoutCount] = useState(0)
-    const [activePayout, setActivePayout] = useState<any>(null)
-    const [payoutRequests, setPayoutRequests] = useState<any[]>([])
+    const [salesPage, setSalesPage] = useState(0)
+    const [salesCount, setSalesCount] = useState(0)
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isDuplicating, setIsDuplicating] = useState(false)
 
-    const [feeSaving, setFeeSaving] = useState(false)
-    const [feeInput, setFeeInput] = useState<string>(event.platform_fee_percent ? (event.platform_fee_percent * 100).toString() : '')
-
     // Slug Validation State
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
     const [originalSlug] = useState(initialEvent.slug) // Track original slug to skip validation if unchanged
-
-    // Determine current effective source
-    const feeSource = React.useMemo(() => {
-        if (event.platform_fee_percent && event.platform_fee_percent > 0) return 'Event Specific'
-        if (event.organizers?.platform_fee_percent && event.organizers.platform_fee_percent > 0) return 'Organizer Default'
-        return 'System Default'
-    }, [event])
 
     // Fetch data on load
     useEffect(() => {
@@ -203,22 +194,6 @@ export function EventManageClient({
         if (addonsData) setAddons(addonsData)
     }
 
-    const handleSaveFee = async () => {
-        setFeeSaving(true)
-        try {
-            const val = feeInput ? parseFloat(feeInput) / 100 : null
-            await updateEventFee(event.id, val)
-            toast.success('Event fee updated')
-            // Update local state to reflect change? Revalidation handles it but optimistic UI is nice.
-            setEvent({ ...event, platform_fee_percent: val ?? 0 }) // Assuming 0 if null for local usage or proper type
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setFeeSaving(false)
-        }
-    }
-
-
     const [copiedId, setCopiedId] = useState<string | null>(null)
 
     const copyCode = (code: string, id: string) => {
@@ -226,37 +201,6 @@ export function EventManageClient({
         setCopiedId(id)
         toast.success('Code copied!')
         setTimeout(() => setCopiedId(null), 2000)
-    }
-
-    const [requestingPayout, setRequestingPayout] = useState(false)
-
-    const handleRequestPayout = async () => {
-        if (requestingPayout) return
-
-        if (payoutStats.organizerNet <= 0) {
-            toast.error('No balance available to checkout.')
-            return
-        }
-
-        setRequestingPayout(true)
-        try {
-            const result = await requestPayout(
-                event.id,
-                payoutStats.organizerNet,
-                initialTiers?.[0]?.currency || 'GHS'
-            )
-
-            if (result.success) {
-                toast.success('Payout request submitted successfully.')
-                fetchPayouts()
-            } else {
-                toast.error(result.message || 'Failed to request payout')
-            }
-        } catch (e) {
-            toast.error('An error occurred')
-        } finally {
-            setRequestingPayout(false)
-        }
     }
 
     const router = useRouter()
@@ -321,6 +265,12 @@ export function EventManageClient({
             toast.success('Event updated successfully')
             router.refresh()
         } catch (e: any) {
+            // Publishing was blocked by the database (unpaid plan or no payment provider)
+            if (typeof e?.hint === 'string' && /^(PLATFORM_FEE|PAYMENT_PROVIDER)/.test(e.hint)) {
+                setEvent(prev => ({ ...prev, is_published: false }))
+                toast.error(e.message)
+                return
+            }
             toast.error('Error: ' + e.message)
         } finally {
             setLoading(false)
@@ -642,35 +592,19 @@ export function EventManageClient({
 
     // ... (rest of code)
 
-    // Payout Logic with Pagination
-    const fetchPayouts = async () => {
-        setLoadingPayouts(true)
+    // Sales: paginated transactions plus totals across every successful payment
+    const fetchSales = async () => {
+        setLoadingSales(true)
         try {
-            // 1. Fetch Stats (All Data, minimal fields)
-            // We need to fetch all successful transactions to calculate the total balance due accurately.
             const statsQuery = supabase
                 .schema('gatepass')
                 .from('transactions')
-                .select(`
-                    amount,
-                    platform_fee,
-                    applied_processor_fee,
-                    applied_fee_rate,
-                    applied_processor_rate,
-                    reservations!inner (
-                        tier_id,
-                        quantity,
-                        discounts ( type, value ),
-                        ticket_tiers ( price, min_quantity, discount_value, discount_type ),
-                        addons
-                    )
-                `)
+                .select('amount, reservations!inner ( addons )')
                 .eq('status', 'success')
                 .eq('reservations.event_id', event.id)
 
-            // 2. Fetch Page Data (Detailed fields)
             const PAGE_SIZE = 20
-            const from = payoutPage * PAGE_SIZE
+            const from = salesPage * PAGE_SIZE
             const to = from + PAGE_SIZE - 1
 
             const listQuery = supabase
@@ -695,162 +629,38 @@ export function EventManageClient({
                 .order('created_at', { ascending: false })
                 .range(from, to)
 
-            // 3. Fetch Active Payout Request
-            const activePayoutQuery = supabase
-                .schema('gatepass')
-                .from('payouts')
-                .select('*')
-                .eq('event_id', event.id)
-                .in('status', ['pending', 'processing'])
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle()
-
-            const payoutRequestsQuery = supabase
-                .schema('gatepass')
-                .from('payouts')
-                .select('*')
-                .eq('event_id', event.id)
-                .order('created_at', { ascending: false })
-
-            const [statsRes, listRes, activePayoutRes, payoutRequestsRes] = await Promise.all([statsQuery, listQuery, activePayoutQuery, payoutRequestsQuery])
-
+            const [statsRes, listRes] = await Promise.all([statsQuery, listQuery])
             if (statsRes.error) throw statsRes.error
             if (listRes.error) throw listRes.error
-            if (activePayoutRes.error) throw activePayoutRes.error
-            if (payoutRequestsRes.error) throw payoutRequestsRes.error
 
             setTransactions(listRes.data || [])
-            setPayoutCount(listRes.count || 0)
-            setActivePayout(activePayoutRes.data)
-            setPayoutRequests(payoutRequestsRes.data || [])
+            setSalesCount(listRes.count || 0)
 
-            // Calculate exact payout stats from the FULL statsRes dataset
-            let totalVolume = 0
-            let totalPlatformFees = 0
-            let totalOrganizerNet = 0 // Using explicit independent counter
-            let totalAddonsRevenue = 0
-
-            // Helper to get addon price (uses 'addons' state which is fetched on mount)
-            const getAddonPrice = (id: string) => {
-                const found = addons.find(a => a.id === id)
-                return found?.price || 0
-            }
-
+            const addonPrice = (id: string) => addons.find(a => a.id === id)?.price || 0
+            let totalCollected = 0
+            let totalAddons = 0
             statsRes.data.forEach((tx: any) => {
-                totalVolume += (tx.amount || 0)
-
-                // Find tier price directly from relation if available, else fallback
-                const ticketTier = tx.reservations?.ticket_tiers || tiers.find(t => t.id === tx.reservations?.tier_id)
-                const basePrice = ticketTier?.price || 0
-                const quantity = tx.reservations?.quantity || 1
-                let tierSubtotal = basePrice * quantity
-
-                if (ticketTier && ticketTier.min_quantity && quantity >= ticketTier.min_quantity && ticketTier.discount_value) {
-                    const discountValue = ticketTier.discount_value || 0
-                    if (ticketTier.discount_type === 'percentage') {
-                        tierSubtotal = tierSubtotal - (tierSubtotal * (discountValue / 100))
-                    } else if (ticketTier.discount_type === 'fixed') {
-                        tierSubtotal = Math.max(0, tierSubtotal - discountValue)
-                    }
-                }
-                let price = quantity > 0 ? (tierSubtotal / quantity) : basePrice
-
-                // Calculate Addon Revenue for this TX
+                totalCollected += tx.amount || 0
                 const resAddons = tx.reservations?.addons
-                let txAddonRevenue = 0
                 if (resAddons && typeof resAddons === 'object') {
-                    Object.entries(resAddons).forEach(([addonId, qty]) => {
-                        const unitPrice = getAddonPrice(addonId)
-                        txAddonRevenue += unitPrice * (qty as number)
-                    })
+                    Object.entries(resAddons).forEach(([addonId, qty]) => { totalAddons += addonPrice(addonId) * (qty as number) })
                 }
-                totalAddonsRevenue += txAddonRevenue
-
-                const feeBearer = event.fee_bearer || 'customer'
-                // Ensure we pass organizer settings for effective rate resolution
-                const effectiveRates = getEffectiveFeeRates(feeRates, event, event.organizers)
-
-                // Calculate Discount for Subtotal
-                const discount = tx.reservations?.discounts
-                let discountAmount = 0
-                if (discount) {
-                    if (discount.type === 'percentage') {
-                        discountAmount = (price * quantity) * (discount.value / 100)
-                    } else {
-                        discountAmount = discount.value
-                    }
-                }
-                const subtotal = Math.max(0, (price * quantity) - discountAmount)
-
-                // Note: tx.applied_fee_rate should be used if available to respect historical rates
-                const appliedPlatformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
-                // Normalize old 2% rate to current 1.95%
-                const storedProcessorRate = tx.applied_processor_rate
-                const appliedProcessorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
-                    ? effectiveRates.processorFeePercent
-                    : storedProcessorRate
-
-                // Expected Fees = Ticket Revenue * PlatformRate + Total * ProcessorRate
-
-                let usedPlatformRate = appliedPlatformRate
-                // Fix Across: If stored rate is 0, use effective rate. 
-                // If effective rate is ALSO 0 (unlikely for standard events), force 0.04 fallback for this repair.
-                if (usedPlatformRate === 0) {
-                    usedPlatformRate = effectiveRates.platformFeePercent > 0 ? effectiveRates.platformFeePercent : 0.04
-                }
-
-                const calcPlatformFee = subtotal * usedPlatformRate
-                const calcProcessorFee = tx.amount * appliedProcessorRate
-
-                let finalPlatformFee = tx.platform_fee
-                if ((finalPlatformFee === 0 || finalPlatformFee === null || finalPlatformFee === undefined) && usedPlatformRate > 0 && subtotal > 0) {
-                    finalPlatformFee = calcPlatformFee
-                }
-
-                let finalProcessorFee = tx.applied_processor_fee
-                if ((finalProcessorFee === 0 || finalProcessorFee === null || finalProcessorFee === undefined) && appliedProcessorRate > 0 && tx.amount > 0) {
-                    finalProcessorFee = calcProcessorFee
-                } else if (finalProcessorFee === null || finalProcessorFee === undefined) {
-                    finalProcessorFee = calcProcessorFee
-                }
-
-                const expectedTotalFees = finalPlatformFee + finalProcessorFee
-
-                // Payout = Amount - Fees
-                const netPayout = tx.amount - expectedTotalFees
-
-                // Update totals
-                // Note: We use the calculated values for display consistency
-                totalPlatformFees += expectedTotalFees
-                totalOrganizerNet += netPayout
             })
 
-            const amountPaid = payoutRequestsRes.data?.filter((p: any) => p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0) || 0
-            const activeAmount = activePayoutRes.data ? activePayoutRes.data.amount : 0
-
-            setPayoutStats({
-                totalCollected: totalVolume,
-                platformFee: totalPlatformFees,
-                organizerNet: Math.max(0, totalOrganizerNet - amountPaid - activeAmount),
-                transactionCount: statsRes.data.length,
-                totalAddons: totalAddonsRevenue
-            })
-
+            setSalesStats({ totalCollected, transactionCount: statsRes.data.length, totalAddons })
         } catch (e: any) {
-            console.error('Payout fetch error:', e)
-            toast.error('Failed to load payout data')
+            console.error('Sales fetch error:', e)
+            toast.error('Failed to load sales')
         } finally {
-            setLoadingPayouts(false)
+            setLoadingSales(false)
         }
     }
 
-    // Refresh when page changes or event settings change (e.g. fee bearer toggled)
     useEffect(() => {
-        if (activeTab === 'payouts') {
-            fetchPayouts()
+        if (activeTab === 'sales') {
+            fetchSales()
         }
-    }, [payoutPage, activeTab, event.fee_bearer, event.platform_fee_percent])
+    }, [salesPage, activeTab])
 
     // Analytics State
     const [analyticsTickets, setAnalyticsTickets] = useState<any[]>([])
@@ -987,7 +797,7 @@ export function EventManageClient({
                         <button aria-pressed={activeTab === 'discounts'} onClick={() => setActiveTab('discounts')} className={tabClass('discounts')}>Promotions</button>
                     )}
                     {isAdmin && (
-                        <button aria-pressed={activeTab === 'payouts'} onClick={() => setActiveTab('payouts')} className={tabClass('payouts')}>Payouts</button>
+                        <button aria-pressed={activeTab === 'sales'} onClick={() => setActiveTab('sales')} className={tabClass('sales')}>Sales</button>
                     )}
                     {isAdmin && (
                         <button aria-pressed={activeTab === 'instalments'} onClick={() => setActiveTab('instalments')} className={tabClass('instalments')}>Instalments</button>
@@ -1003,103 +813,27 @@ export function EventManageClient({
 
 
             {/* PAYOUTS TAB */}
-            {activeTab === 'payouts' && (
-                <div className="space-y-6 animate-in fade-in duration-200" aria-busy={loadingPayouts}>
+            {activeTab === 'sales' && (
+                <div className="space-y-6 animate-in fade-in duration-200" aria-busy={loadingSales}>
                     <div>
-                        <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Payouts</h2>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Review ticket payments and your available balance.</p>
+                        <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Sales</h2>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Ticket payments go straight to your connected payment provider.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {/* Organizer Due Card */}
-                        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
-                            <div className="flex h-full flex-col justify-between gap-6">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Available to request</p>
-                                    <h2 className="mt-3 truncate text-4xl font-semibold tracking-tight text-gray-950 dark:text-white" title={formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}>
-                                        {loadingPayouts ? 'Loading…' : formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}
-                                    </h2>
-                                </div>
-                                <div className="space-y-4">
-                                    <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">After previous and pending payouts. {event.fee_bearer === 'organizer' ? 'Processing fees are deducted from your earnings.' : 'The customer pays processing fees.'}</p>
-                                    {!activePayout && (
-                                        <div className="border-t border-gray-200 pt-4 dark:border-white/10">
-                                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Transfer fees</p>
-                                            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                                                GHS 1.00 for Mobile Money / GHS 8.00 for Bank transfers will be deducted from your final payout.
-                                            </p>
-                                        </div>
-                                    )}
-                                    {activePayout ? (
-                                        <div className="flex w-full cursor-not-allowed flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50 py-3 font-medium text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
-                                            <div className="flex items-center gap-2">
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                <span>Processing payout</span>
-                                            </div>
-                                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
-                                                {formatCurrency(activePayout.amount, activePayout.currency)} requested on {new Date(activePayout.created_at).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={handleRequestPayout}
-                                            disabled={loadingPayouts || requestingPayout || payoutStats.organizerNet <= 0}
-                                            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black"
-                                        >
-                                            {requestingPayout ? <Loader2 className="w-5 h-5 animate-spin" /> : loadingPayouts ? 'Loading balance…' : 'Request payout'}
-                                        </button>
-                                    )}
-                                </div>
+                    <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        {[
+                            { label: 'Gross sales', value: formatCurrency(salesStats.totalCollected, initialTiers?.[0]?.currency || 'GHS') },
+                            { label: 'Transactions', value: salesStats.transactionCount.toLocaleString() },
+                            { label: 'Add-ons', value: formatCurrency(salesStats.totalAddons, initialTiers?.[0]?.currency || 'GHS') },
+                        ].map(stat => (
+                            <div key={stat.label} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</dt>
+                                <dd className="mt-3 truncate text-3xl font-semibold tabular-nums tracking-tight text-gray-950 dark:text-white">
+                                    {loadingSales ? '…' : stat.value}
+                                </dd>
                             </div>
-                        </div>
-
-                        {/* Breakdown Card */}
-                        <div className="flex flex-col gap-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
-                            <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-white/10">
-                                <h3 className="text-base font-semibold text-gray-950 dark:text-white">
-                                    Financial summary
-                                </h3>
-                            </div>
-
-                            <div className="space-y-5 flex-1">
-                                <div className="flex justify-between items-center group">
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">Gross sales</span>
-                                    <span className="font-bold text-gray-900 dark:text-white text-lg tabular-nums">{formatCurrency(payoutStats.totalCollected, initialTiers?.[0]?.currency || 'GHS')}</span>
-                                </div>
-                                <div className="flex justify-between items-center group">
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">Transactions</span>
-                                    <span className="font-bold text-gray-900 dark:text-white text-lg tabular-nums">{payoutStats.transactionCount}</span>
-                                </div>
-                                <div className="h-px bg-gray-100 dark:bg-white/10 w-full" />
-                                <div className="flex justify-between items-center group">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">Platform and processing fees</span>
-                                    </div>
-                                    <span className="font-bold text-red-500 text-lg tabular-nums">
-                                        - {formatCurrency(payoutStats.platformFee, initialTiers?.[0]?.currency || 'GHS')}
-                                    </span>
-                                </div>
-                                {payoutRequests.some((request: any) => request.status === 'paid') && (
-                                    <div className="flex items-center justify-between gap-3">
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">Previously paid out</span>
-                                        <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">− {formatCurrency(payoutRequests.filter((request: any) => request.status === 'paid').reduce((total: number, request: any) => total + request.amount, 0), initialTiers?.[0]?.currency || 'GHS')}</span>
-                                    </div>
-                                )}
-                                {activePayout && (
-                                    <div className="flex items-center justify-between gap-3">
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">Payout in progress</span>
-                                        <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">− {formatCurrency(activePayout.amount, initialTiers?.[0]?.currency || 'GHS')}</span>
-                                    </div>
-                                )}
-                                <div className="h-px bg-gray-100 dark:bg-white/10 w-full" />
-                                <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/10">
-                                    <span className="font-semibold text-gray-900 dark:text-white">Available balance</span>
-                                    <span className="text-xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-white">{formatCurrency(payoutStats.organizerNet, initialTiers?.[0]?.currency || 'GHS')}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
+                        ))}
+                    </dl>
 
                     {/* Transaction History Table */}
                     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
@@ -1110,7 +844,7 @@ export function EventManageClient({
                                 </div>
                                 <div>
                                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">Recent transactions</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{payoutCount} successful payments found</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{salesCount} successful payments found</p>
                                 </div>
                             </div>
                             <button
@@ -1135,7 +869,7 @@ export function EventManageClient({
                                             <th className="px-5 py-3 font-medium">Customer</th>
                                             <th className="px-5 py-3 text-right font-medium">Gross</th>
                                             <th className="px-5 py-3 text-right font-medium">Fees</th>
-                                            <th className="px-5 py-3 text-right font-medium">Net payout</th>
+                                            <th className="px-5 py-3 text-right font-medium">Net</th>
                                             <th className="px-5 py-3 text-center font-medium">View</th>
                                         </tr>
                                     </thead>
@@ -1180,16 +914,12 @@ export function EventManageClient({
                                             const appliedPlatformRate = tx.applied_fee_rate ?? effectiveRates.platformFeePercent
                                             // Normalize old 2% rate to current 1.95%
                                             const storedProcessorRate2 = tx.applied_processor_rate
-                                            const appliedProcessorRate = (storedProcessorRate2 === 0.02 || !storedProcessorRate2)
+                                            const appliedProcessorRate = (storedProcessorRate2 === 0.02 || storedProcessorRate2 == null)
                                                 ? effectiveRates.processorFeePercent
                                                 : storedProcessorRate2
 
-                                            let usedPlatformRate = appliedPlatformRate
-                                            // Fix Across: If stored rate is 0, use effective rate. 
-                                            // If effective rate is ALSO 0 (unlikely for standard events), force 0.04 fallback for this repair.
-                                            if (usedPlatformRate === 0) {
-                                                usedPlatformRate = effectiveRates.platformFeePercent > 0 ? effectiveRates.platformFeePercent : 0.04
-                                            }
+                                            // A stored 0 means no per-ticket fee was charged (bring-your-own-keys era)
+                                            const usedPlatformRate = appliedPlatformRate
 
                                             const calcPlatformFee = subtotal * usedPlatformRate
                                             const calcProcessorFee = tx.amount * appliedProcessorRate
@@ -1232,7 +962,7 @@ export function EventManageClient({
                                                         <span className="md:hidden">Fees</span><span>{totalFees > 0 ? `- ${formatCurrency(totalFees, tx.currency)}` : '-'}</span>
                                                     </td>
                                                     <td className="flex items-center justify-between gap-3 py-2 text-right md:table-cell md:px-5 md:py-4">
-                                                        <span className="text-gray-500 md:hidden">Net payout</span>
+                                                        <span className="text-gray-500 md:hidden">Net</span>
                                                         <span className="font-semibold tabular-nums text-gray-950 dark:text-white">
                                                             {formatCurrency(netPayout, tx.currency)}
                                                         </span>
@@ -1258,114 +988,27 @@ export function EventManageClient({
                         )}
 
                         {/* Pagination Controls */}
-                        {payoutCount > 20 && (
+                        {salesCount > 20 && (
                             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/30 px-5 py-4 dark:border-white/10 dark:bg-white/5 sm:px-6">
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Showing <span className="font-medium">{payoutPage * 20 + 1}</span> to <span className="font-medium">{Math.min((payoutPage + 1) * 20, payoutCount)}</span> of <span className="font-medium">{payoutCount}</span>
+                                    Showing <span className="font-medium">{salesPage * 20 + 1}</span> to <span className="font-medium">{Math.min((salesPage + 1) * 20, salesCount)}</span> of <span className="font-medium">{salesCount}</span>
                                 </p>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => setPayoutPage(p => Math.max(0, p - 1))}
-                                        disabled={payoutPage === 0}
+                                        onClick={() => setSalesPage(p => Math.max(0, p - 1))}
+                                        disabled={salesPage === 0}
                                         className="px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                     >
                                         Previous
                                     </button>
                                     <button
-                                        onClick={() => setPayoutPage(p => p + 1)}
-                                        disabled={(payoutPage + 1) * 20 >= payoutCount}
+                                        onClick={() => setSalesPage(p => p + 1)}
+                                        disabled={(salesPage + 1) * 20 >= salesCount}
                                         className="px-4 py-2 bg-white dark:bg-[#111] dark:text-white border border-gray-200 dark:border-white/10 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                     >
                                         Next
                                     </button>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Payout Requests History */}
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
-                        <div className="border-b border-gray-100 p-5 dark:border-white/10 sm:p-6">
-                            <h3 className="text-base font-semibold text-gray-950 dark:text-white">Payout requests</h3>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{payoutRequests.length} {payoutRequests.length === 1 ? 'request' : 'requests'}</p>
-                        </div>
-
-                        {payoutRequests.length > 0 ? (
-                            <>
-                            <div className="space-y-2 p-4 md:hidden">
-                                {payoutRequests.map((req: any) => (
-                                    <div key={req.id} className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(req.created_at).toLocaleDateString()}</p>
-                                                <p className="mt-1 text-base font-semibold tabular-nums text-gray-950 dark:text-white">{formatCurrency(req.amount, req.currency)}</p>
-                                            </div>
-                                            <span className={clsx(
-                                                "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
-                                                req.status === 'paid' ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
-                                                    req.status === 'pending' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400" :
-                                                        req.status === 'processing' ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
-                                                            "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
-                                            )}>{req.status}</span>
-                                        </div>
-                                        {(req.reference || req.notes) && (
-                                            <div className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs dark:border-white/10">
-                                                {req.reference && <p className="break-all text-gray-500 dark:text-gray-400">Reference: {req.reference}</p>}
-                                                {req.notes && <p className="break-words text-gray-600 dark:text-gray-300">{req.notes}</p>}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="hidden overflow-x-auto md:block">
-                                <table className="w-full min-w-[660px] text-left text-sm">
-                                    <thead className="border-b border-gray-100 bg-gray-50/50 text-xs text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
-                                        <tr>
-                                            <th className="px-5 py-3 font-medium">Date</th>
-                                            <th className="px-5 py-3 font-medium">Amount</th>
-                                            <th className="px-5 py-3 font-medium">Status</th>
-                                            <th className="px-5 py-3 font-medium">Reference</th>
-                                            <th className="px-5 py-3 font-medium">Notes</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                                        {payoutRequests.map((req: any) => (
-                                            <tr key={req.id} className="group hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
-                                                <td className="whitespace-nowrap px-5 py-4 text-gray-600 dark:text-gray-400">
-                                                    {new Date(req.created_at).toLocaleDateString()}
-                                                </td>
-                                                <td className="px-5 py-4 font-semibold tabular-nums text-gray-900 dark:text-white">
-                                                    {formatCurrency(req.amount, req.currency)}
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <span className={clsx(
-                                                        "rounded-full px-2.5 py-1 text-xs font-medium capitalize",
-                                                        req.status === 'paid' ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400" :
-                                                            req.status === 'pending' ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400" :
-                                                                req.status === 'processing' ? "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400" :
-                                                                    "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400"
-                                                    )}>
-                                                        {req.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4 text-xs text-gray-500 dark:text-gray-400">
-                                                    {req.reference || '-'}
-                                                </td>
-                                                <td className="max-w-xs truncate px-5 py-4 text-gray-500 dark:text-gray-400" title={req.notes}>
-                                                    {req.notes || '-'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            </>
-                        ) : (
-                            <div className="px-5 py-14 text-center">
-                                <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white">No payout requests</h3>
-                                <p className="mx-auto max-w-xs text-sm text-gray-500 dark:text-gray-400">
-                                    Payout requests will appear here.
-                                </p>
                             </div>
                         )}
                     </div>
@@ -1529,81 +1172,12 @@ export function EventManageClient({
                                     </div>
                                 </div>
 
-                                {/* Financial Settings (Super Admin Only) */}
-                                {isSuperAdmin && (
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
-                                        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-                                            <h3 className="text-base font-semibold text-gray-950 dark:text-white">Financial settings</h3>
-                                            <span className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                                                {feeSource}
-                                            </span>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Platform fee override (%)</label>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        value={feeInput}
-                                                        onChange={(e) => setFeeInput(e.target.value)}
-                                                        placeholder="Default"
-                                                        className="h-11"
-                                                        type="number"
-                                                    />
-                                                    <Button
-                                                        type="button"
-                                                        onClick={handleSaveFee}
-                                                        disabled={feeSaving}
-                                                        className="h-11 px-6 font-bold"
-                                                    >
-                                                        {feeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
-                                                    </Button>
-                                                </div>
-                                                <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                                                    Effective rate: <span className="font-medium text-gray-900 dark:text-white">{(getEffectiveFeeRates(feeRates, event).platformFeePercent * 100).toFixed(2)}%</span>. Leave empty to use the organizer or system rate.
-                                                </p>
-                                            </div>
-
-                                            <div className="pt-4 border-t border-gray-100 dark:border-white/10">
-                                                <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Who pays the fees?</p>
-                                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const newBearer = 'customer';
-                                                            setEvent({ ...event, fee_bearer: newBearer }); // Optimistic
-                                                            updateEventFeeBearer(event.id, newBearer).then(() => toast.success('Fee bearer updated')).catch(e => toast.error(e.message));
-                                                        }}
-                                                        className={clsx(
-                                                            "flex flex-col gap-1 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors",
-                                                            event.fee_bearer === 'customer'
-                                                                ? "border-black bg-gray-50 text-gray-900 dark:border-white dark:bg-white/10 dark:text-white"
-                                                                : "border-gray-200 bg-white text-gray-700 hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
-                                                        )}
-                                                    >
-                                                        <span>Customer</span>
-                                                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Fees added to total</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const newBearer = 'organizer';
-                                                            setEvent({ ...event, fee_bearer: newBearer }); // Optimistic
-                                                            updateEventFeeBearer(event.id, newBearer).then(() => toast.success('Fee bearer updated')).catch(e => toast.error(e.message));
-                                                        }}
-                                                        className={clsx(
-                                                            "flex flex-col gap-1 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors",
-                                                            event.fee_bearer === 'organizer'
-                                                                ? "border-black bg-gray-50 text-gray-900 dark:border-white dark:bg-white/10 dark:text-white"
-                                                                : "border-gray-200 bg-white text-gray-700 hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
-                                                        )}
-                                                    >
-                                                        <span>Organizer</span>
-                                                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Fees deducted from payout</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                {(userRole === 'Owner' || userRole === 'Admin') && (
+                                    <EventPaymentProvider
+                                        eventId={event.id}
+                                        initialIntegrationId={event.payment_integration_id ?? null}
+                                        integrations={paymentIntegrations}
+                                    />
                                 )}
 
                                 {/* Poster Image */}
@@ -1732,6 +1306,13 @@ export function EventManageClient({
 
                             {/* RIGHT COLUMN (4 cols) - Settings */}
                             <div className="space-y-5 lg:col-span-4">
+
+                                {(userRole === 'Owner' || userRole === 'Admin') && (
+                                    <EventBillingCard
+                                        eventId={event.id}
+                                        capacityKey={tiers.map(t => `${t.id}:${t.total_quantity}:${t.price}`).join('|')}
+                                    />
+                                )}
 
                                 {/* Publish Status - High Priority */}
                                 <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#111]">
@@ -1916,37 +1497,6 @@ export function EventManageClient({
                                     </div>
                                 </div>
 
-
-                                {/* Financials */}
-                                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
-                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Fees</h3>
-                                    <div>
-                                        <label htmlFor="event-fee-bearer" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Who pays the fees?</label>
-                                        <select
-                                            id="event-fee-bearer"
-                                            disabled={isStaff}
-                                            value={event.fee_bearer || 'customer'}
-                                            onChange={async (e) => {
-                                                const newBearer = e.target.value as 'customer' | 'organizer'
-                                                // Optimistic update
-                                                setEvent({ ...event, fee_bearer: newBearer })
-                                                try {
-                                                    await updateEventFeeBearer(event.id, newBearer)
-                                                    toast.success('Fee setting updated')
-                                                } catch (err: any) {
-                                                    toast.error('Failed to update: ' + err.message)
-                                                }
-                                            }}
-                                            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                        >
-                                            <option value="customer">Customer pays</option>
-                                            <option value="organizer">Organizer pays</option>
-                                        </select>
-                                        <p className="text-xs text-gray-400 mt-2">
-                                            Customer paid fees appear at checkout. Organizer paid fees are deducted from your earnings.
-                                        </p>
-                                    </div>
-                                    </div>
 
                                 {/* Socials */}
                                 <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">

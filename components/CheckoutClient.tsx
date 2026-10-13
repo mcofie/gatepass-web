@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import Script from 'next/script'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
@@ -196,78 +195,33 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
     }
 
     const handlePaystackPayment = async () => {
-        // @ts-ignore
-        const PaystackPop = window.PaystackPop
-
-        if (!PaystackPop) {
-            toast.error('Paystack SDK not loaded. Please refresh.')
-            return
-        }
-
         setPaying(true)
-
-        const paymentConfig = {
-            key: process.env.NEXT_PUBLIC_PAYSTACK_KEY || 'pk_live_0f67799272630fd2b3632739071b384d74294e2a',
-            email: (isGuest ? guestForm.email : user?.email) || 'customer@email.com',
-            amount: Math.round(paymentTotal * 100), // Paystack expects kobo/cents
-            currency: currency,
-            ref: reservation.id,
-            callback: function (transaction: any) {
-                const processPayment = async () => {
-                    // Call Server API to verify and create ticket
-                    const response = await fetch('/api/paystack/verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            reference: transaction.reference,
-                            reservationId: reservation.id,
-                            addons: selectedAddons
-                        })
-                    })
-
-                    const result = await response.json()
-
-                    if (!response.ok) {
-                        throw new Error(result.error || 'Verification failed')
-                    }
-
-                    // Success
-                    router.push(`/checkout/${reservation.id}/success`)
-                    toast.success('Payment successful!')
-                }
-
-                processPayment().catch(err => {
-                    console.error('Payment Verification Error Stack:', err)
-                    toast.error(`Verification Failed: ${err.message || 'Network Error'}`)
+        try {
+            // Hosted checkout with the organizer's own payment provider
+            const response = await fetch('/api/payments/initialize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: (isGuest ? guestForm.email : user?.email) || 'customer@email.com',
+                    phone: isGuest ? guestForm.phone : undefined,
+                    amount: Math.round(paymentTotal * 100),
+                    currency,
+                    reservationIds: [reservation.id],
+                    callbackUrl: `${window.location.origin}/checkout/${reservation.id}/success`
                 })
-            },
-            onClose: function () {
-                setPaying(false)
-                toast.info('Transaction cancelled')
-            }
-        }
-
-        if (typeof PaystackPop.setup === 'function') {
-            const handler = PaystackPop.setup(paymentConfig)
-            handler.openIframe()
-        } else {
-            try {
-                const paystack = new PaystackPop()
-                paystack.newTransaction({
-                    ...paymentConfig,
-                    onSuccess: paymentConfig.callback,
-                    onCancel: paymentConfig.onClose
-                })
-            } catch (e: any) {
-                console.error('Paystack Init Error:', e)
-                setPaying(false)
-            }
+            })
+            const data = await response.json()
+            if (!response.ok || !data.authorization_url) throw new Error(data.error || 'Payment initialization failed')
+            window.location.assign(data.authorization_url)
+        } catch (error) {
+            console.error('Payment Error:', error)
+            toast.error(error instanceof Error ? error.message : 'Payment initialization failed')
+            setPaying(false)
         }
     }
 
     return (
         <>
-            <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
 
             <div className="w-full max-w-lg mx-auto animate-slide-up">
                 {/* Premium Dark Card */}
@@ -510,12 +464,14 @@ export function CheckoutClient({ reservation, feeRates, discount, availableAddon
                                         </div>
                                     )}
 
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-400">Platform Fee ({platformPct}%)</span>
-                                        <span className="font-medium tabular-nums text-gray-200">{formatCurrency(platformFee, currency)}</span>
-                                    </div>
+                                    {platformFee > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-400">Platform Fee ({platformPct}%)</span>
+                                            <span className="font-medium tabular-nums text-gray-200">{formatCurrency(platformFee, currency)}</span>
+                                        </div>
+                                    )}
 
-                                    {feeBearer === 'customer' && (
+                                    {feeBearer === 'customer' && processorFee > 0 && (
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-400">Processing Fee ({processorPct}%)</span>
                                             <span className="font-medium tabular-nums text-gray-200">{formatCurrency(processorFee, currency)}</span>

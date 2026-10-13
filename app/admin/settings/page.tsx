@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
-import { getFeeSettings } from '@/utils/settings'
-import { SystemSettingsClient } from '@/components/admin/SystemSettingsClient'
+import { listPricingTiers } from '@/app/actions/billing'
+import { PricingTiersEditor } from '@/components/admin/PricingTiersEditor'
 import { redirect } from 'next/navigation'
 
 export const metadata = {
@@ -30,8 +30,7 @@ export default async function SystemSettingsPage() {
         )
     }
 
-    // Fetch Settings
-    const fees = await getFeeSettings()
+    const tiers = await listPricingTiers()
 
     return (
         <div className="p-8 max-w-7xl mx-auto">
@@ -40,10 +39,7 @@ export default async function SystemSettingsPage() {
                 <p className="text-gray-500">Manage global platform configuration.</p>
             </div>
 
-            <SystemSettingsClient
-                initialPlatformFee={fees.platformFeePercent}
-                initialProcessorFee={fees.processorFeePercent}
-            />
+            <PricingTiersEditor initialTiers={tiers} />
         </div>
     )
 }

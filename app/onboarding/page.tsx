@@ -19,20 +19,17 @@ type FormValues = {
     website: string
     twitter: string
     instagram: string
-    bank_name: string
-    account_number: string
-    account_name: string
 }
 
 const initialValues: FormValues = {
     name: '', slug: '', description: '', logo_url: '', website: '',
-    twitter: '', instagram: '', bank_name: '', account_number: '', account_name: '',
+    twitter: '', instagram: '',
 }
 
 const steps = [
     { title: 'Organization', detail: 'Name and identity' },
     { title: 'Online presence', detail: 'Where people find you' },
-    { title: 'Payout details', detail: 'Where earnings go' },
+    { title: 'Payments', detail: 'How you get paid' },
     { title: 'Review', detail: 'Confirm your setup' },
 ]
 
@@ -90,30 +87,18 @@ export default function OnboardingPage() {
         return true
     }
 
-    const validatePayout = () => {
-        const fields = [formData.bank_name, formData.account_number, formData.account_name]
-        if (fields.some(value => value.trim()) && fields.some(value => !value.trim())) {
-            setError('Complete all payout fields, or skip this step and add them later.')
-            return false
-        }
-        return true
-    }
-
     const continueStep = () => {
         if (step === 1 && !validateOrganization()) return
-        if (step === 3 && !validatePayout()) return
         goToStep(Math.min(step + 1, 4))
     }
 
     const skipStep = () => {
         if (step === 2) setFormData(current => ({ ...current, website: '', twitter: '', instagram: '' }))
-        if (step === 3) setFormData(current => ({ ...current, bank_name: '', account_number: '', account_name: '' }))
         goToStep(step + 1)
     }
 
     const handleSubmit = async () => {
         if (!validateOrganization()) { setStep(1); return }
-        if (!validatePayout()) { setStep(3); return }
         setLoading(true)
         try {
             const { data: { user } } = await supabase.auth.getUser()
@@ -130,9 +115,6 @@ export default function OnboardingPage() {
                 website: formData.website.trim() || null,
                 twitter: formData.twitter.trim() || null,
                 instagram: formData.instagram.trim() || null,
-                bank_name: formData.bank_name.trim() || null,
-                account_number: formData.account_number.trim() || null,
-                account_name: formData.account_name.trim() || null,
             })
             if (insertError) throw insertError
             toast.success('Organization created')
@@ -155,7 +137,6 @@ export default function OnboardingPage() {
     }
 
     const hasOnlinePresence = Boolean(formData.website.trim() || formData.twitter.trim() || formData.instagram.trim())
-    const hasPayout = Boolean(formData.bank_name && formData.account_number && formData.account_name)
 
     if (!authReady) return <div className="flex min-h-screen items-center justify-center bg-white dark:bg-[#080808]"><Loader2 className="size-5 animate-spin text-[#666]" aria-label="Loading setup" /></div>
 
@@ -200,8 +181,8 @@ export default function OnboardingPage() {
                         <motion.div key={step} initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -8 }} transition={{ duration: 0.22, ease: 'easeOut' }}>
                             <div className="mb-4">
                                 <p className="hidden text-xs font-semibold uppercase tracking-[0.14em] text-[#888] dark:text-[#aaa] lg:block">Step {step} / {steps.length}</p>
-                                <h1 className="mt-2 text-[31px] font-semibold leading-tight tracking-[-0.045em] sm:text-[38px]">{step === 1 ? 'Start with your organization' : step === 2 ? 'Where can people find you?' : step === 3 ? 'Add payout details' : 'Review your details'}</h1>
-                                <p className="mt-2.5 text-sm leading-6 text-[#707070] dark:text-[#aaa]">{step === 1 ? 'Give your page a name and a place to live.' : step === 2 ? 'These links are optional. Add them now or come back later.' : step === 3 ? 'Add a bank account now, or set one up before your first payout.' : 'Make sure everything looks right before creating your workspace.'}</p>
+                                <h1 className="mt-2 text-[31px] font-semibold leading-tight tracking-[-0.045em] sm:text-[38px]">{step === 1 ? 'Start with your organization' : step === 2 ? 'Where can people find you?' : step === 3 ? 'Get paid directly' : 'Review your details'}</h1>
+                                <p className="mt-2.5 text-sm leading-6 text-[#707070] dark:text-[#aaa]">{step === 1 ? 'Give your page a name and a place to live.' : step === 2 ? 'These links are optional. Add them now or come back later.' : step === 3 ? 'Ticket money goes straight into your own payment account. GatePass never holds it.' : 'Make sure everything looks right before creating your workspace.'}</p>
                             </div>
 
                             {step === 1 && <div className="space-y-3">
@@ -228,23 +209,25 @@ export default function OnboardingPage() {
                             </div>}
 
                             {step === 3 && <div className="space-y-5">
-                                <div><label htmlFor="bank-name" className={labelClass}>Bank name</label><Input id="bank-name" name="bank-name" autoComplete="off" value={formData.bank_name} onChange={event => updateField('bank_name', event.target.value)} placeholder="e.g. Ecobank Ghana" className={fieldClass} /></div>
-                                <div><label htmlFor="account-number" className={labelClass}>Account number</label><Input id="account-number" name="account-number" inputMode="numeric" autoComplete="off" maxLength={20} value={formData.account_number} onChange={event => updateField('account_number', event.target.value.replace(/\D/g, ''))} placeholder="Enter account number" className={fieldClass} /></div>
-                                <div><label htmlFor="account-name" className={labelClass}>Account name</label><Input id="account-name" name="account-name" autoComplete="name" value={formData.account_name} onChange={event => updateField('account_name', event.target.value)} placeholder="Name on the account" className={fieldClass} /></div>
-                                <p className={helperClass}>If you add payout details, complete all three fields. You can also skip this step.</p>
+                                <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    {['Stripe', 'Paystack', 'Flutterwave', 'Hubtel', 'M-Pesa', 'Wave'].map(name => (
+                                        <li key={name} className="rounded-xl border border-[#e8e8e8] px-4 py-3 text-sm font-medium dark:border-white/15">{name}</li>
+                                    ))}
+                                </ul>
+                                <p className={helperClass}>After your workspace is created, connect one of these in Settings → Payments using your own API keys. Free events work without it.</p>
                             </div>}
 
                             {step === 4 && <div className="divide-y divide-[#e8e8e8] rounded-2xl border border-[#e8e8e8] px-5 dark:divide-white/15 dark:border-white/15 sm:px-6">
                                 <div className="flex items-start justify-between gap-4 py-5"><div className="min-w-0"><p className="text-xs font-medium text-[#888]">Organization</p><p className="mt-1 truncate font-semibold">{formData.name}</p><p className="mt-1 truncate text-sm text-[#777] dark:text-[#aaa]">gatepass.so/{formData.slug}</p>{formData.description.trim() && <p className="mt-2 line-clamp-2 text-sm text-[#777] dark:text-[#aaa]">{formData.description.trim()}</p>}</div><button type="button" onClick={() => goToStep(1)} className="shrink-0 text-sm font-semibold underline underline-offset-4">Edit</button></div>
                                 <div className="flex items-start justify-between gap-4 py-5"><div className="min-w-0"><p className="text-xs font-medium text-[#888]">Online presence</p><p className="mt-1 truncate text-sm font-medium">{hasOnlinePresence ? [formData.website.trim(), formData.twitter.trim() && `X @${formData.twitter.trim()}`, formData.instagram.trim() && `Instagram @${formData.instagram.trim()}`].filter(Boolean).join(' · ') : 'Add later'}</p></div><button type="button" onClick={() => goToStep(2)} className="shrink-0 text-sm font-semibold underline underline-offset-4">Edit</button></div>
-                                <div className="flex items-start justify-between gap-4 py-5"><div className="min-w-0"><p className="text-xs font-medium text-[#888]">Payout details</p><p className="mt-1 text-sm font-medium">{hasPayout ? `${formData.bank_name} ···· ${formData.account_number.slice(-4)}` : 'Add later'}</p></div><button type="button" onClick={() => goToStep(3)} className="shrink-0 text-sm font-semibold underline underline-offset-4">Edit</button></div>
+                                <div className="flex items-start justify-between gap-4 py-5"><div className="min-w-0"><p className="text-xs font-medium text-[#888]">Payments</p><p className="mt-1 text-sm font-medium">Connect your provider in Settings after setup</p></div></div>
                             </div>}
 
                             {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
                             <div className="mt-3 flex flex-col gap-3 border-t border-[#ebebeb] pt-4 dark:border-white/15 sm:flex-row sm:items-center sm:justify-between">
                                 <div>{step > 1 && <button type="button" onClick={() => goToStep(step - 1)} className="inline-flex h-11 items-center gap-2 rounded-xl px-2 text-sm font-medium text-[#666] transition-colors hover:text-black focus-visible:outline focus-visible:outline-2 dark:text-[#aaa] dark:hover:text-white"><ArrowLeft className="size-4" /> Back</button>}</div>
                                 <div className="flex items-center gap-4">
-                                    {(step === 2 || step === 3) && <button type="button" onClick={skipStep} className="text-sm font-medium text-[#777] underline-offset-4 hover:text-black hover:underline dark:text-[#aaa] dark:hover:text-white">Skip for now</button>}
+                                    {step === 2 && <button type="button" onClick={skipStep} className="text-sm font-medium text-[#777] underline-offset-4 hover:text-black hover:underline dark:text-[#aaa] dark:hover:text-white">Skip for now</button>}
                                     <button type="button" onClick={step === 4 ? handleSubmit : continueStep} disabled={loading} className="inline-flex h-12 min-w-[158px] flex-1 items-center justify-center gap-2 rounded-full bg-[#111] px-6 text-sm font-semibold text-white transition-transform duration-200 hover:-translate-y-0.5 hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-[#eee] sm:flex-none">
                                         {loading ? <><Loader2 className="size-4 animate-spin" /> Creating...</> : step === 4 ? 'Create workspace' : <>Continue <ArrowRight className="size-4" /></>}
                                     </button>

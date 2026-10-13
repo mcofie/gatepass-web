@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 import { OfferingReveal } from './OfferingReveal'
+import { createClient } from '@/utils/supabase/server'
+import { formatCurrency } from '@/utils/format'
 import styles from './offering.module.css'
 
 export const metadata: Metadata = {
@@ -46,7 +48,16 @@ function FeatureCard({ number, title, description, children }: {
     )
 }
 
-export default function OurOfferingPage() {
+export default async function OurOfferingPage() {
+    const supabase = await createClient()
+    const { data } = await supabase
+        .schema('gatepass')
+        .from('platform_pricing_tiers')
+        .select('name, max_tickets, price_minor, currency')
+        .eq('is_active', true)
+        .order('sort_order')
+    const tiers = (data ?? []) as { name: string; max_tickets: number | null; price_minor: number; currency: string }[]
+
     return (
         <div className="overflow-x-clip bg-white text-[#0d0d0d] dark:bg-[#0a0a0a] dark:text-white">
             <header className="sticky top-0 z-40 border-b border-black/[0.07] bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-[#0a0a0a]/95">
@@ -203,15 +214,28 @@ export default function OurOfferingPage() {
                     <div className="mx-auto grid max-w-[1280px] gap-12 lg:grid-cols-2 lg:gap-24">
                         <OfferingReveal>
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#777] dark:text-[#aaa]">Straightforward pricing</p>
-                            <h2 className="mt-5 max-w-[650px] text-[clamp(2.9rem,5.4vw,5.5rem)] font-semibold leading-[1.03] tracking-[-0.07em] text-balance">Clear numbers from the start.</h2>
-                            <p className="mt-6 max-w-[470px] text-[16px] leading-[1.65] text-[#666] dark:text-[#aaa]">Understand the standard ticket fee before you publish. Track sales and request payouts from the same place.</p>
+                            <h2 className="mt-5 max-w-[650px] text-[clamp(2.9rem,5.4vw,5.5rem)] font-semibold leading-[1.03] tracking-[-0.07em] text-balance">One fee per event. None per ticket.</h2>
+                            <p className="mt-6 max-w-[470px] text-[16px] leading-[1.65] text-[#666] dark:text-[#aaa]">Pay once before you publish, based on how many tickets you&apos;re selling. Ticket money goes straight to your own Stripe, Paystack, Flutterwave, Hubtel, M-Pesa or Wave account.</p>
                         </OfferingReveal>
 
                         <OfferingReveal delay={0.1} className="border-t border-black/15 pt-6 dark:border-white/20 lg:pt-8">
-                            <p className="text-[12px] text-[#777] dark:text-[#aaa]">Standard fee per paid ticket</p>
-                            <div className="mt-2 flex items-baseline gap-2"><strong className="text-[clamp(5rem,9vw,9rem)] font-semibold leading-none tracking-[-0.09em]">5.95</strong><span className="text-[clamp(2rem,3vw,3.3rem)] font-medium">%</span></div>
-                            <div className="mt-8 divide-y divide-black/10 border-y border-black/10 text-[13px] dark:divide-white/15 dark:border-white/15"><div className="flex justify-between py-4"><span className="text-[#666] dark:text-[#aaa]">GatePass platform</span><span className="font-medium">4.00%</span></div><div className="flex justify-between py-4"><span className="text-[#666] dark:text-[#aaa]">Payment processing</span><span className="font-medium">1.95%</span></div></div>
-                            <p className="mt-4 max-w-[500px] text-[11px] leading-[1.5] text-[#888] dark:text-[#999]">Shown for the standard rate. Account-specific rates and payment terms may vary.</p>
+                            <p className="text-[12px] text-[#777] dark:text-[#aaa]">GatePass fee on ticket sales</p>
+                            <div className="mt-2 flex items-baseline gap-2"><strong className="text-[clamp(5rem,9vw,9rem)] font-semibold leading-none tracking-[-0.09em]">0</strong><span className="text-[clamp(2rem,3vw,3.3rem)] font-medium">%</span></div>
+                            <div className="mt-8 divide-y divide-black/10 border-y border-black/10 text-[13px] dark:divide-white/15 dark:border-white/15">
+                                {tiers.map((tier, index) => (
+                                    <div key={tier.name} className="flex justify-between gap-4 py-4">
+                                        <span className="text-[#666] dark:text-[#aaa]">
+                                            <span className="font-medium text-black dark:text-white">{tier.name}</span>
+                                            {' · '}
+                                            {tier.max_tickets === null
+                                                ? `${((tiers[index - 1]?.max_tickets ?? 0) + 1).toLocaleString()}+ tickets`
+                                                : `Up to ${tier.max_tickets.toLocaleString()} tickets`}
+                                        </span>
+                                        <span className="font-medium tabular-nums">{tier.price_minor === 0 ? 'Free' : formatCurrency(tier.price_minor / 100, tier.currency)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="mt-4 max-w-[500px] text-[11px] leading-[1.5] text-[#888] dark:text-[#999]">One-time, per event. Your payment provider charges its own processing fees.</p>
                         </OfferingReveal>
                     </div>
                 </section>

@@ -2,7 +2,6 @@
 
 import { useSearchParams } from 'next/navigation'
 import React, { useState, useEffect } from 'react'
-import Script from 'next/script'
 import Image from 'next/image'
 import { motion, AnimatePresence, Variants } from 'framer-motion'
 import confetti from 'canvas-confetti'
@@ -419,11 +418,10 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             const verifyPayment = async () => {
                 setVerifying(true)
                 try {
-                    const gateway = event.payment_gateway || 'paystack'
                     const response = await fetch('/api/payments/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ reference, reservationId: reference, gateway })
+                        body: JSON.stringify({ reference })
                     })
                     const result = await response.json()
 
@@ -617,31 +615,6 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
     }
 
     // Step 2 of Booking: Pay
-    const handlePaymentSuccess = async (reference: string) => {
-        setLoading(true)
-        try {
-            const gateway = event.payment_gateway || 'paystack'
-            const response = await fetch('/api/payments/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference, reservationId: reference, gateway })
-            })
-            const result = await response.json()
-
-            if (!result.success) throw new Error(result.error || 'Verification failed')
-
-            setPurchasedTickets(result.tickets || [])
-            setView('success')
-        } catch (error: any) {
-            console.error('Verification Error:', error)
-            toast.error(error.message || 'Payment verification failed')
-        } finally {
-            setLoading(false)
-            setVerifying(false)
-        }
-    }
-
-    // Step 2 of Booking: Pay
     const handlePaystackPayment = async () => {
         const { total } = calculateFinancials()
         // Handle Free Tickets immediately
@@ -663,6 +636,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: guestEmail,
+                    phone: guestPhone || undefined,
                     amount: Math.round(total * 100),
                     currency: primaryTier?.currency || 'GHS',
                     reservationIds: reservations.map(r => r.id),
@@ -673,27 +647,7 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
             const data = await response.json()
             if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
 
-            // POPUP CHECKOUT
-            if (typeof window !== 'undefined' && (window as any).PaystackPop && (event.payment_gateway || 'paystack') === 'paystack') {
-                const handler = (window as any).PaystackPop.setup({
-                    key: process.env.NEXT_PUBLIC_PAYSTACK_KEY,
-                    email: guestEmail,
-                    amount: Math.round(total * 100),
-                    currency: primaryTier?.currency || 'GHS',
-                    ref: data.reference,
-                    callback: (response: any) => {
-                        setVerifying(true)
-                        handlePaymentSuccess(response.reference)
-                    },
-                    onClose: () => {
-                        setLoading(false)
-                        toast.info('Transaction cancelled')
-                    }
-                })
-                handler.openIframe()
-            } else {
-                window.location.href = data.authorization_url
-            }
+            window.location.href = data.authorization_url
 
         } catch (error: any) {
             console.error('Payment Error:', error)
@@ -1327,10 +1281,12 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                                     <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Subtotal</span>
                                     <span className={cn("font-medium", isDark ? "text-white" : "text-gray-900")}>{formatCurrency(subtotal + addonSubtotal, tiers[0]?.currency)}</span>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Fees</span>
-                                    <span className={cn("font-medium", isDark ? "text-white" : "text-gray-900")}>{formatCurrency(fees, tiers[0]?.currency)}</span>
-                                </div>
+                                {fees > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className={isDark ? "text-zinc-500" : "text-gray-500"}>Fees</span>
+                                        <span className={cn("font-medium", isDark ? "text-white" : "text-gray-900")}>{formatCurrency(fees, tiers[0]?.currency)}</span>
+                                    </div>
+                                )}
 
                                 {/* Discount Row */}
                                 {discount && (
@@ -1531,7 +1487,6 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
         )}
             style={fontParam ? { fontFamily: fontParam } : {}}
         >
-            <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
             <AnimatePresence mode="wait">
                 {view === 'details' && renderDetails()}
                 {view === 'tickets' && renderTickets()}
