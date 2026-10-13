@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import QRCode from 'react-qr-code'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import { ArrowUpRight, CalendarDays, Globe2, MapPin, Ticket as TicketIcon } from 'lucide-react'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 
@@ -141,6 +142,7 @@ export function TicketPass({
                         <div className="rounded-[10px] bg-white p-3" role="img" aria-label="Entry QR code"><QRCode value={ticket.qr_code_hash || ticket.id} size={188} fgColor="#111111" bgColor="#ffffff" /></div>
                         <p className="mt-4 text-[13px] font-semibold">Show this code at entry</p>
                         <p className="mt-1 text-[12px] text-[#777] dark:text-[#aaa]">Keep this pass ready at the door.</p>
+                        {!isPrint && <AddToAppleWallet ticketId={ticket.id} className="mt-5" />}
                     </div>
                 ) : (
                     <div className="mt-6 rounded-[16px] border border-[#e7e7e7] bg-[#fafafa] p-5 dark:border-[#333] dark:bg-[#1b1b1b]">

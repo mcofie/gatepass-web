@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, CreditCard, Globe2, MapPin, QrCode, Ticket as TicketIcon, X } from 'lucide-react'
 import QRCode from 'react-qr-code'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import { Ticket, InstalmentReservation } from '@/types/gatepass'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 import { TransferModal } from '@/components/transfer/TransferModal'
@@ -238,6 +239,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                                                         <button type="button" onClick={() => openCode(ticket)} className={primaryAction}><QrCode className="size-3.5" aria-hidden="true" />Show code</button>
                                                     )}
                                                     {isValid && !isVirtual && !eventEnded && <button type="button" onClick={() => openTransfer(ticket)} className={secondaryAction}>Transfer</button>}
+                                                    {isValid && !isVirtual && !eventEnded && <AddToAppleWallet ticketId={ticket.id} className="h-9 rounded-full px-3.5 text-[12px]" />}
                                                 </div>
                                             </div>
                                         </article>
@@ -321,6 +323,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                     <div className="mt-6 flex justify-center rounded-xl border border-[#eaeaea] bg-white p-5"><QRCode value={selectedTicket?.qr_code_hash || ''} size={200} /></div>
                     <p className="mt-5 text-center text-[15px] font-semibold">{selectedTicket?.events?.title}</p>
                     <p className="mt-1 text-center text-[12px] text-[#777] dark:text-[#aaa]">{displayTierName(selectedTicket?.ticket_tiers?.name)} · #{selectedTicket?.id.slice(0, 8)}</p>
+                    {selectedTicket && <div className="mt-5 flex justify-center"><AddToAppleWallet ticketId={selectedTicket.id} /></div>}
                 </DialogContent>
             </Dialog>
         </div>

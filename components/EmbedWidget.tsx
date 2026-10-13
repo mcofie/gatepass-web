@@ -8,6 +8,7 @@ import confetti from 'canvas-confetti'
 import { Event, TicketTier, EventAddon, Discount } from '@/types/gatepass'
 import { FeeRates, calculateFees, getEffectiveFeeRates } from '@/utils/fees'
 import { ReservationTimer, useReservationCountdown } from '@/components/checkout/ReservationTimer'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import { createClient } from '@/utils/supabase/client'
 import { createReservation } from '@/utils/gatepass'
 import { toast, Toaster } from 'sonner'
@@ -1380,6 +1381,9 @@ export function EmbedWidget({ event, cheapestTier, tiers, feeRates, availableAdd
                         <span className={cn("text-[10px] uppercase font-mono tracking-widest select-all", isDark ? "text-zinc-500" : "text-gray-400")}>
                             {ticket?.qr_code_hash || 'ORDER CONFIRMED'}
                         </span>
+                        {ticket?.id && ticket?.qr_code_hash && !ticket?.ticket_tiers?.is_virtual && (
+                            <AddToAppleWallet ticketId={ticket.id} newTab className="mt-4" />
+                        )}
                     </div>
 
                     <div className={cn("border rounded-[20px] p-4 space-y-3", isDark ? "bg-zinc-900 border-zinc-800" : "bg-gray-50 border-gray-100")}>
