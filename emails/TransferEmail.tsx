@@ -16,6 +16,8 @@ import {
 } from "@react-email/components";
 import * as React from "react";
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://gatepass.so").replace(/\/$/, "");
+
 interface TransferEmailProps {
     eventName?: string;
     senderName?: string;
@@ -59,8 +61,13 @@ export const TransferEmail = ({
                     <Container className="my-[40px] mx-auto p-0 max-w-[420px]">
 
                         {/* Logo Header */}
-                        <Section className="text-center mb-10">
-                            <Text className="text-2xl font-black tracking-tighter m-0">GATEPASS</Text>
+                        <Section className="mb-10">
+                            <Row>
+                                <Column align="center">
+                                    <Img src={`${SITE_URL}/email/gatepass-mark.png`} width="28" height="28" alt="" className="mx-auto mb-2 block rounded-[7px]" />
+                                    <Text className="m-0 text-[18px] font-semibold tracking-[-0.03em]">GatePass</Text>
+                                </Column>
+                            </Row>
                         </Section>
 
                         <Section className="mb-8 border border-gray-100 rounded-[32px] overflow-hidden shadow-2xl shadow-black/5">
@@ -81,10 +88,10 @@ export const TransferEmail = ({
                                 <Section className="mb-8">
                                     <Text className="text-[13px] font-bold text-gray-400 uppercase tracking-widest text-center m-0 mb-4">Ticket Transfer</Text>
                                     <Heading className="text-3xl font-black text-gray-900 leading-tight mb-2 text-center">
-                                        You've got a ticket!
+                                        You’ve got a ticket
                                     </Heading>
                                     <Text className="text-base text-gray-600 text-center m-0 font-medium leading-relaxed">
-                                        <span className="font-bold text-black">{senderName}</span> just sent you an invite to <span className="font-bold text-black">{eventName}</span>.
+                                        <span className="font-bold text-black">{senderName}</span> sent you their ticket for <span className="font-bold text-black">{eventName}</span>.
                                     </Text>
                                 </Section>
 
@@ -110,7 +117,7 @@ export const TransferEmail = ({
                                         Accept Ticket
                                     </Button>
                                     <Text className="text-xs text-gray-400 mt-4 leading-relaxed font-medium">
-                                        This link will expire in 48 hours. Please claim it soon to secure your spot.
+                                        Sign in with this email address to claim it. The link expires in 48 hours, and the sender can cancel it until you claim.
                                     </Text>
                                 </Section>
                             </Section>
@@ -119,10 +126,10 @@ export const TransferEmail = ({
                         {/* Footer */}
                         <Section className="mt-8 text-center px-4">
                             <Text className="text-xs text-gray-400 mb-2 font-medium">
-                                GatePass is the first video-powered marketplace for modern creators and discerning attendees.
+                                Didn’t expect this? You can ignore this email.
                             </Text>
                             <Text className="text-xs text-gray-400 m-0 font-bold">
-                                © 2025 GatePass. Digital Assets for the Physical World.
+                                © GatePass
                             </Text>
                         </Section>
 

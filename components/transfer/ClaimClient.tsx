@@ -1,79 +1,68 @@
 'use client'
 
 import { useState } from 'react'
-import { claimTransferAction } from '@/utils/actions/transfer'
-import { Button } from '@/components/ui/Button'
-import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Loader2, ArrowRight, LogIn } from 'lucide-react'
+import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
+import { claimTransferAction } from '@/utils/actions/transfer'
 
 interface ClaimClientProps {
     token: string
-    isLoggedIn: boolean
-    userEmail?: string
+    userEmail: string | null
+    /** Masked address the sender chose, when the transfer was sent by email */
+    recipientHint: string | null
 }
 
-export function ClaimClient({ token, isLoggedIn, userEmail }: ClaimClientProps) {
-    const [loading, setLoading] = useState(false)
+const primaryButton = 'inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#111] text-[14px] font-semibold text-white transition-opacity hover:opacity-85 disabled:opacity-50 dark:bg-white dark:text-black'
+
+export function ClaimClient({ token, userEmail, recipientHint }: ClaimClientProps) {
     const router = useRouter()
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const loginHref = `/login?next=${encodeURIComponent(`/claim/${token}`)}`
 
     const handleClaim = async () => {
         setLoading(true)
+        setError(null)
         try {
             const res = await claimTransferAction(token)
             if (res.success) {
-                toast.success('Ticket claimed successfully!')
+                toast.success('Ticket added to your account')
                 router.push('/my-tickets')
-            } else {
-                toast.error(res.message || 'Failed to claim ticket')
+                return
             }
-        } catch (e) {
-            toast.error('An error occurred')
+            if (res.redirect) return router.push(loginHref)
+            setError(res.message)
+        } catch {
+            setError('Something went wrong. Try again.')
         } finally {
             setLoading(false)
         }
     }
 
-    const handleLogin = () => {
-        // Redirect to login with return URL
-        const returnUrl = encodeURIComponent(`/claim/${token}`)
-        router.push(`/login?next=${returnUrl}`)
+    if (!userEmail) {
+        return (
+            <div className="space-y-3">
+                <a href={loginHref} className={primaryButton}>Sign in to claim</a>
+                <p className="text-center text-[12px] leading-snug text-[#777] dark:text-[#999]">
+                    {recipientHint ? <>Use the email it was sent to ({recipientHint}). New here? We’ll create your account.</> : 'New here? We’ll create your account with your email.'}
+                </p>
+            </div>
+        )
     }
 
     return (
-        <div className="space-y-4">
-            {isLoggedIn ? (
-                <>
-                    <p className="text-sm text-center text-gray-500 mb-2">
-                        Claiming as <span className="font-bold text-black dark:text-white">{userEmail}</span>
-                    </p>
-                    <Button
-                        onClick={handleClaim}
-                        disabled={loading}
-                        className="w-full h-12 text-base font-bold"
-                    >
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                        {loading ? 'Claiming...' : 'Accept Ticket'}
-                    </Button>
-                    <p className="text-xs text-center text-muted-foreground mt-2">
-                        By accepting, this ticket will be added to your account.
-                    </p>
-                </>
+        <div className="space-y-3">
+            <button type="button" onClick={handleClaim} disabled={loading} className={primaryButton}>
+                {loading && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                Accept ticket
+            </button>
+            {error ? (
+                <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-[13px] leading-snug text-red-700 dark:bg-red-500/10 dark:text-red-300">{error}</p>
             ) : (
-                <>
-                    <p className="text-sm text-center text-gray-500 mb-2">
-                        You need to log in to claim this ticket.
-                    </p>
-                    <Button
-                        onClick={handleLogin}
-                        className="w-full h-12 text-base font-bold bg-black dark:bg-white text-white dark:text-black"
-                    >
-                        <LogIn className="w-4 h-4 mr-2" /> Login to Claim
-                    </Button>
-                    <p className="text-xs text-center text-muted-foreground mt-2">
-                        We'll verify your email to create an account securely.
-                    </p>
-                </>
+                <p className="text-center text-[12px] leading-snug text-[#777] dark:text-[#999]">
+                    Signed in as <span className="font-semibold text-[#111] dark:text-white">{userEmail}</span>. You’ll get a fresh QR code.
+                </p>
             )}
         </div>
     )

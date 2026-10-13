@@ -65,13 +65,22 @@ export default async function MyTicketsPage({ searchParams }: { searchParams: Pr
         .neq('status', 'completed')
         .order('created_at', { ascending: false })
 
+    // Tickets with a live transfer link, so the list can show them as pending
+    const { data: pendingTransfers } = await supabase
+        .schema('gatepass')
+        .from('ticket_transfers')
+        .select('ticket_id')
+        .eq('sender_id', user.id)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+
     if (error) {
         console.error("Error fetching instalments:", error)
     }
 
     return (
         <Shell tab={tab}>
-            <MyTicketsClient tickets={tickets as unknown as Ticket[]} instalments={instalments as any[]} />
+            <MyTicketsClient tickets={tickets as unknown as Ticket[]} instalments={instalments as any[]} pendingTransferIds={(pendingTransfers ?? []).map(t => t.ticket_id)} />
         </Shell>
     )
 }

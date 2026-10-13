@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 interface MyTicketsClientProps {
     tickets: Ticket[]
     instalments?: InstalmentReservation[]
+    pendingTransferIds?: string[]
 }
 
 interface GroupedEvent {
@@ -54,7 +55,7 @@ function hasEventEnded(event: GroupedEvent['event'], now: number) {
     return end < now
 }
 
-export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientProps) {
+export function MyTicketsClient({ tickets, instalments = [], pendingTransferIds = [] }: MyTicketsClientProps) {
     const router = useRouter()
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
     const [isTransferring, setIsTransferring] = useState(false)
@@ -214,7 +215,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                                             ? isVirtual && virtualLink ? 'Stream link is available' : 'Event has ended'
                                             : isVirtual
                                                 ? virtualLink ? 'Stream link is ready' : 'Stream details are on your pass'
-                                                : 'Show this code at entry'
+                                                : pendingTransferIds.includes(ticket.id) ? 'Transfer pending · still yours until claimed' : 'Show this code at entry'
                                     return (
                                         <article key={ticket.id} className="px-4 py-4 sm:px-6">
                                             <div className="flex items-start justify-between gap-3">
@@ -244,7 +245,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                                                     ) : (
                                                         <button type="button" onClick={() => openCode(ticket)} className={primaryAction}><QrCode className="size-3.5" aria-hidden="true" />Show code</button>
                                                     )}
-                                                    {isValid && !isVirtual && !eventEnded && <button type="button" onClick={() => openTransfer(ticket)} className={secondaryAction}>Transfer</button>}
+                                                    {isValid && !isVirtual && !eventEnded && <button type="button" onClick={() => openTransfer(ticket)} className={secondaryAction}>{pendingTransferIds.includes(ticket.id) ? 'Transfer pending' : 'Transfer'}</button>}
                                                     {isValid && !isVirtual && !eventEnded && <AddToAppleWallet ticketId={ticket.id} className="col-span-2 h-10 rounded-full px-3.5 text-[12px] sm:h-9" />}
                                                 </div>
                                             </div>
@@ -313,6 +314,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                     onClose={() => { setIsTransferring(false); setSelectedTicket(null) }}
                     ticketId={selectedTicket.id}
                     eventName={selectedTicket.events?.title || 'Event'}
+                    ticketName={displayTierName(selectedTicket.ticket_tiers?.name)}
                     onTransferCreated={() => router.refresh()}
                 />
             )}
