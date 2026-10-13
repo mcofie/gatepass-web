@@ -245,7 +245,9 @@ export default function CreateEventPage() {
             toast.success('Draft created')
             router.push(`/dashboard/events/${event.id}`)
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Could not create the event')
+            // Supabase errors are plain objects, not Error instances: still show their message
+            const message = error instanceof Error ? error.message : (error as { message?: string } | null)?.message
+            toast.error(message ? `Could not create the event: ${message}` : 'Could not create the event')
         } finally {
             setCreating(false)
         }
