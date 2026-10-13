@@ -1,0 +1,19 @@
+{
+  "name": "@gatepass/js",
+  "version": "0.1.0",
+  "description": "Add GatePass ticket checkout to any website and read public event data.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": { "build": "tsup src/index.ts --format esm,cjs --dts --clean --target es2019" },
+  "keywords": ["gatepass", "tickets", "checkout", "embed", "events"],
+  "homepage": "https://gatepass.so",
+  "devDependencies": { "tsup": "8.3.5", "typescript": "5.6.3" }
+}

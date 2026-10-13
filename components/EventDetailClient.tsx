@@ -1225,7 +1225,7 @@ const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded
             {event.sales_enabled !== false && (
                 <button
                     onClick={onGetTickets}
-                    className={`w-full h-12 rounded-full bg-[#111111] text-white text-[13px] font-semibold tracking-tight transition-colors active:scale-[0.98] hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black dark:focus-visible:ring-white ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
+                    className={`w-full h-12 rounded-full bg-[#111111] text-white text-[13px] font-semibold tracking-tight transition-colors active:scale-[0.98] hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-black dark:focus-visible:ring-white ${!isExpanded ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
                     Get Tickets
                 </button>
             )}

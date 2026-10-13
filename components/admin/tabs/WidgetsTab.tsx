@@ -9,9 +9,9 @@ import { Switch } from '@/components/dashboard/ui'
 const noopSubscribe = () => () => {}
 
 type Style = 'inline' | 'button'
-type Platform = 'html' | 'wordpress' | 'webflow' | 'framer' | 'squarespace' | 'wix' | 'iframe'
+type Platform = 'html' | 'wordpress' | 'webflow' | 'framer' | 'squarespace' | 'wix' | 'iframe' | 'react' | 'vue' | 'nuxt'
 
-const PLATFORMS: { id: Platform; label: string; steps: string[]; snippet: 'loader' | 'iframe' }[] = [
+const PLATFORMS: { id: Platform; label: string; steps: string[]; snippet: 'loader' | 'iframe' | 'react' | 'vue' | 'nuxt' }[] = [
     { id: 'html', label: 'HTML', snippet: 'loader', steps: ['Paste the code where the widget should appear, anywhere inside <body>.', 'The script only needs to be on the page once, even with several widgets or buttons.'] },
     { id: 'wordpress', label: 'WordPress', snippet: 'loader', steps: ['Edit the page and add a Custom HTML block.', 'Paste the code and update the page.', 'On WordPress.com plans without custom code, use the iframe code instead.'] },
     { id: 'webflow', label: 'Webflow', snippet: 'loader', steps: ['From the Add panel, drag a Code Embed element onto the page.', 'Paste the code and save.', 'Publish the site. Embeds only run on the published site, not in the Designer.'] },
@@ -19,6 +19,9 @@ const PLATFORMS: { id: Platform; label: string; steps: string[]; snippet: 'loade
     { id: 'squarespace', label: 'Squarespace', snippet: 'loader', steps: ['Edit the page, add a block and choose Code.', 'Paste the code and turn off "Display source".', 'Code blocks need a Squarespace plan that allows custom code.'] },
     { id: 'wix', label: 'Wix', snippet: 'iframe', steps: ['Add → Embed Code → Embed HTML.', 'Choose "Code", paste the iframe below and set the element height to about 700.', 'Wix runs custom code in its own frame, so auto-resize and the pop-up button aren\'t available there.'] },
     { id: 'iframe', label: 'iframe', snippet: 'iframe', steps: ['Use this anywhere scripts aren\'t allowed.', 'Set a fixed height; the widget scrolls inside it.'] },
+    { id: 'react', label: 'React', snippet: 'react', steps: ['npm install @gatepass/react', 'Use the component anywhere. It works with Next.js App Router too.'] },
+    { id: 'vue', label: 'Vue', snippet: 'vue', steps: ['npm install @gatepass/vue', 'Register the plugin once with app.use(GatePass), then use the component.'] },
+    { id: 'nuxt', label: 'Nuxt', snippet: 'nuxt', steps: ['npm install @gatepass/nuxt', 'Add \'@gatepass/nuxt\' to modules in nuxt.config.ts. Components are auto-imported.'] },
 ]
 
 export function WidgetsTab({ event }: { event: Event }) {
@@ -65,8 +68,23 @@ export function WidgetsTab({ event }: { event: Event }) {
         return `<iframe\n  src="${origin}/embed/${slug}${params ? '?' + params : ''}"\n  title="Tickets for ${event.title.replace(/"/g, '&quot;')}"\n  width="100%" height="700"\n  style="border:0;max-width:520px;display:block;margin:0 auto"\n  allow="payment"\n></iframe>`
     }, [origin, slug, theme, startOnTickets, cleanRef, event.title])
 
+    const frameworkSnippet = (kind: 'react' | 'vue' | 'nuxt') => {
+        const props = [
+            `event="${slug}"`,
+            theme === 'dark' && 'theme="dark"',
+            style === 'inline' && startOnTickets && 'view="tickets"',
+            cleanRef && `referral="${cleanRef}"`,
+        ].filter(Boolean).join(' ')
+        const tag = style === 'inline' ? `<GatePassWidget ${props} />` : `<GatePassButton ${props}>Buy tickets</GatePassButton>`
+        if (kind === 'react') return `import { ${style === 'inline' ? 'GatePassWidget' : 'GatePassButton'} } from '@gatepass/react'\n\nexport function Tickets() {\n  return ${tag}\n}`
+        if (kind === 'vue') return `<!-- main.ts: app.use(GatePass) from '@gatepass/vue' -->\n<template>\n  ${tag}\n</template>`
+        return `<!-- nuxt.config.ts: modules: ['@gatepass/nuxt'] -->\n<template>\n  ${tag}\n</template>`
+    }
+
     const current = PLATFORMS.find(p => p.id === platform)!
-    const snippet = current.snippet === 'iframe' ? iframeSnippet : loaderSnippet
+    const snippet = current.snippet === 'iframe' ? iframeSnippet
+        : current.snippet === 'loader' ? loaderSnippet
+            : frameworkSnippet(current.snippet)
 
     const trackingSnippet = `<script>
   window.addEventListener('gatepass:checkout_started', function (e) {
@@ -142,7 +160,7 @@ export function WidgetsTab({ event }: { event: Event }) {
                                 {current.steps.map((step, i) => (
                                     <li key={step} className="grid grid-cols-[1.75rem_1fr] text-sm leading-relaxed text-gray-700 dark:text-gray-300">
                                         <span className="font-mono text-xs leading-6 text-gray-400">{String(i + 1).padStart(2, '0')}</span>
-                                        <span>{step}</span>
+                                        {/^npm install/.test(step) ? <code className="font-mono text-[13px] text-gray-950 dark:text-white">{step}</code> : <span>{step}</span>}
                                     </li>
                                 ))}
                             </ol>
