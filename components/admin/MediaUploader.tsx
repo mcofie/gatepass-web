@@ -13,7 +13,7 @@ interface MediaUploaderProps {
     bucket?: string
     path: string
     type: 'image' | 'video'
-    maxSizeMB?: number // Default 300 for video (compressed before upload), 5 for image
+    maxSizeMB?: number // Default 200 for video (compressed before upload), 5 for image
     className?: string
     disabled?: boolean
     label?: string
@@ -26,13 +26,18 @@ export function MediaUploader({
     bucket = 'event-media',
     path,
     type,
-    maxSizeMB = type === 'video' ? 300 : 5,
+    maxSizeMB = type === 'video' ? 200 : 5,
     className,
     aspectRatio = 'video',
     disabled = false,
     label,
-    compact = false
-}: MediaUploaderProps & { aspectRatio?: 'video' | 'square' | 'auto' }) {
+    compact = false,
+    expectOrientation,
+}: MediaUploaderProps & {
+    aspectRatio?: 'video' | 'square' | 'portrait' | 'auto'
+    /** For orientation-specific video slots: warn when the clip doesn't match */
+    expectOrientation?: 'landscape' | 'portrait'
+}) {
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [isTranscoding, setIsTranscoding] = useState(false)
@@ -62,7 +67,7 @@ export function MediaUploader({
         }
 
         if (file.size > maxSizeMB * 1024 * 1024) {
-            toast.error(`File too large. Max size: ${maxSizeMB}MB`)
+            toast.error(type === 'video' ? `Videos can be up to ${maxSizeMB} MB. Trim the clip or export it at a lower quality.` : `Images can be up to ${maxSizeMB} MB.`)
             return false
         }
 
@@ -88,11 +93,14 @@ export function MediaUploader({
                     contentType = optimized.contentType
                     const savedPct = Math.max(0, Math.round((1 - optimized.blob.size / file.size) * 100))
                     toast.success(`Video optimized (${optimized.orientation}, ${(optimized.blob.size / 1024 / 1024).toFixed(1)} MB${savedPct ? `, ${savedPct}% smaller` : ''})`)
+                    if (expectOrientation && optimized.orientation !== expectOrientation && optimized.orientation !== 'square') {
+                        toast.warning(`This clip is ${optimized.orientation}. It’ll still play, with bars around it. A ${expectOrientation} cut fills the screen.`)
+                    }
                     setProgress(0)
                 } catch (e) {
                     console.error('Transcode error', e)
                     // Large originals would exceed the storage upload limit, so only small files fall back
-                    if (file.size > 45 * 1024 * 1024) throw new Error('Couldn\u2019t optimize this video. Try a shorter clip or export it as MP4 under 45 MB.')
+                    if (file.size > 45 * 1024 * 1024) throw new Error('Couldn\u2019t compress this video in your browser. Try again in Chrome, Edge or Safari, or export an MP4 under 45 MB.')
                     toast.warning('Couldn\u2019t optimize this video, uploading the original.')
                 } finally {
                     setIsTranscoding(false)
@@ -194,7 +202,7 @@ export function MediaUploader({
 
         return (
             <div className="relative group w-full h-full bg-black rounded-xl overflow-hidden">
-                <video src={value} className="w-full h-full object-cover" controls />
+                <video src={value} className="w-full h-full object-contain" controls playsInline preload="metadata" />
                 {!disabled && (
                     <button
                         type="button"
@@ -214,7 +222,7 @@ export function MediaUploader({
             {value ? (
                 <div className={clsx(
                     "relative w-full overflow-hidden rounded-xl border border-gray-200 dark:border-white/10",
-                    aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : ''
+                    aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : aspectRatio === 'portrait' ? 'aspect-[9/16]' : ''
                 )}>
                     {renderPreview()}
                 </div>
@@ -237,7 +245,7 @@ export function MediaUploader({
                     className={clsx(
                         "group relative flex w-full flex-col items-center justify-center overflow-hidden border border-dashed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white",
                         'rounded-xl',
-                        aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : '',
+                        aspectRatio === 'video' ? 'aspect-video' : aspectRatio === 'square' ? 'aspect-square' : aspectRatio === 'portrait' ? 'aspect-[9/16]' : '',
                         isDragging ? "border-black bg-gray-50 dark:border-white dark:bg-white/10" : "border-gray-200 bg-gray-50/40 hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/30",
                         (isUploading || disabled) && "pointer-events-none opacity-80"
                     )}
@@ -289,7 +297,7 @@ export function MediaUploader({
                                     {isDragging ? 'Drop to upload' : label || `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
                                 </p>
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    {type === 'video' ? 'MP4, MOV or WebM up to 300 MB · portrait or landscape' : 'JPG, PNG (max 5MB)'}
+                                    {type === 'video' ? (expectOrientation ? 'MP4, MOV or WebM · up to 200 MB' : 'MP4, MOV or WebM up to 200 MB · portrait or landscape') : 'JPG, PNG (max 5MB)'}
                                 </p>
                             </div>
                         </div>

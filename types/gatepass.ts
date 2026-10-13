@@ -9,7 +9,10 @@ export interface Event {
     starts_at: string
     ends_at?: string
     poster_url?: string
+    /** Landscape, shown on desktop */
     video_url?: string
+    /** Portrait, shown on phones */
+    video_url_portrait?: string | null
     latitude?: number
     longitude?: number
     social_website?: string

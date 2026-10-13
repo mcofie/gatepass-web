@@ -56,6 +56,7 @@ export async function duplicateEvent(eventId: string) {
             ends_at: originalEvent.ends_at,
             poster_url: originalEvent.poster_url,
             video_url: originalEvent.video_url,
+            video_url_portrait: originalEvent.video_url_portrait,
             logo_url: originalEvent.logo_url,
             organizer_id: originalEvent.organizer_id, // Required: user who created it
             organization_id: originalEvent.organization_id,

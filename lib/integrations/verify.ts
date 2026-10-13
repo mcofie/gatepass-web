@@ -1,3 +1,4 @@
+import { MPESA_EXPRESS_NOT_ENABLED } from '@/lib/payments/providers/mpesa'
 import type { ResolvedIntegration } from './store'
 
 export type VerifyResult = { ok: boolean; message: string }
@@ -47,9 +48,19 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                     cache: 'no-store',
                 })
                 const data = await response.json().catch(() => ({}))
-                return response.ok && data.access_token
-                    ? { ok: true, message: 'Connected to M-Pesa Daraja.' }
-                    : { ok: false, message: 'Safaricom rejected the consumer key or secret.' }
+                if (!response.ok || !data.access_token) return { ok: false, message: 'Safaricom rejected the consumer key or secret.' }
+
+                // A token alone isn't enough: probe M-Pesa Express with a dummy status query.
+                // "Invalid Access Token" here means the Daraja app doesn't have M-Pesa Express enabled.
+                const probeResponse = await fetch(`https://${host}/mpesa/stkpushquery/v1/query`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${data.access_token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ BusinessShortCode: c.shortcode, Password: '', Timestamp: '', CheckoutRequestID: 'ws_CO_gatepass_check' }),
+                    cache: 'no-store',
+                })
+                const probe = await probeResponse.json().catch(() => ({}))
+                if (probe.errorCode === '404.001.03') return { ok: false, message: MPESA_EXPRESS_NOT_ENABLED }
+                return { ok: true, message: 'Connected to M-Pesa Daraja with M-Pesa Express.' }
             }
             case 'payments:wave':
                 return await probe(

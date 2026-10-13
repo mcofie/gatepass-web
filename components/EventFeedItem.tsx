@@ -18,6 +18,7 @@ export const EventFeedItem = ({ event, tiers, isActive }: EventFeedItemProps) =>
             {/* Background (Video/Image) */}
             <EventBackground
                 videoUrl={event.video_url ?? null}
+                portraitVideoUrl={event.video_url_portrait ?? null}
                 posterUrl={event.poster_url ?? null}
                 forcePause={!isActive}
                 layoutId={`event-bg-${event.id}`}

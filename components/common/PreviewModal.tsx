@@ -30,6 +30,7 @@ export function PreviewModal({ isOpen, onClose, formData, tiers }: PreviewModalP
         ends_at: formData.ends_at?.toISOString(),
         poster_url: formData.poster_url,
         video_url: formData.video_url,
+        video_url_portrait: formData.video_url_portrait,
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
         is_published: false,

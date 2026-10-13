@@ -26,9 +26,15 @@ export class VideoTranscoder {
                 const [{ FFmpeg }, util] = await Promise.all([import('@ffmpeg/ffmpeg'), import('@ffmpeg/util')])
                 this.fetchFile = util.fetchFile
                 this.ffmpeg = new FFmpeg()
-                // Single-threaded core: works without cross-origin isolation headers
+                // Single-threaded core: works without cross-origin isolation headers.
+                // The core is loaded as blob URLs, and the worker is served unbundled from /public:
+                // bundling it breaks its dynamic import of the core ("expression is too dynamic").
                 const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
-                await this.ffmpeg.load({ coreURL: `${baseURL}/ffmpeg-core.js`, wasmURL: `${baseURL}/ffmpeg-core.wasm` })
+                const [coreURL, wasmURL] = await Promise.all([
+                    util.toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    util.toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                ])
+                await this.ffmpeg.load({ coreURL, wasmURL, classWorkerURL: `${window.location.origin}/ffmpeg/0.12.15/worker.js` })
             })().catch(error => {
                 this.loading = null
                 throw error

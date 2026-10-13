@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { NextResponse } from 'next/server'
 import { renderToStream } from '@react-pdf/renderer'
 import { TicketPdf, withQrCodes } from '@/components/pdf/TicketPdf'
@@ -12,7 +12,8 @@ export async function GET(
     try {
         const { id: ticketId } = await params
 
-        const supabase = await createClient()
+        // Same access as the public pass page (/ticket/[id]): the unguessable ticket id is the key
+        const supabase = createAdminClient()
 
         // 1. Fetch Ticket with Event and Profile
         const { data: ticket, error } = await supabase
@@ -44,8 +45,15 @@ export async function GET(
         const tier = Array.isArray(ticket.ticket_tiers) ? ticket.ticket_tiers[0] : ticket.ticket_tiers
         const profile = Array.isArray(ticket.profiles) ? ticket.profiles[0] : ticket.profiles
 
+        // Guest checkouts have no profile: use the name given at checkout
+        let guestName: string | null = null
+        if (!profile?.full_name && ticket.reservation_id) {
+            const { data: reservation } = await supabase.schema('gatepass').from('reservations').select('guest_name').eq('id', ticket.reservation_id).maybeSingle()
+            guestName = reservation?.guest_name ?? null
+        }
         const processedTicket = {
             ...ticket,
+            guest_name: guestName,
             ticket_tiers: tier,
             profiles: profile
         }

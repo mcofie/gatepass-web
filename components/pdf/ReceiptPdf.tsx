@@ -1,291 +1,149 @@
 import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer'
-import { format } from 'date-fns'
+import { ZONE_BY_CURRENCY } from './TicketPdf'
 
-const styles = StyleSheet.create({
-    page: {
-        flexDirection: 'column',
-        backgroundColor: '#FFFFFF',
-        fontFamily: 'Helvetica',
-        padding: 40,
-    },
-    header: {
-        marginBottom: 40,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-    },
-    brand: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        letterSpacing: 2,
-        textTransform: 'uppercase'
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#000'
-    },
-    metaGrid: {
-        flexDirection: 'row',
-        marginBottom: 40,
-        gap: 60
-    },
-    metaItem: {
-        flexDirection: 'column'
-    },
-    label: {
-        fontSize: 8,
-        color: '#888',
-        marginBottom: 4,
-        textTransform: 'uppercase'
-    },
-    value: {
-        fontSize: 10,
-        color: '#000'
-    },
-    lineItems: {
-        marginTop: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#EEE',
-    },
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEE',
-    },
-    rowLabel: {
-        fontSize: 10,
-        color: '#444'
-    },
-    rowValue: {
-        fontSize: 10,
-        color: '#000',
-        fontWeight: 'bold'
-    },
-    totalRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 15,
-        marginTop: 10
-    },
-    totalLabel: {
-        fontSize: 12,
-        fontWeight: 'bold'
-    },
-    totalValue: {
-        fontSize: 16,
-        fontWeight: 'bold'
-    },
-    footer: {
-        marginTop: 'auto',
-        paddingTop: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#EEE'
-    },
-    footerText: {
-        fontSize: 8,
-        color: '#999',
-        textAlign: 'center',
-        marginBottom: 4
-    }
+Font.registerHyphenationCallback(word => [word])
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so').replace(/\/$/, '')
+const INK = '#0d0d0d'
+const MUTED = '#6b6b6b'
+const LINE = '#e6e6e6'
+
+const s = StyleSheet.create({
+    page: { backgroundColor: '#ffffff', fontFamily: 'Helvetica', color: INK, paddingVertical: 48, paddingHorizontal: 52, fontSize: 10 },
+    top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    brand: { flexDirection: 'row', alignItems: 'center' },
+    brandMark: { width: 18, height: 18, borderRadius: 4, marginRight: 6 },
+    brandText: { fontSize: 12, fontFamily: 'Helvetica-Bold' },
+    status: { fontSize: 9, color: MUTED },
+
+    label: { fontSize: 7.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 1 },
+    amountLabel: { marginTop: 36, fontSize: 10, color: MUTED },
+    amount: { marginTop: 4, fontSize: 34, fontFamily: 'Helvetica-Bold', letterSpacing: -1 },
+    paidOn: { marginTop: 6, fontSize: 10, color: MUTED },
+
+    meta: { marginTop: 28, flexDirection: 'row', borderTopWidth: 1, borderTopColor: LINE, paddingTop: 14 },
+    metaCell: { flex: 1, paddingRight: 12 },
+    metaValue: { marginTop: 4, fontSize: 10, fontFamily: 'Helvetica-Bold' },
+    metaSub: { marginTop: 2, fontSize: 9, color: MUTED },
+
+    section: { marginTop: 30 },
+    sectionTitle: { fontSize: 7.5, color: MUTED, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
+    row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: LINE },
+    rowLabel: { flex: 1, paddingRight: 12 },
+    rowDetail: { color: MUTED },
+    rowValue: { fontFamily: 'Helvetica-Bold' },
+    muted: { color: MUTED },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12 },
+    totalLabel: { fontSize: 12, fontFamily: 'Helvetica-Bold' },
+    totalValue: { fontSize: 12, fontFamily: 'Helvetica-Bold' },
+
+    note: { marginTop: 30, padding: 14, backgroundColor: '#f6f6f6', borderRadius: 10, fontSize: 9, color: MUTED, lineHeight: 1.5 },
+    footer: { position: 'absolute', left: 52, right: 52, bottom: 32, flexDirection: 'row', justifyContent: 'space-between', fontSize: 8, color: MUTED },
 })
 
-interface ReceiptPdfProps {
-    reservation: any
-    transaction: any
-    event: any
-    formattedDate: string
+export type ReceiptLine = { label: string; detail?: string; amount: number; tone?: 'muted' }
+
+export type ReceiptData = {
+    reference: string
+    paidAt: string
+    status: 'paid' | 'free' | 'pending'
+    currency: string
+    total: number
+    lines: ReceiptLine[]
+    buyer: { name: string; email?: string | null }
+    event: { title: string; startsAt?: string | null; venue?: string | null }
+    organizer?: string | null
+    provider?: { name: string; method?: string | null } | null
 }
 
-export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: ReceiptPdfProps) => {
-    // Calculations
-    // Assuming transaction amount is in minor units (cents) if fetched from Paystack/stored raw
-    // Or major units? In payment.ts we stored `rawAmount` which was `tx.amount / 100`.
-    // So transaction.amount is in MAJOR units (Dollars/Cedis).
+const money = (amount: number, currency: string) =>
+    new Intl.NumberFormat('en-GB', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount)
 
-    const amountPaid = transaction?.amount || 0
-    const currency = transaction?.currency || 'GHS'
-    const r = reservation
-    const quantity = r.quantity || 1
+// Local time where the event happens (guessed from its currency until events store a zone)
+const longDate = (iso: string, currency: string) =>
+    new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: ZONE_BY_CURRENCY[currency] ?? 'Africa/Accra' })
 
-    const basePrice = r.ticket_tiers?.price || 0
-    const tier = r.ticket_tiers
-    let ticketRevenueRaw = basePrice * quantity
-    if (tier && tier.min_quantity && quantity >= tier.min_quantity && tier.discount_value) {
-        const discountValue = tier.discount_value || 0
-        if (tier.discount_type === 'percentage') {
-            ticketRevenueRaw = ticketRevenueRaw - (ticketRevenueRaw * (discountValue / 100))
-        } else if (tier.discount_type === 'fixed') {
-            ticketRevenueRaw = Math.max(0, ticketRevenueRaw - discountValue)
-        }
-    }
-    const ticketBasePrice = quantity > 0 ? (ticketRevenueRaw / quantity) : basePrice
-
-    // Discount
-    const discount = Array.isArray(r.discounts) ? r.discounts[0] : r.discounts
-    let discountAmount = 0
-    if (discount) {
-        if (discount.type === 'fixed') discountAmount = discount.value
-        else if (discount.type === 'percentage') {
-            discountAmount = ticketRevenueRaw * (discount.value / 100)
-        }
-    }
-
-    // Fees Strategy: Re-derive based on standard rates if raw fields missing, 
-    // BUT rely on total amount paid (truth).
-    // Normalize old 2% rate to current 1.95% for consistent display
-    const storedProcessorRate = transaction?.applied_processor_rate
-    const normalizedProcessorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
-        ? 0.0195
-        : storedProcessorRate
-
-    const effectiveRates = {
-        platformFeePercent: transaction?.applied_fee_rate ?? 0.04,
-        processorFeePercent: normalizedProcessorRate
-    }
-
-    const ticketRevenueNetBase = Math.max(0, ticketRevenueRaw - discountAmount)
-
-    // Calculate expected fees
-    const calcPlatformFee = ticketRevenueNetBase * effectiveRates.platformFeePercent
-    const calcProcessorFee = amountPaid * effectiveRates.processorFeePercent
-    const displayPlatformFee = transaction?.platform_fee ?? calcPlatformFee
-    // If we don't have stored processor fee, we estimate it
-    const displayProcessorFee = transaction?.applied_processor_fee ?? calcProcessorFee
-
-    const totalFees = displayPlatformFee + displayProcessorFee
-
-    // Did user pay fees? Compare "Amount Paid" vs "Ticket Price".
-    // If Paid > Ticket Price, likely Customer Paid Fees.
-    // However, Add-ons complicate this. 
-    // Best proxy: Check Event Fee Bearer setting if passed, or infer.
-    // Inference: If `amountPaid` > `ticketRevenueNetBase + 1` (tolerance), assume Customer Fees + Addons
-
-    // Let's deduce "Net Product Value" (Tickets + Addons)
-    // If Fee Bearer = Customer, Net Product = Total - Fees
-    // If Fee Bearer = Organizer, Net Product = Total (Fees internal)
-
-    // We'll check the 'event.fee_bearer' if available (passed in prop as event object)
-    const feeBearer = event.fee_bearer || 'customer'
-
-    let finalClientFees = 0
-    let productsTotal = amountPaid
-
-    if (feeBearer === 'customer') {
-        finalClientFees = totalFees
-        productsTotal = amountPaid - totalFees
-    }
-
-    // Now split ProductsTotal into Tickets vs Addons
-    // Addon = ProductsTotal - TicketNet
-    let addonRevenue = Math.max(0, productsTotal - ticketRevenueNetBase)
-    let effectiveTicketPrice = ticketBasePrice
-
-    // Rounding clean up
-    if (addonRevenue < 0.05) addonRevenue = 0
-
+/** A plain receipt: what was bought, what was paid, who sold it and who processed the payment. */
+export const ReceiptPdf = ({ data }: { data: ReceiptData }) => {
+    const { currency } = data
     return (
-        <Document>
-            <Page size="A4" style={styles.page}>
-                <View style={styles.header}>
-                    <Text style={styles.brand}>GATEPASS</Text>
-                    <Text style={styles.title}>RECEIPT</Text>
+        <Document title={`Receipt ${data.reference}`} author="GatePass">
+            <Page size="A4" style={s.page}>
+                <View style={s.top}>
+                    <View style={s.brand}>
+                        {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt */}
+                        <Image src={`${SITE_URL}/email/gatepass-mark.png`} style={s.brandMark} />
+                        <Text style={s.brandText}>GatePass</Text>
+                    </View>
+                    <Text style={s.status}>Receipt · {data.status === 'free' ? 'Free order' : data.status === 'paid' ? 'Paid' : 'Pending'}</Text>
                 </View>
 
-                <View style={styles.metaGrid}>
-                    <View style={styles.metaItem}>
-                        <Text style={styles.label}>DATE</Text>
-                        <Text style={styles.value}>{formattedDate}</Text>
+                <Text style={s.amountLabel}>{data.status === 'free' ? 'Total' : 'Amount paid'}</Text>
+                <Text style={s.amount}>{data.total === 0 ? 'Free' : money(data.total, currency)}</Text>
+                <Text style={s.paidOn}>{longDate(data.paidAt, currency)}</Text>
+
+                <View style={s.meta}>
+                    <View style={s.metaCell}>
+                        <Text style={s.label}>Billed to</Text>
+                        <Text style={s.metaValue}>{data.buyer.name}</Text>
+                        {data.buyer.email ? <Text style={s.metaSub}>{data.buyer.email}</Text> : null}
                     </View>
-                    <View style={styles.metaItem}>
-                        <Text style={styles.label}>ORDER REFERENCE</Text>
-                        <Text style={styles.value}>{reservation.reference}</Text>
+                    <View style={s.metaCell}>
+                        <Text style={s.label}>Event</Text>
+                        <Text style={s.metaValue}>{data.event.title}</Text>
+                        {data.event.startsAt ? <Text style={s.metaSub}>{longDate(data.event.startsAt, currency)}</Text> : null}
+                        {data.event.venue ? <Text style={s.metaSub}>{data.event.venue}</Text> : null}
                     </View>
-                    <View style={styles.metaItem}>
-                        <Text style={styles.label}>BILLED TO</Text>
-                        <Text style={styles.value}>
-                            {reservation.profiles?.full_name || reservation.guest_name || 'Guest Customer'}
-                        </Text>
-                        <Text style={styles.value}>
-                            {reservation.profiles?.email || reservation.guest_email}
-                        </Text>
+                    <View style={s.metaCell}>
+                        <Text style={s.label}>Reference</Text>
+                        <Text style={[s.metaValue, { fontFamily: 'Courier-Bold' }]}>{data.reference}</Text>
                     </View>
                 </View>
 
-                <View style={[styles.metaItem, { marginBottom: 40 }]}>
-                    <Text style={styles.label}>EVENT</Text>
-                    <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{event.title}</Text>
-                    <Text style={styles.value}>{event.venue_name}</Text>
-                    {event.starts_at && (
-                        <Text style={styles.value}>{format(new Date(event.starts_at), 'PPP p')}</Text>
-                    )}
-                </View>
-
-                <View style={styles.lineItems}>
-                    {/* 1. TICKETS */}
-                    <View style={styles.row}>
-                        <Text style={styles.rowLabel}>
-                            {reservation.ticket_tiers?.name || 'General Admission'} (x{reservation.quantity || 1})
-                        </Text>
-                        <Text style={styles.rowValue}>
-                            {currency} {(effectiveTicketPrice * quantity).toFixed(2)}
-                        </Text>
-                    </View>
-
-                    {/* 2. ADD-ONS */}
-                    {addonRevenue > 0 && (
-                        <View style={styles.row}>
-                            <Text style={styles.rowLabel}>Add-ons</Text>
-                            <Text style={styles.rowValue}>
-                                {currency} {addonRevenue.toFixed(2)}
+                <View style={s.section}>
+                    <Text style={s.sectionTitle}>Order</Text>
+                    {data.lines.map((line, i) => (
+                        <View key={i} style={s.row}>
+                            <Text style={[s.rowLabel, line.tone === 'muted' ? s.muted : {}]}>
+                                {line.label}{line.detail ? <Text style={s.rowDetail}>  {line.detail}</Text> : null}
+                            </Text>
+                            <Text style={[s.rowValue, line.tone === 'muted' ? s.muted : {}]}>
+                                {line.amount < 0 ? `- ${money(-line.amount, currency)}` : money(line.amount, currency)}
                             </Text>
                         </View>
-                    )}
-
-                    {/* 3. DISCOUNT */}
-                    {discountAmount > 0 && (
-                        <View style={styles.row}>
-                            <Text style={[styles.rowLabel, { color: '#e11d48' }]}>Discount ({discount?.code})</Text>
-                            <Text style={[styles.rowValue, { color: '#e11d48' }]}>
-                                - {currency} {discountAmount.toFixed(2)}
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* 4. FEES (If User Paid) */}
-                    {finalClientFees > 0 ? (
-                        <>
-                            <View style={styles.row}>
-                                <Text style={styles.rowLabel}>Service Fee (GatePass)</Text>
-                                <Text style={styles.rowValue}>
-                                    {currency} {displayPlatformFee.toFixed(2)}
-                                </Text>
-                            </View>
-                            <View style={styles.row}>
-                                <Text style={styles.rowLabel}>Processing Fee</Text>
-                                <Text style={styles.rowValue}>
-                                    {currency} {displayProcessorFee.toFixed(2)}
-                                </Text>
-                            </View>
-                        </>
-                    ) : (
-                        <View style={styles.row}>
-                            <Text style={styles.rowLabel}>Fees</Text>
-                            <Text style={styles.rowValue}>Included</Text>
-                        </View>
-                    )}
-
-                    <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>TOTAL PAID</Text>
-                        <Text style={styles.totalValue}>{currency} {amountPaid.toFixed(2)}</Text>
+                    ))}
+                    <View style={s.totalRow}>
+                        <Text style={s.totalLabel}>Total</Text>
+                        <Text style={s.totalValue}>{money(data.total, currency)}</Text>
                     </View>
                 </View>
 
-                <View style={styles.footer}>
-                    <Text style={styles.footerText}>Authorized by GatePass</Text>
-                    <Text style={styles.footerText}>Thank you for your purchase.</Text>
+                {data.provider || data.organizer ? (
+                    <View style={s.section}>
+                        <Text style={s.sectionTitle}>Payment</Text>
+                        {data.provider ? (
+                            <View style={s.row}>
+                                <Text style={s.rowLabel}>Paid with</Text>
+                                <Text style={s.rowValue}>{data.provider.name}{data.provider.method ? ` · ${data.provider.method}` : ''}</Text>
+                            </View>
+                        ) : null}
+                        {data.organizer ? (
+                            <View style={s.row}>
+                                <Text style={s.rowLabel}>Sold by</Text>
+                                <Text style={s.rowValue}>{data.organizer}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                ) : null}
+
+                <Text style={s.note}>
+                    {data.organizer ? `Tickets are sold by ${data.organizer}` : 'Tickets are sold by the event organizer'}
+                    {data.provider ? `, and the payment was processed by ${data.provider.name} directly to their account` : ''}. GatePass provides the ticketing platform and doesn’t hold ticket payments. For refunds or questions about the event, contact the organizer.
+                </Text>
+
+                <View style={s.footer} fixed>
+                    <Text>GatePass · gatepass.so</Text>
+                    <Text>support@gatepass.so</Text>
                 </View>
             </Page>
         </Document>

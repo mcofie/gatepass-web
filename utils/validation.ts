@@ -22,6 +22,7 @@ export const eventSchema = z.object({
     ends_at: z.string().optional(),
     poster_url: z.string().url('Invalid poster URL').optional().or(z.literal('')),
     video_url: z.string().url('Invalid video URL').optional().or(z.literal('')),
+    video_url_portrait: z.string().url('Invalid video URL').optional().or(z.literal('')),
     logo_url: z.string().url('Invalid logo URL').optional().or(z.literal('')),
     primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format').optional().or(z.literal('')),
 })

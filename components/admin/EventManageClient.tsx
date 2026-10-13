@@ -262,6 +262,7 @@ export function EventManageClient({
                 social_facebook: event.social_facebook,
                 poster_url: event.poster_url,
                 video_url: event.video_url,
+                video_url_portrait: event.video_url_portrait || null,
                 logo_url: event.logo_url,
                 is_published: event.is_published,
                 fee_bearer: event.fee_bearer,
@@ -783,19 +784,38 @@ export function EventManageClient({
 
                                 <OverviewSection number="03" title="Media">
                                     <Panel>
-                                        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                                            <Field label="Poster" hint="Looks best at 1080 × 1350 or 1080 × 1920 px.">
-                                                <MediaUploader type="image" path={`${event.organization_id}/${event.id}`} value={event.poster_url || ''} onChange={(url) => setEvent({ ...event, poster_url: url })} disabled={isStaff} />
-                                            </Field>
-                                            <div className="space-y-6">
-                                                <Field label="Video" optional hint="We compress it in your browser before upload.">
-                                                    <MediaUploader type="video" path={`${event.organization_id}/${event.id}`} value={event.video_url || ''} onChange={(url) => setEvent({ ...event, video_url: url })} disabled={isStaff} />
+                                        <div className="space-y-7">
+                                            <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
+                                                <Field label="Poster" hint="Looks best at 1080 × 1350 or 1080 × 1920 px.">
+                                                    <MediaUploader type="image" path={`${event.organization_id}/${event.id}`} value={event.poster_url || ''} onChange={(url) => setEvent({ ...event, poster_url: url })} disabled={isStaff} />
                                                 </Field>
-                                                <Field label="Logo" optional hint="Square image, shown on tickets.">
+                                                <Field label="Logo" optional hint="Square, shown on tickets.">
                                                     <div className="w-28">
                                                         <MediaUploader type="image" path={`${event.organization_id}/${event.id}`} value={event.logo_url || ''} onChange={(url) => setEvent({ ...event, logo_url: url })} aspectRatio="square" compact label="Add logo" disabled={isStaff} />
                                                     </div>
                                                 </Field>
+                                            </div>
+
+                                            <div className="border-t border-gray-100 pt-6 dark:border-white/10">
+                                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                                    <p className="text-sm font-medium text-gray-950 dark:text-white">Background video</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {event.video_url && event.video_url_portrait ? 'Both added' : event.video_url || event.video_url_portrait ? '1 of 2 added' : 'Optional'}
+                                                    </p>
+                                                </div>
+                                                <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                                    Add both cuts so the video fills the screen everywhere. If you only add one, it plays on both with bars around it. Up to 200 MB each, compressed in your browser before upload.
+                                                </p>
+                                                <div className="mt-4 grid items-start gap-5 sm:grid-cols-[minmax(0,1fr)_160px]">
+                                                    <Field label="Landscape · desktop">
+                                                        <MediaUploader type="video" aspectRatio="video" expectOrientation="landscape" label="Add landscape video" path={`${event.organization_id}/${event.id}`} value={event.video_url || ''} onChange={(url) => setEvent({ ...event, video_url: url })} disabled={isStaff} />
+                                                    </Field>
+                                                    <Field label="Portrait · phone">
+                                                        <div className="w-40 sm:w-full">
+                                                            <MediaUploader type="video" aspectRatio="portrait" expectOrientation="portrait" label="Add portrait video" path={`${event.organization_id}/${event.id}`} value={event.video_url_portrait || ''} onChange={(url) => setEvent({ ...event, video_url_portrait: url })} disabled={isStaff} />
+                                                        </div>
+                                                    </Field>
+                                                </div>
                                             </div>
                                         </div>
                                     </Panel>
