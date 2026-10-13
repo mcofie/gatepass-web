@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils'
 import { getBrowserSupabase } from '@/utils/supabase/lazy'
 import { getProvider } from '@/lib/integrations/providers'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
+import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
+import QRCode from 'react-qr-code'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 
 import { createReservation } from '@/utils/gatepass'
@@ -2198,6 +2200,7 @@ const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tick
     const [submittingForm, setSubmittingForm] = useState(false)
 
     const activeTicket = tickets[0] // Primary ticket for QR
+    const [ticketIndex, setTicketIndex] = useState(0)
 
     useEffect(() => {
         const loadQuestionsAndResponses = async () => {
@@ -2358,51 +2361,46 @@ const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tick
         runConfetti()
     }, [fetchingQuestions, questions.length, formSubmitted])
 
-    const handleShare = async () => {
-        const shareData = {
-            title: `I'm going to ${event.title}!`,
-            text: `Join me at ${event.title} at ${event.venue_name}!`,
-            url: window.location.href
-        }
+    const eventUrl = typeof window !== 'undefined' ? `${window.location.origin}/events/${event.slug || event.id}` : ''
 
+    const handleShare = async () => {
+        const shareData = { title: event.title, text: `I’m going to ${event.title}. Come with me!`, url: eventUrl }
         if (navigator.share) {
             try {
                 await navigator.share(shareData)
-            } catch (err) {
-                console.error('Share failed:', err)
+            } catch {
+                // Closed the share sheet
             }
-        } else {
-            try {
-                await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`)
-                toast.success('Link copied to clipboard!')
-            } catch (err) {
-                toast.error('Failed to copy link')
-            }
+            return
+        }
+        try {
+            await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`)
+            toast.success('Event link copied')
+        } catch {
+            toast.error('Could not copy the link')
         }
     }
 
-    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue_name} ${event.venue_address}`)}`
+    const venueQuery = [event.venue_name, event.venue_address].filter(Boolean).join(' ')
+    const directionsUrl = event.latitude && event.longitude
+        ? `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venueQuery)}`
 
-    const getGoogleCalendarUrl = () => {
+    const calendarUrl = (() => {
         const start = new Date(event.starts_at)
-        const end = new Date(start.getTime() + (2 * 60 * 60 * 1000))
-        const formatTime = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "")
-        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${formatTime(start)}/${formatTime(end)}&details=${encodeURIComponent(`Tickets: ${window.location.href}`)}&location=${encodeURIComponent(event.venue_name)}`
-    }
+        const end = event.ends_at ? new Date(event.ends_at) : new Date(start.getTime() + 3 * 3600_000)
+        const stamp = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, '')
+        return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${stamp(start)}/${stamp(end)}&details=${encodeURIComponent(`Your tickets: ${typeof window !== 'undefined' ? window.location.origin : ''}/my-tickets`)}&location=${encodeURIComponent(venueQuery)}`
+    })()
 
-    const getCountdown = () => {
-        const diff = new Date(event.starts_at).getTime() - Date.now()
-        const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-        if (days < 0) return null
-        if (days === 0) return "Starts Today!"
-        if (days === 1) return "Starts Tomorrow!"
-        return `Starts in ${days} Days`
-    }
-
-    const countdownText = getCountdown()
+    const startsAt = new Date(event.starts_at)
+    const daysAway = Math.ceil((startsAt.getTime() - Date.now()) / 86_400_000)
+    const countdownText = daysAway < 0 ? null : daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `In ${daysAway} days`
+    const dateLabel = startsAt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    const timeLabel = startsAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
     const ticketCounts = tickets.reduce((acc, ticket) => {
-        const name = ticket.ticket_tiers?.name || tierName || 'General Admission'
+        const name = ticket.ticket_tiers?.name || tierName || 'General admission'
         acc[name] = (acc[name] || 0) + 1
         return acc
     }, {} as Record<string, number>)
@@ -2537,207 +2535,135 @@ const SuccessView = ({ event, tickets, tierName, onClose }: { event: Event, tick
         )
     }
 
+    const current = tickets[Math.min(ticketIndex, tickets.length - 1)] ?? activeTicket
+    const isVirtual = !!current?.ticket_tiers?.is_virtual
+    const ticketRef = String(current?.id ?? '').slice(0, 8).toUpperCase()
+
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-zinc-900 rounded-[24px] overflow-hidden relative animate-fade-in">
-            {/* Header / Dismiss */}
-            <div className="flex-shrink-0 px-5 pt-5 pb-2 flex justify-between items-start">
-                <div className="space-y-1">
-                    <h2 className="text-[18px] leading-tight font-extrabold tracking-tight text-black dark:text-white max-w-[200px]">
-                        See you at {event.title}!🎉
-                    </h2>
-                    {countdownText && (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 text-[10px] font-semibold tracking-wide">
-                            {countdownText}
-                        </div>
-                    )}
+        <div className="relative flex h-full flex-col overflow-hidden rounded-[24px] bg-white text-black animate-fade-in dark:bg-zinc-900 dark:text-white">
+            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-4 pt-5">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className="inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-500 dark:text-gray-400">
+                            <span className="flex size-4 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black"><Check className="size-2.5" strokeWidth={3} aria-hidden="true" /></span>
+                            You’re going{countdownText ? ` · ${countdownText}` : ''}
+                        </p>
+                        <h2 className="mt-2 text-[24px] font-semibold leading-[1.05] tracking-[-0.04em]">{event.title}</h2>
+                    </div>
+                    <button onClick={onClose} aria-label="Close" className="-mr-1.5 -mt-1 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-zinc-800">
+                        <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                 </div>
-                <button
-                    onClick={onClose}
-                    aria-label="Close ticket details"
-                    className="p-1.5 -mr-1.5 -mt-1.5 text-black dark:text-white hover:opacity-70 transition-opacity"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
 
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-5">
-
-                {/* QR Code or Virtual Streaming card */}
-                {activeTicket.ticket_tiers?.is_virtual ? (
-                    <div className="w-full text-center space-y-4 my-6">
-                        {activeTicket.ticket_tiers.virtual_link ? (
-                            <div className="w-full text-center space-y-4">
-                                <a
-                                    href={activeTicket.ticket_tiers.virtual_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block w-full h-12 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-full font-semibold text-[13px] hover:opacity-90 active:scale-[0.98] transition-all"
-                                >
-                                    Join Livestream Now
-                                </a>
-                                {activeTicket.ticket_tiers.virtual_instructions && (
-                                    <div className="w-full bg-zinc-50 dark:bg-zinc-800/30 p-5 rounded-3xl border border-black/5 dark:border-white/5 text-left">
-                                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-2">Instructions</span>
-                                        <p className="text-xs text-zinc-700 dark:text-zinc-300 font-medium whitespace-pre-wrap leading-relaxed">{activeTicket.ticket_tiers.virtual_instructions}</p>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="w-full bg-gray-50 dark:bg-zinc-800/40 border border-gray-200 dark:border-zinc-700 p-5 rounded-[20px] text-center space-y-3">
-                                <div className="mx-auto w-10 h-10 rounded-full bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 flex items-center justify-center">
-                                    <Clock className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                {/* The pass */}
+                <div className="mt-5 overflow-hidden rounded-[22px] border border-gray-200 dark:border-zinc-700">
+                    <div className="p-5">
+                        {isVirtual ? (
+                            current.ticket_tiers.virtual_link ? (
+                                <div className="space-y-3">
+                                    <a href={current.ticket_tiers.virtual_link} target="_blank" rel="noopener noreferrer" className="flex h-12 w-full items-center justify-center rounded-full bg-black text-[13px] font-semibold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-black">
+                                        Join the livestream
+                                    </a>
+                                    {current.ticket_tiers.virtual_instructions && <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-gray-600 dark:text-gray-300">{current.ticket_tiers.virtual_instructions}</p>}
                                 </div>
-                                <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Livestream Link Coming Soon</h3>
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                    The livestream link hasn&apos;t been published by the organizer yet. As soon as the link goes live, it will activate here and you will be notified via email & SMS.
-                                </p>
-                                {activeTicket.ticket_tiers.virtual_instructions && (
-                                    <div className="w-full bg-zinc-50 dark:bg-zinc-800/30 p-4 rounded-2xl border border-black/5 dark:border-white/5 text-left mt-2">
-                                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block mb-1">Pre-event Instructions</span>
-                                        <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium whitespace-pre-wrap leading-relaxed">{activeTicket.ticket_tiers.virtual_instructions}</p>
-                                    </div>
-                                )}
+                            ) : (
+                                <div className="py-2 text-center">
+                                    <Clock className="mx-auto size-5 text-gray-400" aria-hidden="true" />
+                                    <p className="mt-2 text-[14px] font-semibold">Stream link coming soon</p>
+                                    <p className="mt-1 text-[12px] leading-relaxed text-gray-500 dark:text-gray-400">We’ll email you the moment the organizer adds it.</p>
+                                </div>
+                            )
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <div className="rounded-2xl bg-white p-3">
+                                    <QRCode value={current.qr_code_hash || ''} size={168} aria-label={`Entry code for ticket ${ticketRef}`} />
+                                </div>
+                                <p className="mt-2 text-[12px] text-gray-500 dark:text-gray-400">Show this at the door</p>
                             </div>
                         )}
                     </div>
-                ) : (
-                    /* QR Code */
-                    <div className="flex flex-col items-center my-6">
-                        <div className="bg-white p-2 rounded-2xl border border-gray-200 dark:border-zinc-700 mb-3">
-                            <Image
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${activeTicket.qr_code_hash}&color=000000`}
-                                alt="QR Code"
-                                width={160}
-                                height={160}
-                                className="w-32 h-32 object-contain mix-blend-multiply"
-                                unoptimized
-                            />
+
+                    {/* Perforation */}
+                    <div className="relative" aria-hidden="true">
+                        <div className="absolute -left-2.5 top-1/2 size-5 -translate-y-1/2 rounded-full border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900" />
+                        <div className="absolute -right-2.5 top-1/2 size-5 -translate-y-1/2 rounded-full border border-gray-200 bg-white dark:border-zinc-700 dark:bg-zinc-900" />
+                        <div className="mx-4 border-t border-dashed border-gray-200 dark:border-zinc-700" />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                        <div className="min-w-0">
+                            <p className="truncate text-[14px] font-semibold">{current?.ticket_tiers?.name || tierName || 'General admission'}</p>
+                            <p className="font-mono text-[11px] text-gray-500 dark:text-gray-400">#{ticketRef}</p>
                         </div>
-                        <span className="text-[10px] uppercase font-mono tracking-widest text-gray-400 dark:text-gray-500 select-all">
-                            {activeTicket.qr_code_hash}
-                        </span>
+                        {tickets.length > 1 && (
+                            <div className="flex shrink-0 items-center gap-1">
+                                <button type="button" onClick={() => setTicketIndex(i => Math.max(0, i - 1))} disabled={ticketIndex === 0} aria-label="Previous ticket" className="flex size-8 items-center justify-center rounded-full border border-gray-200 transition-opacity disabled:opacity-30 dark:border-zinc-700">
+                                    <ArrowLeft className="size-3.5" aria-hidden="true" />
+                                </button>
+                                <span className="w-12 text-center text-[12px] tabular-nums text-gray-500 dark:text-gray-400">{ticketIndex + 1} of {tickets.length}</span>
+                                <button type="button" onClick={() => setTicketIndex(i => Math.min(tickets.length - 1, i + 1))} disabled={ticketIndex >= tickets.length - 1} aria-label="Next ticket" className="flex size-8 items-center justify-center rounded-full border border-gray-200 transition-opacity disabled:opacity-30 dark:border-zinc-700">
+                                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {!isVirtual && current?.id && (
+                    <div className="mt-3 flex justify-center">
+                        <AddToAppleWallet ticketId={current.id} className="h-10 rounded-full px-4 text-[12px]" />
                     </div>
                 )}
 
-                {/* Ticket Details Card */}
-                <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-[20px] p-4 space-y-3">
-                    {/* Event Title in Card */}
-                    <div>
-                        <h3 className="text-[16px] font-bold text-black dark:text-white leading-tight mb-0.5">{event.title}</h3>
+                {/* Details */}
+                <dl className="mt-4 divide-y divide-gray-100 text-[13px] dark:divide-zinc-800">
+                    <div className="flex items-center justify-between gap-3 py-3">
+                        <div className="min-w-0">
+                            <dt className="text-gray-500 dark:text-gray-400">When</dt>
+                            <dd className="mt-0.5 font-semibold">{dateLabel} · {timeLabel}</dd>
+                        </div>
+                        <a href={calendarUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-[12px] font-semibold transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                            <Calendar className="size-3.5" aria-hidden="true" /> Add
+                        </a>
                     </div>
-
-                    {/* Ticket List */}
-                    <div className="space-y-2.5">
-                        {Object.entries(ticketCounts).map(([name, count]) => (
-                            <div key={name} className="flex justify-between items-center text-[13px]">
-                                <span className="font-medium text-black dark:text-white">{name}</span>
-                                <span className="font-bold text-gray-500 dark:text-gray-400">x{count as number}</span>
+                    {event.venue_name && (
+                        <div className="flex items-center justify-between gap-3 py-3">
+                            <div className="min-w-0">
+                                <dt className="text-gray-500 dark:text-gray-400">Where</dt>
+                                <dd className="mt-0.5 truncate font-semibold">{event.venue_name}</dd>
                             </div>
-                        ))}
-                    </div>
-
-                    <div className="h-px w-full bg-gray-200 dark:bg-white/10" />
-
-                    {/* Metadata Grid */}
-                    <div className="space-y-3 text-[13px]">
-                        <div className="flex justify-between items-start">
-                            <span className="text-gray-500 dark:text-gray-400 font-medium">Location</span>
-                            <a
-                                href={googleMapsUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-bold text-black dark:text-white text-right max-w-[60%] leading-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center justify-end gap-1"
-                            >
-                                {event.venue_name}
-                                <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-[12px] font-semibold transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                                <MapPin className="size-3.5" aria-hidden="true" /> Directions
                             </a>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 dark:text-gray-400 font-medium">Date</span>
-                            <div className="text-right flex items-center gap-2">
-                                <a
-                                    href={getGoogleCalendarUrl()}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-1 -mr-1 text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                                    title="Add to Google Calendar"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                </a>
-                                <span className="font-bold text-black dark:text-white">
-                                    {new Date(event.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-500 dark:text-gray-400 font-medium">Quantity</span>
-                            <span className="font-bold text-black dark:text-white text-right">
-                                {tickets.length} {tickets.length === 1 ? 'Ticket' : 'Tickets'}
-                            </span>
-                        </div>
+                    )}
+                    <div className="py-3">
+                        <dt className="text-gray-500 dark:text-gray-400">Your order</dt>
+                        <dd className="mt-0.5 space-y-0.5 font-semibold">
+                            {Object.entries(ticketCounts).map(([name, count]) => <p key={name}>{count as number} × {name}</p>)}
+                        </dd>
                     </div>
-                </div>
+                </dl>
             </div>
 
-            {/* Sticky Actions Footer */}
-            <div className="p-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-white/5">
-                <div className="flex flex-col gap-3">
-                    <button
-                        onClick={handleDownloadPDF}
-                        disabled={downloading}
-                        className="w-full h-12 bg-black dark:bg-white text-white dark:text-black rounded-full text-[13px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                    >
-                        {downloading ? (
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white dark:border-black/30 dark:border-t-black rounded-full animate-spin" />
-                        ) : (
-                            <div className="w-7 h-7 rounded-full bg-white/20 dark:bg-black/10 flex items-center justify-center">
-                                <Download className="w-3.5 h-3.5" />
-                            </div>
-                        )}
-                        {downloading ? 'Preparing Tickets...' : 'Download PDF Tickets'}
+            {/* Actions */}
+            <div className="border-t border-gray-100 p-4 dark:border-zinc-800">
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <button onClick={handleDownloadPDF} disabled={downloading} className="flex h-12 items-center justify-center gap-2 rounded-full bg-black text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 dark:bg-white dark:text-black">
+                        {downloading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Download className="size-4" aria-hidden="true" />}
+                        {downloading ? 'Preparing…' : tickets.length > 1 ? `Download ${tickets.length} tickets` : 'Download ticket'}
                     </button>
-
-                    <div className="flex gap-3">
-                        <button
-                            onClick={handleShare}
-                            className="flex-1 h-11 bg-gray-100 dark:bg-zinc-800 text-black dark:text-white rounded-full text-[12px] font-semibold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Share2 className="w-4 h-4" />
-                            Share
-                        </button>
-                        <a
-                            href={getGoogleCalendarUrl()}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 h-11 bg-white dark:bg-zinc-900 text-black dark:text-white border border-gray-200 dark:border-zinc-700 rounded-full text-[12px] font-semibold hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Calendar className="w-4 h-4" />
-                            Calendar
-                        </a>
-                    </div>
+                    <button onClick={handleShare} aria-label="Share event" className="flex size-12 items-center justify-center rounded-full border border-gray-200 transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                        <Share2 className="size-4" aria-hidden="true" />
+                    </button>
                 </div>
-
-                {/* Footer Links */}
-                <div className="flex flex-col items-center justify-center mt-6 space-y-3">
-                    <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                        <a
-                            href={`/api/reservations/${tickets[0]?.reservation_id}/receipt`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-black dark:hover:text-white transition-colors underline decoration-zinc-200 underline-offset-4"
-                        >
-                            View Receipt
-                        </a>
-                        <span className="w-1 h-1 bg-gray-200 rounded-full" />
-                        <a href="mailto:support@gatepass.so" className="hover:text-black dark:hover:text-white transition-colors underline decoration-zinc-200 underline-offset-4">
-                            Support
-                        </a>
-                    </div>
-                    <p className="text-[9px] font-bold text-gray-300 dark:text-zinc-600 uppercase tracking-[0.2em]">GatePass Digital Protection</p>
-                </div>
+                <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400">
+                    We’ve emailed your tickets.{' '}
+                    <a href="/my-tickets" className="font-medium text-black underline underline-offset-2 dark:text-white">My tickets</a>
+                    {' · '}
+                    <a href={`/api/reservations/${tickets[0]?.reservation_id}/receipt`} target="_blank" rel="noopener noreferrer" className="font-medium text-black underline underline-offset-2 dark:text-white">Receipt</a>
+                </p>
             </div>
         </div>
     )
