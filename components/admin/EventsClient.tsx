@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { ArrowUpRight, Calendar, LayoutGrid, List as ListIcon, Plus, Search, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { DeleteEventButton } from '@/components/admin/DeleteEventButton'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface Event {
     id: string
@@ -205,13 +206,16 @@ export function EventsClient({ events, role }: { events: Event[]; role: string |
                 </div>
 
                 {visible.length === 0 ? (
-                    <div className="rounded-3xl border border-dashed border-gray-300 px-6 py-16 text-center dark:border-white/15">
-                        <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">
-                            {search ? `Nothing matches “${search}”` : `No ${FILTERS.find(f => f.id === filter)!.label.toLowerCase()} events`}
-                        </p>
-                        <button type="button" onClick={() => { setSearch(''); setFilter('all') }} className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-950 underline underline-offset-4 dark:text-white">
-                            <X className="size-3.5" aria-hidden="true" /> Clear filters
-                        </button>
+                    <div className="rounded-3xl border border-dashed border-gray-300 dark:border-white/15">
+                        <EmptyState
+                            illustration="calendar"
+                            title={search ? `Nothing matches “${search}”` : `No ${FILTERS.find(f => f.id === filter)!.label.toLowerCase()} events`}
+                            action={
+                                <button type="button" onClick={() => { setSearch(''); setFilter('all') }} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-950 underline underline-offset-4 dark:text-white">
+                                    <X className="size-3.5" aria-hidden="true" /> Clear filters
+                                </button>
+                            }
+                        />
                     </div>
                 ) : view === 'list' ? (
                     <ul className="divide-y divide-gray-200 overflow-hidden rounded-3xl border border-gray-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-[#0b0b0b]">

@@ -9,6 +9,7 @@ import { downloadCSV } from '@/utils/analytics'
 import { PROVIDERS } from '@/lib/integrations/providers'
 import { TransactionDetailModal } from '@/components/admin/TransactionDetailModal'
 import { SecondaryButton } from '@/components/dashboard/ui'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 const PAGE_SIZE = 20
 const RANGES = [
@@ -226,10 +227,11 @@ export function AllSalesClient({ orgId }: { orgId: string }) {
                     {loading && sales.length === 0 ? (
                         <div className="flex h-48 items-center justify-center"><Loader2 className="size-5 animate-spin text-gray-400" aria-label="Loading sales" /></div>
                     ) : sales.length === 0 ? (
-                        <div className="px-6 py-16 text-center">
-                            <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{filtersActive ? 'No sales match these filters' : 'No sales yet'}</p>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{filtersActive ? 'Try a longer date range or another event.' : 'Completed purchases appear here.'}</p>
-                        </div>
+                        <EmptyState
+                            illustration="receipt"
+                            title={filtersActive ? 'No sales match these filters' : 'No sales yet'}
+                            description={filtersActive ? 'Try a longer date range or another event.' : 'Completed purchases appear here.'}
+                        />
                     ) : (
                         <ul className={`divide-y divide-gray-100 dark:divide-white/10 ${loading ? 'opacity-60' : ''}`}>
                             {sales.map(sale => {

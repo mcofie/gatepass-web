@@ -23,6 +23,7 @@ import {
 import { sendSMSBlast } from '@/app/actions/communications'
 import { toast } from 'sonner'
 import { formatCompactNumber, formatCompactCurrency } from '@/utils/format'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface MarketingStat {
     id: string
@@ -382,9 +383,15 @@ export function MarketingDashboard({ initialStats, events, organizationId }: Mar
                                 </div>
                             </div>
                             {filteredStats.length === 0 ? (
-                                <p className="border-t border-gray-100 px-7 py-14 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
-                                    {stats.length === 0 ? 'No tracked sources yet. Create a link in Tracking links.' : 'No sources match this search.'}
-                                </p>
+                                <div className="border-t border-gray-100 dark:border-white/10">
+                                    <EmptyState
+                                        compact
+                                        illustration="megaphone"
+                                        title={stats.length === 0 ? 'No tracked sources yet' : 'No sources match'}
+                                        description={stats.length === 0 ? 'Create a tracking link and share it to see where sales come from.' : undefined}
+                                        action={stats.length === 0 ? <button type="button" onClick={() => setSection('links')} className="text-sm font-medium text-gray-950 underline underline-offset-4 dark:text-white">Create a tracking link</button> : undefined}
+                                    />
+                                </div>
                             ) : (
                                 <div className="overflow-x-auto border-t border-gray-100 dark:border-white/10">
                                     <table className="w-full min-w-[640px] text-sm">
