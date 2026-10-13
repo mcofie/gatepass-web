@@ -13,7 +13,7 @@ interface MediaUploaderProps {
     bucket?: string
     path: string
     type: 'image' | 'video'
-    maxSizeMB?: number // Default 300 for video (compressed before upload), 5 for image
+    maxSizeMB?: number // Default 200 for video (compressed before upload), 5 for image
     className?: string
     disabled?: boolean
     label?: string
@@ -26,7 +26,7 @@ export function MediaUploader({
     bucket = 'event-media',
     path,
     type,
-    maxSizeMB = type === 'video' ? 300 : 5,
+    maxSizeMB = type === 'video' ? 200 : 5,
     className,
     aspectRatio = 'video',
     disabled = false,
@@ -67,7 +67,7 @@ export function MediaUploader({
         }
 
         if (file.size > maxSizeMB * 1024 * 1024) {
-            toast.error(`File too large. Max size: ${maxSizeMB}MB`)
+            toast.error(type === 'video' ? `Videos can be up to ${maxSizeMB} MB. Trim the clip or export it at a lower quality.` : `Images can be up to ${maxSizeMB} MB.`)
             return false
         }
 
@@ -100,7 +100,7 @@ export function MediaUploader({
                 } catch (e) {
                     console.error('Transcode error', e)
                     // Large originals would exceed the storage upload limit, so only small files fall back
-                    if (file.size > 45 * 1024 * 1024) throw new Error('Couldn\u2019t optimize this video. Try a shorter clip or export it as MP4 under 45 MB.')
+                    if (file.size > 45 * 1024 * 1024) throw new Error('Couldn\u2019t compress this video in your browser. Try again in Chrome, Edge or Safari, or export an MP4 under 45 MB.')
                     toast.warning('Couldn\u2019t optimize this video, uploading the original.')
                 } finally {
                     setIsTranscoding(false)
@@ -297,7 +297,7 @@ export function MediaUploader({
                                     {isDragging ? 'Drop to upload' : label || `Upload ${type === 'video' ? 'Video' : 'Cover'}`}
                                 </p>
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    {type === 'video' ? (expectOrientation ? 'MP4, MOV or WebM · up to 300 MB' : 'MP4, MOV or WebM up to 300 MB · portrait or landscape') : 'JPG, PNG (max 5MB)'}
+                                    {type === 'video' ? (expectOrientation ? 'MP4, MOV or WebM · up to 200 MB' : 'MP4, MOV or WebM up to 200 MB · portrait or landscape') : 'JPG, PNG (max 5MB)'}
                                 </p>
                             </div>
                         </div>
