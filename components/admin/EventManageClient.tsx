@@ -19,7 +19,7 @@ import { generateCSV, downloadCSV } from '@/utils/analytics'
 import { logActivity } from '@/app/actions/logger'
 import { duplicateEvent } from '@/app/actions/events'
 import { Input } from '@/components/ui/Input'
-import { Switch } from '@/components/dashboard/ui'
+import { Field, Notice, Panel, PrimaryButton, Switch, inputClass } from '@/components/dashboard/ui'
 import { Button } from '@/components/ui/Button'
 
 const DateTimePicker = dynamic(() => import('@/components/common/DateTimePicker').then(mod => mod.DateTimePicker), { ssr: false })
@@ -39,6 +39,35 @@ import { AddonsTab } from '@/components/admin/tabs/AddonsTab'
 import { WidgetsTab } from '@/components/admin/tabs/WidgetsTab'
 import { InstalmentsTab } from '@/components/admin/tabs/InstalmentsTab'
 
+
+const EVENT_COLORS = [
+    { color: '#000000', name: 'Black' },
+    { color: '#18181B', name: 'Charcoal' },
+    { color: '#2563EB', name: 'Blue' },
+    { color: '#7C3AED', name: 'Purple' },
+    { color: '#DB2777', name: 'Pink' },
+    { color: '#DC2626', name: 'Red' },
+    { color: '#EA580C', name: 'Orange' },
+    { color: '#059669', name: 'Green' },
+]
+
+/** ISO timestamp → value for a datetime-local input, in the viewer's time zone. */
+function toLocalInputValue(iso: string) {
+    const date = new Date(iso)
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function OverviewSection({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
+    return (
+        <section className="space-y-4">
+            <h2 className="flex items-baseline gap-3 text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
+                <span className="text-sm font-semibold tabular-nums text-gray-400">{number}</span>
+                {title}
+            </h2>
+            {children}
+        </section>
+    )
+}
 
 const EVENT_TABS = ['details', 'tickets', 'attendees', 'discounts', 'sales', 'team', 'lineup', 'addons', 'widgets', 'instalments', 'forms'] as const
 type EventTab = typeof EVENT_TABS[number]
@@ -216,6 +245,7 @@ export function EventManageClient({
     const router = useRouter()
 
     // Stats Calculation
+    const eventCurrency = (event.currency || tiers[0]?.currency || 'GHS').toUpperCase()
     const stats = React.useMemo(() => {
         // Use passed initialTotalRevenue if available (Server Calculated), otherwise fallback to estimate (less accurate)
         // Note: Ideally if we update Tiers locally we might want to re-fetch, but for "Gross Revenue" usually server-truth is best.
@@ -857,281 +887,201 @@ export function EventManageClient({
             {/* DETAILS TAB */}
             {
                 activeTab === 'details' && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="space-y-10 animate-in fade-in duration-200">
+                        {/* Key numbers */}
+                        <section aria-label="Event performance" className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
+                            <div className="grid grid-cols-2 md:grid-cols-4">
+                                {[
+                                    { label: 'Revenue', value: formatCurrency(stats.totalRevenue, eventCurrency), detail: initialTotalDiscountValue > 0 ? `${formatCurrency(initialTotalDiscountValue, eventCurrency)} in discounts` : 'Paid orders' },
+                                    { label: 'Tickets sold', value: stats.totalSold.toLocaleString(), detail: `of ${stats.totalCapacity.toLocaleString()}` },
+                                    { label: 'Capacity filled', value: `${Math.round(stats.utilization)}%`, detail: 'All ticket types', bar: stats.utilization },
+                                    { label: 'Page views', value: (event.view_count || 0).toLocaleString(), detail: 'Event page' },
+                                ].map((metric, index) => (
+                                    <div key={metric.label} className={clsx('min-w-0 border-gray-100 p-5 dark:border-white/10 sm:p-7', index < 2 && 'border-b md:border-b-0', index % 2 === 0 && 'border-r', index === 1 && 'md:border-r')}>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{metric.label}</p>
+                                        <p className="mt-3 truncate text-[28px] font-semibold leading-none tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[34px]" title={metric.value}>{metric.value}</p>
+                                        {metric.bar !== undefined ? (
+                                            <div className="mt-3 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10" aria-hidden="true">
+                                                <div className="h-full rounded-full bg-gray-950 dark:bg-white" style={{ width: `${Math.min(100, metric.bar)}%` }} />
+                                            </div>
+                                        ) : (
+                                            <p className="mt-2 truncate text-xs text-gray-400 dark:text-gray-500">{metric.detail}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
 
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                            {[
-                                { label: 'Net revenue', value: formatCurrency(stats.totalRevenue, initialTiers?.[0]?.currency || 'GHS'), detail: 'After fees' },
-                                { label: 'Tickets sold', value: stats.totalSold.toLocaleString(), detail: `of ${stats.totalCapacity.toLocaleString()} available` },
-                                { label: 'Page views', value: (event.view_count || 0).toLocaleString(), detail: 'Event page' },
-                                { label: 'Capacity filled', value: `${stats.utilization.toFixed(1)}%`, detail: 'Across all ticket types' },
-                                { label: 'Discounts', value: formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS'), detail: 'Applied to sales' },
-                            ].map((metric) => (
-                                <div key={metric.label} className="min-w-0 rounded-3xl border border-gray-200 bg-white p-4 last:col-span-2 dark:border-white/10 dark:bg-[#0b0b0b] sm:last:col-span-1 sm:p-5">
-                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{metric.label}</p>
-                                    <p className="mt-4 truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white" title={metric.value}>{metric.value}</p>
-                                    <p className="mt-1 truncate text-xs text-gray-400 dark:text-gray-500" title={metric.detail}>{metric.detail}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* 2. Charts Row */}
                         {analyticsTickets.length > 0 && (
                             <AnalyticsCharts tickets={analyticsTickets} />
                         )}
 
-                        <div>
-                            <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Event details</h2>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Update the information and presentation of your event.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-                            {/* LEFT COLUMN (8 cols) */}
-                            <div className="space-y-5 lg:col-span-8">
-
-                                {/* General Info */}
-                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">About the event</h3>
-                                    <div className="grid gap-6">
-                                        <div>
-                                            <label htmlFor="event-title" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Event title</label>
-                                            <input
-                                                id="event-title"
-                                                disabled={isStaff}
-                                                value={event.title}
-                                                onChange={e => setEvent({ ...event, title: e.target.value })}
-                                                className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-base font-medium text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                                placeholder="E.g. Summer Music Festival"
-                                            />
+                        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-8">
+                            <div className="space-y-10 lg:col-span-8">
+                                <OverviewSection number="01" title="About the event">
+                                    <Panel>
+                                        <div className="space-y-5">
+                                            <Field label="Title" htmlFor="event-title">
+                                                <input id="event-title" disabled={isStaff} value={event.title} onChange={e => setEvent({ ...event, title: e.target.value })} className={clsx(inputClass, 'text-base font-medium')} placeholder="e.g. Summer Music Festival" />
+                                            </Field>
+                                            <Field label="Description">
+                                                <RichTextEditor value={event.description} onChange={(value) => setEvent({ ...event, description: value })} placeholder="What should guests know?" readOnly={isStaff} />
+                                            </Field>
                                         </div>
-                                        <div>
-                                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-                                            <RichTextEditor
-                                                value={event.description}
-                                                onChange={(value) => setEvent({ ...event, description: value })}
-                                                placeholder="Describe your event to attract attendees..."
-                                                readOnly={isStaff}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
+                                    </Panel>
+                                </OverviewSection>
 
-                                {/* Lineup Editor (Embedded) */}
-                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Lineup</h3>
-                                    <LineupTab
-                                        lineup={event.lineup || []}
-                                        onChange={(newLineup) => setEvent({ ...event, lineup: newLineup })}
-                                        organizationId={event.organization_id || ''}
-                                        disabled={isStaff}
-                                    />
-                                </div>
-
-                                {/* Timing & URL (Moved from Right) */}
-                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                                    {/* Date & Time */}
-                                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                        <h3 className="text-base font-semibold text-gray-950 dark:text-white">Date and time</h3>
-                                        <div>
-                                            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Starts</label>
-                                            <DateTimePicker
-                                                date={event.starts_at ? new Date(event.starts_at) : undefined}
-                                                setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
-                                                // No moving into the past, but an event that already started keeps its date
-                                                minDate={new Date(Math.min(Date.now(), new Date(initialEvent.starts_at).getTime()))}
-                                                disabled={isStaff}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Ends</label>
-                                            <DateTimePicker
-                                                date={event.ends_at ? new Date(event.ends_at) : undefined}
-                                                setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
-                                                minDate={event.starts_at ? new Date(event.starts_at) : undefined}
-                                                disabled={isStaff}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* URL Slug */}
-                                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                        <h3 className="text-base font-semibold text-gray-950 dark:text-white">Event URL</h3>
-                                        <div>
-                                            <div className="flex flex-col">
-                                                <label htmlFor="event-slug" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Link ending</label>
-                                                <span className="mb-1 text-xs text-gray-400">gatepass.so/events/</span>
-                                                <div className="relative">
-                                                    <input
-                                                        id="event-slug"
+                                <OverviewSection number="02" title="When and where">
+                                    <Panel>
+                                        <div className="space-y-5">
+                                            <div className="grid gap-5 md:grid-cols-2">
+                                                <Field label="Starts">
+                                                    <DateTimePicker
+                                                        date={event.starts_at ? new Date(event.starts_at) : undefined}
+                                                        setDate={(date) => setEvent({ ...event, starts_at: date ? date.toISOString() : '' })}
+                                                        // No moving into the past, but an event that already started keeps its date
+                                                        minDate={new Date(Math.min(Date.now(), new Date(initialEvent.starts_at).getTime()))}
                                                         disabled={isStaff}
-                                                        value={event.slug}
-                                                        onChange={e => setEvent({ ...event, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
-                                                        className={`w-full rounded-lg border bg-white p-3 text-sm font-medium outline-none dark:bg-white/5 dark:text-white disabled:opacity-70 ${slugStatus === 'taken'
-                                                            ? 'border-red-300 dark:border-red-500 focus:ring-red-200 dark:focus:ring-red-500/20'
-                                                            : slugStatus === 'available'
-                                                                ? 'border-green-300 dark:border-green-500 focus:ring-green-200 dark:focus:ring-green-500/20'
-                                                                : 'border-gray-200 dark:border-white/10 focus:ring-black dark:focus:ring-white'
-                                                            }`}
-                                                        placeholder="my-event"
                                                     />
-                                                    {slugStatus === 'checking' && (
-                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                                                        </div>
-                                                    )}
-                                                    {slugStatus === 'available' && (
-                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                            <Check className="w-4 h-4 text-green-500" />
-                                                        </div>
-                                                    )}
+                                                </Field>
+                                                <Field label="Ends" optional>
+                                                    <DateTimePicker
+                                                        date={event.ends_at ? new Date(event.ends_at) : undefined}
+                                                        setDate={(date) => setEvent({ ...event, ends_at: date ? date.toISOString() : undefined })}
+                                                        minDate={event.starts_at ? new Date(event.starts_at) : undefined}
+                                                        disabled={isStaff}
+                                                    />
+                                                </Field>
+                                            </div>
+                                            <div className="grid gap-5 border-t border-gray-100 pt-5 dark:border-white/10 md:grid-cols-2">
+                                                <Field label="Venue" htmlFor="event-venue-name">
+                                                    <input id="event-venue-name" disabled={isStaff} value={event.venue_name || ''} onChange={e => setEvent({ ...event, venue_name: e.target.value })} className={inputClass} placeholder="e.g. Independence Square" />
+                                                </Field>
+                                                <Field label="Address" htmlFor="event-venue-address" optional>
+                                                    <input id="event-venue-address" disabled={isStaff} value={event.venue_address || ''} onChange={e => setEvent({ ...event, venue_address: e.target.value })} className={inputClass} placeholder="Street, city" />
+                                                </Field>
+                                            </div>
+                                            <details className="group rounded-2xl bg-gray-50 px-4 py-3 dark:bg-white/5">
+                                                <summary className="cursor-pointer list-none text-sm font-medium text-gray-700 marker:hidden dark:text-gray-300">
+                                                    Map pin <span className="font-normal text-gray-400">· {event.latitude && event.longitude ? `${event.latitude}, ${event.longitude}` : 'optional'}</span>
+                                                </summary>
+                                                <div className="mt-4 grid grid-cols-2 gap-4">
+                                                    <Field label="Latitude" htmlFor="event-latitude">
+                                                        <input id="event-latitude" type="number" inputMode="decimal" step="any" disabled={isStaff} value={event.latitude ?? ''} onChange={e => setEvent({ ...event, latitude: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className={inputClass} placeholder="5.6037" />
+                                                    </Field>
+                                                    <Field label="Longitude" htmlFor="event-longitude">
+                                                        <input id="event-longitude" type="number" inputMode="decimal" step="any" disabled={isStaff} value={event.longitude ?? ''} onChange={e => setEvent({ ...event, longitude: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className={inputClass} placeholder="-0.1870" />
+                                                    </Field>
                                                 </div>
-                                                {slugStatus === 'taken' && (
-                                                    <p className="text-xs text-red-500 mt-1.5 font-medium">This URL slug is already taken.</p>
-                                                )}
-                                                {slugStatus === 'available' && event.slug !== originalSlug && (
-                                                    <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 font-medium">URL available!</p>
-                                                )}
+                                            </details>
+                                        </div>
+                                    </Panel>
+                                </OverviewSection>
+
+                                <OverviewSection number="03" title="Media">
+                                    <Panel>
+                                        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                            <Field label="Poster" hint="Looks best at 1080 × 1350 or 1080 × 1920 px.">
+                                                <MediaUploader type="image" path={`${event.organization_id}/${event.id}`} value={event.poster_url || ''} onChange={(url) => setEvent({ ...event, poster_url: url })} disabled={isStaff} />
+                                            </Field>
+                                            <div className="space-y-6">
+                                                <Field label="Video" optional hint="We compress it in your browser before upload.">
+                                                    <MediaUploader type="video" path={`${event.organization_id}/${event.id}`} value={event.video_url || ''} onChange={(url) => setEvent({ ...event, video_url: url })} disabled={isStaff} />
+                                                </Field>
+                                                <Field label="Logo" optional hint="Square image, shown on tickets.">
+                                                    <div className="w-28">
+                                                        <MediaUploader type="image" path={`${event.organization_id}/${event.id}`} value={event.logo_url || ''} onChange={(url) => setEvent({ ...event, logo_url: url })} aspectRatio="square" compact label="Add logo" disabled={isStaff} />
+                                                    </div>
+                                                </Field>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    </Panel>
+                                </OverviewSection>
 
-                                {(userRole === 'Owner' || userRole === 'Admin') && (
-                                    <EventPaymentProvider
-                                        eventId={event.id}
-                                        initialIntegrationId={event.payment_integration_id ?? null}
-                                        initialCurrency={event.currency || tiers[0]?.currency || 'GHS'}
-                                        integrations={paymentIntegrations}
-                                    />
-                                )}
+                                <OverviewSection number="04" title="Lineup">
+                                    <Panel>
+                                        <LineupTab lineup={event.lineup || []} onChange={(newLineup) => setEvent({ ...event, lineup: newLineup })} organizationId={event.organization_id || ''} disabled={isStaff} />
+                                    </Panel>
+                                </OverviewSection>
 
-                                {/* Poster Image */}
-                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event poster</h3>
-                                    <div className="space-y-4">
-                                        <MediaUploader
-                                            type="image"
-                                            path={`${event.organization_id}/${event.id}`}
-                                            value={event.poster_url || ''}
-                                            onChange={(url) => setEvent({ ...event, poster_url: url })}
-                                            disabled={isStaff}
-                                            className="max-w-md"
-                                        />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Recommended: 1080 × 1350 px or 1080 × 1920 px. Max 5 MB.
-                                        </p>
-                                    </div>
-                                </div>
-
-
-                                {/* Event Logo */}
-                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event logo</h3>
-                                    <div className="space-y-4">
-                                        <div className="w-28">
-                                                <MediaUploader
-                                                    type="image"
-                                                    path={`${event.organization_id}/${event.id}`}
-                                                    value={event.logo_url || ''}
-                                                    onChange={(url) => setEvent({ ...event, logo_url: url })}
-                                                    className="!rounded-full"
-                                                    aspectRatio="square"
-                                                    disabled={isStaff}
-                                                />
-                                        </div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Shown on ticket cards. Use a square image.
-                                        </p>
-                                    </div>
-                                </div>
-
-
-
-
-                                {/* Event Video */}
-                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event video</h3>
-                                    <div className="space-y-4">
-                                        <MediaUploader
-                                            type="video"
-                                            path={`${event.organization_id}/${event.id}`}
-                                            value={event.video_url || ''}
-                                            onChange={(url) => setEvent({ ...event, video_url: url })}
-                                            disabled={isStaff}
-                                            className="max-w-lg"
-                                        />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Short teaser video, 15–30 seconds. Max 50 MB.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Location */}
-                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Location</h3>
-                                    <div className="grid grid-cols-1 gap-5">
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                            <div>
-                                                <label htmlFor="event-venue-name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Venue name</label>
-                                                <input
-                                                    id="event-venue-name"
-                                                    disabled={isStaff}
-                                                    value={event.venue_name || ''}
-                                                    onChange={e => setEvent({ ...event, venue_name: e.target.value })}
-                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                                    placeholder="Venue Name"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="event-venue-address" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Venue address</label>
-                                                <input
-                                                    id="event-venue-address"
-                                                    disabled={isStaff}
-                                                    value={event.venue_address || ''}
-                                                    onChange={e => setEvent({ ...event, venue_address: e.target.value })}
-                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                                    placeholder="Physical Address"
-                                                />
+                                <OverviewSection number="05" title="Link and socials">
+                                    <Panel>
+                                        <div className="space-y-5">
+                                            <Field
+                                                label="Event link"
+                                                htmlFor="event-slug"
+                                                hint={slugStatus === 'taken' ? <span className="text-red-600 dark:text-red-400">That link is taken. Try another.</span> : slugStatus === 'available' && event.slug !== originalSlug ? 'Available.' : undefined}
+                                            >
+                                                <div className={clsx('flex h-11 items-center overflow-hidden rounded-xl border bg-white transition-colors focus-within:border-gray-950 dark:bg-[#111] dark:focus-within:border-white/60', slugStatus === 'taken' ? 'border-red-300 dark:border-red-500/60' : 'border-gray-200 dark:border-white/10')}>
+                                                    <span className="hidden shrink-0 pl-3.5 text-[15px] text-gray-400 sm:inline">gatepass.so/events/</span>
+                                                    <input id="event-slug" disabled={isStaff} value={event.slug} onChange={e => setEvent({ ...event, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} className="h-full min-w-0 flex-1 bg-transparent px-3.5 text-[15px] text-gray-950 outline-none sm:pl-0.5 dark:text-white" placeholder="my-event" />
+                                                    <span className="pr-3.5">
+                                                        {slugStatus === 'checking' && <Loader2 className="size-4 animate-spin text-gray-400" aria-hidden="true" />}
+                                                        {slugStatus === 'available' && <Check className="size-4 text-gray-950 dark:text-white" aria-hidden="true" />}
+                                                    </span>
+                                                </div>
+                                            </Field>
+                                            <div className="grid gap-5 border-t border-gray-100 pt-5 dark:border-white/10 sm:grid-cols-3">
+                                                <Field label="Website" htmlFor="event-website" optional>
+                                                    <input id="event-website" type="url" disabled={isStaff} value={event.social_website || ''} onChange={e => setEvent({ ...event, social_website: e.target.value })} className={inputClass} placeholder="https://" />
+                                                </Field>
+                                                <Field label="Instagram" htmlFor="event-instagram" optional>
+                                                    <input id="event-instagram" disabled={isStaff} value={event.social_instagram || ''} onChange={e => setEvent({ ...event, social_instagram: e.target.value })} className={inputClass} placeholder="@handle" />
+                                                </Field>
+                                                <Field label="X" htmlFor="event-x" optional>
+                                                    <input id="event-x" disabled={isStaff} value={event.social_twitter || ''} onChange={e => setEvent({ ...event, social_twitter: e.target.value })} className={inputClass} placeholder="@handle" />
+                                                </Field>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 dark:border-white/10 sm:grid-cols-2">
-                                            <div>
-                                                <label htmlFor="event-latitude" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Latitude</label>
-                                                <input
-                                                    id="event-latitude"
-                                                    type="number"
-                                                    disabled={isStaff}
-                                                    step="any"
-                                                    value={event.latitude || ''}
-                                                    onChange={e => setEvent({ ...event, latitude: parseFloat(e.target.value) })}
-                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                                    placeholder="5.6037"
-                                                />
+                                    </Panel>
+                                </OverviewSection>
+
+                                <OverviewSection number="06" title="Appearance">
+                                    <Panel>
+                                        <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center">
+                                            <div className="space-y-5">
+                                                <Field label="Accent color">
+                                                    <div className="flex flex-wrap gap-2.5">
+                                                        {EVENT_COLORS.map((preset) => (
+                                                            <button
+                                                                key={preset.color}
+                                                                type="button"
+                                                                disabled={isStaff}
+                                                                onClick={() => setEvent({ ...event, primary_color: preset.color })}
+                                                                className={clsx('size-9 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 dark:ring-offset-black', event.primary_color === preset.color && 'ring-2 ring-gray-950 ring-offset-2 dark:ring-white')}
+                                                                style={{ background: preset.color }}
+                                                                aria-label={preset.name}
+                                                                aria-pressed={event.primary_color === preset.color}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </Field>
+                                                <Field label="Custom" htmlFor="event-color-hex">
+                                                    <div className="flex items-center gap-3">
+                                                        <label className="relative size-11 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-gray-200 dark:border-white/10" style={{ background: event.primary_color || '#000000' }}>
+                                                            <input type="color" aria-label="Pick a color" disabled={isStaff} value={event.primary_color || '#000000'} onChange={e => setEvent({ ...event, primary_color: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" />
+                                                        </label>
+                                                        <div className="relative w-40">
+                                                            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">#</span>
+                                                            <input id="event-color-hex" disabled={isStaff} value={event.primary_color?.replace('#', '') || ''} onChange={e => setEvent({ ...event, primary_color: `#${e.target.value.replace(/[^0-9a-f]/gi, '')}` })} maxLength={6} placeholder="000000" className={clsx(inputClass, 'pl-7 uppercase')} />
+                                                        </div>
+                                                    </div>
+                                                </Field>
                                             </div>
-                                            <div>
-                                                <label htmlFor="event-longitude" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Longitude</label>
-                                                <input
-                                                    id="event-longitude"
-                                                    type="number"
-                                                    disabled={isStaff}
-                                                    step="any"
-                                                    value={event.longitude || ''}
-                                                    onChange={e => setEvent({ ...event, longitude: parseFloat(e.target.value) })}
-                                                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                                    placeholder="-0.1870"
-                                                />
+                                            <div className="rounded-2xl bg-gray-50 p-4 dark:bg-white/5" aria-hidden="true">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">Preview</p>
+                                                <p className="mt-3 truncate text-sm font-semibold text-gray-950 dark:text-white">{event.title || 'Your event'}</p>
+                                                <div className="mt-3 flex h-10 items-center justify-center gap-2 rounded-full text-xs font-semibold text-white" style={{ background: event.primary_color || '#000000' }}>
+                                                    <Ticket className="size-3.5" /> Get tickets
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-
-
-
+                                    </Panel>
+                                </OverviewSection>
                             </div>
 
-                            {/* RIGHT COLUMN (4 cols) - Settings */}
-                            <div className="space-y-5 lg:col-span-4">
-
+                            {/* Settings rail */}
+                            <aside className="space-y-5 lg:sticky lg:top-6 lg:col-span-4">
                                 {(userRole === 'Owner' || userRole === 'Admin') && (
                                     <EventBillingCard
                                         eventId={event.id}
@@ -1139,277 +1089,102 @@ export function EventManageClient({
                                     />
                                 )}
 
-                                {/* Publish Status - High Priority */}
-                                <div className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#0b0b0b]">
-                                    <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Visibility</h3>
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div>
-                                            <label htmlFor="pub" className="text-sm font-medium text-gray-950 dark:text-white">Published</label>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">Visible to the public. Save to apply.</p>
-                                        </div>
-                                        <Switch
-                                            id="pub"
-                                            label="Published"
-                                            checked={event.is_published}
-                                            disabled={isStaff}
-                                            onChange={checked => {
-                                                if (checked && tiers.length === 0) {
-                                                    toast.error('Add at least one ticket type before publishing.')
-                                                    return
-                                                }
-                                                setEvent({ ...event, is_published: checked, publish_at: undefined })
-                                            }}
-                                        />
-                                    </div>
-
-                                    <div className="mt-4 flex items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-white/10">
-                                        <div>
-                                            <label htmlFor="sales" className="text-sm font-medium text-gray-950 dark:text-white">Ticket sales</label>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">Off shows a waitlist instead of checkout.</p>
-                                        </div>
-                                        <Switch
-                                            id="sales"
-                                            label="Ticket sales"
-                                            checked={event.sales_enabled ?? true}
-                                            disabled={isStaff}
-                                            onChange={checked => setEvent({ ...event, sales_enabled: checked })}
-                                        />
-                                    </div>
-
-                                    {/* Scheduled Publishing */}
-                                    {!event.is_published && (
-                                        <div className="mt-4 border-t border-gray-100 pt-4 dark:border-white/10">
-                                            <label htmlFor="event-publish-at" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Schedule publication
-                                            </label>
-                                            <input
-                                                id="event-publish-at"
-                                                type="datetime-local"
-                                                value={event.publish_at ? new Date(event.publish_at).toISOString().slice(0, 16) : ''}
-                                                onChange={e => {
-                                                    const value = e.target.value
-                                                    if (value) {
-                                                        setEvent({ ...event, publish_at: new Date(value).toISOString() })
-                                                    } else {
-                                                        setEvent({ ...event, publish_at: undefined })
+                                <Panel title="Visibility">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div>
+                                                <label htmlFor="pub" className="text-sm font-medium text-gray-950 dark:text-white">Published</label>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{event.is_published ? 'Live on GatePass.' : 'Only you can see it.'}</p>
+                                            </div>
+                                            <Switch
+                                                id="pub"
+                                                label="Published"
+                                                checked={event.is_published}
+                                                disabled={isStaff}
+                                                onChange={checked => {
+                                                    if (checked && tiers.length === 0) {
+                                                        toast.error('Add at least one ticket type before publishing.')
+                                                        return
                                                     }
+                                                    setEvent({ ...event, is_published: checked, publish_at: undefined })
                                                 }}
-                                                min={new Date().toISOString().slice(0, 16)}
-                                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                                             />
-                                            {event.publish_at && (
-                                                <p className="mt-2 flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                    Scheduled for {new Date(event.publish_at).toLocaleString()}
-                                                </p>
-                                            )}
-                                            <p className="text-xs text-gray-500 mt-2">
-                                                Leave empty to publish manually
-                                            </p>
                                         </div>
-                                    )}
-
-                                    <p className="mt-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                                        {event.is_published
-                                            ? 'Your event is live and visible to the public.'
-                                            : event.publish_at
-                                                ? 'Your event will be automatically published at the scheduled time.'
-                                                : 'When published, your event will be visible to the public and tickets will be available for purchase.'
-                                        }
-                                    </p>
-                                </div>
-
-                                {/* Branding (Moved from Left) */}
-                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Event appearance</h3>
-
-                                    <div className="space-y-5">
-                                        {/* Presets */}
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Theme color</label>
-                                            <div className="flex flex-wrap gap-2.5">
-                                                {[
-                                                    { color: '#000000', name: 'Pitch Black' },
-                                                    { color: '#18181B', name: 'Charcoal' },
-                                                    { color: '#2563EB', name: 'Royal Blue' },
-                                                    { color: '#7C3AED', name: 'Electric Purple' },
-                                                    { color: '#DB2777', name: 'Hot Pink' },
-                                                    { color: '#DC2626', name: 'Crimson' },
-                                                    { color: '#EA580C', name: 'Sunset' },
-                                                    { color: '#059669', name: 'Emerald' },
-                                                ].map((preset) => (
-                                                    <button
-                                                        key={preset.color}
-                                                        type="button"
-                                                        onClick={() => setEvent({ ...event, primary_color: preset.color })}
-                                                        className={clsx(
-                                                            "h-9 w-9 rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2",
-                                                            event.primary_color === preset.color ? "ring-2 ring-offset-2 ring-gray-500 dark:ring-white" : "border-transparent hover:border-gray-300 dark:hover:border-white/40"
-                                                        )}
-                                                        style={{ background: preset.color }}
-                                                        title={preset.name}
-                                                        aria-label={preset.name}
-                                                        aria-pressed={event.primary_color === preset.color}
-                                                    />
-                                                ))}
+                                        <div className="flex items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-white/10">
+                                            <div>
+                                                <label htmlFor="sales" className="text-sm font-medium text-gray-950 dark:text-white">Ticket sales</label>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">Off shows a waitlist instead.</p>
                                             </div>
+                                            <Switch id="sales" label="Ticket sales" checked={event.sales_enabled ?? true} disabled={isStaff} onChange={checked => setEvent({ ...event, sales_enabled: checked })} />
                                         </div>
-
-                                        {/* Custom Input */}
-                                        <div>
-                                            <label htmlFor="event-color-hex" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Custom color</label>
-                                            <div className="flex items-center gap-3">
-                                                <div className="relative">
+                                        {!event.is_published && (
+                                            <div className="border-t border-gray-100 pt-4 dark:border-white/10">
+                                                <Field label="Publish later" htmlFor="event-publish-at" optional hint={event.publish_at ? `Goes live ${new Date(event.publish_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.` : 'Leave empty to publish yourself.'}>
                                                     <input
-                                                        type="color"
-                                                        aria-label="Choose custom color"
-                                                        value={event.primary_color || '#000000'}
-                                                        onChange={e => setEvent({ ...event, primary_color: e.target.value })}
-                                                        className="w-12 h-12 rounded-xl cursor-pointer bg-white border border-gray-200 p-1 opacity-0 absolute inset-0 z-10"
+                                                        id="event-publish-at"
+                                                        type="datetime-local"
+                                                        disabled={isStaff}
+                                                        value={event.publish_at ? toLocalInputValue(event.publish_at) : ''}
+                                                        onChange={e => setEvent({ ...event, publish_at: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                                                        min={toLocalInputValue(new Date().toISOString())}
+                                                        className={inputClass}
                                                     />
-                                                    <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 p-1" style={{ background: event.primary_color || '#000000' }}>
-                                                        <div className="w-full h-full rounded-lg border border-white/20" />
-                                                    </div>
-                                                </div>
-                                                <div className="relative flex-1">
-                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">#</span>
-                                                    <input
-                                                        id="event-color-hex"
-                                                        value={event.primary_color?.replace('#', '') || ''}
-                                                        onChange={e => setEvent({ ...event, primary_color: `#${e.target.value}` })}
-                                                        type="text"
-                                                        maxLength={6}
-                                                        placeholder="000000"
-                                                        className="h-11 w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm font-medium uppercase text-gray-900 outline-none focus:border-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                                    />
-                                                </div>
+                                                </Field>
                                             </div>
-                                        </div>
-
-                                        {/* Live Preview */}
-                                        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-white/10 dark:bg-white/5">
-                                            <p className="mb-3 text-xs font-medium text-gray-500 dark:text-gray-400">Preview</p>
-                                            <div className="mx-auto max-w-[240px] rounded-lg border border-gray-200 bg-white p-3 dark:border-white/10 dark:bg-[#111]">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/10" />
-                                                    <div className="space-y-1">
-                                                        <div className="w-20 h-2 bg-gray-100 dark:bg-white/10 rounded-full" />
-                                                        <div className="w-12 h-2 bg-gray-50 dark:bg-white/5 rounded-full" />
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg text-xs font-semibold text-white"
-                                                    style={{ background: event.primary_color || '#000000' }}
-                                                >
-                                                    <Ticket className="w-3 h-3" />
-                                                    Get Tickets
-                                                </button>
-                                            </div>
-                                            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                                                This color defines your event&apos;s primary buttons and accents.
-                                            </p>
-                                        </div>
+                                        )}
+                                        <p className="text-xs text-gray-400">Save to apply changes.</p>
                                     </div>
-                                </div>
+                                </Panel>
 
-
-                                {/* Socials */}
-                                <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Social links</h3>
-                                    <div className="grid gap-4">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Website
-                                        <input
-                                            disabled={isStaff}
-                                            value={event.social_website || ''}
-                                            onChange={e => setEvent({ ...event, social_website: e.target.value })}
-                                            className="mt-1.5 h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                            placeholder="Website URL"
-                                        />
-                                        </label>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Instagram
-                                        <input
-                                            disabled={isStaff}
-                                            value={event.social_instagram || ''}
-                                            onChange={e => setEvent({ ...event, social_instagram: e.target.value })}
-                                            className="mt-1.5 h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                            placeholder="Instagram Username"
-                                        />
-                                        </label>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">X
-                                        <input
-                                            disabled={isStaff}
-                                            value={event.social_twitter || ''}
-                                            onChange={e => setEvent({ ...event, social_twitter: e.target.value })}
-                                            className="mt-1.5 h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:opacity-70 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                                            placeholder="Username"
-                                        />
-                                        </label>
-                                    </div>
-                                </div>
-
-                                {/* Save action at the end of event settings */}
-                                <div className="pt-2">
-                                    {!isStaff ? (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => updateEvent()}
-                                                className="inline-flex h-11 w-full items-center justify-center rounded-full bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
-                                                disabled={loading}
-                                            >
-                                                {loading ? 'Saving...' : 'Save event'}
-                                            </button>
-                                            <div className="mt-8 pt-8 border-t border-gray-100 dark:border-white/10">
-                                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                                    <h3 className="mb-2 text-base font-semibold text-gray-950 dark:text-white">Delete event</h3>
-                                                    <p className="mb-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                                                        Deleting this event will permanently remove all associated data, including ticket sales and guest lists.
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIsDeleteModalOpen(true)}
-                                                        className="h-10 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 transition-colors hover:border-red-400 dark:border-red-500/30 dark:text-red-400"
-                                                    >
-                                                        Delete event
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
-                                            <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-gray-950 dark:text-white">
-                                                <ShieldCheck className="w-4 h-4" />
-                                                View only
-                                            </h3>
-                                            <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                                                Staff can view event details. Owners and admins can make changes.
-                                            </p>
-                                        </div>
-                                    )}
-                                    <DeleteEventModal
-                                        isOpen={isDeleteModalOpen}
-                                        onClose={() => setIsDeleteModalOpen(false)}
-                                        onConfirm={async () => {
-                                            setIsDeleting(true)
-                                            try {
-                                                const { error } = await supabase.schema('gatepass').from('events').delete().eq('id', event.id)
-                                                if (error) throw error
-                                                toast.success('Event deleted successfully')
-                                                router.push('/dashboard/events')
-                                            } catch (e: any) {
-                                                toast.error(e.message)
-                                                setIsDeleting(false)
-                                            }
-                                        }}
-                                        eventName={event.title}
-                                        isDeleting={isDeleting}
+                                {(userRole === 'Owner' || userRole === 'Admin') && (
+                                    <EventPaymentProvider
+                                        eventId={event.id}
+                                        initialIntegrationId={event.payment_integration_id ?? null}
+                                        initialCurrency={eventCurrency}
+                                        integrations={paymentIntegrations}
                                     />
-                                </div>
+                                )}
 
-                            </div>
+                                {!isStaff ? (
+                                    <>
+                                        <PrimaryButton type="button" onClick={() => updateEvent()} loading={loading} className="w-full">
+                                            {loading ? 'Saving…' : 'Save changes'}
+                                        </PrimaryButton>
+                                        <div className="rounded-3xl border border-red-200/70 p-5 dark:border-red-500/20 sm:p-6">
+                                            <h3 className="text-base font-semibold text-gray-950 dark:text-white">Delete event</h3>
+                                            <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">Removes the event, its tickets and its guest list for good.</p>
+                                            <button type="button" onClick={() => setIsDeleteModalOpen(true)} className="mt-4 inline-flex h-9 items-center rounded-full border border-red-200 px-4 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10">
+                                                Delete event
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <Notice>
+                                        <span className="inline-flex items-center gap-1.5 font-medium text-gray-950 dark:text-white"><ShieldCheck className="size-4" aria-hidden="true" /> View only</span>
+                                        <br />Owners and admins can make changes.
+                                    </Notice>
+                                )}
+                                <DeleteEventModal
+                                    isOpen={isDeleteModalOpen}
+                                    onClose={() => setIsDeleteModalOpen(false)}
+                                    onConfirm={async () => {
+                                        setIsDeleting(true)
+                                        try {
+                                            const { error } = await supabase.schema('gatepass').from('events').delete().eq('id', event.id)
+                                            if (error) throw error
+                                            toast.success('Event deleted successfully')
+                                            router.push('/dashboard/events')
+                                        } catch (e: any) {
+                                            toast.error(e.message)
+                                            setIsDeleting(false)
+                                        }
+                                    }}
+                                    eventName={event.title}
+                                    isDeleting={isDeleting}
+                                />
+                            </aside>
                         </div>
-                    </div >
+                    </div>
                 )
             }
 
