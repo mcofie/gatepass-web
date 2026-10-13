@@ -1,96 +1,113 @@
-// import { FFmpeg } from '@ffmpeg/ffmpeg';
-// import { fetchFile, toBlobURL } from '@ffmpeg/util';
-// We use dynamic imports to avoid "expression is too dynamic" errors with Turbopack/Webpack
-// and to ensure these heavy libraries are only loaded when needed.
+// Event videos are compressed in the browser before upload, so only the small result is stored.
+// ffmpeg.wasm and its core are loaded on demand: they're large and only needed in the event editor.
 
+export type OptimizedVideo = {
+    blob: Blob
+    extension: 'mp4'
+    contentType: 'video/mp4'
+    width: number
+    height: number
+    orientation: 'portrait' | 'landscape' | 'square'
+}
+
+// Background loops don't need more than 720p-class detail; this keeps files a few MB.
+const MAX_LONG_SIDE = 1280
+const MAX_SECONDS = 60
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export class VideoTranscoder {
-    private ffmpeg: any = null; // Type as any to avoid complex type imports with dynamic loading
-    private loaded = false;
-    private fetchFile: any = null;
-    private toBlobURL: any = null;
+    private ffmpeg: any = null
+    private fetchFile: any = null
+    private loading: Promise<void> | null = null
 
-    async load() {
-        if (this.loaded) return;
-
-        console.log('Loading FFmpeg...');
-
-        // Dynamically import the libraries
-        const ffmpegModule = await import('@ffmpeg/ffmpeg');
-        const utilModule = await import('@ffmpeg/util');
-
-        this.fetchFile = utilModule.fetchFile;
-        this.toBlobURL = utilModule.toBlobURL;
-
-        const { FFmpeg } = ffmpegModule;
-        this.ffmpeg = new FFmpeg();
-
-        // Load ffmpeg.wasm from a CDN (Single-threaded for stability)
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-
-        try {
-            await this.ffmpeg.load({
-                coreURL: `${baseURL}/ffmpeg-core.js`,
-                wasmURL: `${baseURL}/ffmpeg-core.wasm`,
-            });
-
-            console.log('FFmpeg loaded successfully');
-            this.loaded = true;
-        } catch (error) {
-            console.error('Failed to load FFmpeg:', error);
-            throw error;
+    load(): Promise<void> {
+        if (!this.loading) {
+            this.loading = (async () => {
+                const [{ FFmpeg }, util] = await Promise.all([import('@ffmpeg/ffmpeg'), import('@ffmpeg/util')])
+                this.fetchFile = util.fetchFile
+                this.ffmpeg = new FFmpeg()
+                // Single-threaded core: works without cross-origin isolation headers
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'
+                await this.ffmpeg.load({ coreURL: `${baseURL}/ffmpeg-core.js`, wasmURL: `${baseURL}/ffmpeg-core.wasm` })
+            })().catch(error => {
+                this.loading = null
+                throw error
+            })
         }
+        return this.loading
     }
 
-    async convertToWebM(file: File, onProgress?: (progress: number) => void): Promise<Blob> {
-        if (!this.loaded || !this.ffmpeg) {
-            await this.load();
-        }
+    /**
+     * H.264/AAC MP4 that plays everywhere (including iOS), keeps the source orientation,
+     * caps the long side at 1280px and 30fps, and starts playing before it's fully downloaded.
+     */
+    async optimize(file: File, onProgress?: (percent: number) => void): Promise<OptimizedVideo> {
+        await this.load()
+        const ffmpeg = this.ffmpeg
+        const input = `input${extensionOf(file.name)}`
+        const output = 'output.mp4'
 
-        const ffmpeg = this.ffmpeg;
-        const inputName = 'input' + getFileExtension(file.name);
-        const outputName = 'output.webm';
+        await ffmpeg.writeFile(input, await this.fetchFile(file))
+        const progress = ({ progress }: { progress: number }) => onProgress?.(Math.max(0, Math.min(100, Math.round(progress * 100))))
+        ffmpeg.on('progress', progress)
 
-        // Write file to FFmpeg FS
-        await ffmpeg.writeFile(inputName, await this.fetchFile(file));
-
-        // Track progress
-        ffmpeg.on('progress', ({ progress }: any) => {
-            if (onProgress) {
-                // ffmpeg.wasm 0.12.x progress is 0-1
-                onProgress(Math.round(progress * 100));
+        try {
+            await ffmpeg.exec([
+                '-i', input,
+                '-t', String(MAX_SECONDS),
+                // Shrink only if larger; -2 keeps the other side even and the aspect ratio intact
+                '-vf', `scale='if(gte(iw,ih),min(${MAX_LONG_SIDE},iw),-2)':'if(gte(iw,ih),-2,min(${MAX_LONG_SIDE},ih))',fps=30`,
+                '-c:v', 'libx264',
+                '-preset', 'veryfast',
+                '-crf', '28',
+                '-profile:v', 'main',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '96k',
+                '-ac', '2',
+                '-movflags', '+faststart',
+                output,
+            ])
+            const data = await ffmpeg.readFile(output)
+            const blob = new Blob([data], { type: 'video/mp4' })
+            const { width, height } = await dimensionsOf(blob)
+            return {
+                blob,
+                extension: 'mp4',
+                contentType: 'video/mp4',
+                width,
+                height,
+                orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',
             }
-        });
-
-        // Run conversion
-        // -c:v libvpx-vp9: Use VP9 codec for video (good quality/size ratio)
-        // -b:v 1M: 1Mbps video bitrate target (adjustable for quality vs size)
-        // -c:a libvorbis: Vorbis audio
-        await ffmpeg.exec([
-            '-i', inputName,
-            '-c:v', 'libvpx-vp9',
-            '-b:v', '1M',
-            '-c:a', 'libvorbis',
-            outputName
-        ]);
-
-        // Read result
-        const data = await ffmpeg.readFile(outputName);
-
-        // Cleanup
-        try {
-            await ffmpeg.deleteFile(inputName);
-            await ffmpeg.deleteFile(outputName);
-        } catch (e) {
-            console.warn('Cleanup error:', e);
+        } finally {
+            ffmpeg.off('progress', progress)
+            await ffmpeg.deleteFile(input).catch(() => {})
+            await ffmpeg.deleteFile(output).catch(() => {})
         }
-
-        return new Blob([data as any], { type: 'video/webm' });
     }
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
-function getFileExtension(filename: string) {
-    return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2) ?
-        '.' + filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2) : '';
+function extensionOf(filename: string) {
+    const dot = filename.lastIndexOf('.')
+    return dot > 0 ? filename.slice(dot) : ''
 }
 
-export const transcoder = new VideoTranscoder();
+function dimensionsOf(blob: Blob): Promise<{ width: number; height: number }> {
+    return new Promise(resolve => {
+        const url = URL.createObjectURL(blob)
+        const video = document.createElement('video')
+        video.preload = 'metadata'
+        video.onloadedmetadata = () => {
+            resolve({ width: video.videoWidth, height: video.videoHeight })
+            URL.revokeObjectURL(url)
+        }
+        video.onerror = () => {
+            resolve({ width: 0, height: 0 })
+            URL.revokeObjectURL(url)
+        }
+        video.src = url
+    })
+}
+
+export const transcoder = new VideoTranscoder()
