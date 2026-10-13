@@ -76,15 +76,15 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
             <div className="absolute top-0 left-0 right-0 p-4 md:p-8 z-50 pointer-events-none flex justify-between items-start gap-2">
                 {/* Brand and about menu */}
                 <div className="relative flex flex-col items-start gap-2">
-                    <div className="pointer-events-auto animate-fade-in flex items-center bg-white/95 backdrop-blur-md border border-black/5 rounded-full shadow-sm text-black">
+                    <div className="pointer-events-auto animate-fade-in flex items-center rounded-full border border-black/[0.06] bg-white/90 text-black shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/80 dark:text-white">
                         <Link
                             href="/"
-                            className="inline-flex items-center gap-1.5 pl-3 pr-3 py-2.5 text-[14px] font-semibold tracking-tight leading-none hover:opacity-60 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black rounded-l-full max-[360px]:pl-2.5 max-[360px]:pr-2.5"
+                            className="inline-flex items-center gap-1.5 pl-3 pr-3 py-2.5 text-[14px] font-semibold tracking-tight leading-none hover:opacity-60 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white rounded-l-full max-[360px]:pl-2.5 max-[360px]:pr-2.5"
                         >
-                            <GatePassMark className="size-5" invertOnDark={false} />
+                            <GatePassMark className="size-5" />
                             GatePass
                         </Link>
-                        <div className="w-px h-4 bg-black/10" />
+                        <div className="w-px h-4 bg-black/10 dark:bg-white/15" />
                         <button
                             ref={leftMenuButtonRef}
                             onClick={() => {
@@ -95,7 +95,7 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                             aria-label={isLeftOpen ? 'Close about menu' : 'About GatePass'}
                             aria-expanded={isLeftOpen}
                             aria-controls="gatepass-about-panel"
-                            className="px-3 py-2.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-700 hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black rounded-r-full max-[360px]:px-2"
+                            className="px-3 py-2.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-gray-700 hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black rounded-r-full dark:text-gray-300 dark:hover:text-white dark:focus-visible:ring-white max-[360px]:px-2"
                         >
                             <span className="max-[360px]:sr-only">{isLeftOpen ? 'Close' : 'About'}</span>
                             {isLeftOpen ? <X aria-hidden="true" className="w-3.5 h-3.5" /> : <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />}
@@ -105,25 +105,25 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                     {isLeftOpen && (
                         <div
                             id="gatepass-about-panel"
-                            className="pointer-events-auto absolute left-0 top-full mt-2 w-[300px] max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-xl text-black p-4 rounded-[20px] shadow-xl border border-black/5 animate-in fade-in slide-in-from-top-1 duration-200"
+                            className="pointer-events-auto absolute left-0 top-full mt-2 w-[300px] max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-xl text-black p-4 rounded-[20px] shadow-xl border border-black/5 dark:bg-zinc-900/95 dark:text-white dark:border-white/10 animate-in fade-in slide-in-from-top-1 duration-200"
                         >
                             <h2 className="text-[15px] font-semibold tracking-tight">Events worth showing up for.</h2>
-                            <p className="mt-1 text-[12px] leading-[1.5] text-gray-600">
+                            <p className="mt-1 text-[12px] leading-[1.5] text-gray-600 dark:text-gray-400">
                                 Discover events through video and book your place in seconds.
                             </p>
 
-                            <nav aria-label="GatePass links" className="mt-4 border-t border-gray-100 divide-y divide-gray-100">
-                                <Link href="/" onClick={() => setIsLeftOpen(false)} className="flex items-center justify-between py-3 text-[13px] font-medium hover:text-gray-600 focus-visible:outline-none focus-visible:underline">
+                            <nav aria-label="GatePass links" className="mt-4 border-t border-gray-100 divide-y divide-gray-100 dark:border-white/10 dark:divide-white/10">
+                                <Link href="/" onClick={() => setIsLeftOpen(false)} className="flex items-center justify-between py-3 text-[13px] font-medium hover:text-gray-600 focus-visible:outline-none focus-visible:underline dark:hover:text-gray-300">
                                     Explore events <ArrowUpRight aria-hidden="true" className="w-4 h-4 text-gray-400" />
                                 </Link>
-                                <Link href="/dashboard/events/create" onClick={() => setIsLeftOpen(false)} className="flex items-center justify-between py-3 text-[13px] font-medium hover:text-gray-600 focus-visible:outline-none focus-visible:underline">
+                                <Link href="/dashboard/events/create" onClick={() => setIsLeftOpen(false)} className="flex items-center justify-between py-3 text-[13px] font-medium hover:text-gray-600 focus-visible:outline-none focus-visible:underline dark:hover:text-gray-300">
                                     Create an event <ArrowUpRight aria-hidden="true" className="w-4 h-4 text-gray-400" />
                                 </Link>
                             </nav>
 
-                            <div className="flex gap-4 pt-3 border-t border-gray-100 text-[11px] text-gray-500">
-                                <Link href="/terms-of-service" onClick={() => setIsLeftOpen(false)} className="hover:text-black focus-visible:outline-none focus-visible:underline">Terms of Service</Link>
-                                <Link href="/privacy-policy" onClick={() => setIsLeftOpen(false)} className="hover:text-black focus-visible:outline-none focus-visible:underline">Privacy Policy</Link>
+                            <div className="flex gap-4 pt-3 border-t border-gray-100 text-[11px] text-gray-500 dark:border-white/10 dark:text-gray-400">
+                                <Link href="/terms-of-service" onClick={() => setIsLeftOpen(false)} className="hover:text-black dark:hover:text-white focus-visible:outline-none focus-visible:underline">Terms of Service</Link>
+                                <Link href="/privacy-policy" onClick={() => setIsLeftOpen(false)} className="hover:text-black dark:hover:text-white focus-visible:outline-none focus-visible:underline">Privacy Policy</Link>
                             </div>
                         </div>
                     )}
@@ -142,7 +142,7 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                                     setIsRightOpen(!isRightOpen)
                                     if (isLeftOpen) setIsLeftOpen(false)
                                 }}
-                                className="pointer-events-auto animate-fade-in inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 text-[13px] font-medium text-black shadow-sm transition-colors hover:bg-[#f5f5f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-white/15 dark:bg-[#171717] dark:text-white dark:hover:bg-[#252525] dark:focus-visible:ring-white"
+                                className="pointer-events-auto animate-fade-in inline-flex h-10 items-center gap-2 rounded-full border border-black/[0.06] bg-white/90 px-3.5 text-[13px] font-medium text-black shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-white/10 dark:bg-zinc-900/80 dark:text-white dark:hover:bg-zinc-800/90 dark:focus-visible:ring-white"
                             >
                                 <User aria-hidden="true" className="size-4" strokeWidth={1.8} />
                                 <span>Account</span>
@@ -151,7 +151,7 @@ export function LandingHeader({ showAccountMenu = false }: LandingHeaderProps) {
                         ) : (
                             <Link
                                 href="/login"
-                                className="pointer-events-auto animate-fade-in inline-flex h-10 items-center rounded-full border border-black/10 bg-white px-4 text-[13px] font-medium text-black shadow-sm transition-colors hover:bg-[#f5f5f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-white/15 dark:bg-[#171717] dark:text-white dark:hover:bg-[#252525] dark:focus-visible:ring-white"
+                                className="pointer-events-auto animate-fade-in inline-flex h-10 items-center rounded-full border border-black/[0.06] bg-white/90 px-4 text-[13px] font-medium text-black shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-white/10 dark:bg-zinc-900/80 dark:text-white dark:hover:bg-zinc-800/90 dark:focus-visible:ring-white"
                             >
                                 Log in
                             </Link>

@@ -97,7 +97,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause, layoutId }: E
                     onClick={toggleAudio}
                     type="button"
                     aria-pressed={!isMuted}
-                    className="absolute top-4 right-4 md:top-8 md:right-8 z-20 w-9 h-9 bg-white/95 backdrop-blur-md border border-black/5 rounded-full shadow-sm flex items-center justify-center text-black hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+                    className="absolute top-4 right-4 md:top-8 md:right-8 z-20 w-9 h-9 rounded-full border border-black/[0.06] bg-white/90 text-black shadow-sm backdrop-blur-md flex items-center justify-center hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black dark:border-white/10 dark:bg-zinc-900/80 dark:text-white dark:hover:bg-zinc-800/90 dark:focus-visible:ring-white"
                     aria-label={isMuted ? "Unmute video" : "Mute video"}
                 >
                     {isMuted ? (
