@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 import { OfferingReveal } from './OfferingReveal'
-import { createClient } from '@/utils/supabase/server'
+import { getActivePricingTiers } from '@/lib/public-data'
 import { formatCurrency } from '@/utils/format'
 import styles from './offering.module.css'
 
@@ -49,14 +49,7 @@ function FeatureCard({ number, title, description, children }: {
 }
 
 export default async function OurOfferingPage() {
-    const supabase = await createClient()
-    const { data } = await supabase
-        .schema('gatepass')
-        .from('platform_pricing_tiers')
-        .select('name, max_tickets, price_minor, currency')
-        .eq('is_active', true)
-        .order('sort_order')
-    const tiers = (data ?? []) as { name: string; max_tickets: number | null; price_minor: number; currency: string }[]
+    const tiers = await getActivePricingTiers()
 
     return (
         <div className="overflow-x-clip bg-white text-[#0d0d0d] dark:bg-[#0a0a0a] dark:text-white">

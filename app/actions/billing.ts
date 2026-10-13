@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { headers } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
@@ -99,4 +99,5 @@ export async function savePricingTiers(tiers: Array<Omit<PricingTier, 'id'> & { 
 
     revalidatePath('/admin/settings')
     revalidatePath('/our-offering')
+    revalidateTag('pricing-tiers', 'max')
 }

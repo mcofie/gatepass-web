@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { encryptCredentials, decryptCredentials, hintFor } from '@/lib/integrations/crypto'
@@ -160,6 +160,7 @@ export async function saveIntegration(input: {
 
     const verified = await runVerification(data as IntegrationRow)
     revalidatePath('/dashboard/settings')
+    if (input.category === 'marketing') revalidateTag('marketing-ids', 'max')
     return summarize(verified)
 }
 

@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import DOMPurify from 'isomorphic-dompurify'
 import Link from 'next/link'
 import Image from 'next/image'
 import Script from 'next/script'
@@ -1090,7 +1089,8 @@ const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded
                                 <div className="pt-5 pb-4">
                                     <div
                                         className={`text-[13px] font-normal text-gray-700 dark:text-gray-300 leading-[1.5] prose prose-sm dark:prose-invert max-w-none [&_p]:my-0 [&_p+p]:mt-2 ${canExpandDescription && !showFullDescription ? 'line-clamp-3 overflow-hidden' : ''}`}
-                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(event.description || '') }}
+                                        // Sanitized on the server (lib/sanitize) before it reaches this component
+                                        dangerouslySetInnerHTML={{ __html: event.description || '' }}
                                     />
                                     {canExpandDescription && (
                                         <button
