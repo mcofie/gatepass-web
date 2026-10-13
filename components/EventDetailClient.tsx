@@ -64,12 +64,14 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
 
     const [direction, setDirection] = useState<'forward' | 'back'>('forward')
     const prefersReducedMotion = useReducedMotion()
+    // Steps cross-fade with a slight rise: a quick exit so the card is never empty for long,
+    // and no horizontal slide (it read as a jolt on a card that also changes height)
     const viewVariants = {
-        enter: (navDirection: 'forward' | 'back') => ({ opacity: 0, x: prefersReducedMotion ? 0 : navDirection === 'forward' ? 8 : -8 }),
-        center: { opacity: 1, x: 0 },
-        exit: (navDirection: 'forward' | 'back') => ({ opacity: 0, x: prefersReducedMotion ? 0 : navDirection === 'forward' ? -8 : 8 }),
+        enter: { opacity: 0, y: prefersReducedMotion ? 0 : 6 },
+        center: { opacity: 1, y: 0, transition: { duration: prefersReducedMotion ? 0.01 : 0.2, ease: [0.32, 0.72, 0, 1] as const } },
+        exit: { opacity: 0, transition: { duration: prefersReducedMotion ? 0.01 : 0.08, ease: 'easeIn' as const } },
     }
-    const viewTransition = { duration: prefersReducedMotion ? 0.01 : 0.18, ease: 'easeOut' as const }
+    const viewTransition = undefined
     const [loading, setLoading] = useState(false)
     const [verifying, setVerifying] = useState(false)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({})
@@ -780,13 +782,13 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             {/* Floating Card / Modal Container */}
             <motion.div
                 ref={cardRef}
-                layoutId={layoutId}
+                layoutId={isFeedItem ? layoutId : undefined}
                 onClick={expandCard}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
                 className={isEmbed
                     ? `relative mx-auto flex w-full max-w-[520px] flex-col bg-white p-4 font-sans text-black select-none dark:bg-zinc-900 dark:text-white ${autosize ? '' : `min-h-[100dvh] ${view === 'summary' ? 'max-h-[100dvh] overflow-hidden' : ''}`}`
                     : `
-                ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl ${(view === 'details' || view === 'success') ? 'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]' : ''} font-sans select-none
+                ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl transition-[max-height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
                 rounded-[28px] flex flex-col ${(view === 'details' && !isExpanded) || view === 'summary' ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}
@@ -1024,7 +1026,7 @@ const DetailsView = ({ event, cheapestTier, hasPartPay, onGetTickets, isExpanded
     }, [activeSlide, event.description, isExpanded, showFullDescription])
 
     return (
-        <div className="animate-fade-in flex flex-col">
+        <div className="flex flex-col">
             {/* Header: Logo, Title, Host Name + Toggle, Price */}
             <div className="flex justify-between items-start gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -1414,7 +1416,7 @@ const TicketsView = ({ tiers, selectedTickets, onQuantityChange, onContinue, onB
     total: number,
     hasSelection: boolean
 }) => (
-    <div className="flex flex-col h-full min-h-0 animate-fade-in relative">
+    <div className="flex flex-col h-full min-h-0 relative">
         <div className="flex justify-between items-center mb-4 px-1 flex-shrink-0 pt-2">
             <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-1">Ticket selection</p>
@@ -1521,7 +1523,7 @@ const CheckoutFormView = ({ guestName, setGuestName, guestEmail, setGuestEmail, 
     const inputErrorClass = "border-red-400 focus:border-red-500 focus:ring-red-500/10"
 
     return (
-        <div className="flex flex-col h-full min-h-0 animate-fade-in relative">
+        <div className="flex flex-col h-full min-h-0 relative">
             <div className="flex justify-between items-center mb-5 px-1 flex-shrink-0 pt-2">
                 <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-1">Checkout</p>
@@ -1638,7 +1640,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
     const hasSelection = Object.values(selectedAddons).some(qty => qty > 0)
 
     return (
-        <div className="flex flex-col h-full min-h-0 animate-fade-in relative bg-white dark:bg-zinc-900">
+        <div className="flex flex-col h-full min-h-0 relative bg-white dark:bg-zinc-900">
             {/* Cleaner Header */}
             <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0 pt-2">
                 <div className="space-y-0.5">
@@ -1849,7 +1851,7 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, count
         : total
 
     return (
-        <div className="flex flex-col h-full flex-1 min-h-0 animate-fade-in relative">
+        <div className="flex flex-col h-full flex-1 min-h-0 relative">
             {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto no-scrollbar -mx-4 px-4 pb-4">
                 <div className="flex items-center gap-3 mb-4 px-1 flex-shrink-0">
