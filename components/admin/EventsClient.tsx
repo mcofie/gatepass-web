@@ -1,321 +1,360 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Plus, Calendar, MapPin, Search, MoreHorizontal, LayoutGrid, List as ListIcon, Ticket } from 'lucide-react'
+import { ArrowUpRight, Calendar, LayoutGrid, List as ListIcon, Plus, Search, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { DeleteEventButton } from '@/components/admin/DeleteEventButton'
-
 
 interface Event {
     id: string
     title: string
-    description?: string
     poster_url?: string
     starts_at?: string
     ends_at?: string
+    publish_at?: string | null
     venue_name?: string
     is_published: boolean
-    primary_color?: string
     slug: string
+    tier_count?: number
     tickets_sold?: number
+    capacity?: number | null
     revenue?: number
     currency?: string
 }
 
-interface EventsClientProps {
-    events: Event[]
-    role: string | null
+type Status = 'live' | 'scheduled' | 'draft' | 'ended'
+type Filter = 'all' | 'live' | 'upcoming' | 'draft' | 'past'
+
+const FILTERS: { id: Filter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'live', label: 'On sale' },
+    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'draft', label: 'Drafts' },
+    { id: 'past', label: 'Past' },
+]
+
+const STATUS_LABEL: Record<Status, string> = { live: 'On sale', scheduled: 'Scheduled', draft: 'Draft', ended: 'Ended' }
+const STATUS_DOT: Record<Status, string> = {
+    live: 'bg-emerald-500',
+    scheduled: 'bg-sky-500',
+    draft: 'bg-gray-300 dark:bg-white/30',
+    ended: 'bg-gray-400 dark:bg-white/40',
 }
 
-type TabType = 'all' | 'upcoming' | 'past' | 'draft'
+/** An event has ended once its end (or, without one, its start) is in the past. */
+function getStatus(event: Event, now: number): Status {
+    const end = event.ends_at ?? event.starts_at
+    if (end && new Date(end).getTime() < now) return 'ended'
+    if (event.is_published) return 'live'
+    if (event.publish_at) return 'scheduled'
+    return 'draft'
+}
 
-export function EventsClient({ events, role }: EventsClientProps) {
-    const [search, setSearch] = useState('')
-    const [activeTab, setActiveTab] = useState<TabType>('all')
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+function formatWhen(iso?: string) {
+    if (!iso) return 'Date to be set'
+    const date = new Date(iso)
+    const sameYear = date.getFullYear() === new Date().getFullYear()
+    return date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) })
+        + ' · ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
 
-    const isStaff = role === 'Staff'
+// Remembered list/grid preference (per browser)
+const VIEW_KEY = 'gatepass:events-view'
+const VIEW_EVENT = 'gatepass:events-view-change'
 
-    const filteredEvents = useMemo(() => {
-        const now = new Date()
-        return events.filter(event => {
-            // Search
-            if (search && !event.title.toLowerCase().includes(search.toLowerCase())) {
-                return false
-            }
-
-            // Tabs
-            const startDate = event.starts_at ? new Date(event.starts_at) : null
-
-            if (activeTab === 'draft') return !event.is_published
-            if (activeTab === 'upcoming') return event.is_published && startDate && startDate >= now
-            if (activeTab === 'past') return event.is_published && startDate && startDate < now
-
-            return true
-        })
-    }, [events, search, activeTab])
-
-    const stats = {
-        total: events.length,
-        upcoming: events.filter(e => e.is_published && e.starts_at && new Date(e.starts_at) >= new Date()).length,
-        drafts: events.filter(e => !e.is_published).length
+function readView(): 'list' | 'grid' {
+    try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list' } catch { return 'list' }
+}
+function writeView(view: 'list' | 'grid') {
+    try { localStorage.setItem(VIEW_KEY, view) } catch { /* storage unavailable */ }
+    window.dispatchEvent(new Event(VIEW_EVENT))
+}
+function subscribeView(onChange: () => void) {
+    window.addEventListener(VIEW_EVENT, onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+        window.removeEventListener(VIEW_EVENT, onChange)
+        window.removeEventListener('storage', onChange)
     }
+}
+
+export function EventsClient({ events, role }: { events: Event[]; role: string | null }) {
+    const isStaff = role === 'Staff'
+    const [search, setSearch] = useState('')
+    const [filter, setFilter] = useState<Filter>('all')
+    const view = useSyncExternalStore(subscribeView, readView, () => 'list' as const)
+    // Evaluated once so every row agrees on "now"
+    const [now] = useState(() => Date.now())
+
+    const withStatus = useMemo(() => events.map(e => ({ ...e, status: getStatus(e, now) })), [events, now])
+
+    const counts = useMemo(() => ({
+        all: withStatus.length,
+        live: withStatus.filter(e => e.status === 'live').length,
+        upcoming: withStatus.filter(e => e.status !== 'ended' && e.starts_at && new Date(e.starts_at).getTime() >= now).length,
+        draft: withStatus.filter(e => e.status === 'draft' || e.status === 'scheduled').length,
+        past: withStatus.filter(e => e.status === 'ended').length,
+    }), [withStatus, now])
+
+    const summary = useMemo(() => {
+        const sold = withStatus.reduce((acc, e) => acc + (e.tickets_sold || 0), 0)
+        // Gross per currency; the headline shows the main one
+        const byCurrency = new Map<string, number>()
+        for (const e of withStatus) byCurrency.set(e.currency || 'GHS', (byCurrency.get(e.currency || 'GHS') ?? 0) + (e.revenue || 0))
+        const [currency, gross] = [...byCurrency.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['GHS', 0]
+        return { sold, gross, currency, otherCurrencies: byCurrency.size > 1 }
+    }, [withStatus])
+
+    const visible = useMemo(() => {
+        const query = search.trim().toLowerCase()
+        const list = withStatus.filter(e => {
+            if (query && !`${e.title} ${e.venue_name ?? ''}`.toLowerCase().includes(query)) return false
+            const start = e.starts_at ? new Date(e.starts_at).getTime() : null
+            switch (filter) {
+                case 'live': return e.status === 'live'
+                case 'upcoming': return e.status !== 'ended' && start !== null && start >= now
+                case 'draft': return e.status === 'draft' || e.status === 'scheduled'
+                case 'past': return e.status === 'ended'
+                default: return true
+            }
+        })
+        const time = (e: Event) => (e.starts_at ? new Date(e.starts_at).getTime() : Infinity)
+        // Past: most recent first. Everything else: soonest first, undated last
+        return list.sort((a, b) => filter === 'past' ? time(b) - time(a) : time(a) - time(b))
+    }, [withStatus, search, filter, now])
+
+    if (events.length === 0) return <FirstEvent isStaff={isStaff} />
 
     return (
-        <div className="mx-auto max-w-[1180px] space-y-7 pb-16">
-            {/* Header Area */}
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-10 pb-16">
+            <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
-                    <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Events</h1>
-                    <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
-                        {isStaff
-                            ? "View and manage events for your organization."
-                            : "Manage your events, track sales, and customize your ticketing pages."}
-                    </p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
+                    <h1 className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[44px]">Events</h1>
                 </div>
                 {!isStaff && (
-                    <Link href="/dashboard/events/create" className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black">
-                        <Plus className="h-4 w-4" /> Create event
+                    <Link href="/dashboard/events/create" className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-full bg-gray-950 px-5 text-sm font-semibold text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-black sm:self-auto">
+                        <Plus className="size-4" aria-hidden="true" /> New event
                     </Link>
                 )}
-            </div>
+            </header>
 
-            {/* Controls Bar */}
-            <div className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-white/10 md:flex-row md:items-center md:justify-between">
-                {/* Tabs */}
-                <div className="flex gap-1 overflow-x-auto self-stretch md:self-auto">
-                    {(['all', 'upcoming', 'past', 'draft'] as TabType[]).map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            aria-pressed={activeTab === tab}
-                            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors capitalize ${activeTab === tab
-                                ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white'
-                                : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
-                                }`}
-                        >
-                            {tab === 'all' ? 'All Events' : tab}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex w-full items-center gap-2 md:w-auto">
-                    {/* Search */}
-                    <div className="relative flex-1 md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search events"
-                            aria-label="Search events"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none transition-colors focus:border-gray-500 dark:border-white/10 dark:bg-[#111] dark:focus:border-white/40"
-                        />
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-gray-200 bg-gray-200 dark:border-white/10 dark:bg-white/10 lg:grid-cols-4">
+                {[
+                    { label: 'On sale', value: counts.live.toLocaleString() },
+                    { label: 'Upcoming', value: counts.upcoming.toLocaleString() },
+                    { label: 'Tickets sold', value: summary.sold.toLocaleString() },
+                    { label: summary.otherCurrencies ? `Gross sales (${summary.currency})` : 'Gross sales', value: formatCurrency(summary.gross, summary.currency) },
+                ].map(stat => (
+                    <div key={stat.label} className="bg-white p-5 dark:bg-[#0b0b0b] sm:p-6">
+                        <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">{stat.label}</dt>
+                        <dd className="mt-3 truncate text-[26px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-gray-950 dark:text-white sm:text-[32px]">{stat.value}</dd>
                     </div>
+                ))}
+            </dl>
 
-                    {/* View Toggle */}
-                    <div className="flex rounded-lg border border-gray-200 p-1 dark:border-white/10">
-                        <button
-                            onClick={() => setViewMode('grid')}
-                            aria-label="Grid view"
-                            aria-pressed={viewMode === 'grid'}
-                            className={`rounded-md p-2 transition-colors ${viewMode === 'grid' ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white' : 'text-gray-400 hover:text-black dark:hover:text-white'}`}
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            aria-label="List view"
-                            aria-pressed={viewMode === 'list'}
-                            className={`rounded-md p-2 transition-colors ${viewMode === 'list' ? 'bg-gray-100 text-black dark:bg-white/10 dark:text-white' : 'text-gray-400 hover:text-black dark:hover:text-white'}`}
-                        >
-                            <ListIcon className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Content Area */}
-            {filteredEvents.length > 0 ? (
-                viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                        {filteredEvents.map((event) => (
-                            <EventCard key={event.id} event={event} isStaff={isStaff} />
+            <div className="space-y-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div role="tablist" aria-label="Filter events" className="-mx-4 flex gap-1 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+                        {FILTERS.map(f => (
+                            <button
+                                key={f.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={filter === f.id}
+                                onClick={() => setFilter(f.id)}
+                                className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${filter === f.id
+                                    ? 'bg-gray-950 text-white dark:bg-white dark:text-black'
+                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white'}`}
+                            >
+                                {f.label}
+                                <span className={`tabular-nums text-xs ${filter === f.id ? 'opacity-60' : 'text-gray-400 dark:text-gray-500'}`}>{counts[f.id]}</span>
+                            </button>
                         ))}
                     </div>
-                ) : (
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-gray-50/50 dark:bg-white/5 text-gray-500 dark:text-gray-400 font-medium border-b border-gray-100 dark:border-white/10">
-                                    <tr>
-                                        <th className="px-6 py-4">Event</th>
-                                        <th className="px-6 py-4">Date</th>
-                                        <th className="px-6 py-4">Venue</th>
-                                        <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4 text-right">Activity</th>
-                                        <th className="px-6 py-4"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                                    {filteredEvents.map(event => (
-                                        <EventRow key={event.id} event={event} isStaff={isStaff} />
-                                    ))}
-                                </tbody>
-                            </table>
+
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 lg:w-72 lg:flex-none">
+                            <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                            <input
+                                type="search"
+                                placeholder="Search by name or venue"
+                                aria-label="Search events"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="h-10 w-full rounded-full border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none transition-colors focus:border-gray-950 dark:border-white/10 dark:bg-[#111] dark:text-white dark:focus:border-white/50"
+                            />
+                        </div>
+                        <div className="flex rounded-full border border-gray-200 p-1 dark:border-white/10" role="group" aria-label="Layout">
+                            {([['list', ListIcon], ['grid', LayoutGrid]] as const).map(([mode, Icon]) => (
+                                <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => writeView(mode)}
+                                    aria-label={`${mode === 'list' ? 'List' : 'Grid'} view`}
+                                    aria-pressed={view === mode}
+                                    className={`rounded-full p-1.5 transition-colors ${view === mode ? 'bg-gray-950 text-white dark:bg-white dark:text-black' : 'text-gray-400 hover:text-gray-950 dark:hover:text-white'}`}
+                                >
+                                    <Icon className="size-4" />
+                                </button>
+                            ))}
                         </div>
                     </div>
-                )
-            ) : (
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white px-6 py-20 text-center dark:border-white/10 dark:bg-[#111]">
-                    <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
-                        <Calendar className="w-8 h-8 text-gray-300 dark:text-gray-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">No events found</h3>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                        {search ? `No results for "${search}"` : `No ${activeTab} events found.`}
-                    </p>
-                    {(activeTab !== 'all' || search) && (
-                        <button
-                            onClick={() => { setSearch(''); setActiveTab('all') }}
-                            className="mt-6 text-sm font-semibold text-gray-900 underline underline-offset-4 dark:text-white"
-                        >
-                            Clear Filters
+                </div>
+
+                {visible.length === 0 ? (
+                    <div className="rounded-3xl border border-dashed border-gray-300 px-6 py-16 text-center dark:border-white/15">
+                        <p className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">
+                            {search ? `Nothing matches “${search}”` : `No ${FILTERS.find(f => f.id === filter)!.label.toLowerCase()} events`}
+                        </p>
+                        <button type="button" onClick={() => { setSearch(''); setFilter('all') }} className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-950 underline underline-offset-4 dark:text-white">
+                            <X className="size-3.5" aria-hidden="true" /> Clear filters
                         </button>
-                    )}
-                </div>
-            )}
-        </div>
-    )
-}
-
-function EventCard({ event, isStaff }: { event: Event, isStaff: boolean }) {
-    const isPast = event.ends_at ? new Date(event.ends_at) < new Date() : false
-
-    return (
-        <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:hover:border-white/30">
-            {/* Poster Aspect Ratio */}
-            <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-white/5">
-                {event.poster_url ? (
-                    <Image
-                        src={event.poster_url}
-                        alt={event.title}
-                        fill
-                        className="object-cover"
-                    />
+                    </div>
+                ) : view === 'list' ? (
+                    <ul className="divide-y divide-gray-200 overflow-hidden rounded-3xl border border-gray-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-[#0b0b0b]">
+                        {visible.map(event => <EventRow key={event.id} event={event} isStaff={isStaff} />)}
+                    </ul>
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-white/10">
-                        <Calendar className="w-12 h-12" />
-                    </div>
+                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {visible.map(event => <EventCard key={event.id} event={event} isStaff={isStaff} />)}
+                    </ul>
                 )}
-
-                <div className="absolute right-3 top-3">
-                    <div className="rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-900 dark:bg-black dark:text-white">
-                        {event.is_published ? (isPast ? 'Ended' : 'Live') : 'Draft'}
-                    </div>
-                </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex flex-1 flex-col p-5">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                    <h3 className="line-clamp-1 text-lg font-semibold text-gray-900 dark:text-white">
-                        {event.title}
-                    </h3>
-                </div>
-
-                <div className="mb-6 space-y-2">
-                    <div className="flex items-center gap-2.5 text-sm text-gray-500 font-medium dark:text-gray-400">
-                        <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-600" />
-                        <span>
-                            {event.starts_at ? new Date(event.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' }) : 'TBD'}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-sm text-gray-500 font-medium dark:text-gray-400">
-                        <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-600" />
-                        <span className="truncate">{event.venue_name || 'Venue TBD'}</span>
-                    </div>
-                </div>
-
-                {/* Mini Stats Row */}
-                <div className="mt-auto grid grid-cols-2 gap-4 border-t border-gray-100 pb-4 pt-4 dark:border-white/10">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sold</span>
-                        <div className="flex items-center gap-1.5 text-gray-900 dark:text-white font-bold">
-                            <Ticket className="w-3.5 h-3.5 text-gray-400" />
-                            {event.tickets_sold || 0}
-                        </div>
-                    </div>
-                    <div className="flex flex-col text-right">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Revenue</span>
-                        <span className="text-gray-900 dark:text-white font-bold tabular-nums">
-                            {formatCurrency(event.revenue || 0, event.currency || 'GHS')}
-                        </span>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Link href={`/dashboard/events/${event.id}`} className="flex h-10 flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10">
-                        Manage
-                    </Link>
-                    {!isStaff && (
-                        <div className="w-10 h-10 flex items-center justify-center">
-                            <DeleteEventButton eventId={event.id} />
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     )
 }
 
-function EventRow({ event, isStaff }: { event: Event, isStaff: boolean }) {
+function StatusPill({ status }: { status: Status }) {
     return (
-        <tr className="group hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
-            <td className="px-6 py-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/10 relative overflow-hidden flex-shrink-0">
-                        {event.poster_url && (
-                            <Image src={event.poster_url} alt="" fill className="object-cover" />
-                        )}
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-gray-900 dark:text-white">{event.title}</h4>
-                        <Link href={`/events/${event.slug}`} target="_blank" className="text-xs text-gray-500 underline-offset-2 hover:underline dark:text-gray-400">
-                            View Live Page
-                        </Link>
-                    </div>
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-gray-700 dark:border-white/10 dark:bg-black dark:text-gray-300">
+            <span className={`size-1.5 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
+            {STATUS_LABEL[status]}
+        </span>
+    )
+}
+
+function SoldBar({ sold, capacity }: { sold: number; capacity: number | null | undefined }) {
+    const pct = capacity ? Math.min(100, Math.round((sold / capacity) * 100)) : 0
+    return (
+        <div className="w-full">
+            <p className="text-sm tabular-nums text-gray-950 dark:text-white">
+                <span className="font-semibold">{sold.toLocaleString()}</span>
+                <span className="text-gray-500 dark:text-gray-400">{capacity ? ` / ${capacity.toLocaleString()}` : ' sold'}</span>
+            </p>
+            {capacity ? (
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Tickets sold">
+                    <div className="h-full rounded-full bg-gray-950 dark:bg-white" style={{ width: `${pct}%` }} />
                 </div>
-            </td>
-            <td className="px-6 py-4 text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
-                {event.starts_at ? new Date(event.starts_at).toLocaleDateString('en-GB') : 'TBD'}
-            </td>
-            <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                {event.venue_name || 'TBD'}
-            </td>
-            <td className="px-6 py-4">
-                <span className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-white/10 dark:text-gray-300">
-                    {event.is_published ? 'Live' : 'Draft'}
-                </span>
-            </td>
-            <td className="px-6 py-4 text-right">
-                <div className="flex flex-col items-end">
-                    <span className="font-bold text-gray-900 dark:text-white">{event.tickets_sold || 0} sold</span>
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        {formatCurrency(event.revenue || 0, event.currency || 'GHS')}
-                    </span>
-                </div>
-            </td>
-            <td className="px-6 py-4 text-right">
-                <div className="flex items-center justify-end gap-2">
-                    <Link href={`/dashboard/events/${event.id}`} aria-label={`Manage ${event.title}`} className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-white/10">
-                        <MoreHorizontal className="h-4 w-4" />
+            ) : null}
+        </div>
+    )
+}
+
+function Poster({ event, className }: { event: Event; className: string }) {
+    return (
+        <div className={`relative overflow-hidden bg-gray-100 dark:bg-white/5 ${className}`}>
+            {event.poster_url
+                ? <Image src={event.poster_url} alt="" fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" />
+                : <div className="flex h-full w-full items-center justify-center text-gray-300 dark:text-white/15"><Calendar className="size-5" aria-hidden="true" /></div>}
+        </div>
+    )
+}
+
+function EventRow({ event, isStaff }: { event: Event & { status: Status }; isStaff: boolean }) {
+    return (
+        <li className="group relative flex items-center gap-4 px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03] sm:px-6">
+            <Poster event={event} className="size-14 shrink-0 rounded-xl sm:size-16" />
+
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                    <Link href={`/dashboard/events/${event.id}`} className="truncate text-[15px] font-semibold text-gray-950 after:absolute after:inset-0 dark:text-white">
+                        {event.title}
                     </Link>
+                    <span className="hidden sm:inline-flex"><StatusPill status={event.status} /></span>
                 </div>
-            </td>
-        </tr>
+                <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">
+                    {formatWhen(event.starts_at)}{event.venue_name ? ` · ${event.venue_name}` : ''}
+                </p>
+                {event.status === 'draft' && !event.tier_count && (
+                    <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">Add tickets to publish</p>
+                )}
+                <span className="mt-2 inline-flex sm:hidden"><StatusPill status={event.status} /></span>
+            </div>
+
+            <div className="hidden w-36 md:block"><SoldBar sold={event.tickets_sold || 0} capacity={event.capacity} /></div>
+
+            <p className="hidden w-32 text-right text-sm font-semibold tabular-nums text-gray-950 dark:text-white lg:block">
+                {formatCurrency(event.revenue || 0, event.currency || 'GHS')}
+            </p>
+
+            {/* Above the row link so they stay clickable */}
+            <div className="relative z-10 flex items-center gap-1">
+                {event.is_published && (
+                    <Link href={`/events/${event.slug}`} target="_blank" aria-label={`Open ${event.title} event page`} className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:hover:bg-white/10 dark:hover:text-white">
+                        <ArrowUpRight className="size-4" />
+                    </Link>
+                )}
+                {!isStaff && <DeleteEventButton eventId={event.id} />}
+            </div>
+        </li>
+    )
+}
+
+function EventCard({ event, isStaff }: { event: Event & { status: Status }; isStaff: boolean }) {
+    return (
+        <li className="group relative flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white transition-colors hover:border-gray-950 dark:border-white/10 dark:bg-[#0b0b0b] dark:hover:border-white/50">
+            <Poster event={event} className="aspect-[16/10]" />
+            <div className="absolute left-3 top-3"><StatusPill status={event.status} /></div>
+            <div className="flex flex-1 flex-col p-5">
+                <Link href={`/dashboard/events/${event.id}`} className="line-clamp-1 text-lg font-semibold tracking-tight text-gray-950 after:absolute after:inset-0 dark:text-white">
+                    {event.title}
+                </Link>
+                <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{formatWhen(event.starts_at)}</p>
+                <p className="truncate text-sm text-gray-500 dark:text-gray-400">{event.venue_name || 'Venue to be set'}</p>
+                <div className="mt-5 flex items-end justify-between gap-4 border-t border-gray-100 pt-4 dark:border-white/10">
+                    <div className="w-28"><SoldBar sold={event.tickets_sold || 0} capacity={event.capacity} /></div>
+                    <p className="text-right text-sm font-semibold tabular-nums text-gray-950 dark:text-white">{formatCurrency(event.revenue || 0, event.currency || 'GHS')}</p>
+                </div>
+            </div>
+            {!isStaff && <div className="absolute right-3 top-3 z-10 rounded-full bg-white/90 dark:bg-black/80"><DeleteEventButton eventId={event.id} /></div>}
+        </li>
+    )
+}
+
+function FirstEvent({ isStaff }: { isStaff: boolean }) {
+    const steps = [
+        { title: 'Create the event', detail: 'Title, date, venue and a poster or video.' },
+        { title: 'Add tickets', detail: 'Tiers, add-ons, promo codes and payment plans.' },
+        { title: 'Publish', detail: 'Pay the one-time plan fee if it applies, then share your link.' },
+    ]
+    return (
+        <div className="grid gap-10 pb-16 lg:grid-cols-[1fr_420px] lg:gap-16">
+            <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Events</p>
+                <h1 className="mt-3 text-[40px] font-semibold leading-[1.02] tracking-[-0.05em] text-gray-950 dark:text-white sm:text-[56px]">Your first event starts here.</h1>
+                <p className="mt-5 max-w-md text-[15px] leading-7 text-gray-500 dark:text-gray-400">
+                    {isStaff ? 'No events yet. An owner or admin can create one.' : 'Set it up in a few minutes. Ticket money goes straight to your own payment account.'}
+                </p>
+                {!isStaff && (
+                    <Link href="/dashboard/events/create" className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-gray-950 px-6 text-sm font-semibold text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-black">
+                        <Plus className="size-4" aria-hidden="true" /> Create event
+                    </Link>
+                )}
+            </div>
+            <ol className="self-end border-t border-gray-200 dark:border-white/10">
+                {steps.map((step, i) => (
+                    <li key={step.title} className="grid grid-cols-[2.5rem_1fr] border-b border-gray-200 py-5 dark:border-white/10">
+                        <span className="font-mono text-sm tabular-nums text-gray-400">{String(i + 1).padStart(2, '0')}</span>
+                        <div>
+                            <p className="font-medium text-gray-950 dark:text-white">{step.title}</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{step.detail}</p>
+                        </div>
+                    </li>
+                ))}
+            </ol>
+        </div>
     )
 }

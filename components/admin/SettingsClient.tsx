@@ -15,16 +15,17 @@ export function SettingsClient({
     initialOrganizer,
     initialProfile,
     initialIntegrations,
+    initialTab,
     userRole,
     teamInfo
 }: {
     initialOrganizer: any,
     initialProfile: any,
     initialIntegrations: IntegrationSummary[],
+    initialTab?: string,
     userRole: string,
     teamInfo: any
 }) {
-    const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
     const canManageTeam = ['owner', 'admin'].includes((userRole || '').trim().toLowerCase())
     const tabs = [
         { id: 'profile', label: 'My profile', icon: User },
@@ -37,6 +38,9 @@ export function SettingsClient({
             { id: 'notifications', label: 'Notifications', icon: Bell },
         ] : []),
     ] as { id: SettingsTab, label: string, icon: React.ElementType }[]
+    // ?tab= deep links (e.g. onboarding → payments), limited to tabs this role can see
+    const [activeTab, setActiveTab] = useState<SettingsTab>(() =>
+        tabs.some(t => t.id === initialTab) ? initialTab as SettingsTab : 'profile')
 
     return (
         <div className="mx-auto max-w-[1180px] space-y-8 pb-16">

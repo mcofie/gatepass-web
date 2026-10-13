@@ -1,5 +1,4 @@
 import { createClient } from '@/utils/supabase/server'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { EventsClient } from '@/components/admin/EventsClient'
@@ -120,107 +119,44 @@ export default async function AdminEventsPage() {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        // 1. Fetch Events
+        // 1. Events with their ticket types (capacity, sold, currency)
         const { data: events, error } = await adminSupabase
             .schema('gatepass')
             .from('events')
-            .select('*, ticket_tiers(quantity_sold)')
+            .select('*, ticket_tiers(quantity_sold, total_quantity, currency)')
             .eq('organization_id', orgId)
             .order('created_at', { ascending: false })
 
         if (error) throw error
 
-        // 2. Fetch Stats (Transactions)
-        // We fetch all successful transactions for the org to aggregate revenue
+        // 2. Gross sales per event. Ticket money now goes straight to the organizer's own
+        //    provider, so gross is what they took; provider fees are charged on their side.
         const { data: transactions } = await adminSupabase
             .schema('gatepass')
             .from('transactions')
-            .select(`
-                amount,
-                currency,
-                platform_fee,
-                applied_processor_fee,
-                applied_fee_rate,
-                applied_processor_rate,
-                reservations!inner (
-                    event_id,
-                    ticket_tiers ( price ),
-                    discounts ( type, value ),
-                    events!inner ( fee_bearer )
-                )
-            `)
+            .select('amount, reservations!inner ( event_id, events!inner ( organization_id ) )')
             .eq('status', 'success')
             .eq('reservations.events.organization_id', orgId)
 
-        // 3. Aggregate Stats
-        const statsMap = new Map<string, { revenue: number }>()
-
-        if (transactions) {
-            transactions.forEach((tx: any) => {
-                const eventId = tx.reservations.event_id
-
-                // Revenue Calculation
-                // Note: Logic simplification - we trust tx.amount and subtract calculated fees
-                // This aligns with dashboard net payout logic
-
-                // Robust Net Payout Definition: Gross - All Fees
-                let netPayout = 0
-
-                // Recalc fees based on stored rates or defaults
-                const platformRate = tx.applied_fee_rate ?? 0.04
-                // Normalize old 2% rate to current 1.95%
-                const storedProcessorRate = tx.applied_processor_rate
-                const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
-                    ? 0.0195
-                    : storedProcessorRate
-
-                // We need 'ticketRevenue' base for Platform Fee (Net of discount)
-                // Since we don't have exact breakdown of multi-res here without querying all,
-                // we approximate platform fee base as (Amount / (1 + processorRate))? 
-                // No, safer to use stored fees if available?
-                // The original code calculated calcPlatformFee from "ticketRevenue".
-
-                // For simplified dashboard revenue, we can use:
-                // Net = Amount - (Amount * ProcessorRate) - (TicketRevenue * PlatformRate)
-                // But TicketRevenue is tricky without quantity.
-
-                // However, usually PlatformFee is stored in tx.platform_fee!
-                // Let's use stored fees if possible.
-
-                let totalFees = 0
-                if (tx.platform_fee !== undefined && tx.applied_processor_fee !== undefined) {
-                    totalFees = tx.platform_fee + tx.applied_processor_fee
-                } else {
-                    // Fallback
-                    const calcProcessorFee = tx.amount * processorRate
-                    // Platform fee base estimate: Amount (gross)
-                    // This might over-estimate platform fee if discounts exist, but good enough for list view fallback
-                    const calcPlatformFee = tx.amount * platformRate
-                    totalFees = calcPlatformFee + calcProcessorFee
-                }
-
-                netPayout = tx.amount - totalFees
-
-                const current = statsMap.get(eventId) || { revenue: 0 }
-                statsMap.set(eventId, {
-                    revenue: current.revenue + netPayout
-                })
-            })
+        const grossByEvent = new Map<string, number>()
+        for (const tx of (transactions ?? []) as unknown as { amount: number; reservations: { event_id: string } }[]) {
+            const eventId = tx.reservations.event_id
+            grossByEvent.set(eventId, (grossByEvent.get(eventId) ?? 0) + Number(tx.amount || 0))
         }
 
-        // 4. Merge Data
-        const enrichedEvents = events.map((event: any) => {
-            const stat = statsMap.get(event.id) || { revenue: 0 }
-
-            // Calculate sold from tiers (Source of Truth)
+        // 3. Merge
+        type TierStats = { quantity_sold: number | null; total_quantity: number | null; currency: string | null }
+        const enrichedEvents = (events as ({ id: string; title: string; slug: string; is_published: boolean; ticket_tiers?: TierStats[] } & Record<string, unknown>)[]).map(event => {
             const tiers = event.ticket_tiers || []
-            const totalSold = tiers.reduce((acc: number, t: any) => acc + (t.quantity_sold || 0), 0)
-
             return {
                 ...event,
-                tickets_sold: totalSold,
-                revenue: stat.revenue,
-                currency: event.currency || 'GHS'
+                ticket_tiers: undefined,
+                tier_count: tiers.length,
+                tickets_sold: tiers.reduce((acc, t) => acc + (t.quantity_sold || 0), 0),
+                // A tier without a limit makes capacity open-ended
+                capacity: tiers.some(t => t.total_quantity == null) ? null : tiers.reduce((acc, t) => acc + (t.total_quantity || 0), 0),
+                revenue: grossByEvent.get(event.id) ?? 0,
+                currency: tiers[0]?.currency || 'GHS',
             }
         })
 
