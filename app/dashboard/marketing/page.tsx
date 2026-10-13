@@ -139,13 +139,7 @@ export default async function MarketingPage() {
         .eq('is_published', true)
 
     return (
-        <div className="mx-auto max-w-[1180px] space-y-7 pb-16">
-            <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
-                <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Marketing</h1>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">See how your links perform and reach your attendees.</p>
-            </div>
-
+        <div className="mx-auto max-w-[1180px] pb-16">
             <MarketingDashboard initialStats={stats || []} events={events || []} organizationId={resolvedOrgId} />
         </div>
     )
