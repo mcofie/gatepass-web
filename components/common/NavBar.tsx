@@ -60,7 +60,7 @@ export function NavBar() {
                             Our Offering
                         </Link>
 
-                        {user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '') && (
+                        {user && (
                             <Link href="/dashboard" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
                                 Dashboard
                             </Link>
@@ -123,7 +123,7 @@ export function NavBar() {
                                 Our Offering
                             </Link>
 
-                            {user && ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(user.email?.toLowerCase() || '') && (
+                            {user && (
                                 <Link
                                     href="/dashboard"
                                     className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-900 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
