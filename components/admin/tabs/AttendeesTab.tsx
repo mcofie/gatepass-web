@@ -74,10 +74,10 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
     }
 
     return (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111] animate-in fade-in duration-200">
+        <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b] animate-in fade-in duration-200">
             <div className="flex flex-col gap-4 border-b border-gray-100 p-5 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between lg:p-6">
                 <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Guest list</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Guest list</h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{ticketCount} {ticketCount === 1 ? 'guest' : 'guests'} for this event</p>
                 </div>
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -102,14 +102,14 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                     const csv = generateCSV(tickets)
                                     downloadCSV(csv, `${event.slug}-guests.csv`)
                                 }}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
                             >
                                 <Download className="w-4 h-4" />
                                 Export page
                             </button>
                             <button
                                 onClick={() => setShowImportModal(true)}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-gray-300"
                             >
                                 <Upload className="w-4 h-4" />
                                 Import CSV
@@ -353,10 +353,10 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-5">
-            <div role="dialog" aria-modal="true" aria-label="Form responses" className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#111]">
+            <div role="dialog" aria-modal="true" aria-label="Form responses" className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b0b0b]">
                 <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">Form responses</h3>
-                    <button type="button" onClick={onClose} aria-label="Close form responses" className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
+                    <button type="button" onClick={onClose} aria-label="Close form responses" className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
                         <X className="h-4 w-4" />
                     </button>
                 </div>

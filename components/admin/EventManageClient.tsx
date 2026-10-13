@@ -4,10 +4,10 @@ import React, { useState, useEffect } from 'react'
 import { EventPaymentProvider } from '@/components/admin/EventPaymentProvider'
 import { EventBillingCard } from '@/components/admin/EventBillingCard'
 import type { IntegrationSummary } from '@/app/actions/integrations'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { ArrowUpRight, Calendar, MapPin, Ticket, Plus, Search, ScanLine, Check, Trash2, Eye, Copy, Download, ShieldCheck, Loader2, CopyPlus, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Calendar, MapPin, Ticket, Plus, Search, ScanLine, Check, Trash2, Eye, Copy, Download, ShieldCheck, Loader2, CopyPlus, ArrowUp, ArrowDown, X } from 'lucide-react'
 import { Event, TicketTier, Discount, EventFormQuestion } from '@/types/gatepass'
 import clsx from 'clsx'
 import { toast } from 'sonner'
@@ -18,6 +18,7 @@ import { generateCSV, downloadCSV } from '@/utils/analytics'
 import { logActivity } from '@/app/actions/logger'
 import { duplicateEvent } from '@/app/actions/events'
 import { Input } from '@/components/ui/Input'
+import { Switch } from '@/components/dashboard/ui'
 import { Button } from '@/components/ui/Button'
 
 const DateTimePicker = dynamic(() => import('@/components/common/DateTimePicker').then(mod => mod.DateTimePicker), { ssr: false })
@@ -37,6 +38,18 @@ import { AddonsTab } from '@/components/admin/tabs/AddonsTab'
 import { WidgetsTab } from '@/components/admin/tabs/WidgetsTab'
 import { InstalmentsTab } from '@/components/admin/tabs/InstalmentsTab'
 
+
+const EVENT_TABS = ['details', 'tickets', 'attendees', 'discounts', 'sales', 'team', 'lineup', 'addons', 'widgets', 'instalments', 'forms'] as const
+type EventTab = typeof EVENT_TABS[number]
+
+/** Same rules as the events list: ended beats published, scheduled beats draft. */
+function eventStatus(event: { is_published: boolean; starts_at: string; ends_at?: string | null; publish_at?: string | null }) {
+    const end = event.ends_at || event.starts_at
+    if (end && new Date(end).getTime() < Date.now()) return { label: 'Ended', dot: 'bg-gray-400' }
+    if (event.is_published) return { label: 'On sale', dot: 'bg-emerald-500' }
+    if (event.publish_at) return { label: 'Scheduled', dot: 'bg-sky-500' }
+    return { label: 'Draft', dot: 'bg-gray-300 dark:bg-white/30' }
+}
 
 interface EventManageClientProps {
     event: Event
@@ -63,7 +76,20 @@ export function EventManageClient({
     const isAdmin = userRole === 'Owner' || userRole === 'Admin' || isSuperAdmin
     const [event, setEvent] = useState(initialEvent)
     const supabase = createClient()
-    const [activeTab, setActiveTab] = useState<'details' | 'tickets' | 'attendees' | 'discounts' | 'sales' | 'team' | 'lineup' | 'addons' | 'widgets' | 'instalments' | 'forms'>('details')
+    const searchParams = useSearchParams()
+    const [activeTab, setActiveTabState] = useState<EventTab>(() => {
+        const requested = searchParams.get('tab')
+        return (EVENT_TABS as readonly string[]).includes(requested ?? '') ? requested as EventTab : 'details'
+    })
+    // Deep-linkable sections: /dashboard/events/:id?tab=tickets
+    const setActiveTab = (tab: EventTab) => {
+        setActiveTabState(tab)
+        const url = new URL(window.location.href)
+        if (tab === 'details') url.searchParams.delete('tab')
+        else url.searchParams.set('tab', tab)
+        url.searchParams.delete('billing')
+        window.history.replaceState(null, '', url)
+    }
     const sectionNavRef = React.useRef<HTMLElement>(null)
     const [loading, setLoading] = useState(false)
     const [addons, setAddons] = useState<any[]>([])
@@ -696,10 +722,10 @@ export function EventManageClient({
     }, [activeTab])
 
     const tabClass = (tab: string) => clsx(
-        "shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors sm:px-5",
+        "inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors",
         activeTab === tab
-            ? "border-black text-black dark:border-white dark:text-white"
-            : "border-transparent text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white"
+            ? "bg-gray-950 text-white dark:bg-white dark:text-black"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
     )
 
     React.useEffect(() => {
@@ -726,29 +752,36 @@ export function EventManageClient({
     return (
         <div className="mx-auto max-w-[1180px] space-y-7 pb-16 font-sans">
             {/* Header */}
-            <div className="space-y-5">
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-                    <Link href="/dashboard/events" className="hover:text-black dark:hover:text-white transition-colors">Events</Link>
-                    <span aria-hidden="true">/</span>
-                    <span className="truncate text-gray-900 dark:text-white">{event.title}</span>
-                </div>
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white sm:text-[38px]">{event.title}</h1>
-                            <span className={clsx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", event.is_published ? "border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400" : "border-gray-200 text-gray-600 dark:border-white/10 dark:text-gray-400")}>
-                                <span className={clsx("h-1.5 w-1.5 rounded-full", event.is_published ? "bg-emerald-500" : "bg-gray-400")} />
-                                {event.is_published ? 'Published' : 'Draft'}
-                            </span>
+            <div className="space-y-6">
+                <Link href="/dashboard/events" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-950 dark:text-gray-400 dark:hover:text-white">
+                    <ArrowLeft className="size-4" aria-hidden="true" /> Events
+                </Link>
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="flex min-w-0 items-center gap-5">
+                        <div className="relative hidden h-24 w-[76px] shrink-0 overflow-hidden rounded-2xl bg-gray-100 dark:bg-white/5 sm:block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            {event.poster_url && <img src={event.poster_url} alt="" className="h-full w-full object-cover" />}
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-                            {event.venue_name && <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{event.venue_name}</span>}
-                            <span className="inline-flex items-center gap-1.5" suppressHydrationWarning><Calendar className="h-3.5 w-3.5" />{new Date(event.starts_at).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <div className="min-w-0">
+                            {(() => {
+                                const status = eventStatus(event)
+                                return (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:border-white/10 dark:text-gray-300">
+                                        <span className={clsx('size-1.5 rounded-full', status.dot)} aria-hidden="true" />
+                                        {status.label}
+                                    </span>
+                                )
+                            })()}
+                            <h1 className="mt-3 truncate text-[30px] font-semibold leading-tight tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[40px]">{event.title}</h1>
+                            <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400" suppressHydrationWarning>
+                                <span className="inline-flex items-center gap-1.5"><Calendar className="size-3.5" aria-hidden="true" />{new Date(event.starts_at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                {event.venue_name && <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" aria-hidden="true" />{event.venue_name}</span>}
+                            </p>
                         </div>
                     </div>
-                    <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
-                        <Link href={`/events/${event.slug || event.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-[#111] dark:text-white dark:hover:border-white/30">
-                            View event page <ArrowUpRight className="h-4 w-4" />
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                        <Link href={`/events/${event.slug || event.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-950 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-transparent dark:text-white dark:hover:bg-white/5">
+                            Event page <ArrowUpRight className="size-4" aria-hidden="true" />
                         </Link>
                         {!isStaff && (
                             <button
@@ -759,7 +792,7 @@ export function EventManageClient({
                                         if (result.error) {
                                             toast.error(result.error)
                                         } else {
-                                            toast.success('Event duplicated! Redirecting...')
+                                            toast.success('Event duplicated')
                                             router.push(`/dashboard/events/${result.eventId}`)
                                         }
                                     } catch (e: any) {
@@ -769,27 +802,29 @@ export function EventManageClient({
                                     }
                                 }}
                                 disabled={isDuplicating}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 disabled:opacity-50 dark:border-white/10 dark:bg-[#111] dark:text-white dark:hover:border-white/30"
+                                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-950 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:bg-transparent dark:text-white dark:hover:bg-white/5"
                             >
-                                {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CopyPlus className="w-4 h-4" />}
-                                {isDuplicating ? 'Duplicating...' : 'Duplicate'}
+                                {isDuplicating ? <Loader2 className="size-4 animate-spin" /> : <CopyPlus className="size-4" aria-hidden="true" />}
+                                Duplicate
                             </button>
                         )}
-                        {activeTab === 'details' && !isStaff && <button
-                            onClick={() => updateEvent()}
-                            disabled={loading}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black"
-                        >
-                            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-                            {loading ? 'Saving...' : 'Save event'}
-                        </button>}
+                        {activeTab === 'details' && !isStaff && (
+                            <button
+                                onClick={() => updateEvent()}
+                                disabled={loading}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-gray-950 px-5 text-sm font-semibold text-white transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black"
+                            >
+                                {loading && <Loader2 className="size-4 animate-spin" />}
+                                {loading ? 'Saving…' : 'Save changes'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            <nav ref={sectionNavRef} className="overflow-x-auto border-b border-gray-200 dark:border-white/10" aria-label="Event sections">
-                <div className="flex min-w-max items-center">
+            <nav ref={sectionNavRef} className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0" aria-label="Event sections">
+                <div className="flex min-w-max items-center gap-1 border-b border-gray-200 pb-3 dark:border-white/10">
                     <button aria-pressed={activeTab === 'details'} onClick={() => setActiveTab('details')} className={tabClass('details')}>Overview</button>
                     <button aria-pressed={activeTab === 'tickets'} onClick={() => setActiveTab('tickets')} className={tabClass('tickets')}>Tickets</button>
                     <button aria-pressed={activeTab === 'attendees'} onClick={() => setActiveTab('attendees')} className={tabClass('attendees')}>Guest list</button>
@@ -816,7 +851,7 @@ export function EventManageClient({
             {activeTab === 'sales' && (
                 <div className="space-y-6 animate-in fade-in duration-200" aria-busy={loadingSales}>
                     <div>
-                        <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Sales</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Sales</h2>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Ticket payments go straight to your connected payment provider.</p>
                     </div>
 
@@ -826,7 +861,7 @@ export function EventManageClient({
                             { label: 'Transactions', value: salesStats.transactionCount.toLocaleString() },
                             { label: 'Add-ons', value: formatCurrency(salesStats.totalAddons, initialTiers?.[0]?.currency || 'GHS') },
                         ].map(stat => (
-                            <div key={stat.label} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                            <div key={stat.label} className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                 <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</dt>
                                 <dd className="mt-3 truncate text-3xl font-semibold tabular-nums tracking-tight text-gray-950 dark:text-white">
                                     {loadingSales ? '…' : stat.value}
@@ -836,7 +871,7 @@ export function EventManageClient({
                     </dl>
 
                     {/* Transaction History Table */}
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                    <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
                         <div className="flex flex-col gap-3 border-b border-gray-100 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/10 flex items-center justify-center border border-gray-100 dark:border-white/10">
@@ -853,7 +888,7 @@ export function EventManageClient({
                                     downloadCSV(csv, `gatepass-transactions-${event.slug}`)
                                 }}
                                 disabled={transactions.length === 0}
-                                className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 disabled:pointer-events-none disabled:opacity-40 dark:border-white/10 dark:bg-[#111] dark:text-white sm:self-auto"
+                                className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 disabled:pointer-events-none disabled:opacity-40 dark:border-white/10 dark:bg-[#111] dark:text-white sm:self-auto"
                             >
                                 <Download className="w-4 h-4" />
                                 Export page
@@ -1046,7 +1081,7 @@ export function EventManageClient({
                                 { label: 'Capacity filled', value: `${stats.utilization.toFixed(1)}%`, detail: 'Across all ticket types' },
                                 { label: 'Discounts', value: formatCurrency(initialTotalDiscountValue, initialTiers?.[0]?.currency || 'GHS'), detail: 'Applied to sales' },
                             ].map((metric) => (
-                                <div key={metric.label} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 last:col-span-2 dark:border-white/10 dark:bg-[#111] sm:last:col-span-1 sm:p-5">
+                                <div key={metric.label} className="min-w-0 rounded-3xl border border-gray-200 bg-white p-4 last:col-span-2 dark:border-white/10 dark:bg-[#0b0b0b] sm:last:col-span-1 sm:p-5">
                                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{metric.label}</p>
                                     <p className="mt-4 truncate text-2xl font-semibold tracking-tight text-gray-950 dark:text-white" title={metric.value}>{metric.value}</p>
                                     <p className="mt-1 truncate text-xs text-gray-400 dark:text-gray-500" title={metric.detail}>{metric.detail}</p>
@@ -1060,7 +1095,7 @@ export function EventManageClient({
                         )}
 
                         <div>
-                            <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Event details</h2>
+                            <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Event details</h2>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Update the information and presentation of your event.</p>
                         </div>
 
@@ -1069,7 +1104,7 @@ export function EventManageClient({
                             <div className="space-y-5 lg:col-span-8">
 
                                 {/* General Info */}
-                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">About the event</h3>
                                     <div className="grid gap-6">
                                         <div>
@@ -1096,7 +1131,7 @@ export function EventManageClient({
                                 </div>
 
                                 {/* Lineup Editor (Embedded) */}
-                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">Lineup</h3>
                                     <LineupTab
                                         lineup={event.lineup || []}
@@ -1109,7 +1144,7 @@ export function EventManageClient({
                                 {/* Timing & URL (Moved from Right) */}
                                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                                     {/* Date & Time */}
-                                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                         <h3 className="text-base font-semibold text-gray-950 dark:text-white">Date and time</h3>
                                         <div>
                                             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Starts</label>
@@ -1130,7 +1165,7 @@ export function EventManageClient({
                                     </div>
 
                                     {/* URL Slug */}
-                                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                         <h3 className="text-base font-semibold text-gray-950 dark:text-white">Event URL</h3>
                                         <div>
                                             <div className="flex flex-col">
@@ -1181,7 +1216,7 @@ export function EventManageClient({
                                 )}
 
                                 {/* Poster Image */}
-                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event poster</h3>
                                     <div className="space-y-4">
                                         <MediaUploader
@@ -1200,7 +1235,7 @@ export function EventManageClient({
 
 
                                 {/* Event Logo */}
-                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event logo</h3>
                                     <div className="space-y-4">
                                         <div className="w-28">
@@ -1224,7 +1259,7 @@ export function EventManageClient({
 
 
                                 {/* Event Video */}
-                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Event video</h3>
                                     <div className="space-y-4">
                                         <MediaUploader
@@ -1242,7 +1277,7 @@ export function EventManageClient({
                                 </div>
 
                                 {/* Location */}
-                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">Location</h3>
                                     <div className="grid grid-cols-1 gap-5">
                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1315,49 +1350,40 @@ export function EventManageClient({
                                 )}
 
                                 {/* Publish Status - High Priority */}
-                                <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#111]">
+                                <div className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#0b0b0b]">
                                     <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">Visibility</h3>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Publish event</span>
-                                        <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
-                                            <input
-                                                type="checkbox"
-                                                name="toggle"
-                                                id="pub"
-                                                checked={event.is_published}
-                                                onChange={e => {
-                                                    if (e.target.checked && tiers.length === 0) {
-                                                        toast.error('You must create at least one ticket tier before publishing.')
-                                                        return
-                                                    }
-                                                    setEvent({ ...event, is_published: e.target.checked, publish_at: undefined })
-                                                }}
-                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
-                                                style={{ right: event.is_published ? '0' : 'auto', left: event.is_published ? 'auto' : '0' }}
-                                            />
-                                            <label htmlFor="pub" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${event.is_published ? 'bg-black dark:bg-gray-600' : 'bg-gray-300 dark:bg-white/20'}`}></label>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <label htmlFor="pub" className="text-sm font-medium text-gray-950 dark:text-white">Published</label>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Visible to the public. Save to apply.</p>
                                         </div>
+                                        <Switch
+                                            id="pub"
+                                            label="Published"
+                                            checked={event.is_published}
+                                            disabled={isStaff}
+                                            onChange={checked => {
+                                                if (checked && tiers.length === 0) {
+                                                    toast.error('Add at least one ticket type before publishing.')
+                                                    return
+                                                }
+                                                setEvent({ ...event, is_published: checked, publish_at: undefined })
+                                            }}
+                                        />
                                     </div>
 
-                                    <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-white/10">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ticket sales</span>
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">Enable checkout or show waitlist</span>
+                                    <div className="mt-4 flex items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-white/10">
+                                        <div>
+                                            <label htmlFor="sales" className="text-sm font-medium text-gray-950 dark:text-white">Ticket sales</label>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Off shows a waitlist instead of checkout.</p>
                                         </div>
-                                        <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
-                                            <input
-                                                type="checkbox"
-                                                name="sales_toggle"
-                                                id="sales"
-                                                checked={event.sales_enabled ?? true}
-                                                onChange={e => {
-                                                    setEvent({ ...event, sales_enabled: e.target.checked })
-                                                }}
-                                                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white appearance-none cursor-pointer checked:right-0 checked:border-green-400"
-                                                style={{ right: (event.sales_enabled ?? true) ? '0' : 'auto', left: (event.sales_enabled ?? true) ? 'auto' : '0' }}
-                                            />
-                                            <label htmlFor="sales" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${(event.sales_enabled ?? true) ? 'bg-black dark:bg-gray-600' : 'bg-gray-300 dark:bg-white/20'}`}></label>
-                                        </div>
+                                        <Switch
+                                            id="sales"
+                                            label="Ticket sales"
+                                            checked={event.sales_enabled ?? true}
+                                            disabled={isStaff}
+                                            onChange={checked => setEvent({ ...event, sales_enabled: checked })}
+                                        />
                                     </div>
 
                                     {/* Scheduled Publishing */}
@@ -1404,7 +1430,7 @@ export function EventManageClient({
                                 </div>
 
                                 {/* Branding (Moved from Left) */}
-                                <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">Event appearance</h3>
 
                                     <div className="space-y-5">
@@ -1499,7 +1525,7 @@ export function EventManageClient({
 
 
                                 {/* Socials */}
-                                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                     <h3 className="text-base font-semibold text-gray-950 dark:text-white">Social links</h3>
                                     <div className="grid gap-4">
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Website
@@ -1539,13 +1565,13 @@ export function EventManageClient({
                                             <button
                                                 type="button"
                                                 onClick={() => updateEvent()}
-                                                className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
+                                                className="inline-flex h-11 w-full items-center justify-center rounded-full bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                                                 disabled={loading}
                                             >
                                                 {loading ? 'Saving...' : 'Save event'}
                                             </button>
                                             <div className="mt-8 pt-8 border-t border-gray-100 dark:border-white/10">
-                                                <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                                <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                                     <h3 className="mb-2 text-base font-semibold text-gray-950 dark:text-white">Delete event</h3>
                                                     <p className="mb-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                                                         Deleting this event will permanently remove all associated data, including ticket sales and guest lists.
@@ -1561,7 +1587,7 @@ export function EventManageClient({
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                                        <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                                             <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-gray-950 dark:text-white">
                                                 <ShieldCheck className="w-4 h-4" />
                                                 View only
@@ -1634,7 +1660,7 @@ export function EventManageClient({
                     <div className="space-y-5 animate-in fade-in duration-200">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Discount codes</h2>
+                                <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Discount codes</h2>
                                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Create offers and track how often they are used.</p>
                             </div>
                             <button type="button" onClick={() => showDiscountForm ? cancelEditingDiscount() : setShowDiscountForm(true)} aria-expanded={showDiscountForm} className={showDiscountForm ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-[#111] dark:text-gray-300 dark:hover:bg-white/10" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"}>
@@ -1642,7 +1668,7 @@ export function EventManageClient({
                                 {showDiscountForm ? 'Close form' : 'Create code'}
                             </button>
                         </div>
-                        {showDiscountForm && <div className="max-w-4xl rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                        {showDiscountForm && <div className="max-w-4xl rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-lg font-semibold text-gray-950 dark:text-white">{editingDiscountId ? 'Edit discount code' : 'New discount code'}</h3>
                                 {editingDiscountId && (
@@ -1778,7 +1804,7 @@ export function EventManageClient({
                                 <div className="md:col-span-3 flex justify-end pt-2">
                                     <button
                                         disabled={creatingDiscount}
-                                        className="inline-flex h-11 items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
+                                        className="inline-flex h-11 items-center justify-center rounded-full bg-black px-5 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                                     >
                                         {creatingDiscount ? 'Saving...' : (editingDiscountId ? 'Update code' : 'Create code')}
                                     </button>
@@ -1788,7 +1814,7 @@ export function EventManageClient({
 
                         <div className="grid gap-4">
                             {discounts.slice(discountPage * 5, (discountPage + 1) * 5).map(discount => (
-                                <div key={discount.id} className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#111] sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                                <div key={discount.id} className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#0b0b0b] sm:flex-row sm:items-center sm:justify-between sm:p-5">
                                     <div className="flex min-w-0 items-start gap-3">
                                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-base font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-400">
                                             %
@@ -1887,10 +1913,10 @@ export function EventManageClient({
             {/* FORMS TAB */}
             {activeTab === 'forms' && (
                 <div className="space-y-5 animate-in fade-in duration-200">
-                    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <div className="mb-6 flex flex-col gap-4 border-b border-gray-100 pb-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Questions and responses</h2>
+                                <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Questions and responses</h2>
                                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Ask attendees for extra details after checkout.</p>
                             </div>
                             <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-white/10 dark:bg-white/5">
@@ -2002,7 +2028,7 @@ export function EventManageClient({
                                                 <button
                                                     type="submit"
                                                     disabled={savingQuestion}
-                                                    className="inline-flex h-10 items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
+                                                    className="inline-flex h-10 items-center justify-center rounded-full bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
                                                 >
                                                     {savingQuestion ? 'Saving...' : (editingQuestionId ? 'Save question' : 'Add question')}
                                                 </button>
@@ -2088,7 +2114,7 @@ export function EventManageClient({
                                     <button
                                         onClick={handleExportResponses}
                                         disabled={formResponses.length === 0}
-                                        className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 sm:w-auto"
+                                        className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 sm:w-auto"
                                     >
                                         <Download className="w-3.5 h-3.5" />
                                         Export all

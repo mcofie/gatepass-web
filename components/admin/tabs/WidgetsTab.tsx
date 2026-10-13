@@ -49,7 +49,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                 {/* Left Side: Instructions & Code */}
                 <div className="space-y-6">
                     <div>
-                        <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">
+                        <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">
                             Embed checkout
                         </h2>
                         <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
@@ -57,7 +57,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                         </p>
                     </div>
 
-                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <h3 className="text-base font-semibold text-gray-950 dark:text-white">Appearance</h3>
 
                         {/* Theme Toggle */}
@@ -107,14 +107,14 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                         <div className="flex flex-col gap-2 sm:flex-row">
                             <button
                                 onClick={handleCopy}
-                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
+                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                             >
                                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                 {copied ? 'Copied' : 'Copy code'}
                             </button>
                             <button
                                 onClick={handleOpenPreview}
-                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-gray-200 bg-white text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
                             >
                                 <ExternalLink className="w-4 h-4" />
                                 Open preview

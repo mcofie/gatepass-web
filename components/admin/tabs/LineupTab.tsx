@@ -34,7 +34,7 @@ export function LineupTab({ lineup, onChange, organizationId, disabled = false }
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Artists, hosts and other featured guests.</p>
                 </div>
                 {!disabled && (
-                    <button type="button" onClick={() => setIsAddingLineup(!isAddingLineup)} aria-expanded={isAddingLineup} className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 dark:border-white/15 dark:text-white">
+                    <button type="button" onClick={() => setIsAddingLineup(!isAddingLineup)} aria-expanded={isAddingLineup} className="inline-flex h-9 items-center gap-2 rounded-full border border-gray-200 px-3 text-sm font-medium text-gray-900 transition-colors hover:border-gray-400 dark:border-white/15 dark:text-white">
                         <Plus className="h-4 w-4" aria-hidden="true" /> Add person
                     </button>
                 )}

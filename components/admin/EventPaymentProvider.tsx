@@ -34,7 +34,7 @@ export function EventPaymentProvider({ eventId, initialIntegrationId, integratio
     }
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
             <div className="mb-1 flex items-center justify-between gap-2">
                 <h3 className="text-base font-semibold text-gray-950 dark:text-white">Payment provider</h3>
                 {saving && <Loader2 className="size-4 animate-spin text-gray-400" aria-hidden="true" />}

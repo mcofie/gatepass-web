@@ -253,7 +253,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
         <div className="space-y-5 animate-in fade-in duration-200">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Ticket types</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Ticket types</h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{tiers.length} {tiers.length === 1 ? 'type' : 'types'}{!isStaff && ' · Drag to change their order on the event page.'}</p>
                 </div>
                 {!isStaff && <button type="button" onClick={() => setShowCreateForm(!showCreateForm)} aria-expanded={showCreateForm} className={showCreateForm ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-[#111] dark:text-gray-300 dark:hover:bg-white/10" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"}>
@@ -263,7 +263,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
             </div>
                 {/* Create Tier Form - Hidden for Staff */}
                 {!isStaff && showCreateForm && (
-                    <div className="max-w-3xl rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="max-w-3xl rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold text-gray-950 dark:text-white">New ticket type</h3>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Start with the essentials. Add details if this ticket needs them.</p>
@@ -462,7 +462,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                                 setNewPerk('')
                                             }
                                         }}
-                                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
+                                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black"
                                     >
                                         <Plus className="w-5 h-5" />
                                     </button>
@@ -513,7 +513,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                                                 setNewTag('')
                                             }
                                         }}
-                                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
+                                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black"
                                     >
                                         <Plus className="w-5 h-5" />
                                     </button>
@@ -536,7 +536,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
 
                             <button
                                 disabled={creatingTier}
-                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                             >
                                 {creatingTier ? (
                                     <span className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" />
@@ -553,7 +553,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                 {/* Tiers List */}
                 <div className="space-y-3">
                     {tiers.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#111]">
+                        <div className="flex flex-col items-center justify-center rounded-3xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#0b0b0b]">
                             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5">
                                 <Ticket className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                             </div>

@@ -45,7 +45,7 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
     if (error) return null
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#111]" aria-busy={!billing}>
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-[#0b0b0b]" aria-busy={!billing}>
             <h3 className="mb-4 text-base font-semibold text-gray-950 dark:text-white">GatePass plan</h3>
 
             {!billing ? (

@@ -74,17 +74,17 @@ export function StaffTab({ eventId, isStaff = false }: StaffTabProps) {
         <div className="space-y-5 animate-in fade-in duration-200">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Team</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Team</h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage access for staff helping with check-in.</p>
                 </div>
-                {!isStaff && <button type="button" onClick={() => setShowInviteForm(!showInviteForm)} aria-expanded={showInviteForm} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black">
+                {!isStaff && <button type="button" onClick={() => setShowInviteForm(!showInviteForm)} aria-expanded={showInviteForm} className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black">
                     {showInviteForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                     {showInviteForm ? 'Close form' : 'Invite staff'}
                 </button>}
             </div>
                 {/* Invite Form - Hidden for Staff */}
                 {!isStaff && showInviteForm && (
-                    <div className="max-w-xl rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="max-w-xl rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold text-gray-950 dark:text-white">Invite staff member</h3>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">They will receive an access code by email.</p>
@@ -115,7 +115,7 @@ export function StaffTab({ eventId, isStaff = false }: StaffTabProps) {
                             </div>
                             <button
                                 disabled={creatingStaff}
-                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-black"
                             >
                                 {creatingStaff ? (
                                     <span className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" />
@@ -134,7 +134,7 @@ export function StaffTab({ eventId, isStaff = false }: StaffTabProps) {
 
                 {/* Staff List */}
                 <div>
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#111]">
+                    <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
                         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10 sm:px-6">
                             <h3 className="text-base font-semibold text-gray-950 dark:text-white">Staff members</h3>
                             <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">

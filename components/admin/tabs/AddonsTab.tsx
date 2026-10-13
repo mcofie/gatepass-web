@@ -145,12 +145,12 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                     <button type="button" onClick={resetForm} aria-label="Back to add-ons" className="rounded-lg border border-gray-200 p-2 transition-colors hover:border-gray-400 dark:border-white/10">
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
-                    <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">{editingId ? 'Edit add-on' : 'New add-on'}</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{editingId ? 'Edit add-on' : 'New add-on'}</h2>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-5">
                     {/* Basic Info Card */}
-                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <div>
                             <label htmlFor="addon-name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                             <input
@@ -214,7 +214,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                     </div>
 
                     {/* Selection Type Card */}
-                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">How guests select it</p>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <button
@@ -255,7 +255,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                     </div>
 
                     {/* Image Upload */}
-                    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#111] sm:p-6">
+                    <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-[#0b0b0b] sm:p-6">
                         <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Image <span className="font-normal text-gray-400">Optional</span></p>
                         <div className="w-28">
                             <MediaUploader
@@ -281,7 +281,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
+                            className="flex h-10 items-center justify-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingId ? 'Save add-on' : 'Create add-on')}
                         </button>
@@ -296,7 +296,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
         <div className="space-y-5 animate-in fade-in duration-200">
             {/* Header / Empty State */}
             {addons.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#111]">
+                <div className="rounded-3xl border border-gray-200 bg-white px-5 py-14 text-center dark:border-white/10 dark:bg-[#0b0b0b]">
                     <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10">
                         <Package className="h-5 w-5 text-gray-500" />
                     </div>
@@ -306,7 +306,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                     </p>
                     <button
                         onClick={() => setIsCreating(true)}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
+                        className="inline-flex h-10 items-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                     >
                         <Plus className="w-4 h-4" />
                         Add an item
@@ -316,12 +316,12 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
                 <>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h2 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-white">Add-ons</h2>
+                            <h2 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Add-ons</h2>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage merchandise and upgrades.</p>
                         </div>
                         <button
                             onClick={() => setIsCreating(true)}
-                            className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
+                            className="inline-flex h-10 items-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
                         >
                             <Plus className="w-4 h-4" />
                             Add item
@@ -330,7 +330,7 @@ export function AddonsTab({ addons, eventId, organizationId, onUpdate, tiers }: 
 
                     <div className="grid grid-cols-1 gap-4">
                         {addons.map(addon => (
-                            <div key={addon.id} className="group grid grid-cols-[72px_minmax(0,1fr)] gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#111] sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:p-5">
+                            <div key={addon.id} className="group grid grid-cols-[72px_minmax(0,1fr)] gap-4 rounded-3xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-[#0b0b0b] sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:p-5">
                                 {/* Image */}
                                 <div className="relative h-[72px] w-[72px] overflow-hidden rounded-lg bg-gray-100 dark:bg-white/5 sm:h-20 sm:w-20">
                                     {addon.image_url ? (

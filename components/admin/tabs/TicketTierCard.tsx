@@ -205,7 +205,7 @@ export function TicketTierCard({
         <div
             ref={setNodeRef}
             style={style}
-            className="group rounded-2xl border border-gray-200 bg-white p-4 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-[#111] dark:hover:border-white/20 sm:p-5"
+            className="group rounded-3xl border border-gray-200 bg-white p-4 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-[#0b0b0b] dark:hover:border-white/20 sm:p-5"
         >
             {isEditing ? (
                 <div className="space-y-5">
@@ -348,7 +348,7 @@ export function TicketTierCard({
                                         setEditPerk('')
                                     }
                                 }}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
@@ -396,7 +396,7 @@ export function TicketTierCard({
                                         setEditTag('')
                                     }
                                 }}
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-black text-white dark:bg-white dark:text-black"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
