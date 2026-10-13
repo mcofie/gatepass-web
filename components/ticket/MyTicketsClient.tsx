@@ -11,6 +11,7 @@ import { Ticket, InstalmentReservation } from '@/types/gatepass'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 import { TransferModal } from '@/components/transfer/TransferModal'
 import { Dialog, DialogContent } from '@/components/ui/Dialog'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface MyTicketsClientProps {
     tickets: Ticket[]
@@ -119,18 +120,20 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
 
     if (safeTickets.length === 0 && safeInstalments.length === 0) {
         return (
-            <div className="rounded-[20px] border border-[#e5e5e5] px-6 py-16 text-center dark:border-[#303030]">
-                <TicketIcon className="mx-auto size-8 text-[#777] dark:text-[#aaa]" strokeWidth={1.5} aria-hidden="true" />
-                <h2 className="mt-5 text-[24px] font-semibold tracking-[-0.04em]">No tickets yet</h2>
-                <p className="mx-auto mt-2 max-w-sm text-[14px] leading-6 text-[#666] dark:text-[#aaa]">When you book an event, your passes will appear here.</p>
-                <Link href="/" className={`${primaryAction} mt-7`}>Explore events <ArrowRight className="size-4" aria-hidden="true" /></Link>
+            <div className="rounded-[20px] border border-[#e5e5e5] dark:border-[#303030]">
+                <EmptyState
+                    illustration="ticket"
+                    title="No tickets yet"
+                    description="When you book an event, your passes appear here."
+                    action={<Link href="/" className={primaryAction}>Explore events <ArrowRight className="size-4" aria-hidden="true" /></Link>}
+                />
             </div>
         )
     }
 
     return (
         <div>
-            <div className="mb-7 flex flex-col gap-4 border-b border-[#e8e8e8] sm:flex-row sm:items-end sm:justify-between dark:border-[#2e2e2e]">
+            <div className="mb-5 flex flex-col gap-2 border-b sm:mb-7 sm:gap-4 border-[#e8e8e8] sm:flex-row sm:items-end sm:justify-between dark:border-[#2e2e2e]">
                 <div className="flex gap-6 overflow-x-auto" aria-label="Filter events">
                     {([
                         { id: 'all', label: 'All events', count: allGroups.length },
@@ -168,17 +171,20 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
             </div>
 
             {paginatedGroups.length === 0 ? (
-                <div className="rounded-[20px] border border-[#e5e5e5] px-6 py-16 text-center dark:border-[#303030]">
-                    <h2 className="text-[22px] font-semibold tracking-[-0.04em]">No {activeFilter} events</h2>
-                    <p className="mt-2 text-[14px] text-[#666] dark:text-[#aaa]">Your other passes are still available in All.</p>
-                    <button type="button" onClick={() => setActiveFilter('all')} className={`${secondaryAction} mt-6`}>View all tickets</button>
+                <div className="rounded-[20px] border border-[#e5e5e5] dark:border-[#303030]">
+                    <EmptyState
+                        illustration="calendar"
+                        title={`No ${activeFilter} events`}
+                        description="Your other passes are still in All events."
+                        action={<button type="button" onClick={() => setActiveFilter('all')} className={secondaryAction}>View all tickets</button>}
+                    />
                 </div>
             ) : (
-                <div className="space-y-8">
+                <div className="space-y-5 sm:space-y-8">
                     {paginatedGroups.map(({ event, tickets: eventTickets, instalments: eventInstalments }) => (
                         <section key={event.id} aria-labelledby={`event-${event.id}`} className="overflow-hidden rounded-[20px] border border-[#e5e5e5] dark:border-[#303030]">
                             <div className="flex items-center gap-4 border-b border-[#eaeaea] bg-[#fafafa] px-4 py-4 sm:px-6 dark:border-[#303030] dark:bg-[#111]">
-                                <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-[#e9e9e9] dark:bg-[#222]">
+                                <div className="relative size-12 shrink-0 overflow-hidden rounded-xl sm:size-14 bg-[#e9e9e9] dark:bg-[#222]">
                                     {event.poster_url ? <Image src={event.poster_url} alt="" fill className="object-cover" /> : <TicketIcon className="absolute left-4 top-4 size-6 text-[#777]" aria-hidden="true" />}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -226,9 +232,9 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                                                     {statusLabel(ticket.status, eventEnded)}
                                                 </span>
                                             </div>
-                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pl-12">
+                                            <div className="mt-4 flex flex-col gap-3 sm:mt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:pl-12">
                                                 <p className="text-[12px] text-[#777] dark:text-[#aaa]">{ticketHint}</p>
-                                                <div className="flex flex-wrap items-center gap-2">
+                                                <div className="grid grid-cols-2 gap-2 *:w-full sm:flex sm:flex-wrap sm:items-center sm:*:w-auto [&>*:first-child:last-child]:col-span-2">
                                                     {!isValid ? (
                                                         <Link href={`/ticket/${ticket.id}`} className={secondaryAction}>View pass <ArrowRight className="size-3.5" aria-hidden="true" /></Link>
                                                     ) : isVirtual && virtualLink ? (
@@ -239,7 +245,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                                                         <button type="button" onClick={() => openCode(ticket)} className={primaryAction}><QrCode className="size-3.5" aria-hidden="true" />Show code</button>
                                                     )}
                                                     {isValid && !isVirtual && !eventEnded && <button type="button" onClick={() => openTransfer(ticket)} className={secondaryAction}>Transfer</button>}
-                                                    {isValid && !isVirtual && !eventEnded && <AddToAppleWallet ticketId={ticket.id} className="h-9 rounded-full px-3.5 text-[12px]" />}
+                                                    {isValid && !isVirtual && !eventEnded && <AddToAppleWallet ticketId={ticket.id} className="col-span-2 h-10 rounded-full px-3.5 text-[12px] sm:h-9" />}
                                                 </div>
                                             </div>
                                         </article>
@@ -269,7 +275,7 @@ export function MyTicketsClient({ tickets, instalments = [] }: MyTicketsClientPr
                                                 </div>
                                                 <span className="inline-flex shrink-0 items-center gap-1.5 pt-1 text-[11px] font-medium capitalize text-[#666] dark:text-[#aaa]"><span className="size-1.5 rounded-full bg-[#111] dark:bg-white" />{plan.status === 'active' ? eventEnded ? 'Event ended' : 'In progress' : plan.status}</span>
                                             </div>
-                                            <div className="mt-4 pl-12">
+                                            <div className="mt-4 sm:pl-12">
                                                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[13px]">
                                                     <span><strong className="font-semibold">{formatCurrency(plan.amount_paid, currency)}</strong><span className="text-[#777] dark:text-[#aaa]"> of {formatCurrency(plan.total_amount, currency)} paid</span></span>
                                                     <span className="font-semibold">{formatCurrency(remaining, currency)} remaining</span>

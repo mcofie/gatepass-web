@@ -23,7 +23,7 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
     const [ticketCount, setTicketCount] = useState(0)
     const [selectedTicketForQR, setSelectedTicketForQR] = useState<any>(null)
     const [showImportModal, setShowImportModal] = useState(false)
-    const [selectedReservationForForms, setSelectedReservationForForms] = useState<string | null>(null)
+    const [selectedReservationForForms, setSelectedReservationForForms] = useState<{ reservationId: string; userId: string | null; name: string } | null>(null)
     const TICKETS_PER_PAGE = 20
 
     const supabase = createClient()
@@ -199,10 +199,10 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
                                     <td className="px-5 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => setSelectedReservationForForms(ticket.reservation_id)}
+                                                onClick={() => setSelectedReservationForForms({ reservationId: ticket.reservation_id, userId: ticket.profiles?.id ?? null, name: ticket.profiles?.full_name || ticket.reservations?.guest_name || 'Guest' })}
                                                 className="p-2 rounded-lg text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-                                                title="View Form Answers"
-                                                aria-label="View form answers"
+                                                title="Guest details"
+                                                aria-label="Guest details"
                                             >
                                                 <FileText className="w-4 h-4" />
                                             </button>
@@ -287,7 +287,9 @@ export function AttendeesTab({ event, tiers = [], isStaff = false }: AttendeesTa
             <FormAnswersModal
                 isOpen={!!selectedReservationForForms}
                 onClose={() => setSelectedReservationForForms(null)}
-                reservationId={selectedReservationForForms || ''}
+                reservationId={selectedReservationForForms?.reservationId || ''}
+                userId={selectedReservationForForms?.userId ?? null}
+                guestName={selectedReservationForForms?.name ?? 'Guest'}
             />
         </div>
     )
@@ -297,6 +299,20 @@ interface FormAnswersModalProps {
     isOpen: boolean
     onClose: () => void
     reservationId: string
+    userId?: string | null
+    guestName?: string
+}
+
+interface SharedProfile {
+    city: string | null
+    country: string | null
+    birthday: string | null
+    bio: string | null
+    interests: string[]
+    dietary_needs: string | null
+    accessibility_needs: string | null
+    instagram: string | null
+    x_handle: string | null
 }
 
 interface FormResponseItem {
@@ -307,8 +323,9 @@ interface FormResponseItem {
     } | null
 }
 
-export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswersModalProps) {
+export function FormAnswersModal({ isOpen, onClose, reservationId, userId, guestName = 'Guest' }: FormAnswersModalProps) {
     const [responses, setResponses] = useState<FormResponseItem[]>([])
+    const [profile, setProfile] = useState<SharedProfile | null>(null)
     const [loading, setLoading] = useState(false)
     const supabase = createClient()
 
@@ -316,16 +333,24 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
         const fetchAnswers = async () => {
             if (!reservationId) return
             setLoading(true)
-            const { data } = await supabase
-                .schema('gatepass')
-                .from('event_form_responses')
-                .select(`
-                    id,
-                    answer,
-                    event_form_questions(label)
-                `)
-                .eq('reservation_id', reservationId)
-            
+            setProfile(null)
+            // Only returns a row when the guest chose to share their profile with organizers
+            const [{ data }, { data: shared }] = await Promise.all([
+                supabase
+                    .schema('gatepass')
+                    .from('event_form_responses')
+                    .select(`
+                        id,
+                        answer,
+                        event_form_questions(label)
+                    `)
+                    .eq('reservation_id', reservationId),
+                userId
+                    ? supabase.schema('gatepass').from('attendee_profiles').select('city, country, birthday, bio, interests, dietary_needs, accessibility_needs, instagram, x_handle').eq('user_id', userId).maybeSingle()
+                    : Promise.resolve({ data: null }),
+            ])
+            setProfile(shared as SharedProfile | null)
+
             if (data) {
                 const mapped: FormResponseItem[] = (data as {
                     id: string
@@ -347,16 +372,16 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
         if (isOpen) {
             fetchAnswers()
         }
-    }, [isOpen, reservationId])
+    }, [isOpen, reservationId, userId])
 
     if (!isOpen) return null
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-5">
-            <div role="dialog" aria-modal="true" aria-label="Form responses" className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b0b0b]">
+            <div role="dialog" aria-modal="true" aria-label={`${guestName} details`} className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-[#0b0b0b]">
                 <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
-                    <h3 className="text-base font-semibold text-gray-950 dark:text-white">Form responses</h3>
-                    <button type="button" onClick={onClose} aria-label="Close form responses" className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
+                    <h3 className="truncate text-base font-semibold text-gray-950 dark:text-white">{guestName}</h3>
+                    <button type="button" onClick={onClose} aria-label="Close guest details" className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 dark:border-white/10 dark:text-gray-400">
                         <X className="h-4 w-4" />
                     </button>
                 </div>
@@ -366,7 +391,11 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
                             <Loader2 className="mb-2 h-6 w-6 animate-spin" />
                             <p className="text-sm">Loading responses…</p>
                         </div>
-                    ) : responses.length > 0 ? (
+                    ) : (
+                        <>
+                        <GuestProfileDetails profile={profile} />
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Form answers</p>
+                        {responses.length > 0 ? (
                         <div className="space-y-4">
                             {responses.map((r) => (
                                 <div key={r.id} className="space-y-1 border-b border-gray-100 pb-4 last:border-0 last:pb-0 dark:border-white/10">
@@ -380,9 +409,11 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
                             ))}
                         </div>
                     ) : (
-                        <div className="py-8 text-center text-sm text-gray-500">
-                            No form responses submitted for this order.
-                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            No form answers for this order.
+                        </p>
+                        )}
+                        </>
                     )}
                 </div>
                 <div className="flex justify-end border-t border-gray-100 px-5 py-4 dark:border-white/10">
@@ -391,6 +422,49 @@ export function FormAnswersModal({ isOpen, onClose, reservationId }: FormAnswers
                     </button>
                 </div>
             </div>
+        </div>
+    )
+}
+
+function ageFrom(birthday: string) {
+    const born = new Date(`${birthday}T00:00:00`)
+    const today = new Date()
+    const hadBirthday = today.getMonth() > born.getMonth() || (today.getMonth() === born.getMonth() && today.getDate() >= born.getDate())
+    return today.getFullYear() - born.getFullYear() - (hadBirthday ? 0 : 1)
+}
+
+function GuestProfileDetails({ profile }: { profile: SharedProfile | null }) {
+    if (!profile) {
+        return (
+            <p className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                This guest hasn&apos;t shared a profile.
+            </p>
+        )
+    }
+    const age = profile.birthday ? ageFrom(profile.birthday) : null
+    const rows: [string, React.ReactNode][] = [
+        ['From', [profile.city, profile.country].filter(Boolean).join(', ')],
+        ['Age', age !== null && age > 0 ? `${age}` : ''],
+        ['Dietary needs', profile.dietary_needs],
+        ['Accessibility', profile.accessibility_needs],
+        ['Socials', [profile.instagram && `Instagram @${profile.instagram}`, profile.x_handle && `X @${profile.x_handle}`].filter(Boolean).join(' · ')],
+    ]
+    return (
+        <div className="space-y-4 rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+            {profile.bio && <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">{profile.bio}</p>}
+            {profile.interests?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {profile.interests.map(i => <span key={i} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-white/10 dark:text-gray-300">{i}</span>)}
+                </div>
+            )}
+            <dl className="space-y-2.5">
+                {rows.filter(([, v]) => v).map(([label, value]) => (
+                    <div key={label} className="grid grid-cols-[110px_minmax(0,1fr)] gap-3 text-sm">
+                        <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
+                        <dd className="break-words font-medium text-gray-950 dark:text-white">{value}</dd>
+                    </div>
+                ))}
+            </dl>
         </div>
     )
 }
