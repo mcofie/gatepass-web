@@ -13,10 +13,14 @@ import {
     ShieldAlert,
     BarChart3,
     ReceiptText,
-    ChevronDown,
+    UserRound,
+    ChevronsUpDown,
+    Check,
     Plus,
     Menu,
     X,
+    Ticket,
+    ArrowUpRight,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -38,6 +42,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [orgMenuOpen, setOrgMenuOpen] = useState(false)
     const [mobileOpen, setMobileOpen] = useState(false)
+    const [accountOpen, setAccountOpen] = useState(false)
     const [allOrgs, setAllOrgs] = useState<{ id: string, name: string, role: string }[]>([])
     const [isSwitching, setIsSwitching] = useState(false)
     const [targetOrgName, setTargetOrgName] = useState<string>('')
@@ -211,16 +216,19 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
             user.email.toLowerCase()
         )
 
-    const navItems = useMemo(() => {
-        return [
-            { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
-            { name: 'Events', path: '/dashboard/events', icon: Calendar },
-            { name: 'Sales', path: '/dashboard/sales', icon: ReceiptText },
-            { name: 'Customers', path: '/dashboard/customers', icon: Users },
-            { name: 'Marketing', path: '/dashboard/marketing', icon: BarChart3 },
-            { name: 'Settings', path: '/dashboard/settings', icon: Settings },
-        ]
-    }, [])
+    const navItems = useMemo(() => [
+        { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
+        { name: 'Events', path: '/dashboard/events', icon: Calendar },
+        { name: 'Sales', path: '/dashboard/sales', icon: ReceiptText },
+        { name: 'Customers', path: '/dashboard/customers', icon: Users },
+        { name: 'Marketing', path: '/dashboard/marketing', icon: BarChart3 },
+    ], [])
+
+    const canCreate = !loading && !!orgDetails && role.toLowerCase() !== 'staff'
+    const close = () => { setMobileOpen(false); setAccountOpen(false) }
+    const linkClass = (active: boolean) => "flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors " + (active
+        ? "bg-gray-950 text-white dark:bg-white dark:text-black"
+        : "text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white")
 
     return (
         <>
@@ -256,9 +264,9 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                                 <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gray-950 text-sm font-semibold text-white dark:bg-white dark:text-black">{orgDetails?.name?.charAt(0).toUpperCase() || 'G'}</span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block truncate text-[13px] font-semibold">{orgDetails?.name || 'Choose organization'}</span>
-                                    <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">Workspace</span>
+                                    <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">{allOrgs.length > 1 ? `${allOrgs.length} organizations` : role}</span>
                                 </span>
-                                <ChevronDown className={"size-4 shrink-0 text-gray-500 transition-transform " + (orgMenuOpen ? "rotate-180" : "")} aria-hidden="true" />
+                                <ChevronsUpDown className="size-4 shrink-0 text-gray-400" aria-hidden="true" />
                             </button>
                         )}
 
@@ -266,12 +274,12 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                             <>
                                 <button type="button" aria-label="Close organization list" className="fixed inset-0 z-40" onClick={() => setOrgMenuOpen(false)} />
                                 <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-white/15 dark:bg-[#151515]">
-                                    <p className="px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">Switch workspace</p>
+                                    <p className="px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">Switch organization</p>
                                     {allOrgs.map(org => (
                                         <button key={org.id} type="button" onClick={() => handleSwitchOrg(org.id, org.name)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
                                             <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold dark:bg-white/10">{org.name.charAt(0).toUpperCase()}</span>
                                             <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{org.name}</span><span className="block text-[10px] capitalize text-gray-500">{org.role}</span></span>
-                                            {org.name === orgDetails?.name && <span className="size-1.5 rounded-full bg-black dark:bg-white" />}
+                                            {org.name === orgDetails?.name && <Check className="size-4 shrink-0" aria-hidden="true" />}
                                         </button>
                                     ))}
                                     <Link href="/onboarding" onClick={() => { setOrgMenuOpen(false); setMobileOpen(false) }} className="mt-1 flex items-center gap-2.5 border-t border-gray-100 px-2.5 py-3 text-xs font-medium text-gray-600 hover:text-black dark:border-white/10 dark:text-gray-300 dark:hover:text-white">
@@ -283,30 +291,63 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     </div>
                 </div>
 
+                {canCreate && (
+                    <div className="px-4 pt-4">
+                        <Link href="/dashboard/events/create" onClick={close} className="flex h-10 w-full items-center justify-center gap-2 rounded-full bg-gray-950 text-sm font-semibold text-white transition-opacity hover:opacity-85 dark:bg-white dark:text-black">
+                            <Plus className="size-4" aria-hidden="true" /> New event
+                        </Link>
+                    </div>
+                )}
+
                 <nav aria-label="Dashboard navigation" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-                    <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Workspace</p>
-                    <div className="space-y-0.5">
+                    <div className="space-y-1">
                         {navItems.map(item => {
                             const active = isActive(item.path)
-                            return <Link key={item.path} href={item.path} onClick={() => setMobileOpen(false)} aria-current={active ? 'page' : undefined} className={"flex h-9 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors " + (active ? "bg-gray-100 text-black dark:bg-white/10 dark:text-white" : "text-gray-600 hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white")}>
-                                <item.icon className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-                                {item.name}
-                            </Link>
+                            return (
+                                <Link key={item.path} href={item.path} onClick={close} aria-current={active ? 'page' : undefined} className={linkClass(active)}>
+                                    <item.icon className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                                    {item.name}
+                                </Link>
+                            )
                         })}
                     </div>
                 </nav>
 
-                <div className="border-t border-gray-100 px-4 pb-4 pt-3 dark:border-white/10">
-                    {(isSuperAdmin || isAdmin) && <Link href="/admin" onClick={() => setMobileOpen(false)} className="mb-3 flex h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"><ShieldAlert className="size-4" /> Platform admin</Link>}
-                    {loading ? (
-                        <Skeleton className="h-10 w-full rounded-lg bg-gray-100 dark:bg-white/10" />
-                    ) : (
-                        <div className="flex items-center gap-2.5 px-2">
-                            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold dark:bg-white/10">{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
-                            <span className="min-w-0"><span className="block truncate text-xs font-medium">{user?.email}</span><span className="block text-[11px] text-gray-500 dark:text-gray-400">{role}</span></span>
-                        </div>
+                <div className="space-y-1 border-t border-gray-100 px-3 pb-3 pt-3 dark:border-white/10">
+                    <Link href="/dashboard/settings" onClick={close} aria-current={isActive('/dashboard/settings') ? 'page' : undefined} className={linkClass(isActive('/dashboard/settings'))}>
+                        <Settings className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" /> Settings
+                    </Link>
+                    {(isSuperAdmin || isAdmin) && (
+                        <Link href="/admin" onClick={close} className={linkClass(false)}>
+                            <ShieldAlert className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" /> Platform admin
+                        </Link>
                     )}
-                    <button type="button" onClick={handleLogout} className="mt-3 flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"><LogOut className="size-4" /> Sign out</button>
+
+                    <div className="relative pt-2">
+                        {loading ? (
+                            <Skeleton className="h-12 w-full rounded-xl bg-gray-100 dark:bg-white/10" />
+                        ) : (
+                            <button type="button" onClick={() => setAccountOpen(o => !o)} aria-expanded={accountOpen} aria-haspopup="menu" className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/5">
+                                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[13px] font-medium">{user?.email}</span>
+                                    <span className="block text-[11px] text-gray-500 dark:text-gray-400">{role}</span>
+                                </span>
+                                <ChevronsUpDown className="size-4 shrink-0 text-gray-400" aria-hidden="true" />
+                            </button>
+                        )}
+                        {accountOpen && (
+                            <>
+                                <button type="button" aria-label="Close account menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setAccountOpen(false)} />
+                                <div role="menu" className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-white/15 dark:bg-[#151515]">
+                                    <Link role="menuitem" href="/dashboard/settings?tab=profile" onClick={close} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-white/10"><UserRound className="size-4 text-gray-400" aria-hidden="true" /> Your profile</Link>
+                                    <Link role="menuitem" href="/my-tickets" onClick={close} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-white/10"><Ticket className="size-4 text-gray-400" aria-hidden="true" /> My tickets</Link>
+                                    <a role="menuitem" href="/" target="_blank" rel="noopener noreferrer" onClick={close} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-white/10"><ArrowUpRight className="size-4 text-gray-400" aria-hidden="true" /> View GatePass</a>
+                                    <button role="menuitem" type="button" onClick={handleLogout} className="mt-1 flex w-full items-center gap-2.5 rounded-xl border-t border-gray-100 px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/10"><LogOut className="size-4 text-gray-400" aria-hidden="true" /> Sign out</button>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </aside>
         </>

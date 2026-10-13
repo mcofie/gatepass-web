@@ -27,48 +27,85 @@ export function SettingsClient({
     teamInfo: any
 }) {
     const canManageTeam = ['owner', 'admin'].includes((userRole || '').trim().toLowerCase())
-    const tabs = [
-        { id: 'profile', label: 'My profile', icon: User },
-        { id: 'details', label: 'Organization', icon: Settings },
-        ...(canManageTeam ? [
-            { id: 'team', label: 'Team', icon: Users },
-            { id: 'payments', label: 'Payments', icon: CreditCard },
-            { id: 'messaging', label: 'Messaging', icon: MessageSquare },
-            { id: 'marketing', label: 'Marketing', icon: Share2 },
-            { id: 'notifications', label: 'Notifications', icon: Bell },
-        ] : []),
-    ] as { id: SettingsTab, label: string, icon: React.ElementType }[]
+
+    // How many connected providers each connection section has, for the status dot
+    const connected = (category: string) => initialIntegrations.filter(i => i.category === category && i.status === 'connected').length
+
+    const groups: { label: string; items: { id: SettingsTab; label: string; icon: React.ElementType; status?: number }[] }[] = [
+        { label: 'You', items: [{ id: 'profile', label: 'Profile', icon: User }] },
+        {
+            label: 'Organization',
+            items: [
+                { id: 'details', label: 'Details', icon: Settings },
+                ...(canManageTeam ? [
+                    { id: 'team' as const, label: 'Team', icon: Users },
+                    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
+                ] : []),
+            ],
+        },
+        ...(canManageTeam ? [{
+            label: 'Connections',
+            items: [
+                { id: 'payments' as const, label: 'Payments', icon: CreditCard, status: connected('payments') },
+                { id: 'messaging' as const, label: 'SMS', icon: MessageSquare, status: connected('sms') },
+                { id: 'marketing' as const, label: 'Marketing', icon: Share2, status: connected('marketing') },
+            ],
+        }] : []),
+    ]
+    const tabs = groups.flatMap(g => g.items)
+
     // ?tab= deep links (e.g. onboarding → payments), limited to tabs this role can see
-    const [activeTab, setActiveTab] = useState<SettingsTab>(() =>
+    const [activeTab, setActiveTabState] = useState<SettingsTab>(() =>
         tabs.some(t => t.id === initialTab) ? initialTab as SettingsTab : 'profile')
+    const setActiveTab = (tab: SettingsTab) => {
+        setActiveTabState(tab)
+        const url = new URL(window.location.href)
+        url.searchParams.set('tab', tab)
+        window.history.replaceState(null, '', url)
+    }
+
+    const itemClass = (active: boolean) => `flex h-10 shrink-0 items-center gap-3 rounded-full px-4 text-left text-sm font-medium transition-colors lg:rounded-xl lg:px-3 ${active
+        ? 'bg-gray-950 text-white dark:bg-white dark:text-black'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white'}`
 
     return (
         <div className="mx-auto max-w-[1180px] space-y-8 pb-16">
             <header>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
                 <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Settings</h1>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Manage your profile, organization, team and connected providers.</p>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Your profile, your organization, and the accounts GatePass connects to.</p>
             </header>
 
-            <div className="grid gap-6 lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-10">
-                <nav role="tablist" aria-label="Settings sections" className="flex gap-1 overflow-x-auto border-b border-gray-200 pb-3 dark:border-white/10 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0">
-                    {tabs.map(({ id, label, icon: Icon }) => (
-                        <button
-                            key={id}
-                            type="button"
-                            id={`settings-tab-${id}`}
-                            role="tab"
-                            onClick={() => setActiveTab(id)}
-                            aria-selected={activeTab === id}
-                            aria-controls="settings-panel"
-                            className={`flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${activeTab === id
-                                ? 'bg-gray-100 text-gray-950 dark:bg-white/10 dark:text-white'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white'}`}
-                        >
-                            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                            {label}
-                        </button>
-                    ))}
+            <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-12">
+                <nav aria-label="Settings sections" className="-mx-5 overflow-x-auto px-5 [scrollbar-width:none] sm:-mx-8 sm:px-8 lg:mx-0 lg:overflow-visible lg:px-0">
+                    <div role="tablist" aria-orientation="vertical" className="flex min-w-max gap-1 lg:sticky lg:top-24 lg:min-w-0 lg:flex-col lg:gap-6">
+                        {groups.map(group => (
+                            <div key={group.label} className="flex gap-1 lg:flex-col">
+                                <p className="hidden px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500 lg:block">{group.label}</p>
+                                {group.items.map(({ id, label, icon: Icon, status }) => (
+                                    <button
+                                        key={id}
+                                        type="button"
+                                        id={`settings-tab-${id}`}
+                                        role="tab"
+                                        onClick={() => setActiveTab(id)}
+                                        aria-selected={activeTab === id}
+                                        aria-controls="settings-panel"
+                                        className={itemClass(activeTab === id)}
+                                    >
+                                        <Icon className="size-4 shrink-0" aria-hidden="true" />
+                                        <span className="flex-1">{label}</span>
+                                        {status !== undefined && (
+                                            <span
+                                                className={`size-1.5 shrink-0 rounded-full ${status > 0 ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-white/20'}`}
+                                                title={status > 0 ? `${status} connected` : 'Not connected'}
+                                                aria-label={status > 0 ? `${status} connected` : 'Not connected'}
+                                            />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
                 </nav>
 
                 <div id="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${activeTab}`} className="min-w-0">

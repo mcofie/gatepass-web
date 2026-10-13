@@ -80,7 +80,7 @@ function OrganizationForm({ organizer, canEdit }: { organizer: Organizer; canEdi
                         <div className="space-y-6">
                             <div className="flex items-center gap-5">
                                 <div className={`size-24 shrink-0 ${!canEdit ? 'pointer-events-none' : ''}`}>
-                                    <MediaUploader type="image" path={`organizers/${organizer.id}`} value={logoUrl} onChange={setLogoUrl} aspectRatio="square" />
+                                    <MediaUploader type="image" path={`organizers/${organizer.id}`} value={logoUrl} onChange={setLogoUrl} aspectRatio="square" compact label="Add logo" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-gray-950 dark:text-white">Logo</p>

@@ -80,7 +80,7 @@ export function EventPaymentProvider({ eventId, initialIntegrationId, initialCur
                             </option>
                         ))}
                     </select>
-                    {provider?.methods && <p className="text-xs text-gray-500 dark:text-gray-400">Buyers can pay with {provider.methods.join(', ').toLowerCase()}.</p>}
+                    {provider?.methods && <p className="text-xs text-gray-500 dark:text-gray-400">Buyers can pay with {provider.methods.join(', ')}.</p>}
                 </div>
             )}
 

@@ -63,7 +63,7 @@ export function ProfileSettings({ profile, userRole, teamInfo }: { profile: Prof
                     <div className="space-y-7">
                         <div className="flex items-center gap-5">
                             <div className="size-24 shrink-0">
-                                <MediaUploader type="image" bucket="profiles" path="avatars" value={avatarUrl} onChange={setAvatarUrl} aspectRatio="square" className="h-full w-full" />
+                                <MediaUploader type="image" bucket="profiles" path="avatars" value={avatarUrl} onChange={setAvatarUrl} aspectRatio="square" compact label="Add photo" className="h-full w-full" />
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-gray-950 dark:text-white">Photo</p>

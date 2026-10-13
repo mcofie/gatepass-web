@@ -2179,13 +2179,17 @@ const PaymentProviderNote = ({ providerId }: { providerId?: string | null }) => 
     const provider = providerId ? getProvider('payments', providerId) : undefined
     if (!provider) return null
     return (
-        <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-            <Lock aria-hidden="true" className="size-3" />
-            <span>Secure payment by</span>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/brands/${provider.id}.png`} alt="" width={16} height={16} className="size-4 rounded-[4px] ring-1 ring-black/5 dark:ring-white/10" />
-            <span className="font-semibold text-gray-700 dark:text-gray-200">{provider.name}</span>
-            {provider.methods && <span className="hidden sm:inline">· {provider.methods.slice(0, 3).join(', ').toLowerCase()}</span>}
+        <div className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-400">
+            <p className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <Lock aria-hidden="true" className="size-3 shrink-0" />
+                Secured by
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/brands/${provider.id}.png`} alt="" width={14} height={14} className="size-3.5 shrink-0 rounded-[4px] ring-1 ring-black/5 dark:ring-white/10" />
+                <span className="font-semibold text-gray-800 dark:text-gray-200">{provider.name}</span>
+            </p>
+            {provider.methods && provider.methods.length > 0 && (
+                <p className="mt-0.5 truncate text-gray-400 dark:text-gray-500">{provider.methods.slice(0, 3).join(' · ')}</p>
+            )}
         </div>
     )
 }
