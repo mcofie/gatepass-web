@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { EventDetailClient } from '@/components/EventDetailClient'
 import { EmbedTheme } from '@/components/embed/EmbedTheme'
 import { Event, TicketTier } from '@/types/gatepass'
-import { getEventBySlug, getEventPurchaseData } from '@/lib/public-data'
+import { getEventBySlug, getEventPaymentProviderId, getEventPurchaseData } from '@/lib/public-data'
 import { withSafeDescription } from '@/lib/sanitize'
 
 export const revalidate = 0
@@ -39,7 +39,10 @@ export default async function EmbedPage({ params, searchParams }: PageProps) {
         )
     }
 
-    const { tiers, addons } = await getEventPurchaseData(event.id)
+    const [{ tiers, addons }, paymentProvider] = await Promise.all([
+        getEventPurchaseData(event.id),
+        event.organization_id ? getEventPaymentProviderId(event.id, event.organization_id, event.payment_integration_id ?? null) : null,
+    ])
 
     return (
         <>
@@ -50,6 +53,7 @@ export default async function EmbedPage({ params, searchParams }: PageProps) {
                 event={withSafeDescription(event) as Event}
                 tiers={tiers as TicketTier[]}
                 availableAddons={addons}
+                paymentProvider={paymentProvider}
             />
             </div>
         </>

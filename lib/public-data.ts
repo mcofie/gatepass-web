@@ -56,3 +56,15 @@ export const getCachedMarketingIds = unstable_cache(
     ['public-marketing-ids-v1'],
     { revalidate: 300, tags: ['marketing-ids'] },
 )
+
+/** Which payment provider an event charges through (provider id only, for the checkout footer). */
+export const getEventPaymentProviderId = unstable_cache(
+    async (eventId: string, organizerId: string, overrideIntegrationId: string | null) => {
+        let query = createAdminClient().schema('gatepass').from('organizer_integrations').select('provider').eq('organizer_id', organizerId).eq('category', 'payments')
+        query = overrideIntegrationId ? query.eq('id', overrideIntegrationId) : query.eq('is_default', true)
+        const { data } = await query.maybeSingle()
+        return (data?.provider as string | undefined) ?? null
+    },
+    ['public-event-payment-provider-v1'],
+    { revalidate: 60, tags: ['public-events'] },
+)

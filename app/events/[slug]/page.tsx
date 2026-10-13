@@ -7,7 +7,7 @@ import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
 import { formatWebsiteUrl, formatInstagramUrl, formatTwitterUrl, formatFacebookUrl } from '@/utils/social'
 import { TrackingScripts } from '@/components/TrackingScripts'
-import { getCachedMarketingIds, getEventBySlug, getEventPurchaseData } from '@/lib/public-data'
+import { getCachedMarketingIds, getEventBySlug, getEventPaymentProviderId, getEventPurchaseData } from '@/lib/public-data'
 import { withSafeDescription } from '@/lib/sanitize'
 
 interface PageProps {
@@ -77,13 +77,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 async function EventPurchase({ event }: { event: Event }) {
-    const { tiers, addons } = await getEventPurchaseData(event.id)
+    const [{ tiers, addons }, paymentProvider] = await Promise.all([
+        getEventPurchaseData(event.id),
+        event.organization_id ? getEventPaymentProviderId(event.id, event.organization_id, event.payment_integration_id ?? null) : null,
+    ])
     return (
         <EventDetailClient
             event={event}
             tiers={tiers as TicketTier[]}
             layoutId={`event-card-${event.id}`}
             availableAddons={addons}
+            paymentProvider={paymentProvider}
         />
     )
 }

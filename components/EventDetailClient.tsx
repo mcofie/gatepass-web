@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Event, TicketTier, Discount, PaymentPlan, EventAddon, EventFormQuestion } from '@/types/gatepass'
 import { cn } from '@/lib/utils'
 import { getBrowserSupabase } from '@/utils/supabase/lazy'
+import { getProvider } from '@/lib/integrations/providers'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
 import { GatePassMark } from '@/components/branding/GatePassMark'
 
@@ -21,7 +22,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { toast } from 'sonner'
-import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft, ArrowRight, Lock } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { ReservationTimer, useReservationCountdown, type ReservationCountdown } from '@/components/checkout/ReservationTimer'
@@ -38,10 +39,12 @@ interface EventDetailClientProps {
     availableAddons?: any[] // Using any[] for now or safe EventAddon[]
     /** 'embed' fills an iframe on an organizer's site instead of floating over the event page */
     variant?: 'page' | 'embed'
+    /** Payment provider id (e.g. 'paystack'), shown on the pay step */
+    paymentProvider?: string | null
 }
 
 // Simple Timer Hook
-export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [], variant = 'page' }: EventDetailClientProps) {
+export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [], variant = 'page', paymentProvider = null }: EventDetailClientProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const isEmbed = variant === 'embed'
@@ -886,6 +889,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             fees={platformFees}
                             total={totalDue}
                             countdown={countdown}
+                            paymentProvider={paymentProvider}
                             onRestart={() => {
                                 // The hold lapsed: drop the stale reservations and pick tickets again
                                 setReservations([])
@@ -1827,7 +1831,7 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
         </div>
     )
 }
-const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, countdown, onRestart, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
+const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, countdown, onRestart, paymentProvider, loading, onBack, onPay, promoCode, setPromoCode, onApplyDiscount, discount, discountError, applyingDiscount, selectedTickets, availableAddons = [], selectedAddons = {}, instalmentPlans = [], paymentMode = 'full', onPaymentModeChange, effectiveRates, feeBearer = 'customer', hasMultiTierInstalmentConflict = false }: {
     event: Event,
     tiers: TicketTier[],
     subtotal: number, // Ticket Subtotal
@@ -1846,6 +1850,7 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, count
     selectedTickets: Record<string, number>,
     countdown: ReservationCountdown,
     onRestart: () => void,
+    paymentProvider?: string | null,
     availableAddons?: EventAddon[],
     selectedAddons?: Record<string, number>,
     instalmentPlans?: PaymentPlan[],
@@ -2160,8 +2165,25 @@ const SummaryView = ({ event, tiers, subtotal, addonSubtotal, fees, total, count
                             <>Pay {formatCurrency(amountDue, currency)}</>
                         )}
                     </button>
+                    <PaymentProviderNote providerId={paymentProvider} />
                 </div>
             </div>
+        </div>
+    )
+}
+
+/** "Payment by [logo] Paystack" under the pay button, so buyers know where they're paying. */
+const PaymentProviderNote = ({ providerId }: { providerId?: string | null }) => {
+    const provider = providerId ? getProvider('payments', providerId) : undefined
+    if (!provider) return null
+    return (
+        <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+            <Lock aria-hidden="true" className="size-3" />
+            <span>Secure payment by</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/brands/${provider.id}.png`} alt="" width={16} height={16} className="size-4 rounded-[4px] ring-1 ring-black/5 dark:ring-white/10" />
+            <span className="font-semibold text-gray-700 dark:text-gray-200">{provider.name}</span>
+            {provider.methods && <span className="hidden sm:inline">· {provider.methods.slice(0, 3).join(', ').toLowerCase()}</span>}
         </div>
     )
 }
