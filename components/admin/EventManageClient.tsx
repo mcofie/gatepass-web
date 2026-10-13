@@ -804,7 +804,7 @@ export function EventManageClient({
                                                     </p>
                                                 </div>
                                                 <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                                                    Add both cuts so the video fills the screen everywhere. If you only add one, it plays on both with bars around it. Up to 200 MB each, compressed in your browser before upload.
+                                                    Add both cuts so each screen gets a clean frame. If you only add one, it plays everywhere, zoomed in to fill the screen, so keep the subject near the centre. Up to 200 MB each, compressed in your browser before upload.
                                                 </p>
                                                 <div className="mt-4 grid items-start gap-5 sm:grid-cols-[minmax(0,1fr)_160px]">
                                                     <Field label="Landscape · desktop">

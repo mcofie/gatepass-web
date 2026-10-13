@@ -94,7 +94,7 @@ export function MediaUploader({
                     const savedPct = Math.max(0, Math.round((1 - optimized.blob.size / file.size) * 100))
                     toast.success(`Video optimized (${optimized.orientation}, ${(optimized.blob.size / 1024 / 1024).toFixed(1)} MB${savedPct ? `, ${savedPct}% smaller` : ''})`)
                     if (expectOrientation && optimized.orientation !== expectOrientation && optimized.orientation !== 'square') {
-                        toast.warning(`This clip is ${optimized.orientation}. It’ll still play, with bars around it. A ${expectOrientation} cut fills the screen.`)
+                        toast.warning(`This clip is ${optimized.orientation}. It’ll be zoomed in to fill ${expectOrientation === 'portrait' ? 'phones' : 'wide screens'}, cropping the edges. A ${expectOrientation} cut looks best.`)
                     }
                     setProgress(0)
                 } catch (e) {
