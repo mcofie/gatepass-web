@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { getBrowserSupabase } from '@/utils/supabase/lazy'
 import { getProvider } from '@/lib/integrations/providers'
 import { ReceiptTicket } from '@/components/ticket/ReceiptTicket'
+import { PaymentReturn, type PaymentReturnState } from '@/components/checkout/PaymentReturn'
 import { AddToAppleWallet } from '@/components/ticket/AddToAppleWallet'
 import QRCode from 'react-qr-code'
 import { GatePassMark } from '@/components/branding/GatePassMark'
@@ -77,7 +78,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
     }
     const viewTransition = undefined
     const [loading, setLoading] = useState(false)
-    const [verifying, setVerifying] = useState(false)
+    const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState | null>(null)
     // ?select=<ticketId>:<qty>,... preselects tickets (checkout links from the MCP server and SDKs)
     const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>(() => {
         const picks: Record<string, number> = {}
@@ -324,8 +325,13 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 return
             }
 
-            const verifyPayment = async () => {
-                setVerifying(true)
+            // Poll until the provider settles: mobile money and some cards confirm after a delay
+            let cancelled = false
+            const started = Date.now()
+            const clearReference = () => window.history.replaceState({}, '', window.location.pathname)
+
+            const verifyPayment = async (): Promise<void> => {
+                if (cancelled) return
                 try {
                     const response = await fetch('/api/payments/verify', {
                         method: 'POST',
@@ -333,11 +339,25 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         body: JSON.stringify({ reference })
                     })
                     const result = await response.json()
+                    if (cancelled) return
 
-                    window.history.replaceState({}, '', window.location.pathname)
+                    if (!result.success) {
+                        if (result.status === 'pending') {
+                            if (Date.now() - started > 3 * 60_000) {
+                                clearReference()
+                                setPaymentReturn({ phase: 'timeout', reference })
+                                return
+                            }
+                            setPaymentReturn({ phase: 'pending', reference })
+                            setTimeout(verifyPayment, 3000)
+                            return
+                        }
+                        clearReference()
+                        setPaymentReturn({ phase: 'failed', reference, message: result.error })
+                        return
+                    }
 
-                    if (!result.success) throw new Error(result.error || 'Verification failed')
-
+                    clearReference()
                     const tickets = result.tickets || []
                     setPurchasedTickets(tickets)
 
@@ -352,15 +372,21 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                         console.error('Tracking Error:', err)
                     }
 
+                    setPaymentReturn(null)
                     navigate('success', 'forward')
-                } catch (error: any) {
-                    console.error('Verification Error:', error)
-                    toast.error(error.message || 'Payment verification failed')
-                } finally {
-                    setVerifying(false)
+                } catch {
+                    // Network blip: try again shortly rather than failing the order
+                    if (!cancelled && Date.now() - started < 3 * 60_000) {
+                        setTimeout(verifyPayment, 3000)
+                    } else if (!cancelled) {
+                        clearReference()
+                        setPaymentReturn({ phase: 'timeout', reference })
+                    }
                 }
             }
+            setPaymentReturn({ phase: 'checking', reference })
             verifyPayment()
+            return () => { cancelled = true }
         }
     }, [searchParams, event.id])
 
@@ -758,14 +784,14 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         ? 'max-h-[148px]'
         : 'max-h-[85vh]'     // Expanded height
 
-    if (verifying) {
+    if (paymentReturn) {
         return (
-            // Full Screen Verification Loader
-            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-fade-in">
-                <div className="w-16 h-16 border-4 border-black/10 border-t-black rounded-full animate-spin mb-4" />
-                <h2 className="text-xl font-bold tracking-tight text-black">Verifying Payment</h2>
-                <p className="text-sm text-gray-500 mt-2">Securing your ticket...</p>
-            </div>
+            <PaymentReturn
+                state={paymentReturn}
+                eventTitle={event.title}
+                providerId={paymentProvider}
+                onRetry={() => { setPaymentReturn(null); navigate('details', 'back') }}
+            />
         )
     }
 
