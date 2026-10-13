@@ -3,6 +3,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { getEventPaymentIntegration, getIntegrationById, type ResolvedIntegration } from '@/lib/integrations/store'
 import { webhookUrlFor } from '@/lib/integrations/webhook-url'
 import { PaymentProviderError, type NormalizedTransaction, type PaymentAdapter } from './types'
+import { priceCheckout } from './pricing'
 import { paystack } from './providers/paystack'
 import { stripe } from './providers/stripe'
 import { flutterwave } from './providers/flutterwave'
@@ -65,6 +66,18 @@ export async function startCheckout(input: {
     const integration = await getEventPaymentIntegration(reservation.event_id)
     if (!integration) throw new PaymentProviderError('This organizer has not connected a payment provider yet.')
 
+    // Charge what the server prices, never what the browser sent
+    const metadata = input.metadata ?? {}
+    const price = await priceCheckout(input.reservationIds, metadata)
+    if (price.amountMinor <= 0) throw new PaymentProviderError('There is nothing to pay for this order')
+    if (Math.abs(price.amountMinor - input.amountMinor) > 1 || price.currency !== input.currency.toUpperCase()) {
+        console.warn('[payments] Client total differs from server price', {
+            reservationIds: input.reservationIds,
+            client: `${input.currency} ${input.amountMinor}`,
+            server: `${price.currency} ${price.amountMinor}`,
+        })
+    }
+
     const reference = newReference()
     const returnUrl = new URL(input.returnUrl)
     returnUrl.searchParams.set('reference', reference)
@@ -75,23 +88,23 @@ export async function startCheckout(input: {
         integration_id: integration.id,
         provider: integration.provider,
         mode: integration.mode,
-        amount_minor: input.amountMinor,
-        currency: input.currency.toUpperCase(),
+        amount_minor: price.amountMinor,
+        currency: price.currency,
         reservation_ids: input.reservationIds,
-        metadata: input.metadata ?? {},
+        metadata,
     })
     if (error) throw new Error(error.message)
 
     const result = await getAdapter(integration.provider).createCheckout(integration, {
         reference,
-        amountMinor: input.amountMinor,
-        currency: input.currency.toUpperCase(),
+        amountMinor: price.amountMinor,
+        currency: price.currency,
         email: input.email,
         phone: input.phone || reservation.guest_phone,
         description: event.title || 'GatePass tickets',
         returnUrl: returnUrl.toString(),
         webhookUrl: webhookUrlFor(integration.provider, integration.id, integration.webhookToken),
-        metadata: { ...(input.metadata ?? {}), reference, reservation_ids: input.reservationIds },
+        metadata: { ...metadata, reference, reservation_ids: input.reservationIds },
     })
 
     if (result.providerReference) {
