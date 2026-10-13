@@ -62,6 +62,9 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
 
                     <ul className="space-y-2.5 text-sm">
                         <ChecklistItem done={billing.covered} label={billing.covered ? 'Platform fee covered' : `Platform fee due: ${formatCurrency(billing.amountDueMinor / 100, billing.currency)}`} />
+                        {billing.hasPaidTickets && billing.currencySupported === false && (
+                            <ChecklistItem done={false} label={`${billing.currencyNote}. Change it under Payments`} />
+                        )}
                         {billing.hasPaidTickets && (
                             <ChecklistItem
                                 done={billing.hasPaymentProvider}

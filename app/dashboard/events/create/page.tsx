@@ -12,6 +12,8 @@ import { MediaUploader } from '@/components/admin/MediaUploader'
 import { PreviewModal } from '@/components/common/PreviewModal'
 import { logActivity } from '@/app/actions/logger'
 import { getActiveOrganization, type ActiveOrganization } from '@/app/actions/organization'
+import { getDefaultPaymentProvider } from '@/app/actions/integrations'
+import { CURRENCY_NAMES, getProvider } from '@/lib/integrations/providers'
 import { Field, PrimaryButton, SecondaryButton, inputClass } from '@/components/dashboard/ui'
 import { formatCurrency } from '@/utils/format'
 import type { TicketTier } from '@/types/gatepass'
@@ -40,6 +42,7 @@ type Draft = {
     video_url: string
     logo_url: string
     primary_color: string
+    currency: string
     tickets: TicketDraft[]
 }
 
@@ -49,7 +52,7 @@ const newTicket = (name = '', price = '', quantity = '100'): TicketDraft => ({ k
 
 const emptyDraft = (): Draft => ({
     title: '', slug: '', slugEdited: false, starts_at: null, ends_at: null, venue_name: '', venue_address: '',
-    description: '', poster_url: '', video_url: '', logo_url: '', primary_color: ACCENTS[0],
+    description: '', poster_url: '', video_url: '', logo_url: '', primary_color: ACCENTS[0], currency: 'GHS',
     tickets: [newTicket('General admission')],
 })
 
@@ -72,6 +75,8 @@ export default function CreateEventPage() {
     const [showPreview, setShowPreview] = useState(false)
     const [creating, setCreating] = useState(false)
     const [plans, setPlans] = useState<PlanTier[]>([])
+    // Currencies the workspace's default payment provider can charge in (all, if none connected yet)
+    const [providerId, setProviderId] = useState<string | null>(null)
     const restored = useRef(false)
 
     // Workspace, pricing plans and any saved draft
@@ -80,6 +85,12 @@ export default function CreateEventPage() {
             if (!active) { router.replace('/onboarding'); return }
             if (active.role === 'Staff') { toast.error('Only owners and admins can create events'); router.replace('/dashboard/events'); return }
             setOrg(active)
+            getDefaultPaymentProvider(active.id).then(id => {
+                setProviderId(id)
+                const supported = id ? getProvider('payments', id)?.currencies : undefined
+                // Start in a currency the provider accepts
+                if (supported?.length) setDraft(d => (supported.includes(d.currency) ? d : { ...d, currency: supported[0] }))
+            }).catch(() => {})
             try {
                 const saved = localStorage.getItem(storageKey(active.id))
                 if (saved) {
@@ -192,6 +203,7 @@ export default function CreateEventPage() {
                 video_url: draft.video_url || null,
                 logo_url: draft.logo_url || null,
                 primary_color: draft.primary_color,
+                currency: draft.currency,
                 organization_id: org.id,
                 organizer_id: user.id,
                 is_published: false,
@@ -215,7 +227,7 @@ export default function CreateEventPage() {
                 name: t.name.trim(),
                 price: Number(t.price) || 0,
                 total_quantity: parseInt(t.quantity, 10),
-                currency: plan?.currency || 'GHS',
+                currency: draft.currency,
                 quantity_sold: 0,
                 sort_order: i,
                 perks: [],
@@ -396,6 +408,14 @@ export default function CreateEventPage() {
 
                         {step === 2 && (
                             <>
+                                <Field label="Currency" htmlFor="event-currency" hint={providerId ? `Currencies ${getProvider('payments', providerId)?.name ?? 'your payment provider'} can charge in.` : 'Connect a payment provider in Settings to sell paid tickets.'}>
+                                    <select id="event-currency" value={draft.currency} onChange={e => update('currency', e.target.value)} className={`${inputClass} sm:max-w-xs`}>
+                                        {(getProvider('payments', providerId ?? '')?.currencies ?? Object.keys(CURRENCY_NAMES)).map(code => (
+                                            <option key={code} value={code}>{code} · {CURRENCY_NAMES[code] ?? code}</option>
+                                        ))}
+                                    </select>
+                                </Field>
+
                                 <div className="flex flex-wrap gap-2">
                                     <span className="self-center text-xs text-gray-500 dark:text-gray-400">Start from:</span>
                                     {[
@@ -411,7 +431,7 @@ export default function CreateEventPage() {
 
                                 <div className="overflow-hidden rounded-3xl border border-gray-200 dark:border-white/10">
                                     <div className="hidden grid-cols-[1fr_140px_120px_40px] gap-3 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-xs font-medium text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400 sm:grid">
-                                        <span>Ticket type</span><span>Price ({plan?.currency || 'GHS'})</span><span>Quantity</span><span />
+                                        <span>Ticket type</span><span>Price ({draft.currency})</span><span>Quantity</span><span />
                                     </div>
                                     <ul className="divide-y divide-gray-100 dark:divide-white/10">
                                         {draft.tickets.map((ticket, i) => (
@@ -460,7 +480,7 @@ export default function CreateEventPage() {
                                         <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full" style={{ backgroundColor: draft.primary_color }} />{[draft.poster_url ? 'Poster' : 'No poster yet', draft.video_url && 'video', draft.logo_url && 'logo'].filter(Boolean).join(', ')}</span>
                                     </ReviewRow>
                                     <ReviewRow label="Tickets" onEdit={() => setStep(2)}>
-                                        {draft.tickets.map(t => `${t.name} · ${Number(t.price) > 0 ? formatCurrency(Number(t.price), plan?.currency || 'GHS') : 'Free'} × ${t.quantity}`).join('  /  ')}
+                                        {draft.tickets.map(t => `${t.name} · ${Number(t.price) > 0 ? formatCurrency(Number(t.price), draft.currency) : 'Free'} × ${t.quantity}`).join('  /  ')}
                                     </ReviewRow>
                                 </div>
                                 <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} />
@@ -492,7 +512,7 @@ export default function CreateEventPage() {
                     logo_url: draft.logo_url, primary_color: draft.primary_color, latitude: null, longitude: null,
                     organization_id: org.id, fee_bearer: 'customer', platform_fee_percent: 0, lineup: [],
                 } as unknown as React.ComponentProps<typeof PreviewModal>['formData']}
-                tiers={draft.tickets.map(t => ({ id: t.key, name: t.name, price: Number(t.price) || 0, total_quantity: parseInt(t.quantity, 10) || 0, quantity_sold: 0, currency: plan?.currency || 'GHS' }))}
+                tiers={draft.tickets.map(t => ({ id: t.key, name: t.name, price: Number(t.price) || 0, total_quantity: parseInt(t.quantity, 10) || 0, quantity_sold: 0, currency: draft.currency }))}
             />
         </div>
     )

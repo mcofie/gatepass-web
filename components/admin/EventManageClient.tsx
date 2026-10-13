@@ -1211,6 +1211,7 @@ export function EventManageClient({
                                     <EventPaymentProvider
                                         eventId={event.id}
                                         initialIntegrationId={event.payment_integration_id ?? null}
+                                        initialCurrency={event.currency || tiers[0]?.currency || 'GHS'}
                                         integrations={paymentIntegrations}
                                     />
                                 )}

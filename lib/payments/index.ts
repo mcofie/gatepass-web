@@ -4,6 +4,7 @@ import { getEventPaymentIntegration, getIntegrationById, type ResolvedIntegratio
 import { webhookUrlFor } from '@/lib/integrations/webhook-url'
 import { PaymentProviderError, type NormalizedTransaction, type PaymentAdapter } from './types'
 import { priceCheckout } from './pricing'
+import { getProvider, providerSupportsCurrency } from '@/lib/integrations/providers'
 import { paystack } from './providers/paystack'
 import { stripe } from './providers/stripe'
 import { flutterwave } from './providers/flutterwave'
@@ -76,6 +77,15 @@ export async function startCheckout(input: {
             client: `${input.currency} ${input.amountMinor}`,
             server: `${price.currency} ${price.amountMinor}`,
         })
+    }
+
+    // Each provider only charges in certain currencies, and some need the buyer's phone
+    const definition = getProvider('payments', integration.provider)
+    if (!providerSupportsCurrency(integration.provider, price.currency)) {
+        throw new PaymentProviderError(`${definition?.name ?? 'This payment provider'} can't charge in ${price.currency}. The organizer needs to change the event's currency or payment provider.`)
+    }
+    if (definition?.requiresPhone && !(input.phone || reservation.guest_phone)) {
+        throw new PaymentProviderError(`Add your phone number to pay with ${definition.name}.`)
     }
 
     const reference = newReference()

@@ -66,6 +66,7 @@ export function TicketsTab({ event, tiers, onTiersUpdate, isStaff = false }: Tic
                 .from('ticket_tiers')
                 .insert({
                     event_id: event.id,
+                    currency: event.currency || 'GHS',
                     name: tierForm.name,
                     price: tierForm.price,
                     total_quantity: tierForm.total_quantity,

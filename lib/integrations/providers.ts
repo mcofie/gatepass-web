@@ -21,12 +21,20 @@ export type ProviderDefinition = {
     docsUrl: string
     supportsTestMode: boolean
     fields: CredentialField[]
+    /** Payments only: ISO currencies this provider can charge in. Kept conservative; widen as needed. */
+    currencies?: string[]
+    /** Payments only: how buyers can pay, shown at checkout */
+    methods?: string[]
+    /** Payments only: checkout needs the buyer's phone number (e.g. M-Pesa STK push) */
+    requiresPhone?: boolean
 }
 
 export const PROVIDERS: ProviderDefinition[] = [
     // Payments
     {
         id: 'stripe',
+        currencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'ZAR'],
+        methods: ['Card', 'Apple Pay', 'Google Pay'],
         category: 'payments',
         name: 'Stripe',
         description: 'Cards, Apple Pay and Google Pay in 40+ countries.',
@@ -41,6 +49,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'paystack',
+        currencies: ['GHS', 'NGN', 'KES', 'ZAR', 'USD', 'XOF'],
+        methods: ['Card', 'Mobile money', 'Bank transfer'],
         category: 'payments',
         name: 'Paystack',
         description: 'Cards, mobile money and bank transfers.',
@@ -54,6 +64,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'flutterwave',
+        currencies: ['NGN', 'GHS', 'KES', 'UGX', 'TZS', 'RWF', 'ZAR', 'XAF', 'XOF', 'ZMW', 'USD', 'EUR', 'GBP'],
+        methods: ['Card', 'Mobile money', 'Bank transfer', 'USSD'],
         category: 'payments',
         name: 'Flutterwave',
         description: 'Cards, mobile money, USSD and bank transfers.',
@@ -68,6 +80,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'hubtel',
+        currencies: ['GHS'],
+        methods: ['Mobile money', 'Card'],
         category: 'payments',
         name: 'Hubtel',
         description: 'Mobile money and cards in Ghana.',
@@ -82,6 +96,9 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'mpesa',
+        currencies: ['KES'],
+        methods: ['M-Pesa'],
+        requiresPhone: true,
         category: 'payments',
         name: 'M-Pesa (Daraja)',
         description: 'Lipa na M-Pesa STK push.',
@@ -97,6 +114,8 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'wave',
+        currencies: ['XOF', 'UGX', 'GMD'],
+        methods: ['Wave'],
         category: 'payments',
         name: 'Wave',
         description: 'Mobile money checkout.',
@@ -201,4 +220,17 @@ export function getProvider(category: IntegrationCategory, id: string): Provider
 
 export function providersFor(category: IntegrationCategory): ProviderDefinition[] {
     return PROVIDERS.filter(p => p.category === category)
+}
+
+/** Currency names for pickers. */
+export const CURRENCY_NAMES: Record<string, string> = {
+    GHS: 'Ghanaian cedi', NGN: 'Nigerian naira', KES: 'Kenyan shilling', ZAR: 'South African rand', UGX: 'Ugandan shilling',
+    TZS: 'Tanzanian shilling', RWF: 'Rwandan franc', XOF: 'West African CFA franc', XAF: 'Central African CFA franc',
+    ZMW: 'Zambian kwacha', GMD: 'Gambian dalasi', USD: 'US dollar', EUR: 'Euro', GBP: 'British pound', CAD: 'Canadian dollar', AUD: 'Australian dollar',
+}
+
+/** Whether a payment provider can charge in this currency. Unknown providers are allowed through. */
+export function providerSupportsCurrency(providerId: string, currency: string): boolean {
+    const provider = getProvider('payments', providerId)
+    return !provider?.currencies || provider.currencies.includes(currency.toUpperCase())
 }

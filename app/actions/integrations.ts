@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { encryptCredentials, decryptCredentials, hintFor } from '@/lib/integrations/crypto'
-import { getProvider, type IntegrationCategory } from '@/lib/integrations/providers'
+import { getProvider, providerSupportsCurrency, type IntegrationCategory } from '@/lib/integrations/providers'
 import { resolve, type IntegrationRow } from '@/lib/integrations/store'
 import { verifyIntegration } from '@/lib/integrations/verify'
 import { sendSms } from '@/lib/integrations/sms'
@@ -312,4 +312,46 @@ export async function setEventPaymentIntegration(eventId: string, integrationId:
     if (error) throw new Error(error.message)
 
     revalidatePath(`/dashboard/events/${eventId}`)
+}
+
+/** Sets an event's currency and moves all its ticket types to it. Must be one the event's provider supports. */
+export async function setEventCurrency(eventId: string, currency: string) {
+    const admin = createAdminClient()
+    const code = currency.trim().toUpperCase()
+    if (!/^[A-Z]{3}$/.test(code)) throw new Error('Choose a currency')
+
+    const { data: event } = await admin.schema('gatepass').from('events').select('organization_id, payment_integration_id').eq('id', eventId).single()
+    if (!event?.organization_id) throw new Error('Event not found')
+    await assertCanManage(event.organization_id)
+
+    // The provider this event will charge through: its override, else the organization default
+    let query = admin.schema('gatepass').from('organizer_integrations').select('provider').eq('organizer_id', event.organization_id).eq('category', 'payments')
+    query = event.payment_integration_id ? query.eq('id', event.payment_integration_id) : query.eq('is_default', true)
+    const { data: integration } = await query.maybeSingle()
+    if (integration && !providerSupportsCurrency(integration.provider, code)) {
+        throw new Error(`${getProvider('payments', integration.provider)?.name ?? 'Your payment provider'} can't charge in ${code}`)
+    }
+
+    const [eventUpdate, tiersUpdate] = await Promise.all([
+        admin.schema('gatepass').from('events').update({ currency: code }).eq('id', eventId),
+        admin.schema('gatepass').from('ticket_tiers').update({ currency: code }).eq('event_id', eventId),
+    ])
+    if (eventUpdate.error) throw new Error(eventUpdate.error.message)
+    if (tiersUpdate.error) throw new Error(tiersUpdate.error.message)
+    revalidatePath(`/dashboard/events/${eventId}`)
+    revalidateTag('public-events', 'max')
+}
+
+/** The workspace's default payment provider (id only), for currency choices when creating an event. */
+export async function getDefaultPaymentProvider(organizerId: string): Promise<string | null> {
+    await assertCanManage(organizerId)
+    const { data } = await createAdminClient()
+        .schema('gatepass')
+        .from('organizer_integrations')
+        .select('provider')
+        .eq('organizer_id', organizerId)
+        .eq('category', 'payments')
+        .eq('is_default', true)
+        .maybeSingle()
+    return data?.provider ?? null
 }
