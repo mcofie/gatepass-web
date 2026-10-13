@@ -4,23 +4,23 @@ import React, { useState } from 'react'
 import { ProfileSettings } from '@/components/admin/settings/ProfileSettings'
 import { OrganizationSettings } from '@/components/admin/settings/OrganizationSettings'
 import { TeamSettings } from '@/components/admin/settings/TeamSettings'
-import { SettlementSettings } from '@/components/admin/settings/SettlementSettings'
 import { NotificationSettings } from '@/components/admin/settings/NotificationSettings'
-import { MarketingSettings } from '@/components/admin/settings/MarketingSettings'
-import { SMSSettings } from '@/components/admin/settings/SMSSettings'
-import { Settings, Users, Wallet, User, Bell, Share2, MessageSquare } from 'lucide-react'
+import { IntegrationsPanel } from '@/components/admin/settings/IntegrationsPanel'
+import type { IntegrationSummary } from '@/app/actions/integrations'
+import { Settings, Users, CreditCard, User, Bell, Share2, MessageSquare } from 'lucide-react'
 
-type SettingsTab = 'profile' | 'details' | 'team' | 'settlement' | 'notifications' | 'marketing' | 'sms'
+type SettingsTab = 'profile' | 'details' | 'team' | 'payments' | 'messaging' | 'marketing' | 'notifications'
 
 export function SettingsClient({
     initialOrganizer,
     initialProfile,
+    initialIntegrations,
     userRole,
     teamInfo
 }: {
-    initialSettings: Record<string, any>,
     initialOrganizer: any,
     initialProfile: any,
+    initialIntegrations: IntegrationSummary[],
     userRole: string,
     teamInfo: any
 }) {
@@ -31,10 +31,10 @@ export function SettingsClient({
         { id: 'details', label: 'Organization', icon: Settings },
         ...(canManageTeam ? [
             { id: 'team', label: 'Team', icon: Users },
-            { id: 'settlement', label: 'Settlement', icon: Wallet },
-            { id: 'notifications', label: 'Notifications', icon: Bell },
+            { id: 'payments', label: 'Payments', icon: CreditCard },
+            { id: 'messaging', label: 'Messaging', icon: MessageSquare },
             { id: 'marketing', label: 'Marketing', icon: Share2 },
-            { id: 'sms', label: 'SMS provider', icon: MessageSquare },
+            { id: 'notifications', label: 'Notifications', icon: Bell },
         ] : []),
     ] as { id: SettingsTab, label: string, icon: React.ElementType }[]
 
@@ -43,7 +43,7 @@ export function SettingsClient({
             <header>
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Workspace</p>
                 <h1 className="text-[32px] font-semibold tracking-tight text-gray-950 dark:text-white sm:text-[38px]">Settings</h1>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Manage your profile, organization, and team access.</p>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Manage your profile, organization, team and connected providers.</p>
             </header>
 
             <div className="grid gap-6 lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-10">
@@ -71,10 +71,10 @@ export function SettingsClient({
                     {activeTab === 'profile' && <ProfileSettings profile={initialProfile} userRole={userRole} teamInfo={teamInfo} />}
                     {activeTab === 'details' && <OrganizationSettings organizer={initialOrganizer} userRole={userRole} />}
                     {canManageTeam && activeTab === 'team' && <TeamSettings organizer={initialOrganizer} />}
-                    {canManageTeam && activeTab === 'settlement' && <SettlementSettings organizer={initialOrganizer} />}
+                    {canManageTeam && activeTab === 'payments' && <IntegrationsPanel organizerId={initialOrganizer.id} category="payments" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
+                    {canManageTeam && activeTab === 'messaging' && <IntegrationsPanel organizerId={initialOrganizer.id} category="sms" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
+                    {canManageTeam && activeTab === 'marketing' && <IntegrationsPanel organizerId={initialOrganizer.id} category="marketing" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
                     {canManageTeam && activeTab === 'notifications' && <NotificationSettings organizer={initialOrganizer} userRole={userRole} />}
-                    {canManageTeam && activeTab === 'marketing' && <MarketingSettings organizer={initialOrganizer} userRole={userRole} />}
-                    {canManageTeam && activeTab === 'sms' && <SMSSettings organizer={initialOrganizer} userRole={userRole} />}
                 </div>
             </div>
         </div>

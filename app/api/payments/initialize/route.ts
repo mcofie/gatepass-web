@@ -1,43 +1,64 @@
 import { NextResponse } from 'next/server'
+import { startCheckout, PaymentProviderError } from '@/lib/payments'
+import { notifyDiscord } from '@/utils/discord'
+
+/** Buyers may only be sent back to GatePass itself after paying. */
+function isAllowedReturnUrl(req: Request, returnUrl: string) {
+    try {
+        const target = new URL(returnUrl).origin
+        const allowed = [new URL(req.url).origin, req.headers.get('origin'), process.env.NEXT_PUBLIC_SITE_URL && new URL(process.env.NEXT_PUBLIC_SITE_URL).origin]
+        return allowed.includes(target)
+    } catch {
+        return false
+    }
+}
 
 /**
- * Paystack payment initialization.
+ * Starts a checkout with the event organizer's own payment provider.
+ * Returns the URL to send the buyer to.
  */
 export async function POST(req: Request) {
     try {
         const body = await req.json()
-        const reservationIds = Array.isArray(body.reservationIds)
+        const reservationIds: string[] = Array.isArray(body.reservationIds)
             ? body.reservationIds
             : (body.reservationId ? [body.reservationId] : [])
+        const { email, amount, currency, callbackUrl, phone, metadata } = body
 
-        if (reservationIds.length === 0) {
-            return NextResponse.json({ error: 'Missing reservation IDs' }, { status: 400 })
+        if (!email || !amount || reservationIds.length === 0 || !callbackUrl) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        if (!isAllowedReturnUrl(req, callbackUrl)) {
+            return NextResponse.json({ error: 'Invalid callback URL' }, { status: 400 })
         }
 
-        // Route to the Paystack provider
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'https://gatepass.so'
-        const targetUrl = `${siteUrl}/api/paystack/initialize`
-
-        const response = await fetch(targetUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Forward cookies for auth context
-                ...(req.headers.get('cookie') ? { cookie: req.headers.get('cookie')! } : {})
-            },
-            body: JSON.stringify(body)
+        const checkout = await startCheckout({
+            reservationIds,
+            email,
+            phone,
+            amountMinor: Math.round(Number(amount)),
+            currency: currency || 'GHS',
+            returnUrl: callbackUrl,
+            metadata: metadata && typeof metadata === 'object' ? metadata : {},
         })
 
-        const data = await response.json()
+        await notifyDiscord(
+            `🛒 **Checkout Started**\n` +
+            `**Email:** ${email}\n` +
+            `**Amount:** ${currency} ${(Number(amount) / 100).toLocaleString()}\n` +
+            `**Provider:** ${checkout.provider}\n` +
+            `**Ref:** ${checkout.reference}`,
+            'info'
+        )
 
-        if (!response.ok) {
-            return NextResponse.json(data, { status: response.status })
-        }
-
-        return NextResponse.json({ ...data, gateway: 'paystack' })
-
-    } catch (error: any) {
-        console.error('Payment Router Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({
+            authorization_url: checkout.redirectUrl,
+            reference: checkout.reference,
+            gateway: checkout.provider,
+        })
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Payment initialization failed'
+        console.error('[payments/initialize]', error)
+        return NextResponse.json({ error: message }, { status: error instanceof PaymentProviderError ? 400 : 500 })
     }
 }

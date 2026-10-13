@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
-import { sendManualSMS } from '@/app/actions/communications'
+import { sendSmsForOrganizer } from '@/lib/integrations/sms'
 import { notifyDiscord } from '@/utils/discord'
 
 export const dynamic = 'force-dynamic'
@@ -72,11 +72,7 @@ export async function GET(request: Request) {
 
             const message = `GatePass: Hi ${name}, just a heads up that your installment of GHS ${amount} for "${event.title}" is due tomorrow, ${dateStr}. Pay here: ${portalUrl}`
 
-            const { success } = await sendManualSMS({
-                to: phone,
-                message,
-                organizationId: event.organization_id
-            })
+            const { success } = await sendSmsForOrganizer(event.organization_id, phone, message)
 
             if (success) {
                 await supabase
@@ -132,11 +128,7 @@ export async function GET(request: Request) {
 
             const message = `GatePass Alert: Hi ${name}, your installment payment of GHS ${amount} for "${event.title}" is due TODAY. Pay here: ${portalUrl}`
 
-            const { success } = await sendManualSMS({
-                to: phone,
-                message,
-                organizationId: event.organization_id
-            })
+            const { success } = await sendSmsForOrganizer(event.organization_id, phone, message)
 
             if (success) {
                 await supabase

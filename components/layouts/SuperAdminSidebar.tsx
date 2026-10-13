@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, Calendar, Banknote, LogOut, FileText, Settings, Activity, Wallet } from 'lucide-react'
+import { LayoutDashboard, Users, Calendar, Banknote, LogOut, FileText, Settings, Activity } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -41,7 +41,6 @@ export function SuperAdminSidebar() {
         { name: 'Events', path: '/admin/events', icon: Calendar },
         { name: 'Users', path: '/admin/users', icon: Users },
         { name: 'Financials', path: '/admin/financials', icon: Banknote },
-        { name: 'Payouts', path: '/admin/payouts', icon: Wallet },
         { name: 'Activity Log', path: '/admin/activity', icon: Activity },
         { name: 'Reports', path: '/admin/reports', icon: FileText },
         { name: 'System Settings', path: '/admin/settings', icon: Settings },

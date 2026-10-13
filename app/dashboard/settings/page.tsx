@@ -2,8 +2,15 @@ import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SettingsClient } from '@/components/admin/SettingsClient'
+import { listIntegrations, type IntegrationSummary } from '@/app/actions/integrations'
 
 export const revalidate = 0
+
+const LEGACY_PRIVATE_COLUMNS = [
+    'sms_provider', 'hubtel_client_id', 'hubtel_client_secret', 'zend_api_key', 'sms_sender_id',
+    'meta_pixel_id', 'ga4_measurement_id',
+    'paystack_subaccount_code', 'bank_code', 'bank_name', 'account_number', 'account_name',
+]
 
 interface TeamMemberRecord {
     organization_id: string
@@ -14,22 +21,12 @@ export default async function SettingsPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { data: settingsData } = await supabase
-        .schema('gatepass')
-        .from('settings')
-        .select('key, value')
-
     const { data: profile } = await supabase
         .schema('gatepass')
         .from('profiles')
         .select('*')
         .eq('id', user?.id)
         .single()
-
-    const settings = settingsData?.reduce((acc: Record<string, unknown>, curr) => {
-        acc[curr.key] = curr.value
-        return acc
-    }, {}) || {}
 
     const cookieStore = await cookies()
     const activeOrgId = cookieStore.get('gatepass-org-id')?.value
@@ -162,10 +159,17 @@ export default async function SettingsPage() {
         }
     }
 
+    // Credentials, tracking IDs and payout details never go to the browser
+    const organizer = { ...resolvedOrganizer }
+    for (const key of LEGACY_PRIVATE_COLUMNS) delete organizer[key]
+
+    const canManage = role === 'Owner' || role === 'Admin'
+    const integrations: IntegrationSummary[] = canManage ? await listIntegrations(resolvedOrgId) : []
+
     return (
         <SettingsClient
-            initialSettings={settings}
-            initialOrganizer={resolvedOrganizer}
+            initialOrganizer={organizer}
+            initialIntegrations={integrations}
             initialProfile={profile}
             userRole={role}
             teamInfo={teamInfo}

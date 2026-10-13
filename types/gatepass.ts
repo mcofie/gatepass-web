@@ -21,7 +21,8 @@ export interface Event {
     organizer_id: string // This is the user_id (Creator)
     organization_id?: string // This is the profile/brand
     fee_bearer: 'customer' | 'organizer'
-    payment_gateway?: 'paystack'
+    payment_gateway?: 'paystack' | 'stripe' | 'flutterwave' | 'hubtel' | 'mpesa' | 'wave'
+    payment_integration_id?: string | null
     platform_fee_percent: number
     organizers?: Organizer
     is_featured?: boolean

@@ -235,12 +235,12 @@ export function AllSalesClient({ orgId }: AllSalesClientProps) {
                                         })
                                     }
 
-                                    let usedPlatformRate = sale.applied_fee_rate ?? 0.04
-                                    if (usedPlatformRate === 0) usedPlatformRate = 0.04
+                                    // A stored 0 is a GatePass-era sale with no per-ticket fee; only missing rates fall back
+                                    const usedPlatformRate = sale.applied_fee_rate ?? 0.04
 
                                     // Normalize old 2% rate to current 1.95%
                                     const storedProcessorRate = sale.applied_processor_rate
-                                    const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+                                    const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
                                         ? 0.0195
                                         : storedProcessorRate
 

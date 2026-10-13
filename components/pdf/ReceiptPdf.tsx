@@ -137,7 +137,7 @@ export const ReceiptPdf = ({ reservation, transaction, event, formattedDate }: R
     // BUT rely on total amount paid (truth).
     // Normalize old 2% rate to current 1.95% for consistent display
     const storedProcessorRate = transaction?.applied_processor_rate
-    const normalizedProcessorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+    const normalizedProcessorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
         ? 0.0195
         : storedProcessorRate
 

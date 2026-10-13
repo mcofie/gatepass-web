@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { EventManageClient } from '@/components/admin/EventManageClient'
+import { listIntegrations } from '@/app/actions/integrations'
 import { Event, TicketTier } from '@/types/gatepass'
 import { calculateFees } from '@/utils/fees'
 
@@ -99,7 +100,7 @@ export default async function ManageEventPage({ params }: PageProps) {
             const platformRate = tx.applied_fee_rate ?? 0.04
             // Normalize old 2% rate to current 1.95%
             const storedProcessorRate = tx.applied_processor_rate
-            const processorRate = (storedProcessorRate === 0.02 || !storedProcessorRate)
+            const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
                 ? 0.0195
                 : storedProcessorRate
 
@@ -143,6 +144,11 @@ export default async function ManageEventPage({ params }: PageProps) {
 
     if (!event) return <div>Event not found</div>
 
+    const canManagePayments = role === 'Owner' || role === 'Admin'
+    const paymentIntegrations = canManagePayments && event.organization_id
+        ? (await listIntegrations(event.organization_id)).filter(i => i.category === 'payments')
+        : []
+
     return (
         <EventManageClient
             event={event as Event}
@@ -150,6 +156,7 @@ export default async function ManageEventPage({ params }: PageProps) {
             initialTotalRevenue={totalRevenue}
             initialTotalDiscountValue={totalDiscountValue}
             userRole={role}
+            paymentIntegrations={paymentIntegrations}
         />
     )
 }
