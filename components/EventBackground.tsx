@@ -26,28 +26,12 @@ interface EventBackgroundProps {
 
 export function EventBackground({ videoUrl: landscapeUrl, portraitVideoUrl, posterUrl, forcePause }: EventBackgroundProps) {
     const isPhone = usePhone()
-    // Each screen falls back to the other cut when only one was uploaded
+    // Phones play the portrait cut and larger screens the landscape one. With only one cut,
+    // it plays everywhere, zoomed in to fill the screen (object-cover) rather than letterboxed.
     const videoUrl = (isPhone ? portraitVideoUrl || landscapeUrl : landscapeUrl || portraitVideoUrl) || null
     const [isMuted, setIsMuted] = useState(true)
     const [showVideo, setShowVideo] = useState(false)
-    // 'contain' when the video's shape fights the screen (portrait on a laptop, landscape on a phone),
-    // so the whole frame shows over a blurred backdrop instead of a heavy crop
-    const [fit, setFit] = useState<'cover' | 'contain'>('cover')
     const videoRef = useRef<HTMLVideoElement>(null)
-
-    const updateFit = React.useCallback(() => {
-        const video = videoRef.current
-        if (!video?.videoWidth || !video.videoHeight) return
-        const videoRatio = video.videoWidth / video.videoHeight
-        const screenRatio = window.innerWidth / window.innerHeight
-        // Covering would crop away more than ~40% of the frame
-        setFit(Math.max(videoRatio / screenRatio, screenRatio / videoRatio) > 1.7 ? 'contain' : 'cover')
-    }, [])
-
-    useEffect(() => {
-        window.addEventListener('resize', updateFit)
-        return () => window.removeEventListener('resize', updateFit)
-    }, [updateFit])
 
     useEffect(() => {
         if (forcePause || !videoUrl) {
@@ -108,21 +92,13 @@ export function EventBackground({ videoUrl: landscapeUrl, portraitVideoUrl, post
                 />
             )}
 
-            {/* Blurred backdrop behind a letterboxed video */}
-            {fit === 'contain' && !forcePause && showVideo && (
-                posterUrl
-                    ? <Image src={posterUrl} alt="" fill sizes="100vw" aria-hidden="true" className="scale-110 object-cover opacity-70 blur-2xl" />
-                    : <div className="absolute inset-0 bg-black" aria-hidden="true" />
-            )}
-
             {/* Video (Only render when active) */}
             {!forcePause && showVideo && (
                 <video
                     key={videoUrl}
                     ref={videoRef}
                     src={videoUrl}
-                    onLoadedMetadata={updateFit}
-                    className={`absolute inset-0 w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} opacity-100 transition-opacity duration-1000 animate-fade-in`}
+                    className="absolute inset-0 h-full w-full object-cover opacity-100 transition-opacity duration-1000 animate-fade-in"
                     loop
                     muted={isMuted}
                     playsInline
