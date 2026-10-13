@@ -160,6 +160,7 @@ export default async function EventPage({ params }: PageProps) {
             {/* Full Screen Background */}
             <EventBackground
                 videoUrl={event.video_url}
+                portraitVideoUrl={event.video_url_portrait}
                 posterUrl={event.poster_url}
                 layoutId={`event-bg-${event.id}`}
             />

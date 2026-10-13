@@ -1,18 +1,33 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { Volume2, VolumeX } from 'lucide-react'
 
+// Phones get the portrait cut, larger screens the landscape one
+const PHONE_QUERY = '(max-width: 767px)'
+const subscribePhone = (onChange: () => void) => {
+    const query = window.matchMedia(PHONE_QUERY)
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+}
+const usePhone = () => useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false)
+
 interface EventBackgroundProps {
+    /** Landscape video, for desktop */
     videoUrl: string | null
+    /** Portrait video, for phones */
+    portraitVideoUrl?: string | null
     posterUrl: string | null
     forcePause?: boolean
     /** Kept for callers; shared-layout transitions are no longer used here */
     layoutId?: string
 }
 
-export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgroundProps) {
+export function EventBackground({ videoUrl: landscapeUrl, portraitVideoUrl, posterUrl, forcePause }: EventBackgroundProps) {
+    const isPhone = usePhone()
+    // Each screen falls back to the other cut when only one was uploaded
+    const videoUrl = (isPhone ? portraitVideoUrl || landscapeUrl : landscapeUrl || portraitVideoUrl) || null
     const [isMuted, setIsMuted] = useState(true)
     const [showVideo, setShowVideo] = useState(false)
     // 'contain' when the video's shape fights the screen (portrait on a laptop, landscape on a phone),
@@ -103,6 +118,7 @@ export function EventBackground({ videoUrl, posterUrl, forcePause }: EventBackgr
             {/* Video (Only render when active) */}
             {!forcePause && showVideo && (
                 <video
+                    key={videoUrl}
                     ref={videoRef}
                     src={videoUrl}
                     onLoadedMetadata={updateFit}

@@ -40,6 +40,7 @@ type Draft = {
     description: string
     poster_url: string
     video_url: string
+    video_url_portrait: string
     logo_url: string
     primary_color: string
     currency: string
@@ -52,7 +53,7 @@ const newTicket = (name = '', price = '', quantity = '100'): TicketDraft => ({ k
 
 const emptyDraft = (): Draft => ({
     title: '', slug: '', slugEdited: false, starts_at: null, ends_at: null, venue_name: '', venue_address: '',
-    description: '', poster_url: '', video_url: '', logo_url: '', primary_color: ACCENTS[0], currency: 'GHS',
+    description: '', poster_url: '', video_url: '', video_url_portrait: '', logo_url: '', primary_color: ACCENTS[0], currency: 'GHS',
     tickets: [newTicket('General admission')],
 })
 
@@ -203,6 +204,7 @@ export default function CreateEventPage() {
                 venue_address: draft.venue_address.trim() || null,
                 poster_url: draft.poster_url || null,
                 video_url: draft.video_url || null,
+                video_url_portrait: draft.video_url_portrait || null,
                 logo_url: draft.logo_url || null,
                 primary_color: draft.primary_color,
                 currency: draft.currency,
@@ -396,9 +398,19 @@ export default function CreateEventPage() {
                                     </button>
                                     {showMore && (
                                         <div className="mt-6 grid gap-7 sm:grid-cols-[1fr_160px]">
-                                            <Field label="Teaser video" optional hint="15–30 seconds plays behind your event page. Up to 50 MB.">
-                                                <MediaUploader type="video" path={`${org.id}/uploads`} value={draft.video_url} onChange={url => update('video_url', url)} />
-                                            </Field>
+                                            <div className="space-y-4">
+                                                <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">A 15–30 second teaser plays behind your event page. Add a landscape cut for desktop and a portrait cut for phones.</p>
+                                                <div className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">
+                                                    <Field label="Landscape · desktop">
+                                                        <MediaUploader type="video" aspectRatio="video" expectOrientation="landscape" label="Add landscape video" path={`${org.id}/uploads`} value={draft.video_url} onChange={url => update('video_url', url)} />
+                                                    </Field>
+                                                    <Field label="Portrait · phone">
+                                                        <div className="w-32 sm:w-full">
+                                                            <MediaUploader type="video" aspectRatio="portrait" expectOrientation="portrait" label="Add portrait video" path={`${org.id}/uploads`} value={draft.video_url_portrait} onChange={url => update('video_url_portrait', url)} />
+                                                        </div>
+                                                    </Field>
+                                                </div>
+                                            </div>
                                             <Field label="Event logo" optional hint="Shown on tickets.">
                                                 <MediaUploader type="image" aspectRatio="square" path={`${org.id}/uploads`} value={draft.logo_url} onChange={url => update('logo_url', url)} />
                                             </Field>
@@ -479,7 +491,7 @@ export default function CreateEventPage() {
                                         </div>
                                     </div>
                                     <ReviewRow label="Look" onEdit={() => setStep(1)}>
-                                        <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full" style={{ backgroundColor: draft.primary_color }} />{[draft.poster_url ? 'Poster' : 'No poster yet', draft.video_url && 'video', draft.logo_url && 'logo'].filter(Boolean).join(', ')}</span>
+                                        <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full" style={{ backgroundColor: draft.primary_color }} />{[draft.poster_url ? 'Poster' : 'No poster yet', (draft.video_url || draft.video_url_portrait) && (draft.video_url && draft.video_url_portrait ? 'both videos' : 'video'), draft.logo_url && 'logo'].filter(Boolean).join(', ')}</span>
                                     </ReviewRow>
                                     <ReviewRow label="Tickets" onEdit={() => setStep(2)}>
                                         {draft.tickets.map(t => `${t.name} · ${Number(t.price) > 0 ? formatCurrency(Number(t.price), draft.currency) : 'Free'} × ${t.quantity}`).join('  /  ')}
@@ -510,7 +522,7 @@ export default function CreateEventPage() {
                 formData={{
                     title: draft.title, description: draft.description, slug: draft.slug,
                     venue_name: draft.venue_name, venue_address: draft.venue_address,
-                    starts_at: startsAt, ends_at: endsAt, poster_url: draft.poster_url, video_url: draft.video_url,
+                    starts_at: startsAt, ends_at: endsAt, poster_url: draft.poster_url, video_url: draft.video_url, video_url_portrait: draft.video_url_portrait,
                     logo_url: draft.logo_url, primary_color: draft.primary_color, latitude: null, longitude: null,
                     organization_id: org.id, fee_bearer: 'customer', platform_fee_percent: 0, lineup: [],
                 } as unknown as React.ComponentProps<typeof PreviewModal>['formData']}
