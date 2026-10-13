@@ -210,12 +210,6 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
         return pathname.startsWith(path)
     }
 
-    const isAdmin =
-        !!user?.email &&
-        ['maxcofie@gmail.com', 'samuel@thedsgnjunkies.com'].includes(
-            user.email.toLowerCase()
-        )
-
     const navItems = useMemo(() => [
         { name: 'Overview', path: '/dashboard', icon: LayoutDashboard },
         { name: 'Events', path: '/dashboard/events', icon: Calendar },
@@ -317,7 +311,7 @@ export function AdminSidebar({ activeOrgId }: { activeOrgId?: string }) {
                     <Link href="/dashboard/settings" onClick={close} aria-current={isActive('/dashboard/settings') ? 'page' : undefined} className={linkClass(isActive('/dashboard/settings'))}>
                         <Settings className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" /> Settings
                     </Link>
-                    {(isSuperAdmin || isAdmin) && (
+                    {isSuperAdmin && (
                         <Link href="/admin" onClick={close} className={linkClass(false)}>
                             <ShieldAlert className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" /> Platform admin
                         </Link>
