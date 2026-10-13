@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { toast } from 'sonner'
-import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft, ArrowRight, Lock } from 'lucide-react'
+import { Globe, Calendar, CalendarClock, ChevronDown, ChevronUp, Check, ChevronRight, Share2, Clock, MapPin, Heart, BadgeCheck, Loader2, Download, ArrowLeft, ArrowRight, Lock, Plus, Minus, Gift } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { calculateFees, FeeRates, getEffectiveFeeRates } from '@/utils/fees'
 import { ReservationTimer, useReservationCountdown, type ReservationCountdown } from '@/components/checkout/ReservationTimer'
@@ -1717,121 +1717,78 @@ const AddonsView = ({ availableAddons, selectedAddons, onAddonChange, onContinue
                         const isSoldOut = remaining <= 0
                         const isMaxed = qty >= remaining
 
+                        const isToggle = addon.selection_type === 'toggle'
+                        const lowStock = Number.isFinite(remaining) && remaining > 0 && remaining <= 10
+                        const toggle = () => onAddonChange(addon.id, isSelected ? -qty : 1)
+
                         return (
                             <div
                                 key={addon.id}
+                                onClick={isToggle && !isSoldOut ? toggle : undefined}
                                 className={cn(
-                                    "group relative overflow-hidden rounded-[18px] border transition-all duration-200",
-                                    isSoldOut ? "bg-gray-50 dark:bg-zinc-800/40 border-gray-100 dark:border-white/5 opacity-60" :
-                                        isSelected
-                                            ? "bg-gray-50 dark:bg-zinc-800/70 border-black dark:border-white"
-                                            : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-500"
+                                    "relative flex items-center gap-3 rounded-2xl border p-3 transition-colors",
+                                    isToggle && !isSoldOut && "cursor-pointer",
+                                    isSoldOut
+                                        ? "border-gray-100 opacity-50 dark:border-white/5"
+                                        : isSelected
+                                            ? "border-black bg-white shadow-[0_0_0_1px_rgba(0,0,0,1)] dark:border-white dark:bg-zinc-900 dark:shadow-[0_0_0_1px_rgba(255,255,255,1)]"
+                                            : "border-gray-200 bg-white hover:border-gray-400 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
                                 )}
                             >
-                                <div className="flex p-3 gap-3">
-                                    {/* Elevated Image Container */}
-                                    <div className="w-[68px] h-[68px] rounded-xl overflow-hidden flex-shrink-0 relative bg-gray-100 dark:bg-zinc-800 border border-black/5 dark:border-white/5">
-                                        {addon.image_url ? (
-                                            <Image src={addon.image_url} alt={addon.name} fill sizes="68px" className="object-cover transition-transform duration-700 group-hover:scale-110" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-zinc-800">
-                                                <BadgeCheck className="w-8 h-8 text-gray-400 dark:text-zinc-500" />
-                                            </div>
-                                        )}
-                                        {isSoldOut && (
-                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-[2px]">
-                                                <span className="text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 border border-white/20 rounded-full">Sold Out</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Content Area */}
-                                    <div className="flex-1 flex flex-col justify-between py-0.5">
-                                        <div>
-                                            <div className="flex justify-between items-start mb-0.5">
-                                                <h4 className={cn(
-                                                    "text-[15px] font-extrabold leading-tight line-clamp-1 tracking-tight",
-                                                    "text-black dark:text-white"
-                                                )}>{addon.name}</h4>
-                                                <span className={cn(
-                                                    "font-bold text-[14px] tabular-nums",
-                                                    "text-gray-600 dark:text-gray-300"
-                                                )}>
-                                                    {formatCurrency(addon.price, addon.currency)}
-                                                </span>
-                                            </div>
-                                            {addon.description && (
-                                                <p className={cn(
-                                                    "text-[12px] line-clamp-2 leading-snug font-medium",
-                                                    "text-gray-500 dark:text-gray-400"
-                                                )}>{addon.description}</p>
-                                            )}
+                                <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-gray-100 dark:bg-zinc-800">
+                                    {addon.image_url ? (
+                                        <Image src={addon.image_url} alt="" fill sizes="56px" className="object-cover" />
+                                    ) : (
+                                        <div className="flex size-full items-center justify-center text-gray-400 dark:text-zinc-500">
+                                            <Gift className="size-5" aria-hidden="true" />
                                         </div>
-
-                                        {/* Interaction Bar */}
-                                        <div className="flex items-center justify-between mt-3">
-                                            <div className={cn(
-                                                "text-[9px] font-black uppercase tracking-[0.15em]",
-                                                "text-gray-400 dark:text-gray-500"
-                                            )}>
-                                                {isSoldOut ? "Unavailable" : isSelected ? "In Cart" : "Optional"}
-                                            </div>
-
-                                            {!isSoldOut && (
-                                                <div className="flex items-center gap-1.5 transition-all">
-                                                    {addon.selection_type === 'toggle' ? (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, isSelected ? -qty : 1); }}
-                                                            className={cn(
-                                                                "h-8 px-4 rounded-full transition-all text-[12px] font-bold flex items-center justify-center gap-1.5",
-                                                                isSelected
-                                                                    ? "bg-black text-white dark:bg-white dark:text-black hover:opacity-85"
-                                                                    : "bg-black dark:bg-white text-white dark:text-black hover:opacity-90 shadow-sm"
-                                                            )}
-                                                        >
-                                                            {isSelected ? (
-                                                                <>
-                                                                    <Check className="w-3.5 h-3.5" />
-                                                                    Added
-                                                                </>
-                                                            ) : 'Add'}
-                                                        </button>
-                                                    ) : (
-                                                        <div className={cn(
-                                                            "flex items-center gap-1.5 p-1 rounded-full",
-                                                            "bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700"
-                                                        )}>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, -1); }}
-                                                                disabled={qty === 0}
-                                                                className={cn(
-                                                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                                    "hover:bg-gray-100 dark:hover:bg-zinc-700 text-black dark:text-white"
-                                                                )}
-                                                            >
-                                                                -
-                                                            </button>
-                                                            <span className={cn(
-                                                                "text-[14px] font-extrabold tabular-nums w-4 text-center",
-                                                                "text-black dark:text-white"
-                                                            )}>{qty}</span>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); onAddonChange(addon.id, 1); }}
-                                                                disabled={isMaxed}
-                                                                className={cn(
-                                                                    "w-8 h-8 flex items-center justify-center rounded-full transition-all text-xl font-medium",
-                                                                    "hover:bg-gray-100 dark:hover:bg-zinc-700 text-black dark:text-white"
-                                                                )}
-                                                            >
-                                                                +
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
+
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[15px] font-semibold leading-tight text-black dark:text-white">{addon.name}</p>
+                                    {addon.description && <p className="mt-0.5 line-clamp-1 text-[12px] text-gray-500 dark:text-gray-400">{addon.description}</p>}
+                                    <p className="mt-1 flex items-center gap-1.5 text-[13px]">
+                                        <span className="font-semibold tabular-nums text-black dark:text-white">{addon.price === 0 ? 'Free' : formatCurrency(addon.price, addon.currency)}</span>
+                                        {isSoldOut ? <span className="text-gray-500">· Sold out</span> : lowStock && <span className="text-gray-500 dark:text-gray-400">· {remaining} left</span>}
+                                    </p>
+                                </div>
+
+                                {!isSoldOut && (isToggle ? (
+                                    <button
+                                        type="button"
+                                        onClick={e => { e.stopPropagation(); toggle() }}
+                                        aria-pressed={isSelected}
+                                        aria-label={isSelected ? `Remove ${addon.name}` : `Add ${addon.name}`}
+                                        className={cn(
+                                            "flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-[12px] font-semibold transition-colors",
+                                            isSelected
+                                                ? "bg-black text-white dark:bg-white dark:text-black"
+                                                : "border border-gray-200 text-black hover:border-black dark:border-zinc-600 dark:text-white dark:hover:border-white"
+                                        )}
+                                    >
+                                        {isSelected ? <><Check className="size-3.5" strokeWidth={3} aria-hidden="true" />Added</> : <><Plus className="size-3.5" strokeWidth={2.5} aria-hidden="true" />Add</>}
+                                    </button>
+                                ) : qty === 0 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onAddonChange(addon.id, 1)}
+                                        aria-label={`Add ${addon.name}`}
+                                        className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3.5 text-[12px] font-semibold text-black transition-colors hover:border-black dark:border-zinc-600 dark:text-white dark:hover:border-white"
+                                    >
+                                        <Plus className="size-3.5" strokeWidth={2.5} aria-hidden="true" />Add
+                                    </button>
+                                ) : (
+                                    <div className="flex h-9 shrink-0 items-center rounded-full bg-black text-white dark:bg-white dark:text-black">
+                                        <button type="button" onClick={() => onAddonChange(addon.id, -1)} aria-label={`One fewer ${addon.name}`} className="flex size-9 items-center justify-center rounded-full transition-opacity hover:opacity-70">
+                                            <Minus className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
+                                        </button>
+                                        <span className="w-4 text-center text-[13px] font-semibold tabular-nums" aria-live="polite">{qty}</span>
+                                        <button type="button" onClick={() => onAddonChange(addon.id, 1)} disabled={isMaxed} aria-label={`One more ${addon.name}`} className="flex size-9 items-center justify-center rounded-full transition-opacity hover:opacity-70 disabled:opacity-30">
+                                            <Plus className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         )
                     })}
