@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import DOMPurify from 'isomorphic-dompurify'
+import { sanitizeDescription } from '@/lib/sanitize'
 import { X } from 'lucide-react'
 import { EventDetailClient } from '@/components/EventDetailClient'
 import { Event, TicketTier } from '@/types/gatepass'
@@ -22,7 +22,7 @@ export function PreviewModal({ isOpen, onClose, formData, tiers }: PreviewModalP
         created_at: new Date().toISOString(),
         title: formData.title || 'Untitled Event',
         // The widget no longer sanitizes (public pages do it on the server), so the preview does it here
-        description: DOMPurify.sanitize(formData.description || ''),
+        description: sanitizeDescription(formData.description),
         slug: formData.slug || 'preview',
         venue_name: formData.venue_name || 'Venue Name',
         venue_address: formData.venue_address || 'Address',
