@@ -1,7 +1,8 @@
-import { createClient } from '@/utils/supabase/server'
-import { EmbedWidget } from '@/components/EmbedWidget'
-import { Event, TicketTier } from '@/types/gatepass'
 import { Metadata } from 'next'
+import { createClient } from '@/utils/supabase/server'
+import { EventDetailClient } from '@/components/EventDetailClient'
+import { EmbedTheme } from '@/components/embed/EmbedTheme'
+import { Event, TicketTier } from '@/types/gatepass'
 import { getFeeSettings } from '@/utils/settings'
 
 export const revalidate = 0
@@ -11,100 +12,66 @@ interface PageProps {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
     const supabase = await createClient()
     const { slug } = await params
-
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
-
-    let query = supabase
+    const { data: event } = await supabase
         .schema('gatepass')
         .from('events')
-        .select('title, description, poster_url, is_published')
+        .select('title, description')
+        .eq(isUuid(slug) ? 'id' : 'slug', slug)
+        .maybeSingle()
 
-    if (isUuid) {
-        query = query.eq('id', slug)
-    } else {
-        query = query.eq('slug', slug)
-    }
-
-    const { data: event } = await query.single()
-
-    if (!event) {
-        return {
-            title: 'Event Not Found | GatePass',
-        }
-    }
-
-    return {
-        title: `${event.title} - Buy Tickets | GatePass`,
-        description: event.description || `Get tickets for ${event.title} on GatePass.`,
-    }
+    return event
+        ? { title: `${event.title} · Tickets`, description: `Get tickets for ${event.title} on GatePass.` }
+        : { title: 'Event not found · GatePass' }
 }
 
+/** The same checkout as the event page, sized to fill an iframe on an organizer's site. */
 export default async function EmbedPage({ params, searchParams }: PageProps) {
     const supabase = await createClient()
     const { slug } = await params
-    const resolvedSearchParams = await searchParams
+    const { theme } = await searchParams
+    const embedTheme = theme === 'dark' ? 'dark' : 'light'
 
-    // Check if slug is UUID
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
-
-    let query = supabase
+    const { data: event } = await supabase
         .schema('gatepass')
         .from('events')
         .select('*, organizers(*)')
-
-    if (isUuid) {
-        query = query.eq('id', slug)
-    } else {
-        query = query.eq('slug', slug)
-    }
-
-    const { data: event } = await query.single()
+        .eq(isUuid(slug) ? 'id' : 'slug', slug)
+        .maybeSingle()
 
     if (!event || !event.is_published) {
         return (
-            <div className="w-full min-h-[400px] flex items-center justify-center bg-white rounded-xl shadow-sm">
-                <p className="text-gray-500 text-sm">Event not available.</p>
-            </div>
+            <>
+                <EmbedTheme theme={embedTheme} />
+                <div className="flex min-h-[100dvh] items-center justify-center bg-white p-6 text-center dark:bg-zinc-900">
+                    <p className="text-sm text-gray-500 dark:text-zinc-400">Tickets for this event aren’t available.</p>
+                </div>
+            </>
         )
     }
 
-    // Fetch tiers (only visible ones)
-    const { data: tiers } = await supabase
-        .schema('gatepass')
-        .from('ticket_tiers')
-        .select('*, payment_plans(*)')
-        .eq('event_id', event.id)
-        .neq('is_visible', false)
-        .order('sort_order', { ascending: true })
-
-    // Fetch addons
-    const { data: addons } = await supabase
-        .schema('gatepass')
-        .from('event_addons')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: true })
-
-    // Fetch fee settings
-    const feeSettings = await getFeeSettings()
-
-    // Get cheapest tier for "From" price
-    const cheapestTier = tiers && tiers.length > 0
-        ? tiers.reduce((min, t) => t.price < min.price ? t : min, tiers[0])
-        : null
+    const [{ data: tiers }, { data: addons }, feeSettings] = await Promise.all([
+        supabase.schema('gatepass').from('ticket_tiers').select('*, payment_plans(*)').eq('event_id', event.id).neq('is_visible', false).order('sort_order', { ascending: true }),
+        supabase.schema('gatepass').from('event_addons').select('*').eq('event_id', event.id).eq('is_active', true).order('created_at', { ascending: true }),
+        getFeeSettings(),
+    ])
 
     return (
-        <EmbedWidget
-            event={event as Event}
-            cheapestTier={cheapestTier as TicketTier | null}
-            tiers={(tiers as TicketTier[]) || []}
-            feeRates={feeSettings}
-            availableAddons={addons || []}
-            initialSearchParams={resolvedSearchParams}
-        />
+        <>
+            <EmbedTheme theme={embedTheme} />
+            <div className="min-h-[100dvh] bg-white dark:bg-zinc-900">
+            <EventDetailClient
+                variant="embed"
+                event={event as Event}
+                tiers={(tiers as TicketTier[]) || []}
+                feeRates={feeSettings}
+                availableAddons={addons || []}
+            />
+            </div>
+        </>
     )
 }

@@ -36,14 +36,19 @@ interface EventDetailClientProps {
     layoutId?: string
     feeRates?: FeeRates
     availableAddons?: any[] // Using any[] for now or safe EventAddon[]
+    /** 'embed' fills an iframe on an organizer's site instead of floating over the event page */
+    variant?: 'page' | 'embed'
 }
 
 // Simple Timer Hook
-export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [] }: EventDetailClientProps) {
+export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, feeRates, availableAddons = [], variant = 'page' }: EventDetailClientProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const supabase = createClient()
-    const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>('details')
+    const isEmbed = variant === 'embed'
+    // Embeds can open straight on ticket selection: ?view=tickets or ?hideDetails=true
+    const [view, setView] = useState<'details' | 'tickets' | 'addons' | 'checkout' | 'summary' | 'success'>(() =>
+        isEmbed && (searchParams.get('view') === 'tickets' || searchParams.get('hideDetails') === 'true') ? 'tickets' : 'details')
     const [paymentMode, setPaymentMode] = useState<'full' | 'instalment'>('full')
     const [activePaymentPlan, setActivePaymentPlan] = useState<PaymentPlan | null>(null)
 
@@ -212,8 +217,23 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         })
     }, [selectedTickets, availableAddons])
 
-    // Mobile Expansion State
-    const [isExpanded, setIsExpanded] = useState(false)
+    // Mobile Expansion State (an embed is always open)
+    const [isExpanded, setIsExpanded] = useState(isEmbed)
+    const collapse = () => { if (!isEmbed) setIsExpanded(false) }
+
+    /** Hosted checkouts refuse to load inside iframes, so embeds hand the buyer to the top window. */
+    const goToPayment = (url: string) => {
+        if (isEmbed) {
+            try {
+                window.top!.location.href = url
+                return
+            } catch {
+                // Top navigation blocked by the host page's sandbox: open a new tab instead
+                if (window.open(url, '_blank', 'noopener')) return
+            }
+        }
+        window.location.href = url
+    }
 
     // Navigation Helper
     const navigate = (newView: typeof view, dir: 'forward' | 'back' = 'forward') => {
@@ -497,7 +517,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     {
                         utm_source: searchParams.get('utm_source'),
                         utm_medium: searchParams.get('utm_medium'),
-                        utm_campaign: searchParams.get('utm_campaign')
+                        utm_campaign: searchParams.get('utm_campaign'),
+                        ...(searchParams.get('ref') ? { referral_source: searchParams.get('ref') } : {}),
+                        ...(isEmbed ? { channel: 'embed' } : {})
                     }
                 )
             }))
@@ -552,7 +574,10 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                     amount: Math.round(totalDue * 100),
                     currency: selectedTier?.currency || 'GHS',
                     reservationIds: reservations.map(r => r.id), // Pass Array
-                    callbackUrl: `${window.location.protocol}//${window.location.host}${window.location.pathname}?event_id=${event.id}`
+                    // Embeds return to the full event page, which verifies the payment and shows the tickets
+                    callbackUrl: isEmbed
+                        ? `${window.location.origin}/events/${event.slug || event.id}?event_id=${event.id}`
+                        : `${window.location.protocol}//${window.location.host}${window.location.pathname}?event_id=${event.id}`
                 })
             })
 
@@ -561,7 +586,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
 
             // Redirect to payment gateway
-            window.location.href = data.authorization_url
+            goToPayment(data.authorization_url)
 
         } catch (error: any) {
             console.error('Payment Error:', error)
@@ -608,7 +633,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
             const data = await response.json()
             if (!response.ok) throw new Error(data.error || 'Payment initialization failed')
 
-            window.location.href = data.authorization_url
+            goToPayment(data.authorization_url)
         } catch (error: any) {
             console.error('Instalment Payment Error:', error)
             toast.error(error.message)
@@ -698,16 +723,16 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
         <>
 
             {/* Focus Mode Backdrop: Dims background when card is expanded or deeper views are active */}
-            {(isModalExpanded || isExpanded) && (
+            {!isEmbed && (isModalExpanded || isExpanded) && (
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
                     onClick={() => {
                         if (view === 'success') {
                             navigate('details', 'back')
-                            setIsExpanded(false)
+                            collapse()
                         }
                         else if (view !== 'details') navigate('details', 'back')
-                        else setIsExpanded(false) // Dismiss focus mode on mobile
+                        else collapse() // Dismiss focus mode on mobile
                     }}
                 />
             )}
@@ -717,7 +742,9 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                 layoutId={layoutId}
                 onClick={expandCard}
                 style={{ WebkitTapHighlightColor: 'transparent' }} // Remove Android/iOS blue tap highlight
-                className={`
+                className={isEmbed
+                    ? `relative mx-auto flex min-h-[100dvh] w-full max-w-[520px] flex-col bg-white p-4 font-sans text-black select-none dark:bg-zinc-900 dark:text-white ${view === 'summary' ? 'max-h-[100dvh] overflow-hidden' : ''}`
+                    : `
                 ${(isFeedItem && view !== 'success') ? 'absolute cursor-pointer active:scale-[0.98] hover:scale-[1.02] hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/10' : 'fixed'} ${view === 'success' ? 'z-[100]' : 'z-50'} bg-white dark:bg-zinc-900 text-black dark:text-white shadow-2xl ${(view === 'details' || view === 'success') ? 'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]' : ''} font-sans select-none
                 bottom-4 left-4 right-4 
                 mb-[env(safe-area-inset-bottom)]
@@ -838,7 +865,7 @@ export function EventDetailClient({ event, tiers, isFeedItem = false, layoutId, 
                             tierName={tiers.find(t => t.id === purchasedTickets[0].tier_id)?.name}
                             onClose={() => {
                                 navigate('details', 'back')
-                                setIsExpanded(false)
+                                collapse()
                             }}
                         />
                     </motion.div>

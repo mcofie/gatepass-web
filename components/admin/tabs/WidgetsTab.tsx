@@ -3,6 +3,7 @@ import { Event } from '@/types/gatepass'
 import { Copy, Check, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Switch } from '@/components/dashboard/ui'
 
 interface WidgetsTabProps {
     event: Event
@@ -10,6 +11,7 @@ interface WidgetsTabProps {
 
 export function WidgetsTab({ event }: WidgetsTabProps) {
     const [theme, setTheme] = useState<'light' | 'dark'>('light')
+    const [startOnTickets, setStartOnTickets] = useState(false)
     const [copied, setCopied] = useState(false)
 
     // Construct the embed URL
@@ -18,16 +20,18 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
         : process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so'
 
     const embedUrl = `${baseUrl}/embed/${event.slug || event.id}`
-    const previewUrl = `${embedUrl}?theme=${theme}`
-
-    // Construct the iframe code
-    // Only add ?theme=dark if theme is dark to keep URL clean for default
-    const codeSrc = theme === 'dark' ? `${embedUrl}?theme=dark` : embedUrl
+    // Only non-default options go in the URL to keep the snippet clean
+    const query = new URLSearchParams({
+        ...(theme === 'dark' ? { theme: 'dark' } : {}),
+        ...(startOnTickets ? { view: 'tickets' } : {}),
+    }).toString()
+    const codeSrc = query ? `${embedUrl}?${query}` : embedUrl
+    const previewUrl = codeSrc
 
     const iframeCode = `<iframe
   src="${codeSrc}"
   width="100%"
-  height="600"
+  height="680"
   frameborder="0"
   style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;"
 ></iframe>`
@@ -91,6 +95,11 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                             </div>
                         </div>
 
+                        <div className="flex items-center justify-between gap-4">
+                            <label htmlFor="embed-start-tickets" className="text-sm text-gray-600 dark:text-gray-400">Open on ticket selection</label>
+                            <Switch id="embed-start-tickets" label="Open on ticket selection" checked={startOnTickets} onChange={setStartOnTickets} />
+                        </div>
+
                         <div className="h-px w-full bg-gray-100 dark:bg-white/10" />
 
                         <div className="flex items-center justify-between">
@@ -133,7 +142,7 @@ export function WidgetsTab({ event }: WidgetsTabProps) {
                             <iframe
                                 src={previewUrl}
                                 width="100%"
-                                height="600"
+                                height="680"
                                 frameBorder="0"
                                 className="rounded-xl bg-white"
                                 style={{ pointerEvents: 'none' }}
