@@ -4,7 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowUpRight, Check, Copy, Loader2, X } from 'lucide-react'
-import { providersFor, type IntegrationCategory, type ProviderDefinition } from '@/lib/integrations/providers'
+import { PROVIDER_GROUPS, providersFor, type IntegrationCategory, type ProviderDefinition } from '@/lib/integrations/providers'
 import {
     deleteIntegration,
     saveIntegration,
@@ -289,7 +289,7 @@ export function IntegrationsPanel({
                         )
 }
                 // Long lists (SMS) are grouped by where each provider is strongest
-                const groups = ['Global', 'Across Africa', 'Ghana'] as const
+                const groups = PROVIDER_GROUPS
                 const grouped = providers.some(p => p.group)
                 return grouped ? (
                     <div className="space-y-8">

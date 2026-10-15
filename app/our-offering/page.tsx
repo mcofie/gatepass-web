@@ -7,6 +7,7 @@ import { GatePassMark } from '@/components/branding/GatePassMark'
 import { OfferingReveal } from './OfferingReveal'
 import { getActivePricingTiers } from '@/lib/public-data'
 import { formatCurrency } from '@/utils/format'
+import { PROVIDERS } from '@/lib/integrations/providers'
 import styles from './offering.module.css'
 
 export const metadata: Metadata = {
@@ -14,14 +15,8 @@ export const metadata: Metadata = {
     description: 'Sell tickets through your own payment account. 0% per ticket, one flat fee per event. Event pages, embeds, SDKs and AI assistants, all from one place.',
 }
 
-const PAYMENT_BRANDS = [
-    { id: 'stripe', name: 'Stripe' },
-    { id: 'paystack', name: 'Paystack' },
-    { id: 'flutterwave', name: 'Flutterwave' },
-    { id: 'hubtel', name: 'Hubtel' },
-    { id: 'mpesa', name: 'M-Pesa' },
-    { id: 'wave', name: 'Wave' },
-]
+// Every payment provider organizers can connect, straight from the catalog
+const PAYMENT_BRANDS = PROVIDERS.filter(p => p.category === 'payments').map(p => ({ id: p.id, name: p.name.replace(/ \(.*\)$/, '') }))
 
 const MESSAGING_BRANDS = [
     { id: 'twilio', name: 'Twilio' },
@@ -151,7 +146,7 @@ export default async function OurOfferingPage() {
                 <div className="mx-auto mt-20 grid max-w-[1280px] grid-cols-2 gap-y-8 border-t border-white/15 pt-8 sm:grid-cols-4">
                     {[
                         ['0%', 'GatePass fee per ticket'],
-                        ['6', 'Payment providers'],
+                        [String(PAYMENT_BRANDS.length), 'Payment providers'],
                         ['1', 'Flat fee per event'],
                         ['3', 'Ways to sell: page, embed, AI'],
                     ].map(([value, label]) => (
