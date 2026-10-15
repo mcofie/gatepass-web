@@ -1,52 +1,54 @@
 import { createAdminClient } from '@/utils/supabase/admin'
-import { UserDirectoryTable } from '@/components/admin/UserDirectoryTable'
+import { listAuthUsers } from '@/lib/admin/auth-users'
+import { AdminHeader, AdminStats } from '@/components/admin/AdminUI'
+import { UserDirectoryTable, type DirectoryUser } from '@/components/admin/UserDirectoryTable'
 
-export const revalidate = 0
+/* eslint-disable @typescript-eslint/no-explicit-any -- joined rows */
 
-export default async function UsersPage() {
-    const supabase = createAdminClient()
+export const dynamic = 'force-dynamic'
 
-    const { data: profiles } = await supabase
-        .schema('gatepass')
-        .from('profiles')
-        .select('*')
-        .order('email', { ascending: true })
+export default async function UsersPage({ searchParams }: { searchParams: Promise<{ organizer?: string }> }) {
+    const { organizer } = await searchParams
+    const db = createAdminClient().schema('gatepass')
+    const [{ data: profiles }, { data: organizers }, { data: team }, authUsers] = await Promise.all([
+        db.from('profiles').select('id, full_name, email, avatar_url, is_super_admin').order('email', { ascending: true }),
+        db.from('organizers').select('id, name, user_id'),
+        db.from('organization_team').select('user_id, role, organizers:organization_id (id, name)'),
+        listAuthUsers(),
+    ])
 
-    const { data: organizers } = await supabase
-        .schema('gatepass')
-        .from('organizers')
-        .select('*')
+    const now = new Date().getTime()
+    const users: DirectoryUser[] = (profiles ?? []).map((p: any) => {
+        const auth = authUsers.get(p.id)
+        return {
+            id: p.id,
+            name: p.full_name,
+            email: p.email ?? auth?.email ?? null,
+            avatarUrl: p.avatar_url,
+            admin: !!p.is_super_admin,
+            suspended: !!(auth as any)?.banned_until && new Date((auth as any).banned_until).getTime() > now,
+            joinedAt: auth?.created_at ?? null,
+            lastSeenAt: auth?.last_sign_in_at ?? null,
+            orgs: [
+                ...(organizers ?? []).filter((o: any) => o.user_id === p.id).map((o: any) => ({ id: o.id, name: o.name, role: 'Owner' })),
+                ...(team ?? []).filter((t: any) => t.user_id === p.id && t.organizers).map((t: any) => ({ id: t.organizers.id, name: t.organizers.name, role: t.role ? t.role.charAt(0).toUpperCase() + t.role.slice(1) : 'Team' })),
+            ],
+        }
+    })
 
-    const { data: teamMembers } = await supabase
-        .schema('gatepass')
-        .from('organization_team')
-        .select(`
-            id,
-            user_id,
-            role,
-            organization_id,
-            organizers:organization_id (id, name)
-        `)
-
-    const users = profiles?.map(profile => ({
-        ...profile,
-        organizers: (organizers || []).filter(org => org.user_id === profile.id),
-        team_memberships: (teamMembers || []).filter(tm => tm.user_id === profile.id)
-    })) || []
+    const monthAgo = now - 30 * 86400_000
+    const stats = [
+        { label: 'Users', value: users.length.toLocaleString(), detail: `${users.filter(u => u.joinedAt && new Date(u.joinedAt).getTime() > monthAgo).length.toLocaleString()} joined in the last 30 days` },
+        { label: 'Organization owners', value: users.filter(u => u.orgs.some(o => o.role === 'Owner')).length.toLocaleString(), detail: `${(organizers ?? []).length.toLocaleString()} organizations` },
+        { label: 'Team members', value: users.filter(u => u.orgs.some(o => o.role !== 'Owner')).length.toLocaleString(), detail: 'Invited to an organization' },
+        { label: 'Platform admins', value: users.filter(u => u.admin).length.toLocaleString(), detail: `${users.filter(u => u.suspended).length.toLocaleString()} suspended accounts` },
+    ]
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white mb-2">User Directory</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Manage customers, organizers, and team members.</p>
-                </div>
-                <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2 rounded-lg text-sm font-mono text-gray-500 dark:text-gray-400">
-                    {users?.length || 0} Total Users
-                </div>
-            </div>
-
-            <UserDirectoryTable users={users as any || []} />
+        <div className="space-y-8 pb-8">
+            <AdminHeader title="Users" description="Everyone with a GatePass account: ticket buyers, organizers and their teams." />
+            <AdminStats stats={stats} columns={4} />
+            <UserDirectoryTable users={users} initialOrganizer={organizer} />
         </div>
     )
 }

@@ -1,369 +1,190 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Profile, Organizer } from '@/types/gatepass'
-import { ArrowLeft, Mail, Calendar, Shield, Building2, CreditCard, Ban, Trash2, User, Loader2, RefreshCw, Ticket } from 'lucide-react'
-import { format } from 'date-fns'
-import { suspendUser, unsuspendUser, deleteUser, toggleSuperAdmin, deleteOrganization } from '@/app/actions/admin'
-import { resendTicketEmail } from '@/utils/actions/ticket'
 import { toast } from 'sonner'
+import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
+import { deleteOrganization, deleteUser, suspendUser, toggleSuperAdmin, unsuspendUser } from '@/app/actions/admin'
+import { resendTicketEmail } from '@/utils/actions/ticket'
+import { AdminCard, AdminEmpty, AdminPill, AdminStats, Initial, moreCurrencies, totalsByCurrency } from '@/components/admin/AdminUI'
+import { getProvider } from '@/lib/integrations/providers'
+import { formatCurrency } from '@/utils/format'
 
-interface UserDetailProps {
-    profile: Profile
-    organizers: Organizer[]
-    teamMemberships?: any[]
-    authUser?: { id: string, email?: string, banned_until?: string }
-    reservations?: any[]
+type Props = {
+    profile: { id: string; name: string | null; email: string | null; avatarUrl: string | null; username: string | null; phone: string | null; admin: boolean }
+    account: { joinedAt: string | null; lastSeenAt: string | null; suspended: boolean; provider: string | null }
+    organizations: { id: string; name: string; slug: string | null; role: string; events: number | null; payments: string[] | null }[]
+    orders: { id: string; createdAt: string; status: string; quantity: number; eventId: string | null; event: string; tier: string; amount: number | null; currency: string }[]
 }
 
-function OrganizerCard({ organizer }: { organizer: Organizer }) {
+const date = (iso: string | null, time = false) => iso
+    ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) })
+    : '—'
+
+const pill = 'inline-flex h-10 items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors disabled:opacity-50'
+
+export function UserDetailClient({ profile, account, organizations, orders }: Props) {
     const router = useRouter()
-    const [isDeleting, setIsDeleting] = useState(false)
+    const [busy, setBusy] = React.useState<string | null>(null)
 
-    const handleDelete = async () => {
-        const confirm = window.confirm(`Are you sure you want to PERMANENTLY delete the organization "${organizer.name}"? This action cannot be undone.`)
-        if (!confirm) return
-
-        setIsDeleting(true)
+    const act = async (key: string, fn: () => Promise<{ error?: string; success?: boolean } | undefined>, done: string, after?: () => void) => {
+        setBusy(key)
         try {
-            const res = await deleteOrganization(organizer.id)
-            if (res.error) throw new Error(res.error)
-            toast.success('Organization deleted')
-            router.refresh()
-        } catch (e: any) {
-            toast.error(e.message)
-            setIsDeleting(false)
+            const res = await fn()
+            if (res?.error) throw new Error(res.error)
+            toast.success(done)
+            if (after) after()
+            else router.refresh()
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Something went wrong')
+        } finally {
+            setBusy(null)
         }
     }
+
+    const toggleAdmin = () => {
+        const next = !profile.admin
+        if (!confirm(next ? `Make ${profile.email ?? 'this user'} a platform admin? They'll see every organizer, payment and user.` : `Remove platform admin access from ${profile.email ?? 'this user'}?`)) return
+        act('admin', () => toggleSuperAdmin(profile.id, next), next ? 'Now a platform admin' : 'Admin access removed')
+    }
+    const toggleSuspend = () => {
+        if (!account.suspended && !confirm(`Suspend ${profile.email ?? 'this user'}? They're signed out and can't sign in until you lift it.`)) return
+        act('suspend', () => (account.suspended ? unsuspendUser(profile.id) : suspendUser(profile.id)), account.suspended ? 'Suspension lifted' : 'User suspended')
+    }
+    const remove = () => {
+        if (prompt(`This permanently deletes ${profile.email ?? 'this user'}, the organizations they own and those organizations' events. Type DELETE to confirm.`) !== 'DELETE') return
+        act('delete', () => deleteUser(profile.id), 'User deleted', () => router.push('/admin/users'))
+    }
+    const removeOrg = (org: Props['organizations'][number]) => {
+        if (prompt(`This permanently deletes ${org.name} and its events. Type the organization's name to confirm.`) !== org.name) return
+        act(`org-${org.id}`, () => deleteOrganization(org.id), 'Organization deleted')
+    }
+
+    const paidOrders = orders.filter(o => o.amount !== null)
+    const spent = totalsByCurrency(paidOrders.map(o => ({ amount: o.amount ?? 0, currency: o.currency })))
+    const stats = [
+        { label: 'Orders', value: orders.length.toLocaleString(), detail: orders.length >= 50 ? 'Latest 50' : `${paidOrders.length.toLocaleString()} paid` },
+        { label: 'Tickets', value: orders.reduce((sum, o) => sum + o.quantity, 0).toLocaleString(), detail: 'Across these orders' },
+        { label: 'Spent', value: formatCurrency(spent[0]?.amount ?? 0, spent[0]?.currency ?? 'GHS'), detail: spent.length > 1 ? moreCurrencies(spent.length).slice(3) : 'Paid orders' },
+        { label: 'Last signed in', value: account.lastSeenAt ? new Date(account.lastSeenAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Never', detail: account.lastSeenAt ? date(account.lastSeenAt, true) : undefined },
+    ]
 
     return (
-        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Building2 className="w-24 h-24 text-blue-500" />
-            </div>
-            <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-blue-500" />
-                    Organization
-                </h3>
-                <button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors relative z-20"
-                    title="Delete Organization"
-                >
-                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                </button>
-            </div>
+        <div className="space-y-8 pb-8">
+            <Link href="/admin/users" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-950 dark:text-gray-400 dark:hover:text-white">
+                <ArrowLeft className="size-4" aria-hidden="true" /> Users
+            </Link>
 
-            <div className="space-y-4 relative z-10">
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Name</label>
-                    <p className="text-gray-900 dark:text-white font-medium">{organizer.name}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Bank</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{organizer.bank_name || '-'}</p>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1">Account</label>
-                        <p className="text-gray-900 dark:text-white font-medium font-mono text-sm">{organizer.account_number ? `****${organizer.account_number.slice(-4)}` : '-'}</p>
+            <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                    <Initial name={profile.name || profile.email} src={profile.avatarUrl} className="size-16 text-xl" />
+                    <div className="min-w-0">
+                        <h1 className="truncate text-[30px] font-semibold leading-tight tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[38px]">{profile.name || 'No name'}</h1>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm text-gray-500 dark:text-gray-400">{profile.email ?? 'No email'}</span>
+                            {profile.admin && <AdminPill tone="ink">Platform admin</AdminPill>}
+                            {account.suspended && <AdminPill tone="danger">Suspended</AdminPill>}
+                        </div>
                     </div>
                 </div>
-                <div>
-                    <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-100 dark:border-white/5">{organizer.slug}</p>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-export function UserDetailClient({ profile, organizers, teamMemberships = [], authUser, reservations = [] }: UserDetailProps) {
-    const router = useRouter()
-
-    // Action States
-    const [isSuspending, setIsSuspending] = useState(false)
-    const [isDeleting, setIsDeleting] = useState(false)
-    const [isPromoting, setIsPromoting] = useState(false)
-    const [resendingId, setResendingId] = useState<string | null>(null)
-
-    // Derived State
-    const isBanned = authUser?.banned_until && new Date(authUser.banned_until) > new Date()
-
-    const handleSuspendToggle = async () => {
-        setIsSuspending(true)
-        try {
-            const action = isBanned ? unsuspendUser : suspendUser
-            const res = await action(profile.id)
-            if (res.error) throw new Error(res.error)
-            toast.success(isBanned ? 'User unsuspended' : 'User suspended')
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setIsSuspending(false)
-        }
-    }
-
-    const handleDelete = async () => {
-        const confirm = window.confirm('Are you sure you want to PERMANENTLY delete this user? This cannot be undone.')
-        if (!confirm) return
-
-        setIsDeleting(true)
-        try {
-            const res = await deleteUser(profile.id)
-            if (res.error) throw new Error(res.error)
-            toast.success('User deleted')
-            router.push('/admin/users')
-        } catch (e: any) {
-            toast.error(e.message)
-            setIsDeleting(false)
-        }
-    }
-
-    const handleSuperAdminToggle = async () => {
-        setIsPromoting(true)
-        try {
-            const newValue = !profile.is_super_admin
-            const res = await toggleSuperAdmin(profile.id, newValue)
-            if (res.error) throw new Error(res.error)
-            toast.success(newValue ? 'Promoted to Super Admin' : 'Revoked Super Admin')
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setIsPromoting(false)
-        }
-    }
-
-    const handleResendTicket = async (reservationId: string) => {
-        setResendingId(reservationId)
-        try {
-            const res = await resendTicketEmail(reservationId)
-            if (!res.success) throw new Error(res.error)
-            toast.success('Ticket email resent successfully')
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setResendingId(null)
-        }
-    }
-
-    return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={() => router.back()}
-                    className="p-2 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                        {profile.full_name || 'Anonymous User'}
-                    </h1>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">
-                        <span>{profile.id}</span>
-                        {profile.is_super_admin && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-                                <Shield className="w-3 h-3" /> Admin
-                            </span>
-                        )}
-                        {organizers.length > 0 && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                                <Building2 className="w-3 h-3" /> {organizers.length > 1 ? `${organizers.length} Orgs` : 'Organizer'}
-                            </span>
-                        )}
-                        {teamMemberships.map((tm) => (
-                            <span key={tm.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                                <Shield className="w-3 h-3" /> Staff
-                            </span>
-                        ))}
-                        {isBanned && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
-                                <Ban className="w-3 h-3" /> Suspended
-                            </span>
-                        )}
-                    </div>
-                </div>
-                <div className="ml-auto flex gap-2">
-                    <button
-                        onClick={handleSuperAdminToggle}
-                        disabled={isPromoting}
-                        className={`flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold transition-colors ${profile.is_super_admin ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 bg-white dark:bg-[#111]'}`}
-                    >
-                        {isPromoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                        {profile.is_super_admin ? 'Revoke Admin' : 'Make Super Admin'}
+                <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={toggleAdmin} disabled={!!busy} className={`${pill} border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5`}>
+                        {busy === 'admin' && <Loader2 className="size-4 animate-spin" />}
+                        {profile.admin ? 'Remove admin' : 'Make admin'}
                     </button>
-
-                    <button
-                        onClick={handleSuspendToggle}
-                        disabled={isSuspending}
-                        className={`flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium transition-colors ${isBanned ? 'bg-orange-50 text-orange-600' : 'bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'}`}
-                    >
-                        {isSuspending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
-                        {isBanned ? 'Unsuspend' : 'Suspend'}
+                    <button type="button" onClick={toggleSuspend} disabled={!!busy} className={`${pill} border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5`}>
+                        {busy === 'suspend' && <Loader2 className="size-4 animate-spin" />}
+                        {account.suspended ? 'Lift suspension' : 'Suspend'}
                     </button>
-
-                    <button
-                        onClick={handleDelete}
-                        disabled={isDeleting}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-red-600/20 disabled:opacity-50"
-                    >
-                        {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        Delete User
+                    <button type="button" onClick={remove} disabled={!!busy} className={`${pill} border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10`}>
+                        {busy === 'delete' && <Loader2 className="size-4 animate-spin" />}
+                        Delete user
                     </button>
                 </div>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Profile Info */}
+            <AdminStats stats={stats} columns={4} />
+
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <AdminCard title="Orders" meta={orders.length ? orders.length.toLocaleString() : undefined}>
+                    {orders.length === 0 ? <AdminEmpty>No orders yet.</AdminEmpty> : (
+                        <ul className="divide-y divide-gray-100 dark:divide-white/10">
+                            {orders.map(o => (
+                                <li key={o.id} className="flex items-center gap-4 px-5 py-3.5 sm:px-6">
+                                    <span className="min-w-0 flex-1">
+                                        {o.eventId
+                                            ? <Link href={`/admin/events/${o.eventId}`} className="block truncate text-sm font-medium text-gray-950 hover:underline dark:text-white">{o.event}</Link>
+                                            : <span className="block truncate text-sm font-medium text-gray-950 dark:text-white">{o.event}</span>}
+                                        <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{o.quantity} × {o.tier} · {date(o.createdAt, true)}</span>
+                                    </span>
+                                    <span className="hidden shrink-0 sm:block">
+                                        {o.status === 'confirmed' ? <AdminPill tone="live">Confirmed</AdminPill> : <AdminPill>{o.status.charAt(0).toUpperCase() + o.status.slice(1)}</AdminPill>}
+                                    </span>
+                                    <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-gray-950 dark:text-white">{o.amount === null ? 'Free' : formatCurrency(o.amount, o.currency)}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => act(`resend-${o.id}`, async () => { const r = await resendTicketEmail(o.id); return r.success ? r : { error: r.error ?? 'Could not resend' } }, 'Ticket email sent')}
+                                        disabled={!!busy || o.status !== 'confirmed'}
+                                        aria-label={`Resend tickets for ${o.event}`}
+                                        title="Resend ticket email"
+                                        className="flex size-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-950 disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-white"
+                                    >
+                                        {busy === `resend-${o.id}` ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </AdminCard>
+
                 <div className="space-y-6">
-                    {/* User Card */}
-                    <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-                        <div className="flex flex-col items-center text-center">
-                            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-gray-200 to-gray-100 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center text-2xl font-bold text-gray-500 dark:text-gray-300 shadow-inner mb-4">
-                                {profile.avatar_url ? (
-                                    <img src={profile.avatar_url} className="w-full h-full object-cover rounded-full" alt="" />
-                                ) : (
-                                    (profile.full_name?.[0] || profile.email?.[0] || '?').toUpperCase()
-                                )}
-                            </div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{profile.full_name}</h2>
-                            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{profile.email}</p>
-                        </div>
+                    <AdminCard title="Account">
+                        <dl className="divide-y divide-gray-100 text-sm dark:divide-white/10">
+                            {[
+                                ['Email', profile.email ?? '—'],
+                                ['Phone', profile.phone ?? '—'],
+                                ['Username', profile.username ?? '—'],
+                                ['Signs in with', account.provider ? account.provider.charAt(0).toUpperCase() + account.provider.slice(1) : '—'],
+                                ['Joined', date(account.joinedAt)],
+                                ['User ID', profile.id],
+                            ].map(([label, value]) => (
+                                <div key={label} className="flex items-center justify-between gap-4 px-5 py-3 sm:px-6">
+                                    <dt className="shrink-0 text-gray-500 dark:text-gray-400">{label}</dt>
+                                    <dd className={`min-w-0 truncate text-right text-gray-950 dark:text-white ${label === 'User ID' ? 'font-mono text-xs' : ''}`} title={value}>{value}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    </AdminCard>
 
-                        <div className="mt-8 space-y-4">
-                            <InfoRow icon={Mail} label="Email" value={profile.email || '-'} />
-                            <InfoRow icon={Calendar} label="Joined" value={profile.updated_at ? format(new Date(profile.updated_at), 'MMM d, yyyy') : '-'} />
-                            <InfoRow icon={User} label="Username" value={profile.username || '-'} />
-                        </div>
-                    </div>
-
-                    {/* Owned Organizations */}
-                    {organizers.map((org) => (
-                        <OrganizerCard key={org.id} organizer={org} />
-                    ))}
-
-                    {/* Team Memberships Card */}
-                    {teamMemberships.length > 0 && (
-                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                <Shield className="w-5 h-5 text-purple-500" />
-                                Team Access
-                            </h3>
-                            <div className="space-y-4">
-                                {teamMemberships.map((tm) => (
-                                    <div key={tm.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">{tm.role}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-purple-600 dark:bg-purple-500 text-white flex items-center justify-center font-bold text-xs shadow-lg shadow-purple-600/20">
-                                                {tm.organizers?.name?.[0]?.toUpperCase() || 'O'}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 dark:text-white leading-tight">{tm.organizers?.name}</p>
-                                                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono mt-0.5 uppercase tracking-wide">Org ID: {tm.organization_id.split('-')[0]}...</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right Column: Activity / Stats */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <StatCard label="Total Orders" value={reservations.length.toString()} icon={CreditCard} />
-                        <StatCard label="Tickets Bought" value={reservations.reduce((acc: number, r: any) => acc + (r.quantity || 1), 0).toString()} icon={Calendar} />
-                        <StatCard label="Last Active" value="Just now" icon={User} />
-                    </div>
-
-                    {/* Empty State for Activity */}
-                    {/* Recent Config */}
-                    {reservations.length > 0 ? (
-                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                                <Ticket className="w-5 h-5 text-gray-500" />
-                                Recent Orders
-                            </h3>
-                            <div className="space-y-4">
-                                {reservations.map((res: any) => (
-                                    <div key={res.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div className="space-y-1">
-                                            <p className="font-bold text-gray-900 dark:text-white">{res.events?.title || 'Unknown Event'}</p>
-                                            <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                                <span>{format(new Date(res.created_at), 'MMM d, yyyy HH:mm')}</span>
-                                                <span>•</span>
-                                                <span className="uppercase">{res.reference}</span>
-                                            </div>
-                                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-black border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300">
-                                                {res.quantity || 1} x {res.ticket_tiers?.name || 'Ticket'}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded ${res.status === 'confirmed' ? 'bg-green-500/10 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                                                {res.status}
+                    <AdminCard title="Organizations" meta={organizations.length || undefined}>
+                        {organizations.length === 0 ? <AdminEmpty>Not part of any organization.</AdminEmpty> : (
+                            <ul className="divide-y divide-gray-100 dark:divide-white/10">
+                                {organizations.map(org => (
+                                    <li key={`${org.id}-${org.role}`} className="flex items-center gap-3 px-5 py-3.5 sm:px-6">
+                                        <Initial name={org.name} className="size-9 rounded-xl" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-medium text-gray-950 dark:text-white">{org.name}</span>
+                                            <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                                                {[
+                                                    org.role,
+                                                    org.events !== null ? `${org.events} ${org.events === 1 ? 'event' : 'events'}` : null,
+                                                    org.payments ? (org.payments.length ? org.payments.map(p => getProvider('payments', p)?.name ?? p).join(', ') : 'No payments set up') : null,
+                                                ].filter(Boolean).join(' · ')}
                                             </span>
-                                            <button
-                                                onClick={() => handleResendTicket(res.id)}
-                                                disabled={resendingId === res.id}
-                                                className="p-2 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/20 transition-colors text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white disabled:opacity-50"
-                                                title="Resend Ticket Email"
-                                            >
-                                                {resendingId === res.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        </span>
+                                        {org.role === 'Owner' && (
+                                            <button type="button" onClick={() => removeOrg(org)} disabled={!!busy} className="h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-500/10">
+                                                {busy === `org-${org.id}` ? <Loader2 className="size-4 animate-spin" /> : 'Delete'}
                                             </button>
-                                        </div>
-                                    </div>
+                                        )}
+                                    </li>
                                 ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-3xl p-12 text-center shadow-sm min-h-[400px] flex flex-col items-center justify-center">
-                            <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-                                <CreditCard className="w-8 h-8 text-gray-400 dark:text-gray-600" />
-                            </div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">No activity recorded</h3>
-                            <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mt-2">
-                                This user hasn't made any transactions or attended any events yet.
-                            </p>
-                        </div>
-                    )}
+                            </ul>
+                        )}
+                    </AdminCard>
                 </div>
             </div>
-        </div>
-    )
-}
-
-function InfoRow({ icon: Icon, label, value }: any) {
-    return (
-        <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-            <div className="p-2 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-white dark:group-hover:bg-white/10 transition-colors text-gray-500 dark:text-gray-400">
-                <Icon className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={value}>{value}</p>
-            </div>
-        </div>
-    )
-}
-
-function StatCard({ label, value, icon: Icon }: any) {
-    return (
-        <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400">
-                    <Icon className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
         </div>
     )
 }
