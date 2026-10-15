@@ -1,6 +1,7 @@
 import { MPESA_EXPRESS_NOT_ENABLED } from '@/lib/payments/providers/mpesa'
 import type { ResolvedIntegration } from './store'
 import { africasTalkingBase, infobipBase, termiiBase } from './sms'
+import { mailgunBase, signSesRequest } from './email'
 import { paypalToken } from '@/lib/payments/providers/paypal'
 import { PaymentProviderError } from '@/lib/payments/types'
 import { pesapalToken } from '@/lib/payments/providers/pesapal'
@@ -135,6 +136,29 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
             case 'sms:zend':
                 // No read-only endpoint to check against; delivery is confirmed with a test message instead.
                 return { ok: true, message: 'Keys saved. Send a test message to confirm delivery.' }
+            case 'email:resend': {
+                // Resend answers bad keys with 400, so only a 200 counts
+                const response = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${c.api_key}` }, cache: 'no-store' })
+                if (response.ok) return { ok: true, message: 'Connected to Resend.' }
+                const data = await response.json().catch(() => ({}))
+                return { ok: false, message: data.message ? `Resend: ${data.message}` : 'Resend rejected this API key.' }
+            }
+            case 'email:sendgrid':
+                return await probe('https://api.sendgrid.com/v3/scopes', { Authorization: `Bearer ${c.api_key}` }, 'SendGrid')
+            case 'email:mailgun':
+                return await probe(`${mailgunBase(c.region)}/v3/domains/${encodeURIComponent(c.domain)}`, { Authorization: basic('api', c.api_key) }, 'Mailgun')
+            case 'email:postmark':
+                return await probe('https://api.postmarkapp.com/server', { 'X-Postmark-Server-Token': c.server_token, Accept: 'application/json' }, 'Postmark')
+            case 'email:brevo':
+                return await probe('https://api.brevo.com/v3/account', { 'api-key': c.api_key, Accept: 'application/json' }, 'Brevo')
+            case 'email:mailjet':
+                return await probe('https://api.mailjet.com/v3/REST/user', { Authorization: basic(c.api_key, c.secret_key) }, 'Mailjet')
+            case 'email:sendchamp':
+                return await probe('https://api.sendchamp.com/api/v1/wallet/wallet_balance', { Authorization: `Bearer ${c.api_key}`, Accept: 'application/json' }, 'Sendchamp')
+            case 'email:ses': {
+                const signed = signSesRequest({ method: 'GET', region: (c.region || '').trim(), path: '/v2/email/account', body: '', accessKeyId: c.access_key_id, secretAccessKey: c.secret_access_key })
+                return await probe(signed.url, signed.headers, 'Amazon SES')
+            }
             case 'marketing:meta':
                 return /^\d{6,20}$/.test(c.pixel_id ?? '')
                     ? { ok: true, message: 'Pixel ID saved.' }

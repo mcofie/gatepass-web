@@ -70,18 +70,20 @@ export async function resendTicketEmail(reservationId: string) {
 
         const emailInfo = await sendTicketEmail({
             to: targetEmail,
+            organizerId: reservation.events?.organization_id,
+            organizerName: reservation.events?.organizers?.name,
             eventName: reservation.events?.title,
             eventDate: new Date(reservation.events?.starts_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }),
             venueName: reservation.events?.venue_name,
             ticketType: reservation.ticket_tiers?.name,
             customerName: reservation.profiles?.full_name || reservation.guest_name || 'Guest',
-            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${tickets[0].qr_code_hash}`,
+            qrCodeUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so'}/api/qr/${encodeURIComponent(tickets[0].qr_code_hash)}`,
             ticketId: tickets[0].id,
             posterUrl: reservation.events?.poster_url,
             reservationId: reservation.id,
             tickets: tickets.map((t) => ({
                 id: t.id,
-                qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
+                qrCodeUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so'}/api/qr/${encodeURIComponent(t.qr_code_hash)}`,
                 type: reservation.ticket_tiers?.name || 'Ticket'
             }))
         })

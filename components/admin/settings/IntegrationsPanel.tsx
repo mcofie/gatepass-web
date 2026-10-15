@@ -10,6 +10,7 @@ import {
     deleteIntegration,
     saveIntegration,
     sendTestSms,
+    sendTestEmail,
     setDefaultIntegration,
     testIntegration,
     type IntegrationSummary,
@@ -28,6 +29,13 @@ const COPY: Record<IntegrationCategory, { eyebrow: string; title: string; lede: 
         title: 'Text your attendees.',
         lede: 'Use your own SMS account for reminders, blasts and ticket notifications.',
         footnote: 'Messages are sent and billed by your provider. Your default is used for all outgoing SMS.',
+        hasDefault: true,
+    },
+    email: {
+        eyebrow: 'Email',
+        title: 'Send from your own domain.',
+        lede: 'Ticket emails go out through your email provider, from your address, so they look like they came from you.',
+        footnote: 'Without one, GatePass sends ticket emails from notifications@updates.gatepass.so. Your default is used for every ticket email.',
         hasDefault: true,
     },
     marketing: {
@@ -373,8 +381,9 @@ function ProviderSheet({
 }) {
     const [mode, setMode] = React.useState<'test' | 'live'>(integration?.mode ?? 'live')
     const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...(integration?.publicConfig ?? {}) }))
-    const [busy, setBusy] = React.useState<null | 'save' | 'test' | 'default' | 'remove' | 'sms'>(null)
+    const [busy, setBusy] = React.useState<null | 'save' | 'test' | 'default' | 'remove' | 'sms' | 'email'>(null)
     const [testPhone, setTestPhone] = React.useState('')
+    const [testEmail, setTestEmail] = React.useState('')
     const [copied, setCopied] = React.useState(false)
     const [confirmRemove, setConfirmRemove] = React.useState(false)
     const panelRef = React.useRef<HTMLDivElement>(null)
@@ -544,6 +553,33 @@ function ProviderSheet({
                                         className="h-11 shrink-0 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-950 hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
                                     >
                                         {busy === 'sms' ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {integration && provider.category === 'email' && canEdit && (
+                            <div className="space-y-2 rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+                                <label htmlFor="test-email" className="text-sm font-medium text-gray-950 dark:text-white">Send a test email</label>
+                                <div className="flex gap-2">
+                                    <input id="test-email" type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="you@example.com" className={inputClass} />
+                                    <button
+                                        type="button"
+                                        disabled={!testEmail.trim() || busy !== null}
+                                        onClick={async () => {
+                                            const result = await run('email', () => sendTestEmail(organizerId, integration.id, testEmail.trim()))
+                                            if (!result) return
+                                            if (result.success) {
+                                                toast.success('Test email sent')
+                                                onSaved({ ...integration, status: 'connected', statusMessage: `Test email sent to ${testEmail.trim()}.` })
+                                            } else {
+                                                toast.error(result.error ?? 'Test email failed')
+                                                onSaved({ ...integration, status: 'error', statusMessage: result.error ?? 'Test email failed.' })
+                                            }
+                                        }}
+                                        className="h-11 shrink-0 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-950 hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+                                    >
+                                        {busy === 'email' ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
                                     </button>
                                 </div>
                             </div>

@@ -1,7 +1,7 @@
 // Catalog of the providers organizers can connect. Shared by the settings UI and server validation,
 // so it must stay free of server-only imports.
 
-export type IntegrationCategory = 'payments' | 'sms' | 'marketing'
+export type IntegrationCategory = 'payments' | 'sms' | 'marketing' | 'email'
 
 export type CredentialField = {
     key: string
@@ -393,6 +393,134 @@ export const PROVIDERS: ProviderDefinition[] = [
             { key: 'client_id', label: 'Client ID', secret: false, required: true },
             { key: 'client_secret', label: 'Client secret', secret: true, required: true },
             { key: 'sender_id', label: 'Sender ID', secret: false, required: false, placeholder: 'GATEPASS' },
+        ],
+    },
+
+    // Email
+    {
+        id: 'resend',
+        category: 'email',
+        group: 'Global',
+        name: 'Resend',
+        description: 'Modern email API with great deliverability.',
+        regions: 'Global',
+        docsUrl: 'https://resend.com/api-keys',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true, placeholder: 're_…' },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'sendgrid',
+        category: 'email',
+        group: 'Global',
+        name: 'SendGrid',
+        description: 'Twilio’s email platform, used at huge scale.',
+        regions: 'Global',
+        docsUrl: 'https://app.sendgrid.com/settings/api_keys',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true, placeholder: 'SG.…' },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'mailgun',
+        category: 'email',
+        group: 'Global',
+        name: 'Mailgun',
+        description: 'Email API for developers.',
+        regions: 'Global (US and EU regions)',
+        docsUrl: 'https://app.mailgun.com/settings/api_security',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true },
+            { key: 'domain', label: 'Sending domain', secret: false, required: true, placeholder: 'mg.yourdomain.com' },
+            { key: 'region', label: 'Region', secret: false, required: false, placeholder: 'us', help: 'Type eu if your Mailgun account is in the EU region.' },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'postmark',
+        category: 'email',
+        group: 'Global',
+        name: 'Postmark',
+        description: 'Fast, reliable transactional email.',
+        regions: 'Global',
+        docsUrl: 'https://account.postmarkapp.com/servers',
+        supportsTestMode: false,
+        fields: [
+            { key: 'server_token', label: 'Server API token', secret: true, required: true },
+            { key: 'message_stream', label: 'Message stream', secret: false, required: false, placeholder: 'outbound' },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'ses',
+        category: 'email',
+        group: 'Global',
+        name: 'Amazon SES',
+        description: 'Low-cost email from AWS.',
+        regions: 'Global',
+        docsUrl: 'https://console.aws.amazon.com/ses/home',
+        supportsTestMode: false,
+        fields: [
+            { key: 'access_key_id', label: 'Access key ID', secret: false, required: true, placeholder: 'AKIA…' },
+            { key: 'secret_access_key', label: 'Secret access key', secret: true, required: true },
+            { key: 'region', label: 'Region', secret: false, required: true, placeholder: 'eu-west-1' },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'brevo',
+        category: 'email',
+        group: 'Global',
+        name: 'Brevo',
+        description: 'Email and marketing, formerly Sendinblue.',
+        regions: 'Global',
+        docsUrl: 'https://app.brevo.com/settings/keys/api',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true, placeholder: 'xkeysib-…' },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'mailjet',
+        category: 'email',
+        group: 'Global',
+        name: 'Mailjet',
+        description: 'Email API popular across Europe and francophone Africa.',
+        regions: 'Global',
+        docsUrl: 'https://app.mailjet.com/account/apikeys',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: false, required: true },
+            { key: 'secret_key', label: 'Secret key', secret: true, required: true },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
+        ],
+    },
+    {
+        id: 'sendchamp',
+        category: 'email',
+        group: 'Across Africa',
+        name: 'Sendchamp',
+        description: 'Email, SMS and WhatsApp built for African businesses.',
+        regions: 'Nigeria and pan-African',
+        docsUrl: 'https://my.sendchamp.com/settings/api-keys',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'Public access key', secret: true, required: true },
+            { key: 'from_email', label: 'From address', secret: false, required: true, placeholder: 'tickets@yourdomain.com', help: 'Must be on a domain you’ve verified with this provider.' },
+            { key: 'from_name', label: 'From name', secret: false, required: false, placeholder: 'Your organization' },
         ],
     },
 

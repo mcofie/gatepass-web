@@ -161,7 +161,7 @@ export const ReceiptTicket = ({ id, event, ticket, logoUrl, tierName, forceExpan
                         <div className="flex flex-col items-center justify-center pt-2 pb-2">
                             <div className={`bg-white border-2 rounded-xl shadow-sm ${isPrint ? 'p-2' : 'p-3'}`} style={{ borderColor: '#111827' }}>
                                 <Image
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
+                                    src={`/api/qr/${encodeURIComponent(ticket.qr_code_hash ?? ticket.id)}`}
                                     alt="QR Code"
                                     width={128}
                                     height={128}
