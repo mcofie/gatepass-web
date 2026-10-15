@@ -8,6 +8,7 @@ import { OfferingReveal } from './OfferingReveal'
 import { getActivePricingTiers } from '@/lib/public-data'
 import { formatCurrency } from '@/utils/format'
 import { PROVIDERS } from '@/lib/integrations/providers'
+import { PlanPrices } from '@/components/pricing/PlanPrices'
 import styles from './offering.module.css'
 
 export const metadata: Metadata = {
@@ -189,21 +190,7 @@ export default async function OurOfferingPage() {
                         </p>
                     </OfferingReveal>
                     <OfferingReveal delay={0.08}>
-                        <div className="divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/15">
-                            {tiers.map((tier, index) => (
-                                <div key={tier.name} className="flex items-center justify-between gap-4 px-6 py-5">
-                                    <div>
-                                        <p className="text-[16px] font-semibold">{tier.name}</p>
-                                        <p className="mt-0.5 text-[13px] text-white/50">
-                                            {tier.max_tickets === null
-                                                ? `${((tiers[index - 1]?.max_tickets ?? 0) + 1).toLocaleString()}+ tickets`
-                                                : `Up to ${tier.max_tickets.toLocaleString()} tickets`}
-                                        </p>
-                                    </div>
-                                    <p className="text-[22px] font-semibold tabular-nums tracking-[-0.03em]">{tier.price_minor === 0 ? 'Free' : formatCurrency(tier.price_minor / 100, tier.currency)}</p>
-                                </div>
-                            ))}
-                        </div>
+                        <PlanPrices tiers={tiers} />
                         <p className="mt-4 text-[12px] leading-[1.5] text-white/40">One-time, per event. Your payment provider charges its own processing fees.</p>
                     </OfferingReveal>
                 </div>

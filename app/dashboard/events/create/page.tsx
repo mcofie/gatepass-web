@@ -16,6 +16,7 @@ import { getDefaultPaymentProvider } from '@/app/actions/integrations'
 import { CURRENCY_NAMES, getProvider } from '@/lib/integrations/providers'
 import { Field, PrimaryButton, SecondaryButton, inputClass } from '@/components/dashboard/ui'
 import { formatCurrency } from '@/utils/format'
+import { priceIn } from '@/lib/billing/prices'
 import type { TicketTier } from '@/types/gatepass'
 
 const STEPS = [
@@ -47,7 +48,7 @@ type Draft = {
     tickets: TicketDraft[]
 }
 
-type PlanTier = { name: string; max_tickets: number | null; price_minor: number; currency: string }
+type PlanTier = { name: string; max_tickets: number | null; price_minor: number; currency: string; prices?: Record<string, number> | null }
 
 const newTicket = (name = '', price = '', quantity = '100'): TicketDraft => ({ key: crypto.randomUUID(), name, price, quantity })
 
@@ -103,7 +104,7 @@ export default function CreateEventPage() {
             } catch { /* storage unavailable */ }
             restored.current = true
         })
-        supabase.schema('gatepass').from('platform_pricing_tiers').select('name, max_tickets, price_minor, currency').eq('is_active', true).order('sort_order')
+        supabase.schema('gatepass').from('platform_pricing_tiers').select('name, max_tickets, price_minor, currency, prices').eq('is_active', true).order('sort_order')
             .then(({ data }) => setPlans((data ?? []) as PlanTier[]))
     }, [router, supabase])
 
@@ -470,7 +471,7 @@ export default function CreateEventPage() {
                                 </div>
                                 {errorText('tickets')}
 
-                                <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} />
+                                <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} currency={draft.currency} />
                             </>
                         )}
 
@@ -499,7 +500,7 @@ export default function CreateEventPage() {
                                         {draft.tickets.map(t => `${t.name} · ${Number(t.price) > 0 ? formatCurrency(Number(t.price), draft.currency) : 'Free'} × ${t.quantity}`).join('  /  ')}
                                     </ReviewRow>
                                 </div>
-                                <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} />
+                                <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} currency={draft.currency} />
                             </>
                         )}
                     </div>
@@ -546,8 +547,11 @@ function ReviewRow({ label, onEdit, children }: { label: string; onEdit: () => v
     )
 }
 
-function PlanEstimate({ plan, capacity, hasPaidTickets }: { plan?: PlanTier; capacity: number; hasPaidTickets: boolean }) {
+function PlanEstimate({ plan, capacity, hasPaidTickets, currency }: { plan?: PlanTier; capacity: number; hasPaidTickets: boolean; currency: string }) {
     if (!plan) return null
+    // The plan's fixed price in the event's currency when one is set
+    const local = priceIn(plan, currency)
+    const price = local !== null ? { minor: local, currency } : { minor: plan.price_minor, currency: plan.currency }
     return (
         <div className="rounded-3xl bg-gray-950 p-6 text-white dark:bg-white dark:text-black">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -556,7 +560,7 @@ function PlanEstimate({ plan, capacity, hasPaidTickets }: { plan?: PlanTier; cap
                     <p className="mt-2 text-2xl font-semibold tracking-tight">{plan.name}</p>
                     <p className="mt-1 text-sm opacity-70">{capacity.toLocaleString()} tickets · 0% of ticket sales</p>
                 </div>
-                <p className="text-3xl font-semibold tabular-nums tracking-tight">{plan.price_minor === 0 ? 'Free' : formatCurrency(plan.price_minor / 100, plan.currency)}</p>
+                <p className="text-3xl font-semibold tabular-nums tracking-tight">{plan.price_minor === 0 ? 'Free' : formatCurrency(price.minor / 100, price.currency)}</p>
             </div>
             <p className="mt-4 border-t border-white/15 pt-4 text-sm opacity-70 dark:border-black/10">
                 {plan.price_minor === 0 ? 'Nothing to pay before publishing.' : 'Paid once, before you publish.'}
