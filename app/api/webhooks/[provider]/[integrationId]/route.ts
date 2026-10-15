@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { resolve, type IntegrationRow } from '@/lib/integrations/store'
-import { confirmPayment, findSessionByProviderReference, getAdapter, getSession } from '@/lib/payments'
-import { processSuccessfulPayment } from '@/utils/actions/payment'
+import { findSessionByProviderReference, getAdapter, getSession } from '@/lib/payments'
+import { fulfilConfirmedSession } from '@/lib/payments/fulfil'
 import { notifyDiscord } from '@/utils/discord'
 
 /**
@@ -42,37 +42,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
         // Not ours (e.g. a payment made outside GatePass on the same account)
         if (!session || session.integration_id !== integration.id) return NextResponse.json({ ok: true, ignored: true })
 
-        const confirmation = await confirmPayment(session.reference, integration)
-        if (confirmation.status !== 'success') return NextResponse.json({ ok: true, status: confirmation.status })
-
-        const { transaction } = confirmation
-        const metadata = confirmation.session.metadata as {
-            payment_type?: string
-            is_full_payment?: boolean
-            instalment_payment_id?: string
-            instalment_reservation_id?: string
-        }
-        const amount = `${transaction.currency} ${(transaction.amount / 100).toLocaleString()}`
-
-        if (metadata.payment_type === 'instalment') {
-            const instalments = await import('@/utils/actions/instalment')
-            if (metadata.is_full_payment && metadata.instalment_reservation_id) {
-                const result = await instalments.processFullInstalmentPayment(session.reference, metadata.instalment_reservation_id, transaction)
-                if (!result.success) throw new Error(result.error)
-                await notifyDiscord(`💰 **Full Instalment Settled**\n**Amount:** ${amount}\n**Res ID:** ${metadata.instalment_reservation_id}`, 'success')
-            } else if (metadata.instalment_payment_id) {
-                const result = await instalments.processInstalmentPayment(session.reference, metadata.instalment_payment_id, transaction)
-                if (!result.success) throw new Error(result.error)
-                await notifyDiscord(`💳 **Instalment Payment Received**\n**Amount:** ${amount}\n**Payment ID:** ${metadata.instalment_payment_id}`, 'success')
-            }
-        } else if (metadata.payment_type === 'instalment_first') {
-            // The deposit is activated by the buyer's return page, which creates the plan's schedule
-            await notifyDiscord(`✨ **First Instalment Deposit**\n**Amount:** ${amount}\n**Ref:** ${session.reference}`, 'success')
-        } else {
-            const result = await processSuccessfulPayment(session.reference, confirmation.session.reservation_ids, transaction)
-            if (!result.success) throw new Error(result.error)
-            await notifyDiscord(`🎉 **Ticket Purchase**\n**Provider:** ${provider}\n**Amount:** ${amount}\n**Ref:** ${session.reference}`, 'success')
-        }
+        const result = await fulfilConfirmedSession(session.reference, integration)
+        if (result.status !== 'success') return NextResponse.json({ ok: true, status: result.status })
 
         return NextResponse.json({ ok: true })
     } catch (error) {

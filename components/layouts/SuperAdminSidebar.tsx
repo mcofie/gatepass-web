@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Activity, Banknote, Calendar, FileText, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
+import { ArrowLeft, Activity, Banknote, Calendar, FileText, Landmark, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
 import { GatePassMark } from '@/components/branding/GatePassMark'
@@ -14,6 +14,7 @@ const NAV = [
     { name: 'Events', path: '/admin/events', icon: Calendar },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Financials', path: '/admin/financials', icon: Banknote },
+    { name: 'Payouts', path: '/admin/payouts', icon: Landmark },
     { name: 'Activity', path: '/admin/activity', icon: Activity },
     { name: 'Reports', path: '/admin/reports', icon: FileText },
     { name: 'Settings', path: '/admin/settings', icon: Settings },

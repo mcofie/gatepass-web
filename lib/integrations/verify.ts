@@ -66,6 +66,13 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 if (probe.errorCode === '404.001.03') return { ok: false, message: MPESA_EXPRESS_NOT_ENABLED }
                 return { ok: true, message: 'Connected to M-Pesa Daraja with M-Pesa Express.' }
             }
+            case 'payments:gatepass': {
+                const { createAdminClient } = await import('@/utils/supabase/admin')
+                const { data } = await createAdminClient().schema('gatepass').from('organizer_payout_accounts').select('paystack_subaccount_code').eq('organizer_id', integration.organizerId).maybeSingle()
+                return data?.paystack_subaccount_code
+                    ? { ok: true, message: 'GatePass Payments is set up.' }
+                    : { ok: false, message: 'Finish setting up your payout account.' }
+            }
             case 'payments:paypal':
                 await paypalToken(integration)
                 return { ok: true, message: `Connected to PayPal${integration.mode === 'test' ? ' sandbox' : ''}.` }

@@ -4,6 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowUpRight, Check, Copy, Loader2, X } from 'lucide-react'
+import { ManagedPaymentsCard } from './ManagedPaymentsCard'
 import { PROVIDER_GROUPS, providersFor, type IntegrationCategory, type ProviderDefinition } from '@/lib/integrations/providers'
 import {
     deleteIntegration,
@@ -208,13 +209,15 @@ export function IntegrationsPanel({
     canEdit: boolean
 }) {
     const copy = COPY[category]
-    const providers = providersFor(category)
+    // GatePass Payments has its own card; the grid lists providers organizers bring keys for
+    const providers = providersFor(category).filter(p => p.id !== 'gatepass')
+    const allProviders = providersFor(category)
     const [integrations, setIntegrations] = React.useState(() => initialIntegrations.filter(i => i.category === category))
     const [openProvider, setOpenProvider] = React.useState<ProviderDefinition | null>(null)
 
     const byProvider = new Map(integrations.map(i => [i.provider, i]))
     const defaultIntegration = integrations.find(i => i.isDefault)
-    const defaultProvider = defaultIntegration && providers.find(p => p.id === defaultIntegration.provider)
+    const defaultProvider = defaultIntegration && allProviders.find(p => p.id === defaultIntegration.provider)
 
     const router = useRouter()
     // Keep the server-rendered props fresh so switching tabs doesn't show stale state
@@ -232,6 +235,10 @@ export function IntegrationsPanel({
                 <h2 id={`${category}-heading`} className="text-[28px] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white sm:text-[34px]">{copy.title}</h2>
                 <p className="max-w-xl text-[15px] leading-relaxed text-gray-500 dark:text-gray-400">{copy.lede}</p>
             </header>
+
+            {category === 'payments' && (
+                <ManagedPaymentsCard organizerId={organizerId} canEdit={canEdit} onConnected={() => window.location.reload()} />
+            )}
 
             {copy.hasDefault && (
                 defaultIntegration && defaultProvider ? (
