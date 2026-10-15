@@ -12,6 +12,10 @@ export type CredentialField = {
     help?: string
 }
 
+/** Display order for grouped provider lists */
+export const PROVIDER_GROUPS = ['Global', 'Across Africa', 'West Africa', 'East Africa', 'Southern Africa', 'Ghana'] as const
+export type ProviderGroup = typeof PROVIDER_GROUPS[number]
+
 export type ProviderDefinition = {
     id: string
     category: IntegrationCategory
@@ -19,7 +23,7 @@ export type ProviderDefinition = {
     description: string
     regions: string
     /** Where the provider is strongest, for grouping long lists */
-    group?: 'Global' | 'Across Africa' | 'Ghana'
+    group?: ProviderGroup
     docsUrl: string
     supportsTestMode: boolean
     fields: CredentialField[]
@@ -35,6 +39,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     // Payments
     {
         id: 'stripe',
+        group: 'Global',
         currencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'ZAR'],
         methods: ['Card', 'Apple Pay', 'Google Pay'],
         category: 'payments',
@@ -51,6 +56,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'paystack',
+        group: 'Across Africa',
         currencies: ['GHS', 'NGN', 'KES', 'ZAR', 'USD', 'XOF'],
         methods: ['Card', 'Mobile money', 'Bank transfer'],
         category: 'payments',
@@ -66,6 +72,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'flutterwave',
+        group: 'Across Africa',
         currencies: ['NGN', 'GHS', 'KES', 'UGX', 'TZS', 'RWF', 'ZAR', 'XAF', 'XOF', 'ZMW', 'USD', 'EUR', 'GBP'],
         methods: ['Card', 'Mobile money', 'Bank transfer', 'USSD'],
         category: 'payments',
@@ -82,6 +89,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'hubtel',
+        group: 'West Africa',
         currencies: ['GHS'],
         methods: ['Mobile money', 'Card'],
         category: 'payments',
@@ -98,6 +106,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'mpesa',
+        group: 'East Africa',
         currencies: ['KES'],
         methods: ['M-Pesa'],
         requiresPhone: true,
@@ -116,6 +125,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     },
     {
         id: 'wave',
+        group: 'West Africa',
         currencies: ['XOF', 'UGX', 'GMD'],
         methods: ['Wave'],
         category: 'payments',
@@ -127,6 +137,85 @@ export const PROVIDERS: ProviderDefinition[] = [
         fields: [
             { key: 'api_key', label: 'API key', secret: true, required: true, placeholder: 'wave_sn_prod_…' },
             { key: 'webhook_secret', label: 'Webhook secret', secret: true, required: false },
+        ],
+    },
+
+    {
+        id: 'paypal',
+        group: 'Global',
+        currencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD'],
+        methods: ['PayPal', 'Card'],
+        category: 'payments',
+        name: 'PayPal',
+        description: 'PayPal balance and cards, trusted by buyers worldwide.',
+        regions: 'Global',
+        docsUrl: 'https://developer.paypal.com/dashboard/applications',
+        supportsTestMode: true,
+        fields: [
+            { key: 'client_id', label: 'Client ID', secret: false, required: true },
+            { key: 'client_secret', label: 'Secret', secret: true, required: true, help: 'From a REST app in the PayPal developer dashboard. Use sandbox app keys in test mode.' },
+        ],
+    },
+    {
+        id: 'korapay',
+        group: 'Across Africa',
+        currencies: ['NGN', 'KES', 'GHS', 'USD'],
+        methods: ['Card', 'Bank transfer', 'Mobile money'],
+        category: 'payments',
+        name: 'Korapay',
+        description: 'Cards, bank transfers and mobile money.',
+        regions: 'Nigeria, Kenya, Ghana',
+        docsUrl: 'https://merchant.korapay.com/dashboard/settings/api-integrations',
+        supportsTestMode: true,
+        fields: [
+            { key: 'public_key', label: 'Public key', secret: false, required: true, placeholder: 'pk_live_…' },
+            { key: 'secret_key', label: 'Secret key', secret: true, required: true, placeholder: 'sk_live_…' },
+        ],
+    },
+    {
+        id: 'pesapal',
+        group: 'East Africa',
+        currencies: ['KES', 'UGX', 'TZS', 'RWF', 'MWK', 'ZMW', 'USD'],
+        methods: ['M-Pesa', 'Mobile money', 'Card'],
+        category: 'payments',
+        name: 'Pesapal',
+        description: 'M-Pesa, mobile money and cards in East Africa.',
+        regions: 'Kenya, Uganda, Tanzania, Rwanda, Malawi, Zambia',
+        docsUrl: 'https://developer.pesapal.com',
+        supportsTestMode: true,
+        fields: [
+            { key: 'consumer_key', label: 'Consumer key', secret: false, required: true },
+            { key: 'consumer_secret', label: 'Consumer secret', secret: true, required: true, help: 'Use Pesapal’s sandbox keys in test mode.' },
+        ],
+    },
+    {
+        id: 'chapa',
+        group: 'East Africa',
+        currencies: ['ETB', 'USD'],
+        methods: ['Telebirr', 'CBE Birr', 'Card'],
+        category: 'payments',
+        name: 'Chapa',
+        description: 'Telebirr, CBE Birr, M-Pesa and cards in Ethiopia.',
+        regions: 'Ethiopia',
+        docsUrl: 'https://dashboard.chapa.co/dashboard/profile/api',
+        supportsTestMode: true,
+        fields: [
+            { key: 'secret_key', label: 'Secret key', secret: true, required: true, placeholder: 'CHASECK-…' },
+        ],
+    },
+    {
+        id: 'yoco',
+        group: 'Southern Africa',
+        currencies: ['ZAR'],
+        methods: ['Card', 'Apple Pay', 'Google Pay'],
+        category: 'payments',
+        name: 'Yoco',
+        description: 'Card payments for South African businesses.',
+        regions: 'South Africa',
+        docsUrl: 'https://app.yoco.com/sales/payment-gateway',
+        supportsTestMode: true,
+        fields: [
+            { key: 'secret_key', label: 'Secret key', secret: true, required: true, placeholder: 'sk_live_…' },
         ],
     },
 
@@ -335,7 +424,7 @@ export function providersFor(category: IntegrationCategory): ProviderDefinition[
 export const CURRENCY_NAMES: Record<string, string> = {
     GHS: 'Ghanaian cedi', NGN: 'Nigerian naira', KES: 'Kenyan shilling', ZAR: 'South African rand', UGX: 'Ugandan shilling',
     TZS: 'Tanzanian shilling', RWF: 'Rwandan franc', XOF: 'West African CFA franc', XAF: 'Central African CFA franc',
-    ZMW: 'Zambian kwacha', GMD: 'Gambian dalasi', USD: 'US dollar', EUR: 'Euro', GBP: 'British pound', CAD: 'Canadian dollar', AUD: 'Australian dollar',
+    ZMW: 'Zambian kwacha', GMD: 'Gambian dalasi', ETB: 'Ethiopian birr', MWK: 'Malawian kwacha', GNF: 'Guinean franc', CDF: 'Congolese franc', USD: 'US dollar', EUR: 'Euro', GBP: 'British pound', CAD: 'Canadian dollar', AUD: 'Australian dollar',
 }
 
 /** Whether a payment provider can charge in this currency. Unknown providers are allowed through. */

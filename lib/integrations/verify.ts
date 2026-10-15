@@ -1,6 +1,9 @@
 import { MPESA_EXPRESS_NOT_ENABLED } from '@/lib/payments/providers/mpesa'
 import type { ResolvedIntegration } from './store'
 import { africasTalkingBase, infobipBase, termiiBase } from './sms'
+import { paypalToken } from '@/lib/payments/providers/paypal'
+import { PaymentProviderError } from '@/lib/payments/types'
+import { pesapalToken } from '@/lib/payments/providers/pesapal'
 
 export type VerifyResult = { ok: boolean; message: string }
 
@@ -63,6 +66,23 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 if (probe.errorCode === '404.001.03') return { ok: false, message: MPESA_EXPRESS_NOT_ENABLED }
                 return { ok: true, message: 'Connected to M-Pesa Daraja with M-Pesa Express.' }
             }
+            case 'payments:paypal':
+                await paypalToken(integration)
+                return { ok: true, message: `Connected to PayPal${integration.mode === 'test' ? ' sandbox' : ''}.` }
+            case 'payments:pesapal':
+                await pesapalToken(integration)
+                return { ok: true, message: `Connected to Pesapal${integration.mode === 'test' ? ' sandbox' : ''}.` }
+            case 'payments:korapay':
+                return checkKeyMode(c.secret_key, integration.mode, 'sk_live_', 'sk_test_')
+                    ?? await probe('https://api.korapay.com/merchant/api/v1/balances', { Authorization: `Bearer ${c.secret_key}` }, 'Korapay')
+            case 'payments:chapa':
+                return checkKeyMode(c.secret_key, integration.mode, 'CHASECK-', 'CHASECK_TEST-')
+                    ?? await probe('https://api.chapa.co/v1/banks', { Authorization: `Bearer ${c.secret_key}` }, 'Chapa')
+            case 'payments:yoco':
+                // Yoco has no read-only endpoint for keys; the key format and mode are checked instead
+                if (!/^sk_(live|test)_/.test(c.secret_key ?? '')) return { ok: false, message: 'A Yoco secret key starts with sk_live_ or sk_test_.' }
+                return checkKeyMode(c.secret_key, integration.mode, 'sk_live_', 'sk_test_')
+                    ?? { ok: true, message: 'Key saved. Run a test checkout to confirm it works.' }
             case 'payments:wave':
                 return await probe(
                     'https://api.wave.com/v1/checkout/sessions/search?client_reference=gatepass-verify',
@@ -120,6 +140,8 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 return { ok: false, message: 'This provider cannot be verified yet.' }
         }
     } catch (e) {
+        // Our own adapters throw readable messages (e.g. "PayPal rejected the client ID or secret")
+        if (e instanceof PaymentProviderError) return { ok: false, message: e.message }
         return { ok: false, message: `Could not reach the provider: ${e instanceof Error ? e.message : String(e)}` }
     }
 }

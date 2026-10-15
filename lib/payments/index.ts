@@ -11,11 +11,16 @@ import { flutterwave } from './providers/flutterwave'
 import { hubtel } from './providers/hubtel'
 import { mpesa } from './providers/mpesa'
 import { wave } from './providers/wave'
+import { paypal } from './providers/paypal'
+import { pesapal } from './providers/pesapal'
+import { yoco } from './providers/yoco'
+import { chapa } from './providers/chapa'
+import { korapay } from './providers/korapay'
 
 export { PaymentProviderError } from './types'
 export type { NormalizedTransaction } from './types'
 
-const ADAPTERS: Record<string, PaymentAdapter> = { paystack, stripe, flutterwave, hubtel, mpesa, wave }
+const ADAPTERS: Record<string, PaymentAdapter> = { paystack, stripe, flutterwave, hubtel, mpesa, wave, paypal, pesapal, yoco, chapa, korapay }
 
 export function getAdapter(provider: string): PaymentAdapter {
     const adapter = ADAPTERS[provider]
