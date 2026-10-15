@@ -14,6 +14,8 @@ export type EventBillingSummary = PlatformFeeQuote & {
     /** null when there's no provider to check against */
     currencySupported: boolean | null
     currencyNote: string | null
+    /** Set when the event sells through GatePass Payments: per-ticket fee instead of a plan fee */
+    managed: { feePercent: number; reservePercent: number; releaseHours: number; trusted: boolean } | null
 }
 
 async function requireEventManager(eventId: string) {
@@ -60,8 +62,20 @@ export async function getEventBilling(eventId: string): Promise<EventBillingSumm
     const currency = (event?.currency as string | undefined)?.toUpperCase() ?? 'GHS'
     const currencySupported = integration ? providerSupportsCurrency(integration.provider, currency) : null
     const providerName = integration ? getProvider('payments', integration.provider)?.name : null
+    let managed: EventBillingSummary['managed'] = null
+    if (integration?.provider === 'gatepass') {
+        const { getManagedTerms } = await import('@/lib/payments/managed')
+        const [terms, { data: account }] = await Promise.all([
+            getManagedTerms(),
+            admin.schema('gatepass').from('organizer_payout_accounts').select('trust_level').eq('organizer_id', integration.organizerId).maybeSingle(),
+        ])
+        managed = { ...terms, trusted: account?.trust_level === 'trusted' }
+    }
     return {
         ...quote,
+        // GatePass Payments events pay per ticket, so the plan fee doesn't apply
+        ...(managed ? { covered: true, amountDueMinor: 0 } : {}),
+        managed,
         hasPaidTickets: (count ?? 0) > 0,
         hasPaymentProvider: provider,
         currencySupported,
@@ -101,6 +115,9 @@ export async function savePricingTiers(tiers: Array<Omit<PricingTier, 'id'> & { 
         if (!tier.name.trim()) throw new Error('Every plan needs a name')
         if (tier.price_minor < 0) throw new Error(`${tier.name}: price can't be negative`)
         if (tier.max_tickets !== null && tier.max_tickets <= 0) throw new Error(`${tier.name}: ticket limit must be positive`)
+        for (const [currency, value] of Object.entries(tier.prices ?? {})) {
+            if (!/^[A-Z]{3}$/.test(currency) || !Number.isFinite(value) || value < 0) throw new Error(`${tier.name}: check the ${currency} price`)
+        }
     }
     if (!tiers.some(t => t.is_active && t.max_tickets === null)) {
         throw new Error('Keep one active plan without a ticket limit, so every event has a plan')
@@ -110,7 +127,7 @@ export async function savePricingTiers(tiers: Array<Omit<PricingTier, 'id'> & { 
         // Deactivate rather than delete: paid events still reference their tier
         await admin.schema('gatepass').from('platform_pricing_tiers').update({ is_active: false }).in('id', removedIds)
     }
-    const rows = tiers.map(t => ({ ...t, name: t.name.trim(), currency: t.currency.toUpperCase(), updated_at: new Date().toISOString() }))
+    const rows = tiers.map(t => ({ ...t, name: t.name.trim(), currency: t.currency.toUpperCase(), prices: t.prices ?? {}, updated_at: new Date().toISOString() }))
     const { error } = await admin.schema('gatepass').from('platform_pricing_tiers').upsert(rows, { defaultToNull: false })
     if (error) throw new Error(error.message)
 

@@ -1,82 +1,73 @@
-import { createClient } from '@/utils/supabase/server'
-import MasterEventsTable from '@/components/admin/MasterEventsTable'
-import { getFeeSettings } from '@/utils/settings'
+import { createAdminClient } from '@/utils/supabase/admin'
+import { AdminHeader, AdminStats } from '@/components/admin/AdminUI'
+import { AdminEventsList, type AdminEventRow } from '@/components/admin/AdminEventsList'
 
-// Force dynamic fetch to ensure we see latest data (since we're admin toggling stuff)
-export const revalidate = 0
+/* eslint-disable @typescript-eslint/no-explicit-any -- joined rows */
 
-export default async function MasterEventsPage() {
-    const supabase = await createClient()
+export const dynamic = 'force-dynamic'
 
-    // 1. Fetch Events
-    const { data: events } = await supabase
-        .schema('gatepass')
-        .from('events')
-        .select(`
-            *,
-            organizers(*),
-            ticket_tiers(*)
-        `)
-        .order('created_at', { ascending: false })
+export default async function AdminEventsPage() {
+    // Access is checked in the admin layout; reads go across every organizer
+    const db = createAdminClient().schema('gatepass')
+    const [{ data: events }, { data: sales }, { data: fees }, { data: managed }] = await Promise.all([
+        db.from('events')
+            .select('id, title, slug, poster_url, starts_at, ends_at, is_published, is_featured, currency, organization_id, payment_integration_id, organizers(id, name), ticket_tiers(price, currency, total_quantity, quantity_sold)')
+            .order('starts_at', { ascending: false })
+            .limit(1000),
+        db.from('transactions').select('amount, currency, reservations!inner(event_id)').eq('status', 'success').limit(50000),
+        db.from('platform_fee_payments').select('event_id, amount_minor, currency').eq('status', 'paid'),
+        db.from('organizer_integrations').select('id, organizer_id, is_default').eq('category', 'payments').eq('provider', 'gatepass').eq('status', 'connected'),
+    ])
 
-    const feeSettings = await getFeeSettings()
+    const salesBy = new Map<string, { amount: number; currency: string }>()
+    for (const t of (sales ?? []) as any[]) {
+        const id = t.reservations?.event_id
+        if (!id) continue
+        const prev = salesBy.get(id)
+        salesBy.set(id, { amount: (prev?.amount ?? 0) + (Number(t.amount) || 0), currency: prev?.currency ?? t.currency ?? 'GHS' })
+    }
+    const planPaid = new Set((fees ?? []).map((f: any) => f.event_id))
+    const managedIds = new Set((managed ?? []).map((i: any) => i.id))
+    const managedDefault = new Set((managed ?? []).filter((i: any) => i.is_default).map((i: any) => i.organizer_id))
 
-    if (!events) return <div>No events found.</div>
-
-    // 2. Fetch ALL successful transactions for these events
-    // This bypasses the nested join limit issues
-    const eventIds = events.map(e => e.id)
-    const { data: transactions } = await supabase
-        .schema('gatepass')
-        .from('transactions')
-        .select(`
-            amount,
-            platform_fee,
-            applied_processor_fee,
-            reservations!inner(
-                event_id,
-                quantity,
-                ticket_tiers(price),
-                discounts(type, value)
-            )
-        `)
-        .eq('status', 'success')
-        .in('reservations.event_id', eventIds)
-
-    // 3. Map transactions back to events for the table to consume
-    const eventsWithFinancials = events.map(event => {
-        const eventTransactions = transactions
-            ?.filter(tx => (tx.reservations as any)?.event_id === event.id)
-            ?.map(tx => ({
-                amount: tx.amount,
-                status: 'success',
-                quantity: (tx.reservations as any)?.quantity || 1,
-                price: (tx.reservations as any)?.ticket_tiers?.price || 0,
-                discounts: (tx.reservations as any)?.discounts,
-                platform_fee: tx.platform_fee,
-                applied_processor_fee: tx.applied_processor_fee
-            })) || []
-
+    const now = new Date().getTime()
+    const rows: AdminEventRow[] = (events ?? []).map((e: any) => {
+        const tiers: any[] = e.ticket_tiers ?? []
+        const paid = tiers.some(t => Number(t.price) > 0)
+        const usesManaged = e.payment_integration_id ? managedIds.has(e.payment_integration_id) : managedDefault.has(e.organization_id)
+        const end = new Date(e.ends_at ?? new Date(new Date(e.starts_at).getTime() + 12 * 3600_000)).getTime()
         return {
-            ...event,
-            // We mock the nested structure expected by MasterEventsTable but with ALL transactions
-            reservations: eventTransactions.length > 0 ? [{ transactions: eventTransactions }] : []
+            id: e.id,
+            title: e.title,
+            slug: e.slug,
+            posterUrl: e.poster_url,
+            startsAt: e.starts_at,
+            organizer: e.organizers?.name ?? null,
+            organizerId: e.organizers?.id ?? null,
+            published: !!e.is_published,
+            featured: !!e.is_featured,
+            past: end < now,
+            sold: tiers.reduce((sum, t) => sum + (Number(t.quantity_sold) || 0), 0),
+            capacity: tiers.reduce((sum, t) => sum + (Number(t.total_quantity) || 0), 0),
+            sales: salesBy.get(e.id)?.amount ?? 0,
+            currency: salesBy.get(e.id)?.currency ?? e.currency ?? tiers[0]?.currency ?? 'GHS',
+            billing: !paid ? 'free' : usesManaged ? 'managed' : planPaid.has(e.id) ? 'plan' : 'unpaid',
         }
     })
 
-    return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white mb-2">Master Event Control</h1>
-                    <p className="text-gray-500 dark:text-gray-400">View and manage all events across the platform.</p>
-                </div>
-                <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-4 py-2 rounded-lg text-sm font-mono text-gray-500 dark:text-gray-400">
-                    {events.length} Total Events
-                </div>
-            </div>
+    const live = rows.filter(r => r.published && !r.past).length
+    const stats = [
+        { label: 'Events', value: rows.length.toLocaleString(), detail: `${rows.filter(r => !r.published).length.toLocaleString()} not published` },
+        { label: 'Live now', value: live.toLocaleString(), detail: 'Published and not over' },
+        { label: 'Featured', value: rows.filter(r => r.featured).length.toLocaleString(), detail: 'Shown on the home page' },
+        { label: 'Tickets sold', value: rows.reduce((sum, r) => sum + r.sold, 0).toLocaleString(), detail: 'Across every event' },
+    ]
 
-            <MasterEventsTable events={eventsWithFinancials as any} feeRates={feeSettings} />
+    return (
+        <div className="space-y-8 pb-8">
+            <AdminHeader title="Events" description="Every event on GatePass. Feature events on the home page, or take one down if it breaks the rules." />
+            <AdminStats stats={stats} columns={4} />
+            <AdminEventsList events={rows} />
         </div>
     )
 }

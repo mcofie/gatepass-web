@@ -203,6 +203,7 @@ export async function notifyAttendeesOfVirtualLink(params: {
             try {
                 await sendVirtualLinkEmail({
                     to: targetEmail,
+                    organizerId: event.organization_id,
                     eventName: event.title,
                     customerName,
                     virtualLink: params.virtualLink,

@@ -13,9 +13,12 @@ import { PreviewModal } from '@/components/common/PreviewModal'
 import { logActivity } from '@/app/actions/logger'
 import { getActiveOrganization, type ActiveOrganization } from '@/app/actions/organization'
 import { getDefaultPaymentProvider } from '@/app/actions/integrations'
+import { getManagedPaymentsSetup, type ManagedPaymentsSetup } from '@/app/actions/managed-payments'
+import { PayoutAccountForm } from '@/components/payments/PayoutAccountForm'
 import { CURRENCY_NAMES, getProvider } from '@/lib/integrations/providers'
 import { Field, PrimaryButton, SecondaryButton, inputClass } from '@/components/dashboard/ui'
 import { formatCurrency } from '@/utils/format'
+import { priceIn } from '@/lib/billing/prices'
 import type { TicketTier } from '@/types/gatepass'
 
 const STEPS = [
@@ -47,7 +50,7 @@ type Draft = {
     tickets: TicketDraft[]
 }
 
-type PlanTier = { name: string; max_tickets: number | null; price_minor: number; currency: string }
+type PlanTier = { name: string; max_tickets: number | null; price_minor: number; currency: string; prices?: Record<string, number> | null }
 
 const newTicket = (name = '', price = '', quantity = '100'): TicketDraft => ({ key: crypto.randomUUID(), name, price, quantity })
 
@@ -78,6 +81,8 @@ export default function CreateEventPage() {
     const [plans, setPlans] = useState<PlanTier[]>([])
     // Currencies the workspace's default payment provider can charge in (all, if none connected yet)
     const [providerId, setProviderId] = useState<string | null>(null)
+    // GatePass Payments terms, for organizers paid through GatePass or choosing how to get paid
+    const [managed, setManaged] = useState<ManagedPaymentsSetup | null>(null)
     const restored = useRef(false)
     // Rounded to the next minute: the earliest an event can start
     const [now] = useState(() => new Date(Math.ceil(Date.now() / 60000) * 60000))
@@ -94,6 +99,7 @@ export default function CreateEventPage() {
                 // Start in a currency the provider accepts
                 if (supported?.length) setDraft(d => (supported.includes(d.currency) ? d : { ...d, currency: supported[0] }))
             }).catch(() => {})
+            getManagedPaymentsSetup(active.id).then(setManaged).catch(() => setManaged(null))
             try {
                 const saved = localStorage.getItem(storageKey(active.id))
                 if (saved) {
@@ -103,7 +109,7 @@ export default function CreateEventPage() {
             } catch { /* storage unavailable */ }
             restored.current = true
         })
-        supabase.schema('gatepass').from('platform_pricing_tiers').select('name, max_tickets, price_minor, currency').eq('is_active', true).order('sort_order')
+        supabase.schema('gatepass').from('platform_pricing_tiers').select('name, max_tickets, price_minor, currency, prices').eq('is_active', true).order('sort_order')
             .then(({ data }) => setPlans((data ?? []) as PlanTier[]))
     }, [router, supabase])
 
@@ -150,6 +156,25 @@ export default function CreateEventPage() {
         [plans, capacity],
     )
     const hasPaidTickets = draft.tickets.some(t => Number(t.price) > 0)
+    // Gross if every ticket sells, for the "what you keep" estimate
+    const potential = draft.tickets.reduce((sum, t) => sum + (Number(t.price) || 0) * (parseInt(t.quantity, 10) || 0), 0)
+    const gettingPaid = (
+        <GettingPaid
+            orgId={org?.id ?? ''}
+            providerId={providerId}
+            managed={managed}
+            plan={plan}
+            capacity={capacity}
+            hasPaidTickets={hasPaidTickets}
+            currency={draft.currency}
+            potential={potential}
+            onManagedReady={() => {
+                setProviderId('gatepass')
+                const supported = getProvider('payments', 'gatepass')?.currencies
+                if (supported?.length && !supported.includes(draft.currency)) update('currency', supported[0])
+            }}
+        />
+    )
 
     const validate = (index: number): boolean => {
         const next: Record<string, string> = {}
@@ -470,7 +495,7 @@ export default function CreateEventPage() {
                                 </div>
                                 {errorText('tickets')}
 
-                                <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} />
+                                {gettingPaid}
                             </>
                         )}
 
@@ -498,8 +523,14 @@ export default function CreateEventPage() {
                                     <ReviewRow label="Tickets" onEdit={() => setStep(2)}>
                                         {draft.tickets.map(t => `${t.name} · ${Number(t.price) > 0 ? formatCurrency(Number(t.price), draft.currency) : 'Free'} × ${t.quantity}`).join('  /  ')}
                                     </ReviewRow>
+                                    <ReviewRow label="Getting paid" onEdit={() => setStep(2)}>
+                                        {!hasPaidTickets ? 'Free event'
+                                            : providerId === 'gatepass' ? `GatePass Payments · ${managed?.terms.feePercent ?? 5}% per paid ticket`
+                                                : providerId ? `${getProvider('payments', providerId)?.name ?? 'Your provider'} · 0% per ticket + one-time plan fee`
+                                                    : 'Not set up yet. Needed before you publish paid tickets.'}
+                                    </ReviewRow>
                                 </div>
-                                <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} />
+                                {gettingPaid}
                             </>
                         )}
                     </div>
@@ -546,8 +577,11 @@ function ReviewRow({ label, onEdit, children }: { label: string; onEdit: () => v
     )
 }
 
-function PlanEstimate({ plan, capacity, hasPaidTickets }: { plan?: PlanTier; capacity: number; hasPaidTickets: boolean }) {
+function PlanEstimate({ plan, capacity, hasPaidTickets, currency, providerName }: { plan?: PlanTier; capacity: number; hasPaidTickets: boolean; currency: string; providerName?: string }) {
     if (!plan) return null
+    // The plan's fixed price in the event's currency when one is set
+    const local = priceIn(plan, currency)
+    const price = local !== null ? { minor: local, currency } : { minor: plan.price_minor, currency: plan.currency }
     return (
         <div className="rounded-3xl bg-gray-950 p-6 text-white dark:bg-white dark:text-black">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -556,12 +590,86 @@ function PlanEstimate({ plan, capacity, hasPaidTickets }: { plan?: PlanTier; cap
                     <p className="mt-2 text-2xl font-semibold tracking-tight">{plan.name}</p>
                     <p className="mt-1 text-sm opacity-70">{capacity.toLocaleString()} tickets · 0% of ticket sales</p>
                 </div>
-                <p className="text-3xl font-semibold tabular-nums tracking-tight">{plan.price_minor === 0 ? 'Free' : formatCurrency(plan.price_minor / 100, plan.currency)}</p>
+                <p className="text-3xl font-semibold tabular-nums tracking-tight">{plan.price_minor === 0 ? 'Free' : formatCurrency(price.minor / 100, price.currency)}</p>
             </div>
             <p className="mt-4 border-t border-white/15 pt-4 text-sm opacity-70 dark:border-black/10">
                 {plan.price_minor === 0 ? 'Nothing to pay before publishing.' : 'Paid once, before you publish.'}
-                {hasPaidTickets ? ' Paid tickets also need a payment account connected in Settings.' : ''}
+                {hasPaidTickets && providerName ? ` Ticket money goes straight to your ${providerName} account.` : ''}
             </p>
         </div>
     )
+}
+
+/** How the organizer will be paid for this event, and what it costs them. */
+function GettingPaid({ orgId, providerId, managed, plan, capacity, hasPaidTickets, currency, potential, onManagedReady }: {
+    orgId: string
+    providerId: string | null
+    managed: ManagedPaymentsSetup | null
+    plan?: PlanTier
+    capacity: number
+    hasPaidTickets: boolean
+    currency: string
+    potential: number
+    onManagedReady: () => void
+}) {
+    const [settingUp, setSettingUp] = useState(false)
+    const card = 'rounded-3xl bg-gray-950 p-6 text-white dark:bg-white dark:text-black'
+
+    // GatePass Payments: a per-ticket fee instead of a plan fee
+    if (hasPaidTickets && providerId === 'gatepass' && managed) {
+        const keep = potential * (1 - managed.terms.feePercent / 100)
+        return (
+            <div className={card}>
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-60">Getting paid</p>
+                        <p className="mt-2 text-2xl font-semibold tracking-tight">GatePass Payments</p>
+                        <p className="mt-1 text-sm opacity-70">{managed.terms.feePercent}% per paid ticket · no plan fee</p>
+                    </div>
+                    {potential > 0 && (
+                        <div className="text-right">
+                            <p className="text-xs opacity-60">If every ticket sells, you keep about</p>
+                            <p className="text-3xl font-semibold tabular-nums tracking-tight">{formatCurrency(keep, currency)}</p>
+                        </div>
+                    )}
+                </div>
+                <p className="mt-4 border-t border-white/15 pt-4 text-sm opacity-70 dark:border-black/10">
+                    Paid to {managed.account ? `${managed.account.bankName} ••••${managed.account.accountNumberHint}` : 'your payout account'} the next business day. Paystack’s processing fee also comes out of your share.
+                    {managed.account?.trustLevel !== 'trusted' ? ` As a new organizer, ${managed.terms.reservePercent}% is held until ${managed.terms.releaseHours} hours after the event.` : ''}
+                </p>
+            </div>
+        )
+    }
+
+    // Paid tickets with no way to get paid yet: set up GatePass Payments here, or connect a provider
+    if (hasPaidTickets && !providerId) {
+        return (
+            <div className="rounded-3xl border border-gray-200 p-6 dark:border-white/10">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Getting paid</p>
+                <p className="mt-2 text-lg font-semibold tracking-tight text-gray-950 dark:text-white">Choose how you’ll get paid</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">You can save this event as a draft now. It needs a way to get paid before you publish paid tickets.</p>
+                {settingUp ? (
+                    <div className="mt-5">
+                        <PayoutAccountForm organizerId={orgId} currency={managed?.currency ?? 'GHS'} submitLabel="Save payout account" onCancel={() => setSettingUp(false)} onDone={() => { setSettingUp(false); onManagedReady(); toast.success('GatePass Payments is ready') }} />
+                    </div>
+                ) : (
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        {managed?.available && (
+                            <button type="button" onClick={() => setSettingUp(true)} className="rounded-2xl border border-gray-200 p-4 text-left transition-colors hover:border-gray-950 dark:border-white/10 dark:hover:border-white">
+                                <span className="block text-sm font-semibold text-gray-950 dark:text-white">GatePass Payments</span>
+                                <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">No keys. {managed.terms.feePercent}% per ticket, paid to your MoMo or bank. Set up here in a minute.</span>
+                            </button>
+                        )}
+                        <Link href="/dashboard/settings?tab=payments" className="rounded-2xl border border-gray-200 p-4 text-left transition-colors hover:border-gray-950 dark:border-white/10 dark:hover:border-white">
+                            <span className="block text-sm font-semibold text-gray-950 dark:text-white">Your own payment account</span>
+                            <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">Paystack, Stripe, Flutterwave and more. 0% per ticket plus a one-time plan fee. Your draft is saved.</span>
+                        </Link>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // Own provider (or a free event): the one-time plan fee by size
+    return <PlanEstimate plan={plan} capacity={capacity} hasPaidTickets={hasPaidTickets} currency={currency} providerName={providerId ? getProvider('payments', providerId)?.name : undefined} />
 }

@@ -52,16 +52,27 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
                 <Loader2 className="size-4 animate-spin text-gray-400" aria-label="Loading plan" />
             ) : (
                 <div className="space-y-5">
+                    {billing.managed ? (
+                        <div>
+                            <p className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">GatePass Payments</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                {billing.managed.feePercent}% per paid ticket · no plan fee
+                                {!billing.managed.trusted && ` · ${billing.managed.reservePercent}% held until ${billing.managed.releaseHours}h after the event`}
+                            </p>
+                        </div>
+                    ) : (
                     <div>
                         <p className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{billing.tierName ?? 'No plan'}</p>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                             {billing.ticketCapacity >= 2147483647 ? 'Unlimited tickets' : `${billing.ticketCapacity.toLocaleString()} tickets`}
                             {billing.priceMinor > 0 ? ` · ${formatCurrency(billing.priceMinor / 100, billing.currency)} one-time` : ' · Free'}
+                            {billing.priceMinor > 0 && billing.chargeCurrency !== billing.currency && ` · charged as ${formatCurrency(billing.chargeMinor / 100, billing.chargeCurrency)}`}
                         </p>
                     </div>
+                    )}
 
                     <ul className="space-y-2.5 text-sm">
-                        <ChecklistItem done={billing.covered} label={billing.covered ? 'Platform fee covered' : `Platform fee due: ${formatCurrency(billing.amountDueMinor / 100, billing.currency)}`} />
+                        <ChecklistItem done={billing.covered} label={billing.managed ? 'No plan fee to pay' : billing.covered ? 'Platform fee covered' : `Platform fee due: ${formatCurrency(billing.amountDueMinor / 100, billing.chargeCurrency)}`} />
                         {billing.hasPaidTickets && billing.currencySupported === false && (
                             <ChecklistItem done={false} label={`${billing.currencyNote}. Change it under Payments`} />
                         )}
@@ -83,10 +94,10 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
                                 className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-gray-950 text-sm font-semibold text-white transition-opacity hover:opacity-85 disabled:opacity-50 dark:bg-white dark:text-black"
                             >
                                 {paying && <Loader2 className="size-4 animate-spin" />}
-                                Pay {formatCurrency(billing.amountDueMinor / 100, billing.currency)}
+                                Pay {formatCurrency(billing.amountDueMinor / 100, billing.chargeCurrency)}
                             </button>
                             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                                {billing.paidMinor > 0
+                                {billing.amountDueMinor < billing.chargeMinor
                                     ? 'Your ticket capacity outgrew your plan. You only pay the difference.'
                                     : 'Paid once, before publishing. Ticket revenue goes straight to your own payment provider.'}
                             </p>

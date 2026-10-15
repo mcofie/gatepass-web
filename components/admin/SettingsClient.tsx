@@ -7,9 +7,9 @@ import { TeamSettings } from '@/components/admin/settings/TeamSettings'
 import { NotificationSettings } from '@/components/admin/settings/NotificationSettings'
 import { IntegrationsPanel } from '@/components/admin/settings/IntegrationsPanel'
 import type { IntegrationSummary } from '@/app/actions/integrations'
-import { Settings, Users, CreditCard, User, Bell, Share2, MessageSquare } from 'lucide-react'
+import { Settings, Users, CreditCard, User, Bell, Share2, MessageSquare, Mail } from 'lucide-react'
 
-type SettingsTab = 'profile' | 'details' | 'team' | 'payments' | 'messaging' | 'marketing' | 'notifications'
+type SettingsTab = 'profile' | 'details' | 'team' | 'payments' | 'messaging' | 'email' | 'marketing' | 'notifications'
 
 export function SettingsClient({
     initialOrganizer,
@@ -48,6 +48,7 @@ export function SettingsClient({
             items: [
                 { id: 'payments' as const, label: 'Payments', icon: CreditCard, status: connected('payments') },
                 { id: 'messaging' as const, label: 'SMS', icon: MessageSquare, status: connected('sms') },
+                { id: 'email' as const, label: 'Email', icon: Mail, status: connected('email') },
                 { id: 'marketing' as const, label: 'Marketing', icon: Share2, status: connected('marketing') },
             ],
         }] : []),
@@ -114,6 +115,7 @@ export function SettingsClient({
                     {canManageTeam && activeTab === 'team' && <TeamSettings organizer={initialOrganizer} />}
                     {canManageTeam && activeTab === 'payments' && <IntegrationsPanel organizerId={initialOrganizer.id} category="payments" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
                     {canManageTeam && activeTab === 'messaging' && <IntegrationsPanel organizerId={initialOrganizer.id} category="sms" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
+                    {canManageTeam && activeTab === 'email' && <IntegrationsPanel organizerId={initialOrganizer.id} category="email" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
                     {canManageTeam && activeTab === 'marketing' && <IntegrationsPanel organizerId={initialOrganizer.id} category="marketing" initialIntegrations={initialIntegrations} canEdit={canManageTeam} />}
                     {canManageTeam && activeTab === 'notifications' && <NotificationSettings organizer={initialOrganizer} userRole={userRole} />}
                 </div>

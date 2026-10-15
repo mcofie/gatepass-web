@@ -1,14 +1,16 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowUpRight, Check, Copy, Loader2, X } from 'lucide-react'
-import { providersFor, type IntegrationCategory, type ProviderDefinition } from '@/lib/integrations/providers'
+import { ManagedPaymentsCard } from './ManagedPaymentsCard'
+import { PROVIDER_GROUPS, providersFor, type IntegrationCategory, type ProviderDefinition } from '@/lib/integrations/providers'
 import {
     deleteIntegration,
     saveIntegration,
     sendTestSms,
+    sendTestEmail,
     setDefaultIntegration,
     testIntegration,
     type IntegrationSummary,
@@ -27,6 +29,13 @@ const COPY: Record<IntegrationCategory, { eyebrow: string; title: string; lede: 
         title: 'Text your attendees.',
         lede: 'Use your own SMS account for reminders, blasts and ticket notifications.',
         footnote: 'Messages are sent and billed by your provider. Your default is used for all outgoing SMS.',
+        hasDefault: true,
+    },
+    email: {
+        eyebrow: 'Email',
+        title: 'Send from your own domain.',
+        lede: 'Ticket emails go out through your email provider, from your address, so they look like they came from you.',
+        footnote: 'Without one, GatePass sends ticket emails from notifications@updates.gatepass.so. Your default is used for every ticket email.',
         hasDefault: true,
     },
     marketing: {
@@ -126,7 +135,7 @@ function DefaultProviderCard({ organizerId, category, provider, integration, can
 
     const details = [
         keyField && `${keyField.label} ••••${integration.credentialHints[keyField.key]}`,
-        `Checked ${timeAgo(integration.lastVerifiedAt).toLowerCase()}`,
+        integration.lastVerifiedAt ? `Checked ${timeAgo(integration.lastVerifiedAt).toLowerCase()}` : 'Not checked yet',
     ].filter(Boolean).join(' · ')
 
     return (
@@ -208,13 +217,20 @@ export function IntegrationsPanel({
     canEdit: boolean
 }) {
     const copy = COPY[category]
-    const providers = providersFor(category)
+    // GatePass Payments has its own card; the grid lists providers organizers bring keys for
+    const providers = providersFor(category).filter(p => p.id !== 'gatepass')
+    const allProviders = providersFor(category)
     const [integrations, setIntegrations] = React.useState(() => initialIntegrations.filter(i => i.category === category))
-    const [openProvider, setOpenProvider] = React.useState<ProviderDefinition | null>(null)
+    // ?connect=<provider> (from onboarding) opens that provider's form straight away
+    const searchParams = useSearchParams()
+    const [openProvider, setOpenProvider] = React.useState<ProviderDefinition | null>(() => {
+        const requested = searchParams.get('connect')
+        return requested ? providers.find(p => p.id === requested) ?? null : null
+    })
 
     const byProvider = new Map(integrations.map(i => [i.provider, i]))
     const defaultIntegration = integrations.find(i => i.isDefault)
-    const defaultProvider = defaultIntegration && providers.find(p => p.id === defaultIntegration.provider)
+    const defaultProvider = defaultIntegration && allProviders.find(p => p.id === defaultIntegration.provider)
 
     const router = useRouter()
     // Keep the server-rendered props fresh so switching tabs doesn't show stale state
@@ -232,6 +248,10 @@ export function IntegrationsPanel({
                 <h2 id={`${category}-heading`} className="text-[28px] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white sm:text-[34px]">{copy.title}</h2>
                 <p className="max-w-xl text-[15px] leading-relaxed text-gray-500 dark:text-gray-400">{copy.lede}</p>
             </header>
+
+            {category === 'payments' && (
+                <ManagedPaymentsCard organizerId={organizerId} canEdit={canEdit} onConnected={() => window.location.reload()} />
+            )}
 
             {copy.hasDefault && (
                 defaultIntegration && defaultProvider ? (
@@ -256,10 +276,8 @@ export function IntegrationsPanel({
                 )
             )}
 
-            <div>
-                <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">{copy.hasDefault ? 'All providers' : 'Trackers'}</h3>
-                <ul className="grid gap-3 sm:grid-cols-2">
-                    {providers.map(provider => {
+            {(() => {
+                const renderCard = (provider: ProviderDefinition) => {
                         const integration = byProvider.get(provider.id)
                         return (
                             <li key={provider.id}>
@@ -289,9 +307,30 @@ export function IntegrationsPanel({
                                 </button>
                             </li>
                         )
-                    })}
-                </ul>
-            </div>
+}
+                // Long lists (SMS) are grouped by where each provider is strongest
+                const groups = PROVIDER_GROUPS
+                const grouped = providers.some(p => p.group)
+                return grouped ? (
+                    <div className="space-y-8">
+                        {groups.map(group => {
+                            const list = providers.filter(p => p.group === group)
+                            if (!list.length) return null
+                            return (
+                                <div key={group}>
+                                    <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">{group} <span className="font-normal text-gray-400">· {list.length}</span></h3>
+                                    <ul className="grid gap-3 sm:grid-cols-2">{list.map(renderCard)}</ul>
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <div>
+                        <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">{copy.hasDefault ? 'All providers' : 'Trackers'}</h3>
+                        <ul className="grid gap-3 sm:grid-cols-2">{providers.map(renderCard)}</ul>
+                    </div>
+                )
+            })()}
 
             <p className="border-t border-gray-200 pt-6 text-xs leading-relaxed text-gray-500 dark:border-white/10 dark:text-gray-400">{copy.footnote}</p>
 
@@ -342,8 +381,9 @@ function ProviderSheet({
 }) {
     const [mode, setMode] = React.useState<'test' | 'live'>(integration?.mode ?? 'live')
     const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...(integration?.publicConfig ?? {}) }))
-    const [busy, setBusy] = React.useState<null | 'save' | 'test' | 'default' | 'remove' | 'sms'>(null)
+    const [busy, setBusy] = React.useState<null | 'save' | 'test' | 'default' | 'remove' | 'sms' | 'email'>(null)
     const [testPhone, setTestPhone] = React.useState('')
+    const [testEmail, setTestEmail] = React.useState('')
     const [copied, setCopied] = React.useState(false)
     const [confirmRemove, setConfirmRemove] = React.useState(false)
     const panelRef = React.useRef<HTMLDivElement>(null)
@@ -513,6 +553,33 @@ function ProviderSheet({
                                         className="h-11 shrink-0 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-950 hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
                                     >
                                         {busy === 'sms' ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {integration && provider.category === 'email' && canEdit && (
+                            <div className="space-y-2 rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+                                <label htmlFor="test-email" className="text-sm font-medium text-gray-950 dark:text-white">Send a test email</label>
+                                <div className="flex gap-2">
+                                    <input id="test-email" type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="you@example.com" className={inputClass} />
+                                    <button
+                                        type="button"
+                                        disabled={!testEmail.trim() || busy !== null}
+                                        onClick={async () => {
+                                            const result = await run('email', () => sendTestEmail(organizerId, integration.id, testEmail.trim()))
+                                            if (!result) return
+                                            if (result.success) {
+                                                toast.success('Test email sent')
+                                                onSaved({ ...integration, status: 'connected', statusMessage: `Test email sent to ${testEmail.trim()}.` })
+                                            } else {
+                                                toast.error(result.error ?? 'Test email failed')
+                                                onSaved({ ...integration, status: 'error', statusMessage: result.error ?? 'Test email failed.' })
+                                            }
+                                        }}
+                                        className="h-11 shrink-0 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-950 hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+                                    >
+                                        {busy === 'email' ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
                                     </button>
                                 </div>
                             </div>

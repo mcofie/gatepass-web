@@ -1,5 +1,10 @@
 import { MPESA_EXPRESS_NOT_ENABLED } from '@/lib/payments/providers/mpesa'
 import type { ResolvedIntegration } from './store'
+import { africasTalkingBase, infobipBase, termiiBase } from './sms'
+import { mailgunBase, signSesRequest } from './email'
+import { paypalToken } from '@/lib/payments/providers/paypal'
+import { PaymentProviderError } from '@/lib/payments/types'
+import { pesapalToken } from '@/lib/payments/providers/pesapal'
 
 export type VerifyResult = { ok: boolean; message: string }
 
@@ -62,6 +67,30 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 if (probe.errorCode === '404.001.03') return { ok: false, message: MPESA_EXPRESS_NOT_ENABLED }
                 return { ok: true, message: 'Connected to M-Pesa Daraja with M-Pesa Express.' }
             }
+            case 'payments:gatepass': {
+                const { createAdminClient } = await import('@/utils/supabase/admin')
+                const { data } = await createAdminClient().schema('gatepass').from('organizer_payout_accounts').select('paystack_subaccount_code').eq('organizer_id', integration.organizerId).maybeSingle()
+                return data?.paystack_subaccount_code
+                    ? { ok: true, message: 'GatePass Payments is set up.' }
+                    : { ok: false, message: 'Finish setting up your payout account.' }
+            }
+            case 'payments:paypal':
+                await paypalToken(integration)
+                return { ok: true, message: `Connected to PayPal${integration.mode === 'test' ? ' sandbox' : ''}.` }
+            case 'payments:pesapal':
+                await pesapalToken(integration)
+                return { ok: true, message: `Connected to Pesapal${integration.mode === 'test' ? ' sandbox' : ''}.` }
+            case 'payments:korapay':
+                return checkKeyMode(c.secret_key, integration.mode, 'sk_live_', 'sk_test_')
+                    ?? await probe('https://api.korapay.com/merchant/api/v1/balances', { Authorization: `Bearer ${c.secret_key}` }, 'Korapay')
+            case 'payments:chapa':
+                return checkKeyMode(c.secret_key, integration.mode, 'CHASECK-', 'CHASECK_TEST-')
+                    ?? await probe('https://api.chapa.co/v1/banks', { Authorization: `Bearer ${c.secret_key}` }, 'Chapa')
+            case 'payments:yoco':
+                // Yoco has no read-only endpoint for keys; the key format and mode are checked instead
+                if (!/^sk_(live|test)_/.test(c.secret_key ?? '')) return { ok: false, message: 'A Yoco secret key starts with sk_live_ or sk_test_.' }
+                return checkKeyMode(c.secret_key, integration.mode, 'sk_live_', 'sk_test_')
+                    ?? { ok: true, message: 'Key saved. Run a test checkout to confirm it works.' }
             case 'payments:wave':
                 return await probe(
                     'https://api.wave.com/v1/checkout/sessions/search?client_reference=gatepass-verify',
@@ -72,10 +101,64 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 return await probe(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(c.account_sid)}.json`, { Authorization: basic(c.account_sid, c.auth_token) }, 'Twilio')
             case 'sms:clicksend':
                 return await probe('https://rest.clicksend.com/v3/account', { Authorization: basic(c.username, c.api_key) }, 'ClickSend')
+            case 'sms:vonage':
+                return await probe(`https://rest.nexmo.com/account/get-balance?api_key=${encodeURIComponent(c.api_key)}&api_secret=${encodeURIComponent(c.api_secret)}`, {}, 'Vonage')
+            case 'sms:infobip':
+                if (!c.base_url) return { ok: false, message: 'Add your Infobip API base URL, e.g. xxxxx.api.infobip.com.' }
+                return await probe(`${infobipBase(c.base_url)}/account/1/balance`, { Authorization: `App ${c.api_key}`, Accept: 'application/json' }, 'Infobip')
+            case 'sms:plivo':
+                return await probe(`https://api.plivo.com/v1/Account/${encodeURIComponent(c.auth_id)}/`, { Authorization: basic(c.auth_id, c.auth_token) }, 'Plivo')
+            case 'sms:africastalking':
+                return await probe(`${africasTalkingBase(integration.mode === 'test')}/version1/user?username=${encodeURIComponent(c.username)}`, { apiKey: c.api_key, Accept: 'application/json' }, 'Africa’s Talking')
+            case 'sms:termii': {
+                // Termii answers bad keys with 4xx bodies rather than 401s, so read the balance response
+                const response = await fetch(`${termiiBase(c.base_url)}/api/get-balance?api_key=${encodeURIComponent(c.api_key)}`, { cache: 'no-store' })
+                const data = await response.json().catch(() => ({}))
+                return response.ok && data.balance !== undefined
+                    ? { ok: true, message: 'Connected to Termii.' }
+                    : { ok: false, message: data.message ? `Termii: ${data.message}` : 'Termii rejected this API key.' }
+            }
+            case 'sms:arkesel': {
+                const response = await fetch('https://sms.arkesel.com/api/v2/clients/balance-details', { headers: { 'api-key': c.api_key }, cache: 'no-store' })
+                const data = await response.json().catch(() => ({}))
+                return response.ok && data.status === 'success'
+                    ? { ok: true, message: 'Connected to Arkesel.' }
+                    : { ok: false, message: data.message ? `Arkesel: ${data.message}` : 'Arkesel rejected this API key.' }
+            }
+            case 'sms:mnotify': {
+                const response = await fetch(`https://api.mnotify.com/api/balance/sms?key=${encodeURIComponent(c.api_key)}`, { cache: 'no-store' })
+                const data = await response.json().catch(() => ({}))
+                return response.ok && data.status === 'success'
+                    ? { ok: true, message: 'Connected to mNotify.' }
+                    : { ok: false, message: data.message ? `mNotify: ${data.message}` : 'mNotify rejected this API key.' }
+            }
             case 'sms:hubtel':
             case 'sms:zend':
                 // No read-only endpoint to check against; delivery is confirmed with a test message instead.
                 return { ok: true, message: 'Keys saved. Send a test message to confirm delivery.' }
+            case 'email:resend': {
+                // Resend answers bad keys with 400, so only a 200 counts
+                const response = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${c.api_key}` }, cache: 'no-store' })
+                if (response.ok) return { ok: true, message: 'Connected to Resend.' }
+                const data = await response.json().catch(() => ({}))
+                return { ok: false, message: data.message ? `Resend: ${data.message}` : 'Resend rejected this API key.' }
+            }
+            case 'email:sendgrid':
+                return await probe('https://api.sendgrid.com/v3/scopes', { Authorization: `Bearer ${c.api_key}` }, 'SendGrid')
+            case 'email:mailgun':
+                return await probe(`${mailgunBase(c.region)}/v3/domains/${encodeURIComponent(c.domain)}`, { Authorization: basic('api', c.api_key) }, 'Mailgun')
+            case 'email:postmark':
+                return await probe('https://api.postmarkapp.com/server', { 'X-Postmark-Server-Token': c.server_token, Accept: 'application/json' }, 'Postmark')
+            case 'email:brevo':
+                return await probe('https://api.brevo.com/v3/account', { 'api-key': c.api_key, Accept: 'application/json' }, 'Brevo')
+            case 'email:mailjet':
+                return await probe('https://api.mailjet.com/v3/REST/user', { Authorization: basic(c.api_key, c.secret_key) }, 'Mailjet')
+            case 'email:sendchamp':
+                return await probe('https://api.sendchamp.com/api/v1/wallet/wallet_balance', { Authorization: `Bearer ${c.api_key}`, Accept: 'application/json' }, 'Sendchamp')
+            case 'email:ses': {
+                const signed = signSesRequest({ method: 'GET', region: (c.region || '').trim(), path: '/v2/email/account', body: '', accessKeyId: c.access_key_id, secretAccessKey: c.secret_access_key })
+                return await probe(signed.url, signed.headers, 'Amazon SES')
+            }
             case 'marketing:meta':
                 return /^\d{6,20}$/.test(c.pixel_id ?? '')
                     ? { ok: true, message: 'Pixel ID saved.' }
@@ -88,6 +171,8 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 return { ok: false, message: 'This provider cannot be verified yet.' }
         }
     } catch (e) {
+        // Our own adapters throw readable messages (e.g. "PayPal rejected the client ID or secret")
+        if (e instanceof PaymentProviderError) return { ok: false, message: e.message }
         return { ok: false, message: `Could not reach the provider: ${e instanceof Error ? e.message : String(e)}` }
     }
 }

@@ -7,6 +7,7 @@ import { DashboardChart } from '@/components/admin/DashboardChart'
 import { DashboardFilter } from '@/components/admin/DashboardFilter'
 import { getProvider } from '@/lib/integrations/providers'
 import { formatCurrency } from '@/utils/format'
+import { listAuthUsers } from '@/lib/admin/auth-users'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- joined rows */
 
@@ -30,7 +31,7 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
     const inRange = (query: any) => (since ? query.gte('created_at', since) : query)
 
     const now = new Date().toISOString()
-    const [fees, sales, ticketsIssued, organizers, newOrganizers, users, newUsers, liveEvents, failingProviders, pendingFees, recentSales, recentEvents, recentOrganizers] = await Promise.all([
+    const [fees, sales, ticketsIssued, organizers, newOrganizers, users, authUsers, liveEvents, failingProviders, pendingFees, recentSales, recentEvents, recentOrganizers] = await Promise.all([
         since
             ? db.from('platform_fee_payments').select('amount_minor, currency, paid_at').eq('status', 'paid').gte('paid_at', since)
             : db.from('platform_fee_payments').select('amount_minor, currency, paid_at').eq('status', 'paid'),
@@ -39,10 +40,10 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
         db.from('organizers').select('id', { count: 'exact', head: true }),
         inRange(db.from('organizers').select('id', { count: 'exact', head: true })),
         db.from('profiles').select('id', { count: 'exact', head: true }),
-        inRange(db.from('profiles').select('id', { count: 'exact', head: true })),
+        listAuthUsers(),
         db.from('events').select('id', { count: 'exact', head: true }).eq('is_published', true).or(`ends_at.gte.${now},and(ends_at.is.null,starts_at.gte.${subDays(new Date(), 1).toISOString()})`),
         db.from('organizer_integrations').select('id, provider, status, status_message, organizers(id, name)').eq('category', 'payments').neq('status', 'connected').limit(8),
-        db.from('platform_fee_payments').select('reference, amount_minor, currency, created_at, events(id, title), organizers(name)').eq('status', 'pending').lt('created_at', new Date(Date.now() - 3600_000).toISOString()).order('created_at', { ascending: false }).limit(5),
+        db.from('platform_fee_payments').select('reference, amount_minor, currency, created_at, events(id, title), organizers(name)').eq('status', 'pending').lt('created_at', new Date(new Date().getTime() - 3600_000).toISOString()).order('created_at', { ascending: false }).limit(5),
         db.from('transactions').select('id, amount, currency, created_at, reservations(guest_name, profiles(full_name), events(title))').eq('status', 'success').order('created_at', { ascending: false }).limit(6),
         db.from('events').select('id, title, venue_name, created_at, organizers(name)').order('created_at', { ascending: false }).limit(6),
         db.from('organizers').select('id, name, created_at').order('created_at', { ascending: false }).limit(6),
@@ -67,7 +68,7 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
         { label: 'Tickets issued', value: (ticketsIssued.count ?? 0).toLocaleString(), detail: rangeLabel },
         { label: 'Live events', value: (liveEvents.count ?? 0).toLocaleString(), detail: 'Published and not over' },
         { label: 'Organizers', value: (organizers.count ?? 0).toLocaleString(), detail: `${(newOrganizers.count ?? 0).toLocaleString()} new · ${rangeLabel.toLowerCase()}` },
-        { label: 'Users', value: (users.count ?? 0).toLocaleString(), detail: `${(newUsers.count ?? 0).toLocaleString()} new · ${rangeLabel.toLowerCase()}` },
+        { label: 'Users', value: (users.count ?? 0).toLocaleString(), detail: `${[...authUsers.values()].filter(u => !since || u.created_at >= since).length.toLocaleString()} new · ${rangeLabel.toLowerCase()}` },
     ]
 
     const pulse: PulseItem[] = [

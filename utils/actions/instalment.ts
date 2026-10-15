@@ -696,6 +696,8 @@ async function finalizeInstalmentTickets(
         if (targetEmail && allTickets.length > 0) {
             await sendTicketEmail({
                 to: targetEmail,
+                organizerId: event?.organization_id,
+                organizerName: event?.organizers?.name,
                 eventName: event?.title,
                 eventDate: new Date(event?.starts_at).toLocaleDateString('en-US', {
                     month: 'long', day: 'numeric', year: 'numeric',
@@ -706,7 +708,7 @@ async function finalizeInstalmentTickets(
                 posterUrl: posterUrl || undefined,
                 tickets: allTickets.map(t => ({
                     id: t.id,
-                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`,
+                    qrCodeUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so'}/api/qr/${encodeURIComponent(t.qr_code_hash)}`,
                     type: ticketTier?.name || 'Ticket'
                 })),
                 ticketType: ticketTier?.name,

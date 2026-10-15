@@ -217,3 +217,32 @@ export async function deleteUser(userId: string) {
     revalidatePath('/admin/users')
     return { success: true }
 }
+
+/** Feature an event on the home page, or take it off. */
+export async function setEventFeatured(eventId: string, featured: boolean) {
+    try {
+        await verifySuperAdmin()
+    } catch (e: any) {
+        return { error: e.message }
+    }
+    const { error } = await createAdminClient().schema('gatepass').from('events').update({ is_featured: featured }).eq('id', eventId)
+    if (error) return { error: error.message }
+    revalidatePath('/admin/events')
+    revalidatePath('/')
+    return { success: true }
+}
+
+/** Take an event off GatePass (unpublished, sales stopped), or put it back up. */
+export async function setEventPublished(eventId: string, published: boolean) {
+    try {
+        await verifySuperAdmin()
+    } catch (e: any) {
+        return { error: e.message }
+    }
+    const { error } = await createAdminClient().schema('gatepass').from('events')
+        .update(published ? { is_published: true } : { is_published: false, is_featured: false })
+        .eq('id', eventId)
+    if (error) return { error: error.message }
+    revalidatePath('/admin/events')
+    return { success: true }
+}

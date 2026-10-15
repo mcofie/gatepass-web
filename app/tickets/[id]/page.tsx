@@ -78,7 +78,7 @@ export default async function PublicTicketPage({ params }: { params: Promise<{ i
                     <div className="flex justify-center mb-8">
                         <div className="p-4 bg-white border-2 border-dashed border-gray-200 rounded-2xl">
                             <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticket.qr_code_hash}&color=000000`}
+                                src={`/api/qr/${encodeURIComponent(ticket.qr_code_hash)}`}
                                 alt="QR Code"
                                 className="w-48 h-48 object-contain mix-blend-multiply"
                             />

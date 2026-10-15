@@ -7,6 +7,8 @@ import { GatePassMark } from '@/components/branding/GatePassMark'
 import { OfferingReveal } from './OfferingReveal'
 import { getActivePricingTiers } from '@/lib/public-data'
 import { formatCurrency } from '@/utils/format'
+import { PROVIDERS } from '@/lib/integrations/providers'
+import { PlanPrices } from '@/components/pricing/PlanPrices'
 import styles from './offering.module.css'
 
 export const metadata: Metadata = {
@@ -14,14 +16,8 @@ export const metadata: Metadata = {
     description: 'Sell tickets through your own payment account. 0% per ticket, one flat fee per event. Event pages, embeds, SDKs and AI assistants, all from one place.',
 }
 
-const PAYMENT_BRANDS = [
-    { id: 'stripe', name: 'Stripe' },
-    { id: 'paystack', name: 'Paystack' },
-    { id: 'flutterwave', name: 'Flutterwave' },
-    { id: 'hubtel', name: 'Hubtel' },
-    { id: 'mpesa', name: 'M-Pesa' },
-    { id: 'wave', name: 'Wave' },
-]
+// Every payment provider organizers can connect, straight from the catalog
+const PAYMENT_BRANDS = PROVIDERS.filter(p => p.category === 'payments').map(p => ({ id: p.id, name: p.name.replace(/ \(.*\)$/, '') }))
 
 const MESSAGING_BRANDS = [
     { id: 'twilio', name: 'Twilio' },
@@ -151,7 +147,7 @@ export default async function OurOfferingPage() {
                 <div className="mx-auto mt-20 grid max-w-[1280px] grid-cols-2 gap-y-8 border-t border-white/15 pt-8 sm:grid-cols-4">
                     {[
                         ['0%', 'GatePass fee per ticket'],
-                        ['6', 'Payment providers'],
+                        [String(PAYMENT_BRANDS.length), 'Payment providers'],
                         ['1', 'Flat fee per event'],
                         ['3', 'Ways to sell: page, embed, AI'],
                     ].map(([value, label]) => (
@@ -194,21 +190,7 @@ export default async function OurOfferingPage() {
                         </p>
                     </OfferingReveal>
                     <OfferingReveal delay={0.08}>
-                        <div className="divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/15">
-                            {tiers.map((tier, index) => (
-                                <div key={tier.name} className="flex items-center justify-between gap-4 px-6 py-5">
-                                    <div>
-                                        <p className="text-[16px] font-semibold">{tier.name}</p>
-                                        <p className="mt-0.5 text-[13px] text-white/50">
-                                            {tier.max_tickets === null
-                                                ? `${((tiers[index - 1]?.max_tickets ?? 0) + 1).toLocaleString()}+ tickets`
-                                                : `Up to ${tier.max_tickets.toLocaleString()} tickets`}
-                                        </p>
-                                    </div>
-                                    <p className="text-[22px] font-semibold tabular-nums tracking-[-0.03em]">{tier.price_minor === 0 ? 'Free' : formatCurrency(tier.price_minor / 100, tier.currency)}</p>
-                                </div>
-                            ))}
-                        </div>
+                        <PlanPrices tiers={tiers} />
                         <p className="mt-4 text-[12px] leading-[1.5] text-white/40">One-time, per event. Your payment provider charges its own processing fees.</p>
                     </OfferingReveal>
                 </div>
