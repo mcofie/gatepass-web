@@ -50,8 +50,8 @@ DROP POLICY IF EXISTS "Organization members view reserves" ON gatepass.payment_r
 CREATE POLICY "Organization members view reserves" ON gatepass.payment_reserves
     FOR SELECT TO authenticated USING (gatepass.is_organization_member(organizer_id));
 
--- 3. Terms (editable by platform admins)
-INSERT INTO gatepass.settings (key, value)
+-- 3. Terms (editable by platform admins), alongside the other platform settings
+INSERT INTO gatepass.system_settings (key, value)
 VALUES ('managed_payments', '{"fee_percent": 5, "reserve_percent": 25, "release_hours": 48}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 

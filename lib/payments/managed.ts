@@ -29,9 +29,9 @@ async function paystack(path: string, init?: RequestInit) {
     return data.data
 }
 
-/** Fee, reserve and release delay, from the settings table with safe defaults. */
+/** Fee, reserve and release delay, from system_settings with safe defaults. */
 export async function getManagedTerms(): Promise<ManagedTerms> {
-    const { data } = await createAdminClient().schema('gatepass').from('settings').select('value').eq('key', 'managed_payments').maybeSingle()
+    const { data } = await createAdminClient().schema('gatepass').from('system_settings').select('value').eq('key', 'managed_payments').maybeSingle()
     const value = (data?.value ?? {}) as Partial<{ fee_percent: number; reserve_percent: number; release_hours: number }>
     return {
         feePercent: Number(value.fee_percent ?? 5),
