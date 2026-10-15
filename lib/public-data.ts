@@ -42,12 +42,12 @@ export const getActivePricingTiers = unstable_cache(
         const { data } = await createAdminClient()
             .schema('gatepass')
             .from('platform_pricing_tiers')
-            .select('name, max_tickets, price_minor, currency')
+            .select('name, max_tickets, price_minor, currency, prices')
             .eq('is_active', true)
             .order('sort_order')
-        return (data ?? []) as { name: string; max_tickets: number | null; price_minor: number; currency: string }[]
+        return (data ?? []) as { name: string; max_tickets: number | null; price_minor: number; currency: string; prices: Record<string, number> | null }[]
     },
-    ['public-pricing-tiers-v1'],
+    ['public-pricing-tiers-v2'],
     { revalidate: 300, tags: ['pricing-tiers'] },
 )
 
