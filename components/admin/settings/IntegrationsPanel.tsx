@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowUpRight, Check, Copy, Loader2, X } from 'lucide-react'
 import { ManagedPaymentsCard } from './ManagedPaymentsCard'
@@ -213,7 +213,12 @@ export function IntegrationsPanel({
     const providers = providersFor(category).filter(p => p.id !== 'gatepass')
     const allProviders = providersFor(category)
     const [integrations, setIntegrations] = React.useState(() => initialIntegrations.filter(i => i.category === category))
-    const [openProvider, setOpenProvider] = React.useState<ProviderDefinition | null>(null)
+    // ?connect=<provider> (from onboarding) opens that provider's form straight away
+    const searchParams = useSearchParams()
+    const [openProvider, setOpenProvider] = React.useState<ProviderDefinition | null>(() => {
+        const requested = searchParams.get('connect')
+        return requested ? providers.find(p => p.id === requested) ?? null : null
+    })
 
     const byProvider = new Map(integrations.map(i => [i.provider, i]))
     const defaultIntegration = integrations.find(i => i.isDefault)
