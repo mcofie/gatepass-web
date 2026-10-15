@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
 import { MediaUploader } from '@/components/admin/MediaUploader'
 import { Field, Notice, Panel, PrimaryButton, SectionIntro, inputClass, textareaClass } from '@/components/dashboard/ui'
+import { DeleteOrganizationPanel } from './DeleteOrganizationPanel'
 
 type Organizer = {
     id: string
@@ -22,7 +23,12 @@ const toHandle = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9
 
 export function OrganizationSettings({ organizer, userRole }: { organizer: Organizer | null; userRole: string }) {
     if (!organizer) return null
-    return <OrganizationForm organizer={organizer} canEdit={userRole === 'Owner' || userRole === 'Admin'} />
+    return (
+        <div className="space-y-10">
+            <OrganizationForm organizer={organizer} canEdit={userRole === 'Owner' || userRole === 'Admin'} />
+            {userRole === 'Owner' && organizer?.id && <DeleteOrganizationPanel organizationId={organizer.id} organizationName={organizer.name ?? 'this organization'} />}
+        </div>
+    )
 }
 
 function OrganizationForm({ organizer, canEdit }: { organizer: Organizer; canEdit: boolean }) {

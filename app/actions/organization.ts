@@ -49,3 +49,36 @@ export async function getActiveOrganization(): Promise<ActiveOrganization | null
     const teamOrg = membership && (Array.isArray(membership.organizers) ? membership.organizers[0] : membership.organizers) as { id: string; name: string } | null
     return teamOrg ? { id: teamOrg.id, name: teamOrg.name, role: roleOf(membership!.role) } : null
 }
+
+export type DeletionCheck = { upcomingTickets: number; heldPayouts: number }
+
+/** What still blocks deleting this organization (owner only; the database enforces it too). */
+export async function getOrganizationDeletionCheck(organizationId: string): Promise<DeletionCheck> {
+    const supabase = await createClient()
+    const { data, error } = await supabase.schema('gatepass').rpc('organization_deletion_blockers', { p_org: organizationId }).single()
+    if (error) throw new Error(error.message)
+    const row = data as { upcoming_tickets: number; held_payouts: number }
+    return { upcomingTickets: Number(row.upcoming_tickets), heldPayouts: Number(row.held_payouts) }
+}
+
+/**
+ * Deletes the organization as its owner. Events are unpublished and kept (ticket holders keep their
+ * tickets and records stay); team, integrations and payout setup are removed.
+ */
+export async function deleteOrganizationAsOwner(organizationId: string, confirmName: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const { data: org } = await supabase.schema('gatepass').from('organizers').select('name, user_id').eq('id', organizationId).maybeSingle()
+    if (!org || org.user_id !== user.id) throw new Error('Only the organization’s owner can delete it.')
+    if (confirmName.trim() !== org.name.trim()) throw new Error('Type the organization name exactly to confirm.')
+
+    const { error } = await supabase.schema('gatepass').rpc('delete_organization', { p_org: organizationId })
+    if (error) throw new Error(error.message)
+
+    const store = await cookies()
+    if (store.get('gatepass-org-id')?.value === organizationId) store.delete('gatepass-org-id')
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/dashboard', 'layout')
+}
