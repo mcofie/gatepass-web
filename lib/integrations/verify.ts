@@ -1,5 +1,6 @@
 import { MPESA_EXPRESS_NOT_ENABLED } from '@/lib/payments/providers/mpesa'
 import type { ResolvedIntegration } from './store'
+import { africasTalkingBase, infobipBase, termiiBase } from './sms'
 
 export type VerifyResult = { ok: boolean; message: string }
 
@@ -72,6 +73,37 @@ export async function verifyIntegration(integration: ResolvedIntegration): Promi
                 return await probe(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(c.account_sid)}.json`, { Authorization: basic(c.account_sid, c.auth_token) }, 'Twilio')
             case 'sms:clicksend':
                 return await probe('https://rest.clicksend.com/v3/account', { Authorization: basic(c.username, c.api_key) }, 'ClickSend')
+            case 'sms:vonage':
+                return await probe(`https://rest.nexmo.com/account/get-balance?api_key=${encodeURIComponent(c.api_key)}&api_secret=${encodeURIComponent(c.api_secret)}`, {}, 'Vonage')
+            case 'sms:infobip':
+                if (!c.base_url) return { ok: false, message: 'Add your Infobip API base URL, e.g. xxxxx.api.infobip.com.' }
+                return await probe(`${infobipBase(c.base_url)}/account/1/balance`, { Authorization: `App ${c.api_key}`, Accept: 'application/json' }, 'Infobip')
+            case 'sms:plivo':
+                return await probe(`https://api.plivo.com/v1/Account/${encodeURIComponent(c.auth_id)}/`, { Authorization: basic(c.auth_id, c.auth_token) }, 'Plivo')
+            case 'sms:africastalking':
+                return await probe(`${africasTalkingBase(integration.mode === 'test')}/version1/user?username=${encodeURIComponent(c.username)}`, { apiKey: c.api_key, Accept: 'application/json' }, 'Africa’s Talking')
+            case 'sms:termii': {
+                // Termii answers bad keys with 4xx bodies rather than 401s, so read the balance response
+                const response = await fetch(`${termiiBase(c.base_url)}/api/get-balance?api_key=${encodeURIComponent(c.api_key)}`, { cache: 'no-store' })
+                const data = await response.json().catch(() => ({}))
+                return response.ok && data.balance !== undefined
+                    ? { ok: true, message: 'Connected to Termii.' }
+                    : { ok: false, message: data.message ? `Termii: ${data.message}` : 'Termii rejected this API key.' }
+            }
+            case 'sms:arkesel': {
+                const response = await fetch('https://sms.arkesel.com/api/v2/clients/balance-details', { headers: { 'api-key': c.api_key }, cache: 'no-store' })
+                const data = await response.json().catch(() => ({}))
+                return response.ok && data.status === 'success'
+                    ? { ok: true, message: 'Connected to Arkesel.' }
+                    : { ok: false, message: data.message ? `Arkesel: ${data.message}` : 'Arkesel rejected this API key.' }
+            }
+            case 'sms:mnotify': {
+                const response = await fetch(`https://api.mnotify.com/api/balance/sms?key=${encodeURIComponent(c.api_key)}`, { cache: 'no-store' })
+                const data = await response.json().catch(() => ({}))
+                return response.ok && data.status === 'success'
+                    ? { ok: true, message: 'Connected to mNotify.' }
+                    : { ok: false, message: data.message ? `mNotify: ${data.message}` : 'mNotify rejected this API key.' }
+            }
             case 'sms:hubtel':
             case 'sms:zend':
                 // No read-only endpoint to check against; delivery is confirmed with a test message instead.

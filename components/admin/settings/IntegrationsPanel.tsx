@@ -126,7 +126,7 @@ function DefaultProviderCard({ organizerId, category, provider, integration, can
 
     const details = [
         keyField && `${keyField.label} ••••${integration.credentialHints[keyField.key]}`,
-        `Checked ${timeAgo(integration.lastVerifiedAt).toLowerCase()}`,
+        integration.lastVerifiedAt ? `Checked ${timeAgo(integration.lastVerifiedAt).toLowerCase()}` : 'Not checked yet',
     ].filter(Boolean).join(' · ')
 
     return (
@@ -256,10 +256,8 @@ export function IntegrationsPanel({
                 )
             )}
 
-            <div>
-                <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">{copy.hasDefault ? 'All providers' : 'Trackers'}</h3>
-                <ul className="grid gap-3 sm:grid-cols-2">
-                    {providers.map(provider => {
+            {(() => {
+                const renderCard = (provider: ProviderDefinition) => {
                         const integration = byProvider.get(provider.id)
                         return (
                             <li key={provider.id}>
@@ -289,9 +287,30 @@ export function IntegrationsPanel({
                                 </button>
                             </li>
                         )
-                    })}
-                </ul>
-            </div>
+}
+                // Long lists (SMS) are grouped by where each provider is strongest
+                const groups = ['Global', 'Across Africa', 'Ghana'] as const
+                const grouped = providers.some(p => p.group)
+                return grouped ? (
+                    <div className="space-y-8">
+                        {groups.map(group => {
+                            const list = providers.filter(p => p.group === group)
+                            if (!list.length) return null
+                            return (
+                                <div key={group}>
+                                    <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">{group} <span className="font-normal text-gray-400">· {list.length}</span></h3>
+                                    <ul className="grid gap-3 sm:grid-cols-2">{list.map(renderCard)}</ul>
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <div>
+                        <h3 className="mb-4 text-sm font-semibold text-gray-950 dark:text-white">{copy.hasDefault ? 'All providers' : 'Trackers'}</h3>
+                        <ul className="grid gap-3 sm:grid-cols-2">{providers.map(renderCard)}</ul>
+                    </div>
+                )
+            })()}
 
             <p className="border-t border-gray-200 pt-6 text-xs leading-relaxed text-gray-500 dark:border-white/10 dark:text-gray-400">{copy.footnote}</p>
 
