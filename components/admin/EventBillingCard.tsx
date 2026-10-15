@@ -52,6 +52,15 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
                 <Loader2 className="size-4 animate-spin text-gray-400" aria-label="Loading plan" />
             ) : (
                 <div className="space-y-5">
+                    {billing.managed ? (
+                        <div>
+                            <p className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">GatePass Payments</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                {billing.managed.feePercent}% per paid ticket · no plan fee
+                                {!billing.managed.trusted && ` · ${billing.managed.reservePercent}% held until ${billing.managed.releaseHours}h after the event`}
+                            </p>
+                        </div>
+                    ) : (
                     <div>
                         <p className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{billing.tierName ?? 'No plan'}</p>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -60,9 +69,10 @@ export function EventBillingCard({ eventId, capacityKey }: { eventId: string; ca
                             {billing.priceMinor > 0 && billing.chargeCurrency !== billing.currency && ` · charged as ${formatCurrency(billing.chargeMinor / 100, billing.chargeCurrency)}`}
                         </p>
                     </div>
+                    )}
 
                     <ul className="space-y-2.5 text-sm">
-                        <ChecklistItem done={billing.covered} label={billing.covered ? 'Platform fee covered' : `Platform fee due: ${formatCurrency(billing.amountDueMinor / 100, billing.chargeCurrency)}`} />
+                        <ChecklistItem done={billing.covered} label={billing.managed ? 'No plan fee to pay' : billing.covered ? 'Platform fee covered' : `Platform fee due: ${formatCurrency(billing.amountDueMinor / 100, billing.chargeCurrency)}`} />
                         {billing.hasPaidTickets && billing.currencySupported === false && (
                             <ChecklistItem done={false} label={`${billing.currencyNote}. Change it under Payments`} />
                         )}

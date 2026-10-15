@@ -14,6 +14,8 @@ export type EventBillingSummary = PlatformFeeQuote & {
     /** null when there's no provider to check against */
     currencySupported: boolean | null
     currencyNote: string | null
+    /** Set when the event sells through GatePass Payments: per-ticket fee instead of a plan fee */
+    managed: { feePercent: number; reservePercent: number; releaseHours: number; trusted: boolean } | null
 }
 
 async function requireEventManager(eventId: string) {
@@ -60,8 +62,20 @@ export async function getEventBilling(eventId: string): Promise<EventBillingSumm
     const currency = (event?.currency as string | undefined)?.toUpperCase() ?? 'GHS'
     const currencySupported = integration ? providerSupportsCurrency(integration.provider, currency) : null
     const providerName = integration ? getProvider('payments', integration.provider)?.name : null
+    let managed: EventBillingSummary['managed'] = null
+    if (integration?.provider === 'gatepass') {
+        const { getManagedTerms } = await import('@/lib/payments/managed')
+        const [terms, { data: account }] = await Promise.all([
+            getManagedTerms(),
+            admin.schema('gatepass').from('organizer_payout_accounts').select('trust_level').eq('organizer_id', integration.organizerId).maybeSingle(),
+        ])
+        managed = { ...terms, trusted: account?.trust_level === 'trusted' }
+    }
     return {
         ...quote,
+        // GatePass Payments events pay per ticket, so the plan fee doesn't apply
+        ...(managed ? { covered: true, amountDueMinor: 0 } : {}),
+        managed,
         hasPaidTickets: (count ?? 0) > 0,
         hasPaymentProvider: provider,
         currencySupported,

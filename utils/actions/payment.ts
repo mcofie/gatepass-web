@@ -359,7 +359,7 @@ export async function processSuccessfulPayment(reference: string, reservationId?
                 virtualInstructions: ticketTier?.virtual_instructions || null,
                 tickets: ticketsToProcess.map((t) => ({
                     id: t.id,
-                    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${t.qr_code_hash}`
+                    qrCodeUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://gatepass.so'}/api/qr/${encodeURIComponent(t.qr_code_hash)}`
                 }))
             })
         }
@@ -372,6 +372,8 @@ export async function processSuccessfulPayment(reference: string, reservationId?
 
             await sendTicketEmail({
                 to: targetEmail,
+                organizerId: emailPrimaryEvent?.organization_id,
+                organizerName: emailPrimaryEvent?.organizers?.name,
                 eventName: emailPrimaryEvent?.title,
                 eventDate: new Date(emailPrimaryEvent?.starts_at).toLocaleDateString('en-US', {
                     month: 'long',

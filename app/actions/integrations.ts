@@ -332,3 +332,27 @@ export async function getDefaultPaymentProvider(organizerId: string): Promise<st
         .maybeSingle()
     return data?.provider ?? null
 }
+
+export async function sendTestEmail(organizerId: string, integrationId: string, to: string): Promise<{ success: boolean; error?: string }> {
+    await assertCanManage(organizerId)
+    const row = await getOwnedRow(organizerId, integrationId)
+    if (row.category !== 'email') throw new Error('Not an email integration')
+    const { sendEmail } = await import('@/lib/integrations/email')
+    const result = await sendEmail(resolve(row), {
+        to,
+        subject: 'Your email provider is connected to GatePass',
+        html: '<p>This is a test from GatePass. Ticket emails for your events will now be sent through this provider, from this address.</p>',
+        text: 'This is a test from GatePass. Ticket emails for your events will now be sent through this provider, from this address.',
+    })
+    await createAdminClient()
+        .schema('gatepass')
+        .from('organizer_integrations')
+        .update({
+            status: result.success ? 'connected' : 'error',
+            status_message: result.success ? `Test email sent to ${to}.` : (result.error ?? 'Test email failed.'),
+            last_verified_at: new Date().toISOString(),
+        })
+        .eq('id', integrationId)
+    revalidatePath('/dashboard/settings')
+    return result
+}
