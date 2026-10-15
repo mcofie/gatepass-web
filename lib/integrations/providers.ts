@@ -38,6 +38,19 @@ export type ProviderDefinition = {
 export const PROVIDERS: ProviderDefinition[] = [
     // Payments
     {
+        // Managed by GatePass: no keys; set up from the GatePass Payments card, not the provider grid
+        id: 'gatepass',
+        currencies: ['GHS'],
+        methods: ['Card', 'Mobile money'],
+        category: 'payments',
+        name: 'GatePass Payments',
+        description: 'No keys needed. Sales settle to your bank or mobile money the next business day.',
+        regions: 'Ghana',
+        docsUrl: 'https://gatepass.so/our-offering',
+        supportsTestMode: false,
+        fields: [],
+    },
+    {
         id: 'stripe',
         group: 'Global',
         currencies: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'ZAR'],

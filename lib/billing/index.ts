@@ -44,7 +44,8 @@ export function chargeableCurrencies(): string[] {
 
 export const isPlatformFeeReference = (reference: string) => reference.startsWith('gpfee')
 
-function gatepassAccount(): ResolvedIntegration {
+/** GatePass's own Paystack account (PAYSTACK_SECRET_KEY), used for platform fees and GatePass Payments */
+export function gatepassAccount(): ResolvedIntegration {
     const secretKey = process.env.PAYSTACK_SECRET_KEY
     if (!secretKey) throw new Error('PAYSTACK_SECRET_KEY is not defined')
     return {
@@ -206,4 +207,10 @@ export async function confirmPlatformFeePayment(reference: string): Promise<{ ev
 export async function parsePlatformFeeWebhook(headers: Headers, rawBody: string): Promise<string | null> {
     const hint = await paystack.parseWebhook(gatepassAccount(), { headers, rawBody })
     return hint?.reference && isPlatformFeeReference(hint.reference) ? hint.reference : null
+}
+
+/** Any signed charge.success on GatePass's account: platform fees and GatePass Payments ticket sales. */
+export async function parseGatepassWebhook(headers: Headers, rawBody: string): Promise<string | null> {
+    const hint = await paystack.parseWebhook(gatepassAccount(), { headers, rawBody })
+    return hint?.reference ?? null
 }

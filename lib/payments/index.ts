@@ -16,11 +16,12 @@ import { pesapal } from './providers/pesapal'
 import { yoco } from './providers/yoco'
 import { chapa } from './providers/chapa'
 import { korapay } from './providers/korapay'
+import { gatepassPayments } from './providers/gatepass'
 
 export { PaymentProviderError } from './types'
 export type { NormalizedTransaction } from './types'
 
-const ADAPTERS: Record<string, PaymentAdapter> = { paystack, stripe, flutterwave, hubtel, mpesa, wave, paypal, pesapal, yoco, chapa, korapay }
+const ADAPTERS: Record<string, PaymentAdapter> = { paystack, stripe, flutterwave, hubtel, mpesa, wave, paypal, pesapal, yoco, chapa, korapay, gatepass: gatepassPayments }
 
 export function getAdapter(provider: string): PaymentAdapter {
     const adapter = ADAPTERS[provider]
@@ -198,6 +199,8 @@ export async function confirmPayment(reference: string, integration?: ResolvedIn
         .update({ status: 'paid', transaction: enriched, paid_at: enriched.paid_at ?? new Date().toISOString() })
         .eq('reference', reference)
 
+    if (session.provider === 'gatepass') await recordReserve(session)
+
     return { status: 'success', session: { ...session, status: 'paid', transaction: enriched }, transaction: enriched }
 }
 
@@ -232,4 +235,30 @@ export async function completeFreeOrder(reservationIds: string[]): Promise<{ ref
             metadata: { reservation_ids: reservationIds, payment_type: 'free' },
         },
     }
+}
+
+/**
+ * GatePass Payments: the part of a sale held for a new organizer, released after their event.
+ * Idempotent: one row per payment reference.
+ */
+async function recordReserve(session: PaymentSession) {
+    const managed = (session.metadata as { managed?: { fee_minor?: number; reserve_minor?: number; release_hours?: number } }).managed
+    const reserveMinor = Number(managed?.reserve_minor ?? 0)
+    if (reserveMinor <= 0) return
+
+    const db = createAdminClient().schema('gatepass')
+    const { data: reservation } = await db.from('reservations').select('event_id, events(starts_at, ends_at)').in('id', session.reservation_ids).limit(1).maybeSingle()
+    const event = (Array.isArray(reservation?.events) ? reservation?.events[0] : reservation?.events) as { starts_at: string; ends_at: string | null } | null | undefined
+    const eventEnd = event ? new Date(event.ends_at ?? new Date(new Date(event.starts_at).getTime() + 12 * 3600_000).toISOString()) : new Date()
+    const releaseAfter = new Date(Math.max(eventEnd.getTime(), Date.now()) + Number(managed?.release_hours ?? 48) * 3600_000)
+
+    await db.from('payment_reserves').upsert({
+        reference: session.reference,
+        organizer_id: session.organizer_id,
+        event_id: reservation?.event_id ?? null,
+        amount_minor: reserveMinor,
+        fee_minor: Number(managed?.fee_minor ?? 0),
+        currency: session.currency,
+        release_after: releaseAfter.toISOString(),
+    }, { onConflict: 'reference', ignoreDuplicates: true })
 }
