@@ -1,283 +1,171 @@
-import { createClient } from '@/utils/supabase/server'
-import { Banknote, Calendar, Users, Activity } from 'lucide-react'
-import { PlatformPulse } from '@/components/admin/PlatformPulse'
+import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
+import { format, isSameDay, subDays } from 'date-fns'
+import { createAdminClient } from '@/utils/supabase/admin'
+import { PlatformPulse, type PulseItem } from '@/components/admin/PlatformPulse'
 import { DashboardChart } from '@/components/admin/DashboardChart'
 import { DashboardFilter } from '@/components/admin/DashboardFilter'
-import { formatCurrency, formatCompactNumber, formatCompactCurrency } from '@/utils/format'
-import { format, subDays, isSameDay, subMonths, startOfDay } from 'date-fns'
+import { getProvider } from '@/lib/integrations/providers'
+import { formatCurrency } from '@/utils/format'
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
-    const supabase = await createClient()
+/* eslint-disable @typescript-eslint/no-explicit-any -- joined rows */
+
+const RANGE_DAYS: Record<string, number | null> = { '7d': 7, '30d': 30, '90d': 90, all: null }
+
+/** Sums amounts per currency and returns the largest, plus whether others exist. */
+function byCurrency(rows: { amount: number; currency: string }[]) {
+    const totals = new Map<string, number>()
+    for (const r of rows) totals.set((r.currency || 'GHS').toUpperCase(), (totals.get((r.currency || 'GHS').toUpperCase()) ?? 0) + r.amount)
+    const [currency, amount] = [...totals.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['GHS', 0]
+    return { currency, amount, others: totals.size - (totals.size ? 1 : 0) }
+}
+
+export default async function AdminOverview({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
     const { range = '30d' } = await searchParams
+    const days = RANGE_DAYS[range] === undefined ? 30 : RANGE_DAYS[range]
+    const since = days ? subDays(new Date(), days).toISOString() : null
+    const chartDays = days ?? 30
+    // Access is checked in the layout; reads go across every organizer
+    const db = createAdminClient().schema('gatepass')
+    const inRange = (query: any) => (since ? query.gte('created_at', since) : query)
 
-    // Determine Date Range
-    let startDate: Date | null = subDays(new Date(), 30) // Default 30d
-    let daysToRender = 30
+    const now = new Date().toISOString()
+    const [fees, sales, ticketsIssued, organizers, newOrganizers, users, newUsers, liveEvents, failingProviders, pendingFees, recentSales, recentEvents, recentOrganizers] = await Promise.all([
+        since
+            ? db.from('platform_fee_payments').select('amount_minor, currency, paid_at').eq('status', 'paid').gte('paid_at', since)
+            : db.from('platform_fee_payments').select('amount_minor, currency, paid_at').eq('status', 'paid'),
+        inRange(db.from('transactions').select('amount, currency, created_at').eq('status', 'success').limit(20000)),
+        inRange(db.from('tickets').select('id', { count: 'exact', head: true })),
+        db.from('organizers').select('id', { count: 'exact', head: true }),
+        inRange(db.from('organizers').select('id', { count: 'exact', head: true })),
+        db.from('profiles').select('id', { count: 'exact', head: true }),
+        inRange(db.from('profiles').select('id', { count: 'exact', head: true })),
+        db.from('events').select('id', { count: 'exact', head: true }).eq('is_published', true).or(`ends_at.gte.${now},and(ends_at.is.null,starts_at.gte.${subDays(new Date(), 1).toISOString()})`),
+        db.from('organizer_integrations').select('id, provider, status, status_message, organizers(id, name)').eq('category', 'payments').neq('status', 'connected').limit(8),
+        db.from('platform_fee_payments').select('reference, amount_minor, currency, created_at, events(id, title), organizers(name)').eq('status', 'pending').lt('created_at', new Date(Date.now() - 3600_000).toISOString()).order('created_at', { ascending: false }).limit(5),
+        db.from('transactions').select('id, amount, currency, created_at, reservations(guest_name, profiles(full_name), events(title))').eq('status', 'success').order('created_at', { ascending: false }).limit(6),
+        db.from('events').select('id, title, venue_name, created_at, organizers(name)').order('created_at', { ascending: false }).limit(6),
+        db.from('organizers').select('id, name, created_at').order('created_at', { ascending: false }).limit(6),
+    ])
 
-    if (range === '7d') {
-        startDate = subDays(new Date(), 7)
-        daysToRender = 7
-    } else if (range === '90d') {
-        startDate = subDays(new Date(), 90)
-        daysToRender = 90
-    } else if (range === 'all') {
-        startDate = null
-        daysToRender = 30 // Fallback for chart viz if all time, or maybe handle differently. For now let's just show last 30 of all time if 'all', or maybe we can't chart 'all' easily without aggregation. Let's cap chart to 30 days for visual sanity even if 'all' is selected for totals.
-    }
+    const feeTotals = byCurrency((fees.data ?? []).map((f: any) => ({ amount: Number(f.amount_minor) / 100, currency: f.currency })))
+    const salesRows: { amount: number; currency: string; created_at: string }[] = (sales.data ?? []).map((t: any) => ({ amount: Number(t.amount) || 0, currency: t.currency, created_at: t.created_at }))
+    const salesTotals = byCurrency(salesRows)
 
-    // 1. Transactions & Revenue
-    let query = supabase
-        .schema('gatepass')
-        .from('transactions')
-        .select(`
-            amount, created_at, 
-            platform_fee, applied_processor_fee, 
-            applied_fee_rate, applied_processor_rate,
-            reservations (
-                quantity,
-                ticket_tiers ( price ),
-                discounts ( type, value ),
-                addons
-            )
-        `)
-        .eq('status', 'success')
-
-    if (startDate) {
-        query = query.gte('created_at', startDate.toISOString())
-    }
-
-    const { data: transactions } = await query
-
-    let totalRevenue = 0
-    let platformRevenue = 0
-
-    const processedTransactions = transactions?.map((tx: any) => {
-        // Robust Fee Recalculation
-        const r = tx.reservations
-        const quantity = r?.quantity || 1
-        const price = r?.ticket_tiers?.price || 0
-
-        // Discount
-        let discountAmount = 0
-        const dObj = Array.isArray(r?.discounts) ? r.discounts[0] : r?.discounts
-        if (dObj) {
-            if (dObj.type === 'percentage') {
-                discountAmount = (price * quantity) * (dObj.value / 100)
-            } else {
-                discountAmount = dObj.value
-            }
-        }
-
-        const ticketRevenue = Math.max(0, (price * quantity) - discountAmount)
-
-        // Rates
-        const platformRate = tx.applied_fee_rate ?? 0.04
-        // Normalize old 2% rate to current 1.95%
-        const storedProcessorRate = tx.applied_processor_rate
-        const processorRate = (storedProcessorRate === 0.02 || storedProcessorRate == null)
-            ? 0.0195
-            : storedProcessorRate
-
-        // Fees
-        const calcPlatformFee = ticketRevenue * platformRate
-        const calcProcessorFee = tx.amount * processorRate
-        const totalFees = calcPlatformFee + calcProcessorFee
-
-        const netPayout = tx.amount - totalFees
-
+    const chartData = Array.from({ length: chartDays }, (_, i) => {
+        const day = subDays(new Date(), chartDays - 1 - i)
         return {
-            ...tx,
-            netPayout,
-            calcPlatformFee
-        }
-    }) || []
-
-    totalRevenue = processedTransactions.reduce((acc, tx) => acc + tx.netPayout, 0)
-    // Calculate REAL platform revenue (Gatepass Take)
-    platformRevenue = processedTransactions.reduce((acc, tx) => acc + tx.calcPlatformFee, 0)
-
-    // Prepare Chart Data
-    // We render the number of days selected, or last 30 if 'all'
-    const chartData = Array.from({ length: daysToRender }).map((_, i) => {
-        const date = subDays(new Date(), (daysToRender - 1) - i)
-        const dayTotal = processedTransactions.reduce((acc, tx) => {
-            if (isSameDay(new Date(tx.created_at), date)) {
-                return acc + tx.netPayout
-            }
-            return acc
-        }, 0)
-
-        return {
-            date: format(date, 'MMM dd'),
-            revenue: dayTotal
+            date: format(day, 'd MMM'),
+            revenue: salesRows.filter(t => (t.currency || 'GHS').toUpperCase() === salesTotals.currency && isSameDay(new Date(t.created_at), day)).reduce((sum, t) => sum + t.amount, 0),
         }
     })
 
-    // 2. Active Events (Snapshot - Always Total Active)
-    const { count: activeEvents } = await supabase
-        .schema('gatepass')
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_published', true)
+    const rangeLabel = days ? `Last ${days} days` : 'All time'
+    const stats = [
+        { label: 'GatePass revenue', value: formatCurrency(feeTotals.amount, feeTotals.currency), detail: `Event fees paid${feeTotals.others ? ` · +${feeTotals.others} currencies` : ''}` },
+        { label: 'Organizer ticket sales', value: formatCurrency(salesTotals.amount, salesTotals.currency), detail: `Paid to organizers${salesTotals.others ? ` · +${salesTotals.others} currencies` : ''}` },
+        { label: 'Tickets issued', value: (ticketsIssued.count ?? 0).toLocaleString(), detail: rangeLabel },
+        { label: 'Live events', value: (liveEvents.count ?? 0).toLocaleString(), detail: 'Published and not over' },
+        { label: 'Organizers', value: (organizers.count ?? 0).toLocaleString(), detail: `${(newOrganizers.count ?? 0).toLocaleString()} new · ${rangeLabel.toLowerCase()}` },
+        { label: 'Users', value: (users.count ?? 0).toLocaleString(), detail: `${(newUsers.count ?? 0).toLocaleString()} new · ${rangeLabel.toLowerCase()}` },
+    ]
 
-    // 3. New Users (In Range) or Total Users (if All)
-    let userQuery = supabase
-        .schema('gatepass')
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-
-    if (startDate) {
-        userQuery = userQuery.gte('created_at', startDate.toISOString())
-    }
-
-    // Fallback: Get TOTAL for context if we want, but let's stick to the requested filter behavior.
-    // If filtering, "Users" card implies "New Users in Period".
-    const { count: userCount } = await userQuery
-
-    // --- PULSE DATA FETCHING ---
-    const { data: recentSales } = await supabase
-        .schema('gatepass')
-        .from('transactions')
-        .select(`
-            id, amount, currency, created_at,
-            reservations ( 
-                guest_name, 
-                profiles ( full_name ),
-                events ( title )
-            )
-        `)
-        .eq('status', 'success')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-    const { data: recentUsers } = await supabase
-        .schema('gatepass')
-        .from('profiles')
-        .select('id, full_name, email, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-    const { data: recentEvents } = await supabase
-        .schema('gatepass')
-        .from('events')
-        .select('id, title, venue_name, created_at, organizers(name)')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-    // Merge & Format
-    const pulseItems = [
-        ...(recentSales?.map(s => ({
+    const pulse: PulseItem[] = [
+        ...(recentSales.data ?? []).map((s: any) => ({
             id: s.id,
-            type: 'sale',
-            title: `New Sale: ${formatCurrency(s.amount, s.currency)}`,
-            subtitle: `${(s.reservations as any)?.profiles?.full_name || (s.reservations as any)?.guest_name || 'Guest'} bought ${(s.reservations as any)?.events?.title || 'Unknown Event'} tix`,
-            timestamp: s.created_at
-        })) || []),
-        ...(recentUsers?.map(u => ({
-            id: u.id,
-            type: 'user',
-            title: `New User: ${u.full_name || 'No Name'} `,
-            subtitle: u.email,
-            timestamp: u.created_at
-        })) || []),
-        ...(recentEvents?.map(e => ({
+            type: 'sale' as const,
+            title: `${formatCurrency(s.amount, s.currency)} · ${s.reservations?.events?.title ?? 'Ticket sale'}`,
+            subtitle: s.reservations?.profiles?.full_name || s.reservations?.guest_name || 'Guest',
+            timestamp: s.created_at,
+        })),
+        ...(recentEvents.data ?? []).map((e: any) => ({
             id: e.id,
-            type: 'event',
-            title: `Event Created: ${e.title} `,
-            subtitle: `By ${(e.organizers as any)?.name || 'Unknown'} at ${e.venue_name} `,
-            timestamp: e.created_at
-        })) || [])
-    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 10) as any[]
+            type: 'event' as const,
+            title: `New event · ${e.title}`,
+            subtitle: [e.organizers?.name, e.venue_name].filter(Boolean).join(' · '),
+            timestamp: e.created_at,
+        })),
+        ...(recentOrganizers.data ?? []).map((o: any) => ({
+            id: o.id,
+            type: 'user' as const,
+            title: `New organizer · ${o.name}`,
+            subtitle: 'Signed up',
+            timestamp: o.created_at,
+        })),
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8)
+
+    const attention = [
+        ...(failingProviders.data ?? []).map((i: any) => ({
+            key: `int-${i.id}`,
+            title: `${i.organizers?.name ?? 'An organizer'}: ${getProvider('payments', i.provider)?.name ?? i.provider} ${i.status === 'error' ? 'is failing' : 'isn’t verified'}`,
+            detail: i.status_message || 'Payments through this connection may not work.',
+            href: i.organizers?.id ? `/admin/users?organizer=${i.organizers.id}` : '/admin/users',
+        })),
+        ...(pendingFees.data ?? []).map((p: any) => ({
+            key: `fee-${p.reference}`,
+            title: `${p.organizers?.name ?? 'An organizer'} started paying for ${p.events?.title ?? 'an event'}`,
+            detail: `${formatCurrency(Number(p.amount_minor) / 100, p.currency)} event fee, not completed`,
+            href: p.events?.id ? `/admin/events/${p.events.id}` : '/admin/events',
+        })),
+    ]
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-8 pb-8">
+            <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white mb-2">Overview</h1>
-                    <p className="text-gray-500 dark:text-gray-400">System-wide performance metrics.</p>
+                    <h1 className="text-[34px] font-semibold leading-none tracking-[-0.04em] text-gray-950 dark:text-white sm:text-[44px]">Overview</h1>
+                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">How GatePass is doing across every organizer.</p>
                 </div>
                 <DashboardFilter />
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                    title={range === 'all' ? "Total Revenue" : "Revenue"}
-                    value={totalRevenue}
-                    currency="GHS"
-                    icon={Banknote}
-                    color="text-green-400"
-                    subtitle={range !== 'all' ? `Last ${daysToRender} days` : 'All time'}
-                />
-                <StatCard
-                    title="Platform Fees"
-                    value={platformRevenue}
-                    currency="GHS"
-                    icon={Activity}
-                    color="text-purple-400"
-                    subtitle={range !== 'all' ? `Realized Revenue` : 'All time'}
-                />
-                <StatCard
-                    title="Active Events"
-                    value={activeEvents || 0}
-                    icon={Calendar}
-                    color="text-blue-400"
-                    subtitle="Currently Live"
-                />
-                <StatCard
-                    title={range === 'all' ? "Total Users" : "New Users"}
-                    value={userCount || 0}
-                    icon={Users}
-                    color="text-orange-400"
-                    subtitle={range !== 'all' ? `Last ${daysToRender} days` : 'All time'}
-                />
-            </div>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-gray-200 bg-gray-200 dark:border-white/10 dark:bg-white/10 lg:grid-cols-3">
+                {stats.map(stat => (
+                    <div key={stat.label} className="min-w-0 bg-white p-5 dark:bg-[#0b0b0b] sm:p-6">
+                        <dt className="text-sm text-gray-500 dark:text-gray-400">{stat.label}</dt>
+                        <dd className="mt-3 truncate text-[24px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-gray-950 dark:text-white sm:text-[30px]" title={stat.value}>{stat.value}</dd>
+                        <dd className="mt-2 truncate text-xs text-gray-400 dark:text-gray-500">{stat.detail}</dd>
+                    </div>
+                ))}
+            </dl>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Main Content Area */}
-                <div className="lg:col-span-2 space-y-6">
-                    <DashboardChart data={chartData} currency="GHS" />
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+                <div className="space-y-6">
+                    <DashboardChart
+                        data={chartData}
+                        currency={salesTotals.currency}
+                        title="Ticket sales"
+                        description={`${salesTotals.currency} sold by organizers per day · ${days ? rangeLabel.toLowerCase() : 'last 30 days'}`}
+                    />
+
+                    <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-white/10 dark:bg-[#0b0b0b]">
+                        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10 sm:px-6">
+                            <h2 className="text-base font-semibold text-gray-950 dark:text-white">Needs attention</h2>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{attention.length || 'All clear'}</span>
+                        </div>
+                        {attention.length === 0 ? (
+                            <p className="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400 sm:px-6">No failing payment connections or stuck event fees.</p>
+                        ) : (
+                            <ul className="divide-y divide-gray-100 dark:divide-white/10">
+                                {attention.map(item => (
+                                    <li key={item.key}>
+                                        <Link href={item.href} className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03] sm:px-6">
+                                            <span className="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-medium text-gray-950 dark:text-white">{item.title}</span>
+                                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{item.detail}</span>
+                                            </span>
+                                            <ArrowUpRight className="size-4 shrink-0 text-gray-300 transition-colors group-hover:text-gray-950 dark:text-gray-600 dark:group-hover:text-white" aria-hidden="true" />
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
                 </div>
 
-                {/* Side Feed */}
-                <div>
-                    <PlatformPulse items={pulseItems} viewAllLink="/admin/activity" />
-                </div>
+                <PlatformPulse items={pulse} viewAllLink="/admin/activity" />
             </div>
-        </div>
-    )
-}
-
-function StatCard({ title, value, currency, icon: Icon, color, subtitle, trend }: any) {
-    const isPositive = trend > 0
-    const isNegative = trend < 0
-
-    return (
-        <div className="p-6 rounded-2xl bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all group shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{title}</p>
-                <div className={`p-2 rounded-lg bg-gray-50 dark:bg-white/5 group-hover:bg-gray-100 dark:group-hover:bg-white/10 transition-colors ${color}`}>
-                    <Icon className="w-5 h-5" />
-                </div>
-            </div>
-
-            <div className="flex items-baseline gap-2 overflow-hidden">
-                <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight truncate" title={currency ? formatCurrency(value, currency) : value.toLocaleString()}>
-                    {currency ? formatCompactCurrency(value, currency) : formatCompactNumber(value)}
-                </p>
-                {trend !== undefined && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${isPositive ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
-                        isNegative ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
-                            'bg-gray-500/10 text-gray-500'
-                        }`}>
-                        {isPositive ? '↑' : isNegative ? '↓' : '•'} {Math.abs(trend)}%
-                    </span>
-                )}
-            </div>
-
-            {subtitle && (
-                <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-2 font-medium tracking-wide uppercase">{subtitle}</p>
-            )}
         </div>
     )
 }

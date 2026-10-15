@@ -1,29 +1,38 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, Calendar, Banknote, LogOut, FileText, Settings, Activity } from 'lucide-react'
+import { ArrowLeft, Activity, Banknote, Calendar, FileText, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
+import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/client'
-import { User } from '@supabase/supabase-js'
-import { Skeleton } from '@/components/ui/skeleton'
 import { GatePassMark } from '@/components/branding/GatePassMark'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 
+const NAV = [
+    { name: 'Overview', path: '/admin', icon: LayoutDashboard },
+    { name: 'Events', path: '/admin/events', icon: Calendar },
+    { name: 'Users', path: '/admin/users', icon: Users },
+    { name: 'Financials', path: '/admin/financials', icon: Banknote },
+    { name: 'Activity', path: '/admin/activity', icon: Activity },
+    { name: 'Reports', path: '/admin/reports', icon: FileText },
+    { name: 'Settings', path: '/admin/settings', icon: Settings },
+]
+
+/** Platform admin navigation, styled like the organizer dashboard so both feel like one product. */
 export function SuperAdminSidebar() {
     const pathname = usePathname()
     const router = useRouter()
-    const supabase = createClient()
+    const supabase = useMemo(() => createClient(), [])
     const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [open, setOpen] = useState(false)
 
     useEffect(() => {
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            setUser(user)
-            setLoading(false)
-        }
-        checkUser()
-    }, [])
+        supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    }, [supabase])
+
+    const isActive = (path: string) => (path === '/admin' ? pathname === path : pathname.startsWith(path))
+    const close = () => setOpen(false)
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
@@ -31,96 +40,63 @@ export function SuperAdminSidebar() {
         router.refresh()
     }
 
-    const isActive = (path: string) => {
-        if (path === '/admin') return pathname === path
-        return pathname.startsWith(path)
-    }
-
-    const navItems = [
-        { name: 'Overview', path: '/admin', icon: LayoutDashboard },
-        { name: 'Events', path: '/admin/events', icon: Calendar },
-        { name: 'Users', path: '/admin/users', icon: Users },
-        { name: 'Financials', path: '/admin/financials', icon: Banknote },
-        { name: 'Activity Log', path: '/admin/activity', icon: Activity },
-        { name: 'Reports', path: '/admin/reports', icon: FileText },
-        { name: 'System Settings', path: '/admin/settings', icon: Settings },
-    ]
+    const linkClass = (active: boolean) => 'flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ' + (active
+        ? 'bg-gray-950 text-white dark:bg-white dark:text-black'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white')
 
     return (
-        <aside className="w-72 bg-white dark:bg-[#000000] text-gray-900 dark:text-white flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-gray-200 dark:border-white/10">
-            {/* Brand */}
-            <div className="p-8 pb-12">
-                <Link href="/admin" className="flex items-center gap-3 group">
-                    <GatePassMark className="size-10 transition-transform group-hover:scale-105" />
-                    <div>
-                        <h1 className="font-bold tracking-tight text-lg leading-tight text-gray-900 dark:text-white">
-                            GatePass
-                        </h1>
-                        <p className="text-[10px] text-red-500 font-bold tracking-widest uppercase">Super Admin</p>
-                    </div>
+        <>
+            <div className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-5 dark:border-white/10 dark:bg-[#0b0b0b] lg:hidden">
+                <Link href="/admin" className="flex items-center gap-2.5 text-base font-semibold tracking-tight">
+                    <GatePassMark className="size-8" /> Admin
                 </Link>
-            </div>
-
-            {/* Navigation */}
-            <nav className="flex-1 px-4 space-y-1">
-                <Link
-                    href="/dashboard"
-                    className="flex items-center gap-3 px-4 py-3 mb-6 rounded-2xl bg-white/5 text-gray-400 hover:bg-white hover:text-black transition-all duration-300 group border border-white/10"
-                >
-                    <LayoutDashboard className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    <div className="flex-1">
-                        <p className="text-[11px] font-bold leading-none uppercase tracking-widest">Organizer Mode</p>
-                        <p className="text-[9px] opacity-70 mt-0.5 font-medium leading-none">Return to Dashboard</p>
-                    </div>
-                </Link>
-
-                <p className="px-4 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">God Mode</p>
-
-                {navItems.map((item) => (
-                    <Link
-                        key={item.path}
-                        href={item.path}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive(item.path)
-                            ? 'bg-black text-white dark:bg-white dark:text-black shadow-lg shadow-black/5 dark:shadow-white/5'
-                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#1a1a1a]'
-                            }`}
-                    >
-                        <item.icon className={`w-4 h-4 transition-colors ${isActive(item.path) ? 'text-white dark:text-black' : 'text-gray-400 dark:text-gray-500 group-hover:text-black dark:group-hover:text-white'}`} />
-                        {item.name}
-                    </Link>
-                ))}
-            </nav>
-
-            {/* User Profile */}
-            <div className="p-4 border-t border-gray-200 dark:border-white/10">
-                <div className="bg-gray-50 dark:bg-[#111] rounded-2xl p-1 mb-2 border border-gray-200 dark:border-white/10">
-                    {loading ? (
-                        <div className="flex items-center gap-3 px-3 py-2.5">
-                            <Skeleton className="w-8 h-8 rounded-full bg-gray-200 dark:bg-[#222]" />
-                            <div className="space-y-1">
-                                <Skeleton className="w-32 h-3 bg-gray-200 dark:bg-[#222]" />
-                                <Skeleton className="w-20 h-2 bg-gray-200 dark:bg-[#222]" />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-3 px-3 py-2.5">
-                            <div className="w-8 h-8 bg-gradient-to-tr from-red-600 to-red-500 dark:from-red-900 dark:to-red-800 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-inner">
-                                {user?.email?.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="overflow-hidden flex-1">
-                                <p className="text-[12px] font-medium text-gray-900 dark:text-white truncate">{user?.email}</p>
-                                <p className="text-[10px] text-red-500 dark:text-red-400">System Operator</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-3 text-gray-500 dark:text-gray-400 text-[12px] font-medium hover:text-gray-900 dark:hover:text-white transition flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl"
-                >
-                    <LogOut className="w-3.5 h-3.5" /> Return to Login
+                <button type="button" onClick={() => setOpen(true)} aria-label="Open admin menu" aria-expanded={open} className="flex size-9 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-white/10">
+                    <Menu className="size-5" />
                 </button>
             </div>
-        </aside>
+            {open && <button type="button" aria-label="Close admin menu" onClick={close} className="fixed inset-0 z-40 bg-black/40 lg:hidden" />}
+
+            <aside className={'fixed inset-y-0 left-0 z-50 flex h-screen w-[260px] shrink-0 flex-col border-r border-gray-200 bg-white text-gray-950 transition-transform duration-200 dark:border-white/10 dark:bg-[#0b0b0b] dark:text-white lg:sticky lg:top-0 lg:translate-x-0 ' + (open ? 'translate-x-0' : '-translate-x-full')}>
+                <div className="flex items-center justify-between px-5 pb-4 pt-5">
+                    <Link href="/admin" onClick={close} className="flex items-center gap-2.5">
+                        <GatePassMark className="size-8" />
+                        <span>
+                            <span className="block text-[15px] font-semibold leading-tight tracking-[-0.03em]">GatePass</span>
+                            <span className="block text-[11px] text-gray-500 dark:text-gray-400">Platform admin</span>
+                        </span>
+                    </Link>
+                    <button type="button" aria-label="Close admin menu" onClick={close} className="flex size-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 lg:hidden"><X className="size-4" /></button>
+                </div>
+
+                <div className="px-3">
+                    <Link href="/dashboard" onClick={close} className="flex h-10 items-center gap-2 rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white">
+                        <ArrowLeft className="size-4" aria-hidden="true" /> Organizer dashboard
+                    </Link>
+                </div>
+
+                <nav aria-label="Admin navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
+                    {NAV.map(item => (
+                        <Link key={item.path} href={item.path} onClick={close} aria-current={isActive(item.path) ? 'page' : undefined} className={linkClass(isActive(item.path))}>
+                            <item.icon className="size-[18px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                            {item.name}
+                        </Link>
+                    ))}
+                </nav>
+
+                <div className="border-t border-gray-100 p-3 dark:border-white/10">
+                    <div className="flex items-center gap-3 px-2 py-2">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold dark:bg-white/10">{user?.email?.charAt(0).toUpperCase() || 'A'}</span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-medium">{user?.email ?? ' '}</span>
+                            <span className="block text-[11px] text-gray-500 dark:text-gray-400">Platform admin</span>
+                        </span>
+                        <ThemeToggle />
+                    </div>
+                    <button type="button" onClick={handleLogout} className="mt-1 flex h-9 w-full items-center gap-2 rounded-xl px-3 text-[13px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white">
+                        <LogOut className="size-4" aria-hidden="true" /> Sign out
+                    </button>
+                </div>
+            </aside>
+        </>
     )
 }
