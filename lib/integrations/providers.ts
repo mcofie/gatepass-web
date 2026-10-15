@@ -18,6 +18,8 @@ export type ProviderDefinition = {
     name: string
     description: string
     regions: string
+    /** Where the provider is strongest, for grouping long lists */
+    group?: 'Global' | 'Across Africa' | 'Ghana'
     docsUrl: string
     supportsTestMode: boolean
     fields: CredentialField[]
@@ -132,6 +134,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     {
         id: 'twilio',
         category: 'sms',
+        group: 'Global',
         name: 'Twilio',
         description: 'Global SMS delivery.',
         regions: 'Global',
@@ -144,8 +147,54 @@ export const PROVIDERS: ProviderDefinition[] = [
         ],
     },
     {
+        id: 'vonage',
+        category: 'sms',
+        group: 'Global',
+        name: 'Vonage',
+        description: 'Global SMS from the former Nexmo.',
+        regions: 'Global',
+        docsUrl: 'https://dashboard.nexmo.com/settings',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: false, required: true },
+            { key: 'api_secret', label: 'API secret', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID or number', secret: false, required: true, placeholder: 'GATEPASS' },
+        ],
+    },
+    {
+        id: 'infobip',
+        category: 'sms',
+        group: 'Global',
+        name: 'Infobip',
+        description: 'Global SMS with strong African coverage.',
+        regions: 'Global',
+        docsUrl: 'https://portal.infobip.com/dev/api-keys',
+        supportsTestMode: false,
+        fields: [
+            { key: 'base_url', label: 'API base URL', secret: false, required: true, placeholder: 'xxxxx.api.infobip.com', help: 'Shown on the Infobip portal homepage. It’s unique to your account.' },
+            { key: 'api_key', label: 'API key', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID', secret: false, required: false, placeholder: 'GATEPASS' },
+        ],
+    },
+    {
+        id: 'plivo',
+        category: 'sms',
+        group: 'Global',
+        name: 'Plivo',
+        description: 'Global SMS API.',
+        regions: 'Global',
+        docsUrl: 'https://console.plivo.com/dashboard/',
+        supportsTestMode: false,
+        fields: [
+            { key: 'auth_id', label: 'Auth ID', secret: false, required: true, placeholder: 'MA…' },
+            { key: 'auth_token', label: 'Auth token', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID or number', secret: false, required: true, placeholder: 'GATEPASS or +1555…' },
+        ],
+    },
+    {
         id: 'clicksend',
         category: 'sms',
+        group: 'Global',
         name: 'ClickSend',
         description: 'SMS in 200+ countries.',
         regions: 'Global',
@@ -158,8 +207,67 @@ export const PROVIDERS: ProviderDefinition[] = [
         ],
     },
     {
+        id: 'africastalking',
+        category: 'sms',
+        group: 'Across Africa',
+        name: 'Africa’s Talking',
+        description: 'SMS across East and West Africa.',
+        regions: 'Kenya, Nigeria, Uganda, Tanzania, Rwanda, Malawi, Zambia and more',
+        docsUrl: 'https://account.africastalking.com/apps',
+        supportsTestMode: true,
+        fields: [
+            { key: 'username', label: 'App username', secret: false, required: true, placeholder: 'sandbox', help: 'Use “sandbox” with your sandbox API key in test mode.' },
+            { key: 'api_key', label: 'API key', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID', secret: false, required: false, placeholder: 'GATEPASS', help: 'Leave empty to use the shared short code.' },
+        ],
+    },
+    {
+        id: 'termii',
+        category: 'sms',
+        group: 'Across Africa',
+        name: 'Termii',
+        description: 'SMS for Nigeria and across Africa.',
+        regions: 'Nigeria and pan-African',
+        docsUrl: 'https://accounts.termii.com',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID', secret: false, required: true, placeholder: 'GATEPASS', help: 'Must be approved in your Termii dashboard.' },
+            { key: 'base_url', label: 'API base URL', secret: false, required: false, placeholder: 'https://api.ng.termii.com', help: 'Only if your Termii dashboard shows a different one.' },
+        ],
+    },
+    {
+        id: 'arkesel',
+        category: 'sms',
+        group: 'Ghana',
+        name: 'Arkesel',
+        description: 'SMS for Ghana.',
+        regions: 'Ghana',
+        docsUrl: 'https://sms.arkesel.com/user/sms-api/info',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID', secret: false, required: true, placeholder: 'GATEPASS' },
+        ],
+    },
+    {
+        id: 'mnotify',
+        category: 'sms',
+        group: 'Ghana',
+        name: 'mNotify',
+        description: 'SMS for Ghana.',
+        regions: 'Ghana',
+        docsUrl: 'https://apps.mnotify.net/api/api',
+        supportsTestMode: false,
+        fields: [
+            { key: 'api_key', label: 'API key', secret: true, required: true },
+            { key: 'sender_id', label: 'Sender ID', secret: false, required: true, placeholder: 'GATEPASS', help: 'Must be registered in your mNotify account.' },
+        ],
+    },
+    {
         id: 'zend',
         category: 'sms',
+        group: 'Ghana',
         name: 'Zend',
         description: 'SMS for Ghana and West Africa.',
         regions: 'Ghana',
@@ -173,6 +281,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     {
         id: 'hubtel',
         category: 'sms',
+        group: 'Ghana',
         name: 'Hubtel',
         description: 'SMS for Ghana.',
         regions: 'Ghana',
